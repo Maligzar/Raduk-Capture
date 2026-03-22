@@ -119,6 +119,14 @@ public:
     bool ADCVisible() const              { return m_showADC; }
     void ToggleADC()                     { m_showADC = !m_showADC; }
 
+    // ── Clipping warning overlay ───────────────────────────────
+    // Flash overexposed pixels red in the bitmap. Feed clipPct from
+    // FrameAnalyzer each frame. Toggle via CLIP toolbar button or key.
+    void SetShowClip(bool show) { m_showClip = show; }
+    bool ClipVisible()    const { return m_showClip; }
+    void ToggleClip()           { m_showClip = !m_showClip; }
+    void SetClipPct(float pct)  { m_clipPct = pct; }
+
 private:
     void DebayerRGGB(const uint8_t* raw, uint8_t* rgb, int width, int height, int bitDepth);
     D2D1_RECT_F CalculateZoomedRect(int frameW, int frameH, int previewX, int previewW, int previewH);
@@ -157,8 +165,13 @@ private:
     DebayerMode             m_debayerMode   = DebayerMode::Color;
 
     // ADC overlay
-    double                  m_mountAltDeg   = -1.0;  // -1 = unknown
-    bool                    m_showADC       = true;   // on by default
+    double                  m_mountAltDeg   = -1.0;
+    bool                    m_showADC       = true;
+
+    // Clipping warning
+    bool                    m_showClip      = false; // off by default
+    float                   m_clipPct       = 0.0f;
+    int                     m_clipFlash     = 0;    // frame counter for flash
 
     // Last drawn frame rect — used for hit testing frame bar clicks
     D2D1_RECT_F             m_lastDestRect  = {};

@@ -1158,6 +1158,7 @@ static int RunApp(bool useEmulator) {
         slog.Safety("EMERGENCY STOP");
     });
     window.SetReticleToggleHandler([&]()    { doReticle();          });
+    window.SetClipToggleHandler([&]()       { preview.ToggleClip(); });
     window.SetZoomCycleHandler([&]()        { doZoom();              });
     window.SetFullscreenToggleHandler([&]() { doFullscreen();        });
     window.SetGoToToggleHandler([&]()       { gotoPanel.ShowCentered(); });
@@ -1208,6 +1209,7 @@ static int RunApp(bool useEmulator) {
     toolbar.SetMapCallback([&]()   { skyMap.Toggle(); });
     toolbar.SetGoToCallback([&]()  { gotoPanel.ShowCentered(); });
     toolbar.SetReticleCallback([&]() { doReticle(); });
+    toolbar.SetClipCallback([&]()    { preview.ToggleClip(); });
 
     // Forward WM_COMMAND from main window to toolbar
     window.SetToolbarCommandHandler([&](int id) -> bool {
@@ -1479,6 +1481,10 @@ static int RunApp(bool useEmulator) {
         if (lastAnalysis.valid)
             controls.UpdateAnalysis(lastAnalysis);
 
+        // Phase 21: feed clip percentage to preview for clipping overlay
+        if (lastAnalysis.valid)
+            preview.SetClipPct(lastAnalysis.clipPct);
+
         // Phase 9: feed sharpness to autofocus scan if running
         if (lastAnalysis.valid && autofocus.IsRunning())
             autofocus.SubmitSharpness(lastAnalysis.sharpnessPct);
@@ -1527,7 +1533,8 @@ static int RunApp(bool useEmulator) {
                 preview.GetDebayerMode() == raduk::gui::DebayerMode::Color,
                 skyMap.IsVisible(),
                 gotoPanel.IsVisible(),
-                preview.ReticleVisible());
+                preview.ReticleVisible(),
+                preview.ClipVisible());
         }
 
         int clientW = window.ClientWidth();

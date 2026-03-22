@@ -449,10 +449,25 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                         frame->width, frame->height, frame->bitDepth);
             size_t n = (size_t)frame->width * frame->height;
             std::vector<uint8_t> rgba(n * 4);
+
+            // Clip flash: alternate red / original every 8 frames
+            bool flashOn = m_showClip && ((m_clipFlash / 8) % 2 == 0);
+            ++m_clipFlash;
+
             for (size_t i = 0; i < n; i++) {
-                rgba[i*4+0] = m_rgbBuffer[i*3+0];
-                rgba[i*4+1] = m_rgbBuffer[i*3+1];
-                rgba[i*4+2] = m_rgbBuffer[i*3+2];
+                uint8_t r = m_rgbBuffer[i*3+0];
+                uint8_t g = m_rgbBuffer[i*3+1];
+                uint8_t b = m_rgbBuffer[i*3+2];
+                // Clip: any channel saturated
+                if (flashOn && (r == 255 || g == 255 || b == 255)) {
+                    rgba[i*4+0] = 220;
+                    rgba[i*4+1] = 10;
+                    rgba[i*4+2] = 10;
+                } else {
+                    rgba[i*4+0] = r;
+                    rgba[i*4+1] = g;
+                    rgba[i*4+2] = b;
+                }
                 rgba[i*4+3] = 255;
             }
             if (m_bitmap) {
@@ -462,15 +477,19 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                     D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
             }
         } else { // DebayerMode::Raw — grayscale Bayer
-            // DebayerMode::Off — draw raw Bayer as grayscale
             size_t n = (size_t)frame->width * frame->height;
             std::vector<uint8_t> rgba(n * 4);
             const uint8_t* src = frame->data;
+            bool flashOn = m_showClip && ((m_clipFlash / 8) % 2 == 0);
             for (size_t i = 0; i < n; i++) {
                 uint8_t v = (frame->bitDepth == 16)
                     ? (uint8_t)(reinterpret_cast<const uint16_t*>(src)[i] >> 4)
                     : src[i];
-                rgba[i*4+0] = rgba[i*4+1] = rgba[i*4+2] = v;
+                if (flashOn && v == 255) {
+                    rgba[i*4+0] = 220; rgba[i*4+1] = 10; rgba[i*4+2] = 10;
+                } else {
+                    rgba[i*4+0] = rgba[i*4+1] = rgba[i*4+2] = v;
+                }
                 rgba[i*4+3] = 255;
             }
             if (m_bitmap) {
@@ -542,6 +561,19 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
             m_renderTarget->DrawText(L"[+] RETICLE ON", 14,
                                       m_hudFont, rRect, m_reticleBrush);
+        }
+
+        // Clipping warning — shown whenever clip > 0, flash state indicates severity
+        if (m_showClip && m_clipPct > 0.05f && m_redBrush) {
+            wchar_t clipBuf[32];
+            swprintf(clipBuf, 32, L"CLIP %.1f%%", m_clipPct);
+            // Flash the label in sync with the pixel flash
+            bool labelFlash = (m_clipFlash / 8) % 2 == 0;
+            ID2D1SolidColorBrush* clipBrush = labelFlash ? m_redBrush : m_amberBrush;
+            D2D1_RECT_F clipRect = D2D1::RectF(px+pw-140, 58, px+pw-8, 72);
+            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+            m_renderTarget->DrawText(clipBuf, (UINT32)wcslen(clipBuf),
+                                     m_hudFont, clipRect, clipBrush);
         }
 
         if (hasFrame && frame) {

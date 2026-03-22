@@ -1,16 +1,6 @@
 #pragma once
 // ============================================================
 // Window.h — Win32 window management for RadukCapture
-//
-// Architecture (post-refactor):
-//   Main window  — dark background, handles keyboard + resize
-//   Preview child — D2D renders here; owns mouse for ROI/zoom
-//   ToolbarStrip  — WS_CHILD at y=0, h=30
-//   ControlPanel  — WS_CHILD at right edge
-//   StatusBar     — drawn by D2D inside preview child
-//
-// D2D renders into m_previewHwnd, not the main HWND.
-// Zero bleed: child window clipping handles all boundaries.
 // ============================================================
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -40,6 +30,8 @@ public:
     void Run(std::function<void()> onRender);
 
     // ── Message routing ────────────────────────────────────────
+    // NOTE: WM_COMMAND and WM_HSCROLL from the panel's own WndProc
+    // are handled inside ControlPanel directly — no forwarding needed.
     void SetScrollHandler(std::function<bool(WPARAM, LPARAM)> handler) {
         m_onScroll = handler;
     }
@@ -47,6 +39,7 @@ public:
     // ── Action callbacks ───────────────────────────────────────
     void SetEmergencyStopHandler(std::function<void()> h)    { m_onEmergencyStop    = h; }
     void SetReticleToggleHandler(std::function<void()> h)    { m_onReticleToggle    = h; }
+    void SetClipToggleHandler(std::function<void()> h)       { m_onClipToggle       = h; }
     void SetZoomCycleHandler(std::function<void()> h)        { m_onZoomCycle        = h; }
     void SetGoToToggleHandler(std::function<void()> h)       { m_onGoToToggle       = h; }
     void SetSkyMapToggleHandler(std::function<void()> h)     { m_onSkyMapToggle     = h; }
@@ -57,57 +50,56 @@ public:
     void SetFullscreenToggleHandler(std::function<void()> h) { m_onFullscreenToggle = h; }
     void SetJogHandler(std::function<void(int,int,bool)> h)  { m_onJog              = h; }
     void SetAutofocusToggleHandler(std::function<void()> h)  { m_onAutofocusToggle  = h; }
-    void SetMoveHandler(std::function<void()> h)             { m_onMove             = h; }
-    void SetToolbarCommandHandler(std::function<bool(int)> h){ m_onToolbarCommand   = h; }
 
-    // Mouse events — fired from the preview child window
-    void SetClickHandler(std::function<bool(float,float)> h)     { m_onClick     = h; }
-    void SetMouseMoveHandler(std::function<void(float,float)> h) { m_onMouseMove = h; }
-    void SetMouseUpHandler(std::function<void(float,float)> h)   { m_onMouseUp   = h; }
-    void SetUserMessageHandler(std::function<void(UINT)> h)      { m_onUserMsg   = h; }
+    // Called when main window moves or resizes — panel uses this to stay docked
+    void SetMoveHandler(std::function<void()> h) { m_onMove = h; }
+    // Toolbar button commands — return true to consume
+    void SetToolbarCommandHandler(std::function<bool(int)> h) { m_onToolbarCommand = h; }
+
+    // Called on WM_LBUTTONDOWN — x/y in client coords. Return true to consume.
+    void SetClickHandler(std::function<bool(float,float)> h)        { m_onClick     = h; }
+    // Called on WM_MOUSEMOVE
+    void SetMouseMoveHandler(std::function<void(float,float)> h)    { m_onMouseMove = h; }
+    // Called on WM_LBUTTONUP
+    void SetMouseUpHandler(std::function<void(float,float)> h)      { m_onMouseUp   = h; }
+    // Called on WM_USER + n — for cross-thread signalling (e.g. from WS command thread)
+    void SetUserMessageHandler(std::function<void(UINT)> h)         { m_onUserMsg   = h; }
 
     // ── Getters ────────────────────────────────────────────────
     HWND Handle()                         const { return m_hwnd; }
-    HWND PreviewHandle()                  const { return m_previewHwnd; }
     ID2D1HwndRenderTarget* RenderTarget() const { return m_renderTarget; }
     IDWriteFactory* DWriteFactory()       const { return m_dwriteFactory; }
     int  ClientWidth()                    const { return m_clientWidth; }
     int  ClientHeight()                   const { return m_clientHeight; }
-
-    // PreviewWidth: read from D2D render target pixel size (authoritative).
+    // Authoritative preview width — reads directly from the D2D render target size.
+    // Always in sync with what D2D actually renders into, regardless of DPI scaling
+    // or any race between WM_SIZE and the render loop.
     int  PreviewWidth() const {
         if (m_renderTarget) {
             D2D1_SIZE_U sz = m_renderTarget->GetPixelSize();
             if (sz.width > 0) return (int)sz.width;
         }
-        return (m_clientWidth > PANEL_RESERVED) ? m_clientWidth - PANEL_RESERVED : 100;
+        int pw = m_clientWidth - 580;  // render target reservation
+        return pw > 100 ? pw : 100;
     }
+    float DpiScale() const { return m_dpiScale; }
+    bool IsOpen()                         const { return m_hwnd != nullptr; }
+    bool IsFullscreen()                   const { return m_fullscreen; }
 
-    float DpiScale()      const { return m_dpiScale; }
-    bool  IsOpen()        const { return m_hwnd != nullptr; }
-    bool  IsFullscreen()  const { return m_fullscreen; }
-
+    // Fullscreen: stretches main window to cover the monitor.
+    // Panel window is unaffected — stays wherever it is.
     void ToggleFullscreen();
 
-    // Panel reserved width — must match ControlPanel.h PANEL_WIDTH + scrollbar
-    static constexpr int PANEL_RESERVED = 580;
-
 private:
-    // Main window proc
-    static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg,
-                                     WPARAM wParam, LPARAM lParam);
+    static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam);
-
-    // Preview child window proc — routes mouse to callbacks
-    static LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg,
-                                            WPARAM wParam, LPARAM lParam);
 
     bool InitDirect2D();
     void ReleaseDirect2D();
     void OnResize(int width, int height);
 
     HWND                    m_hwnd         = nullptr;
-    HWND                    m_previewHwnd  = nullptr;
+    HWND                    m_previewHwnd  = nullptr;  // D2D renders into this child
     int                     m_clientWidth  = 0;
     int                     m_clientHeight = 0;
     float                   m_dpiScale     = 1.0f;
@@ -121,6 +113,7 @@ private:
     std::function<bool(WPARAM, LPARAM)> m_onScroll;
     std::function<void()>               m_onEmergencyStop;
     std::function<void()>               m_onReticleToggle;
+    std::function<void()>               m_onClipToggle;
     std::function<void()>               m_onZoomCycle;
     std::function<void()>               m_onGoToToggle;
     std::function<void()>               m_onSkyMapToggle;

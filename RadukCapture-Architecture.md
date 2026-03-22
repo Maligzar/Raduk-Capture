@@ -674,15 +674,22 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 | v1.0.2: Phase 15 ADC Assistant | Edlen refractivity model, Anthem AZ site params, preview overlay + panel readout, severity labels |
 | v1.0.3: Phase 11 Lucky Imaging Frame Tagger | sharpness score per frame → WriteSlot → SERWriter → _quality.txt alongside every SER |
 | v1.0.4: GetAltAz render loop fix | Serial GetAltAz moved off render thread → detached background thread + atomic cache; RingBuffer release ordering fix |
+| v1.0.5: Phase 12 Auto-Exposure Assistant | I-controller, clip detection, HCG floor (182), advisory + auto modes, AE button in CAMERA section |
 
 ### 🔲 Next Up
 
 | Phase | Feature | Priority |
 |-------|---------|---------|
-| Phase 12 | Auto-Exposure Assistant | Tier 1 |
+| Phase 21 | Clipping Warning Overlay | Tier 1 — Next |
+| Phase 22 | Snapshot PNG/FITS | Tier 1 |
+| Phase 41 | Pause Capture | Tier 1 |
+| Phase 44 | Frame Type Labels + App Icon | Tier 1 |
+| Phase 23 | RGB Align Display Mode | Tier 1 |
+| Phase 24 | Pixel Value Readout | Tier 1 |
+| Phase 25 | Image Boost / Frame Stack FX | Tier 1 |
+| Phase 26 | Night Vision Mode | Tier 2 |
 | Phase 13 | Sky Survey / Pointing Model | Tier 2 |
 | Phase 14 | Session Planner | Tier 2 |
-| Phase 6.6 | GoTo Map Learning | Tier 2 |
 | Phase 16 | Polar Alignment Assistant | Tier 2 |
 | Phase 17 | Live Stacking Preview | Tier 3 |
 | Phase 18 | AVI/FITS Output | Tier 3 |
@@ -990,12 +997,21 @@ Pause/resume an active SER recording without closing the file. Frames continue d
 - Paused frame count shown: `PAUSED — 142 frames saved`
 - **Effort: Easy** — boolean gate in `CaptureManager::SubmitFrame`, no file changes needed
 
-#### Phase 44 — Frame Type Labels
-Light / Dark / Flat / Bias frame type selector. Appended to output filename and embedded in SER observer field.
+#### Phase 44 — Frame Type Labels + Application Icon
+**Frame type labels:** Light / Dark / Flat / Bias frame type selector. Appended to output filename and embedded in SER observer field.
 - Dropdown in CAPTURE section: Light (default) / Dark / Flat / Bias
 - Output filename: `Jupiter_20260322_Light_0001.ser` / `Dark_0001.ser`
 - Dark frames: prompt to cap telescope. Flat frames: prompt for illumination source.
-- **Effort: Easy** — dropdown control, string insertion in filename builder
+
+**Application icon + .rc file:**
+- Create `src/RadukCapture.rc` — Win32 resource file embedding icon and version info
+- Create `assets/RadukCapture.ico` — multi-resolution icon (16, 32, 48, 256px)
+  - Dark navy background, cyan aperture ring, star burst — matches Elite Raduk palette
+- Add `ICON` resource to `.rc`: replaces the `R` default in title bar and taskbar
+- Add `VS_VERSION_INFO` block: FileVersion, ProductVersion, CompanyName, FileDescription
+- Wire into CMakeLists.txt: `target_sources(RadukCapture PRIVATE src/RadukCapture.rc)`
+- `wc.hIcon` in `Window::Create` changed from `IDI_APPLICATION` to `LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_RADUK))`
+- **Effort: Easy** — `.rc` file + icon asset + one CMake line + one Window.cpp change
 
 #### Phase 45 — Multi-Reticle Overlays
 Multiple reticle shapes selectable from toolbar dropdown. Currently only crosshair exists.
@@ -1103,8 +1119,8 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 | # | Phase | Tier | Effort | Status |
 |---|-------|------|--------|--------|
-| 12 | Auto-Exposure Assistant | 1 | Medium | 🔲 Next |
-| 21 | Clipping Warning Overlay | 1 | Easy | 🔲 |
+| 12 | Auto-Exposure Assistant | 1 | Medium | ✅ v1.0.5 |
+| 21 | Clipping Warning Overlay | 1 | Easy | 🔲 Next |
 | 22 | Snapshot PNG/FITS | 1 | Easy | 🔲 |
 | 41 | Pause Capture | 1 | Easy | 🔲 |
 | 44 | Frame Type Labels | 1 | Easy | 🔲 |
@@ -1166,4 +1182,4 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 ---
 
-*RadukCapture v1.0.4 — Built for the stars, from Anthem, Arizona*
+*RadukCapture v1.0.5 — Built for the stars, from Anthem, Arizona*

@@ -1159,6 +1159,7 @@ static int RunApp(bool useEmulator) {
     });
     window.SetReticleToggleHandler([&]()    { doReticle();          });
     window.SetClipToggleHandler([&]()       { preview.ToggleClip(); });
+    window.SetQualityGraphToggleHandler([&]() { preview.ToggleQualityGraph(); });
 
     // Phase 22 — Snapshot: save current debayered frame as PNG
     static int snapCount = 0;
@@ -1524,6 +1525,10 @@ static int RunApp(bool useEmulator) {
         // Phase 21: feed clip percentage to preview for clipping overlay
         if (lastAnalysis.valid)
             preview.SetClipPct(lastAnalysis.clipPct);
+
+        // Phase 25a: push sharpness sample to quality bar graph
+        if (lastAnalysis.valid)
+            preview.PushQualitySample(lastAnalysis.sharpnessPct);
 
         // Phase 9: feed sharpness to autofocus scan if running
         if (lastAnalysis.valid && autofocus.IsRunning())

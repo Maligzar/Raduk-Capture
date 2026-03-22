@@ -128,8 +128,18 @@ public:
     void ToggleClip()           { m_showClip = !m_showClip; }
     void SetClipPct(float pct)  { m_clipPct = pct; }
 
-    // ── Snapshot — Phase 22 ────────────────────────────────────
-    // Returns true if a frame has been rendered (buffer is valid).
+    // ── Quality bar graph — Phase 25a ─────────────────────────
+    // Rolling per-frame sharpness history drawn as a vertical bar
+    // chart in the bottom-left of the preview. Toggle via Q key.
+    void SetShowQualityGraph(bool show) { m_showQualityGraph = show; }
+    bool QualityGraphVisible()    const { return m_showQualityGraph; }
+    void ToggleQualityGraph()           { m_showQualityGraph = !m_showQualityGraph; }
+    // Push a new sharpness sample (0-100). Call each frame.
+    void PushQualitySample(float sharpnessPct) {
+        m_qualHistory[m_qualHead] = sharpnessPct;
+        m_qualHead = (m_qualHead + 1) % QUAL_HISTORY;
+        if (m_qualCount < QUAL_HISTORY) ++m_qualCount;
+    }
     bool HasFrame() const { return m_rgbBuffer && m_frameWidth > 0 && m_frameHeight > 0; }
     // Save the current debayered RGB frame as PNG using WIC.
     // Call from main thread after a frame has been rendered.
@@ -147,6 +157,7 @@ private:
     D2D1_RECT_F CalculateZoomedRect(int frameW, int frameH, int previewX, int previewW, int previewH);
     void DrawReticle(float cx, float cy, float rw, float rh);
     void DrawADCOverlay(float previewW, float previewH);
+    void DrawQualityGraph(float px, float pw, float ph);
     void DrawRubberBand();
     void DrawResetPopup();
 
@@ -191,6 +202,13 @@ private:
     // Snapshot notification (Phase 22)
     std::wstring            m_snapMsg;
     int                     m_snapTimer     = 0;   // countdown frames (~3s at 60fps)
+
+    // Quality bar graph (Phase 25a)
+    static constexpr int    QUAL_HISTORY    = 200; // ~5s at 40fps
+    float                   m_qualHistory[200] = {};
+    int                     m_qualHead      = 0;
+    int                     m_qualCount     = 0;
+    bool                    m_showQualityGraph = true; // on by default
 
     // Last drawn frame rect — used for hit testing frame bar clicks
     D2D1_RECT_F             m_lastDestRect  = {};

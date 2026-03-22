@@ -1,0 +1,35 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-22 13:04:15
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[13:04:15] [SYSTEM      ] Started -- HARDWARE
+[13:04:15] [CAMERA      ] Opened: ZWO ASI678MC
+[13:04:15] [SYSTEM      ] Mount: RC direct via COM3
+[13:04:15] [SYSTEM      ] Ready
+[13:04:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:04:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:04:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:04:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:04:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:04:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:04:51] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-22 13:04:51
+# ============================================================
+#   Target profile  : Jupiter
+#   Capture runs    : 0
+#   Frames recorded : 0
+#   Frames dropped  : 0  (0.0%)
+#   Recording time  : 0.0 min
+#   Data written    : 0.00 GB
+#   Avg seeing score: 1.0 / 10
+#   EAF position    : 150000  (29.0 C)
+#   Mount final pos : RA 00h 59m 23s  Dec +49° 51' 20"
+# ============================================================
+[13:04:52] [SYSTEM      ] Done
+
+[13:04:52] Session ended

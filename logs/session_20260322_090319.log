@@ -1,0 +1,70 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-22 09:03:19
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[09:03:19] [SYSTEM      ] Started -- HARDWARE
+[09:03:20] [CAMERA      ] Opened: ZWO ASI678MC
+[09:03:20] [SYSTEM      ] Mount: RC direct via COM3
+[09:03:20] [SYSTEM      ] Ready
+[09:03:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:03:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:03:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:03:41] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:03:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:03:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:03:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:22] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:04:59] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:04] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:05:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:22] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[09:06:56] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-22 09:06:56
+# ============================================================
+#   Target profile  : Jupiter
+#   Capture runs    : 0
+#   Frames recorded : 0
+#   Frames dropped  : 0  (0.0%)
+#   Recording time  : 0.0 min
+#   Data written    : 0.00 GB
+#   Avg seeing score: 1.0 / 10
+#   EAF position    : 150010  (29.0 C)
+#   Mount final pos : RA 16h 15m 31s  Dec +55° 48' 13"
+# ============================================================
+[09:06:56] [SYSTEM      ] Done
+
+[09:06:56] Session ended

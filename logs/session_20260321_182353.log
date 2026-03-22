@@ -1,0 +1,150 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-21 18:23:53
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[18:23:53] [SYSTEM      ] Started -- HARDWARE
+[18:23:53] [CAMERA      ] Opened: ZWO ASI678MC
+[18:23:54] [SYSTEM      ] Mount: RC direct via COM3
+[18:23:54] [SYSTEM      ] Ready
+[18:23:59] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:04] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:05] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260321_182405_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[18:24:05] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[18:24:09] [CAPTURE     ] Recording stopped: 92 frames  0 drops  727.7 MB  4.3s
+[18:24:09] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[18:24:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:15] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:20] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:41] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:24:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:25:59] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:15] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:20] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:41] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:26:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:27:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:28:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:29:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:22] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:30:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:04] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:20] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:31:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:22] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:32:59] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:04] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:15] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:20] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:41] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:33:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:34:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:34:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:34:12] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-21 18:34:12
+# ============================================================
+#   Target profile  : Jupiter
+#   Capture runs    : 1
+#   Frames recorded : 92
+#   Frames dropped  : 0  (0.0%)
+#   Recording time  : 0.1 min
+#   Data written    : 0.76 GB
+#   Avg seeing score: 1.0 / 10
+#   EAF position    : 89535  (29.0 C)
+#   Mount final pos : RA 07h 35m 37s  Dec +22� 30' 26"
+# ============================================================
+[18:34:12] [SYSTEM      ] Done
+
+[18:34:12] Session ended

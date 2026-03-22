@@ -1,0 +1,47 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-21 20:34:03
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[20:34:03] [SYSTEM      ] Started -- HARDWARE
+[20:34:03] [CAMERA      ] Opened: ZWO ASI678MC
+[20:34:03] [SYSTEM      ] Mount: RC direct via COM3
+[20:34:04] [SYSTEM      ] Ready
+[20:34:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:34:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:34:20] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:34:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:34:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:34:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:34:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:34:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:34:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:35:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:35:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:35:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:35:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:35:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:35:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:35:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:35:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:35:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:35:48] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-21 20:35:48
+# ============================================================
+#   Target profile  : Jupiter
+#   Capture runs    : 0
+#   Frames recorded : 0
+#   Frames dropped  : 0  (0.0%)
+#   Recording time  : 0.0 min
+#   Data written    : 0.00 GB
+#   Avg seeing score: 1.0 / 10
+#   EAF position    : 65000  (28.0 C)
+#   Mount final pos : RA 10h 12m 59s  Dec +19° 18' 17"
+# ============================================================
+[20:35:49] [SYSTEM      ] Done
+
+[20:35:49] Session ended

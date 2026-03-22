@@ -1,0 +1,102 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-21 16:52:18
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[16:52:18] [SYSTEM      ] Started -- HARDWARE
+[16:52:18] [CAMERA      ] Opened: ZWO ASI678MC
+[16:52:19] [SYSTEM      ] Mount: RC direct via COM3
+[16:52:19] [SYSTEM      ] Ready
+[16:52:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:52:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:52:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:52:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:52:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:52:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:14] [MOUNT       ] SkyMap GoTo: M44 Beehive Cluster
+[16:54:14] [PROFILE     ] Auto: M44 Beehive Cluster â†’ DSO
+[16:54:14] [PROFILE     ] Applied: DSO
+[16:54:15] [FOCUSER     ] GoTo 50000
+[16:54:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:45] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 13%
+[16:54:50] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 13%
+[16:54:55] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 13%
+[16:55:00] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 13%
+[16:55:05] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 13%
+[16:55:10] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 13%
+[16:55:16] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 11%
+[16:55:21] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 11%
+[16:55:24] [MOUNT       ] SkyMap GoTo: Uranus
+[16:55:26] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 11%
+[16:55:31] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 11%
+[16:55:36] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 11%
+[16:55:41] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 11%
+[16:55:46] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:55:51] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:55:56] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:56:01] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:56:07] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:56:12] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:56:17] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:56:22] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:56:27] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:56:32] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:56:37] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:56:42] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 11%
+[16:56:48] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:56:54] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:56:59] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:04] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:10] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:15] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:20] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:25] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:30] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:35] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:40] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:45] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:50] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:57:55] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:58:01] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:58:06] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:58:11] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 10%
+[16:58:16] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 10%
+[16:58:21] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 10%
+[16:58:24] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-21 16:58:24
+# ============================================================
+#   Target profile  : DSO
+#   Capture runs    : 0
+#   Frames recorded : 0
+#   Frames dropped  : 0  (0.0%)
+#   Recording time  : 0.0 min
+#   Data written    : 0.00 GB
+#   Avg seeing score: 1.1 / 10
+#   EAF position    : 85089  (32.0 C)
+#   Mount final pos : RA 05h 47m 34s  Dec +02° 24' 38"
+# ============================================================
+[16:58:25] [SYSTEM      ] Done
+
+[16:58:25] Session ended

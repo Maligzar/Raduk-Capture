@@ -1,0 +1,57 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-14 15:09:25
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[15:09:25] [SYSTEM      ] Started -- HARDWARE
+[15:09:25] [CAMERA      ] Opened: ZWO ASI678MC
+[15:09:28] [SYSTEM      ] Mount: ASCOM via ASCOM.DeviceHub.Telescope
+[15:09:28] [SYSTEM      ] Ready
+[15:09:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:09:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:09:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:09:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:09:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:09:59] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:15] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:20] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:41] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:10:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:11:59] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:15] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:20] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:41] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:12:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:13:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:13:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:13:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:13:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:13:22] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:13:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%

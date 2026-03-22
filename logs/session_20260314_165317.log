@@ -1,0 +1,46 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-14 16:53:17
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[16:53:17] [SYSTEM      ] Started -- HARDWARE
+[16:53:18] [CAMERA      ] Opened: ZWO ASI678MC
+[16:53:18] [SYSTEM      ] Mount: RC direct via COM3
+[16:53:18] [SYSTEM      ] Ready
+[16:53:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:53:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:54:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:55:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:56:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:56:03] [SYSTEM      ] Shutdown
+[16:56:03] [SYSTEM      ] Done
+
+[16:56:03] Session ended

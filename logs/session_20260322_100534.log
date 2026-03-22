@@ -1,0 +1,266 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-22 10:05:34
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[10:05:34] [SYSTEM      ] Started -- HARDWARE
+[10:05:34] [CAMERA      ] Opened: ZWO ASI678MC
+[10:05:34] [SYSTEM      ] Mount: RC direct via COM3
+[10:05:34] [SYSTEM      ] Ready
+[10:05:38] [SYSTEM      ] Reticle ON
+[10:05:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:05:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:05:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:05:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:06:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:07:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:08:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:09:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:22] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:10:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:11:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:12:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:13:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:14:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:15:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:16:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:17:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:36] [MOUNT       ] SkyMap GoTo: Vega
+[10:18:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:18:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:19:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:20:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:21:56] [SYSTEM      ] Reticle OFF
+[10:21:59] [MOUNT       ] GoTo complete: Vega — acquisition armed
+[10:22:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:02] [MOUNT       ] Auto-acquisition: Searching
+[10:22:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:17] [MOUNT       ] Acquisition: Cancelled
+[10:22:22] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:22:59] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:23:04] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:23:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:23:11] [MOUNT       ] SkyMap GoTo: M31 Andromeda Galaxy
+[10:23:11] [PROFILE     ] Auto: M31 Andromeda Galaxy → DSO
+[10:23:11] [PROFILE     ] Applied: DSO
+[10:23:11] [FOCUSER     ] GoTo 50000
+[10:23:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:23:20] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:23:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:23:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:23:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:23:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[10:23:45] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 14%
+[10:23:50] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 14%
+[10:23:55] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 14%
+[10:24:00] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 14%
+[10:24:09] [PROFILE     ] Edited: DSO
+[10:24:11] [PROFILE     ] Applied: DSO
+[10:24:11] [FOCUSER     ] GoTo 150000
+[10:24:12] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 12%
+[10:24:17] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 12%
+[10:24:22] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 12%
+[10:24:28] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 12%
+[10:24:33] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 12%
+[10:24:38] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 12%
+[10:24:43] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 12%
+[10:24:48] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 12%
+[10:24:53] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 12%
+[10:24:58] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 12%
+[10:25:04] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 12%
+[10:25:09] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 12%
+[10:25:11] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-22 10:25:11
+# ============================================================
+#   Target profile  : DSO
+#   Capture runs    : 0
+#   Frames recorded : 0
+#   Frames dropped  : 0  (0.0%)
+#   Recording time  : 0.0 min
+#   Data written    : 0.00 GB
+#   Avg seeing score: 1.0 / 10
+#   EAF position    : 150000  (31.0 C)
+#   Mount final pos : RA 00h 44m 21s  Dec +41� 15' 35"
+# ============================================================
+[10:25:12] [SYSTEM      ] Done
+
+[10:25:12] Session ended

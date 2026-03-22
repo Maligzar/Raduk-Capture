@@ -1,0 +1,43 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-21 21:57:12
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[21:57:12] [SYSTEM      ] Started -- HARDWARE
+[21:57:12] [CAMERA      ] Opened: ZWO ASI678MC
+[21:57:12] [SYSTEM      ] Mount: RC direct via COM3
+[21:57:12] [SYSTEM      ] Ready
+[21:57:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[21:57:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[21:57:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[21:57:28] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260321_215728_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[21:57:28] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[21:57:37] [CAPTURE     ] Recording stopped: 170 frames  0 drops  1344.7 MB  8.5s
+[21:57:37] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[21:57:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[21:57:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[21:57:46] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260321_215746_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[21:57:46] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[21:57:52] [CAPTURE     ] Recording stopped: 119 frames  0 drops  941.3 MB  6.1s
+[21:57:52] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[21:57:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[21:57:56] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-21 21:57:56
+# ============================================================
+#   Target profile  : Jupiter
+#   Capture runs    : 2
+#   Frames recorded : 289
+#   Frames dropped  : 0  (0.0%)
+#   Recording time  : 0.2 min
+#   Data written    : 2.40 GB
+#   Avg seeing score: 1.0 / 10
+#   EAF position    : 150000  (30.0 C)
+#   Mount final pos : RA 08h 41m 11s  Dec +19� 18' 01"
+# ============================================================
+[21:57:56] [SYSTEM      ] Done
+
+[21:57:56] Session ended

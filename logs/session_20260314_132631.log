@@ -1,0 +1,66 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-14 13:26:31
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[13:26:31] [SYSTEM      ] Started -- HARDWARE
+[13:26:31] [CAMERA      ] Opened: ZWO ASI678MC
+[13:26:31] [SYSTEM      ] Ready
+[13:26:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:26:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:26:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:26:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:26:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:50] [SYSTEM      ] ROI: 904x800  origin:(1864,334)
+[13:27:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:27:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:19] [SYSTEM      ] ROI: 3840x2160  origin:(0,0)
+[13:28:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:28:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:29:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:29:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:29:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:29:13] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260314_132913_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[13:29:13] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[13:29:26] [CAPTURE     ] Recording stopped: 210 frames  0 drops  1661.1 MB  12.3s
+[13:29:26] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[13:29:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:29:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:29:33] [SYSTEM      ] ROI: 336x320  origin:(1776,894)
+[13:29:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:29:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:29:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:29:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:29:54] [SYSTEM      ] ROI: 3840x2160  origin:(0,0)
+[13:29:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:30:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:30:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:30:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:30:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:30:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:30:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[13:30:34] [SYSTEM      ] Shutdown
+[13:30:34] [SYSTEM      ] Done
+
+[13:30:34] Session ended

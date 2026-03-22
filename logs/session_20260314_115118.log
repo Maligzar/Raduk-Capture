@@ -1,0 +1,24 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-14 11:51:18
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[11:51:18] [SYSTEM      ] Started -- HARDWARE
+[11:51:19] [CAMERA      ] Opened: ZWO ASI678MC
+[11:51:19] [SYSTEM      ] Ready
+[11:52:18] [CAPTURE     ] Recording started: S:\Captures\Jupiter_20260314_115218_1280x960_8bit_0001.ser  1280x960  8-bit
+[11:52:42] [CAPTURE     ] Recording stopped: 1001 frames  0 drops  1173.0 MB  23.8s
+[11:52:52] [CAPTURE     ] Recording started: S:\Captures\Jupiter_20260314_115252_1280x960_8bit_0001.ser  1280x960  8-bit
+[11:53:15] [CAPTURE     ] Recording stopped: 1000 frames  0 drops  1171.9 MB  23.8s
+[11:53:46] [CAPTURE     ] Recording started: S:\Captures\Jupiter_20260314_115346_1280x960_8bit_0001.ser  1280x960  8-bit
+[11:54:06] [CAPTURE     ] Recording stopped: 843 frames  0 drops  987.9 MB  20.1s
+[11:54:30] [SYSTEM      ] Reticle ON
+[11:54:32] [SYSTEM      ] Reticle OFF
+[11:54:33] [SYSTEM      ] Reticle ON
+[11:54:41] [SYSTEM      ] Reticle OFF
+[11:54:58] [SYSTEM      ] Shutdown
+[11:54:58] [SYSTEM      ] Done
+
+[11:54:59] Session ended

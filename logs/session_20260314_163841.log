@@ -1,0 +1,15 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-14 16:38:41
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[16:38:41] [SYSTEM      ] Started -- HARDWARE
+[16:38:42] [CAMERA      ] Opened: ZWO ASI678MC
+[16:38:42] [SYSTEM      ] Mount: CPWI active via ASCOM.ASIMount.Telescope
+[16:38:42] [SYSTEM      ] Ready
+[16:38:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:38:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:38:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:39:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%

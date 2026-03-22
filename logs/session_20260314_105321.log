@@ -1,0 +1,20 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-14 10:53:21
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[10:53:21] [SYSTEM      ] Started -- HARDWARE
+[10:53:22] [CAMERA      ] Opened: ZWO ASI678MC
+[10:53:22] [SYSTEM      ] Ready
+[10:55:39] [SYSTEM      ] Reticle ON
+[10:55:44] [SYSTEM      ] Reticle OFF
+[10:55:45] [SYSTEM      ] Reticle ON
+[10:55:54] [SYSTEM      ] Reticle OFF
+[10:56:15] [SAFETY      ] EMERGENCY STOP
+[10:56:16] [SAFETY      ] EMERGENCY STOP
+[10:56:41] [SYSTEM      ] Shutdown
+[10:56:41] [SYSTEM      ] Done
+
+[10:56:41] Session ended

@@ -1,0 +1,30 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-14 16:43:09
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[16:43:09] [SYSTEM      ] Started -- HARDWARE
+[16:43:10] [CAMERA      ] Opened: ZWO ASI678MC
+[16:43:28] [SYSTEM      ] Mount: CPWI active via ASCOM.DeviceHub.Telescope
+[16:43:29] [SYSTEM      ] Ready
+[16:43:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:43:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:43:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:43:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:43:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:31] [MOUNT       ] RC control: NexStar direct
+[16:44:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:44:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[16:45:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%

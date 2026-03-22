@@ -1,0 +1,13 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "RadukCapture.dir\\Release\\PreviewRenderer.obj",
+            "outputs": [
+                "RadukCapture.dir\\Release\\"
+            ],
+            "requires": []
+        }
+    ]
+}

@@ -1,0 +1,25 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-14 18:34:57
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[18:34:57] [SYSTEM      ] Started -- HARDWARE
+[18:34:58] [CAMERA      ] Opened: ZWO ASI678MC
+[18:34:58] [SYSTEM      ] Mount: RC direct via COM3
+[18:34:58] [SYSTEM      ] Ready
+[18:35:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:35:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:35:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:35:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:35:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:35:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:35:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:35:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:35:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:35:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[18:35:51] [SYSTEM      ] Shutdown
+[18:35:51] [SYSTEM      ] Done
+
+[18:35:51] Session ended

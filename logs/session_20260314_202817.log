@@ -1,0 +1,70 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-14 20:28:17
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[20:28:17] [SYSTEM      ] Started -- HARDWARE
+[20:28:17] [CAMERA      ] Opened: ZWO ASI678MC
+[20:28:17] [SYSTEM      ] Mount: RC direct via COM3
+[20:28:17] [SYSTEM      ] Ready
+[20:28:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:28:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:28:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:28:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:28:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:28:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:28:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:28:59] [SYSTEM      ] Seeing: 2.2/10  Sharpness: 14%
+[20:29:04] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 14%
+[20:29:09] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 14%
+[20:29:15] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 14%
+[20:29:20] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 15%
+[20:29:25] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 15%
+[20:29:30] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 15%
+[20:29:35] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 14%
+[20:29:40] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 15%
+[20:29:46] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 14%
+[20:29:51] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 15%
+[20:29:56] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 15%
+[20:30:01] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 14%
+[20:30:06] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 14%
+[20:30:11] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 14%
+[20:30:17] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 15%
+[20:30:22] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 14%
+[20:30:27] [SYSTEM      ] Seeing: 2.5/10  Sharpness: 15%
+[20:30:32] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 16%
+[20:30:37] [SYSTEM      ] Seeing: 3.3/10  Sharpness: 26%
+[20:30:43] [SYSTEM      ] Seeing: 3.3/10  Sharpness: 26%
+[20:30:48] [SYSTEM      ] Seeing: 3.4/10  Sharpness: 27%
+[20:30:53] [SYSTEM      ] Seeing: 2.5/10  Sharpness: 16%
+[20:30:58] [SYSTEM      ] Seeing: 2.7/10  Sharpness: 20%
+[20:31:03] [SYSTEM      ] Seeing: 3.5/10  Sharpness: 28%
+[20:31:08] [SYSTEM      ] Seeing: 3.6/10  Sharpness: 28%
+[20:31:14] [SYSTEM      ] Seeing: 3.6/10  Sharpness: 29%
+[20:31:19] [SYSTEM      ] Seeing: 4.0/10  Sharpness: 32%
+[20:31:24] [SYSTEM      ] Seeing: 3.1/10  Sharpness: 23%
+[20:31:29] [SYSTEM      ] Seeing: 4.1/10  Sharpness: 35%
+[20:31:34] [SYSTEM      ] Seeing: 4.7/10  Sharpness: 41%
+[20:31:40] [SYSTEM      ] Seeing: 4.8/10  Sharpness: 41%
+[20:31:45] [SYSTEM      ] Seeing: 5.8/10  Sharpness: 49%
+[20:31:50] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 15%
+[20:31:55] [SYSTEM      ] Seeing: 2.6/10  Sharpness: 21%
+[20:32:00] [SYSTEM      ] Seeing: 6.1/10  Sharpness: 60%
+[20:32:05] [SYSTEM      ] Seeing: 6.0/10  Sharpness: 59%
+[20:32:11] [SYSTEM      ] Seeing: 6.1/10  Sharpness: 58%
+[20:32:16] [SYSTEM      ] Seeing: 3.8/10  Sharpness: 83%
+[20:32:21] [SYSTEM      ] Seeing: 9.7/10  Sharpness: 93%
+[20:32:26] [SYSTEM      ] Seeing: 3.6/10  Sharpness: 41%
+[20:32:31] [SYSTEM      ] Seeing: 10.0/10  Sharpness: 100%
+[20:32:36] [SYSTEM      ] Seeing: 8.8/10  Sharpness: 69%
+[20:32:42] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 15%
+[20:32:47] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 14%
+[20:32:52] [SYSTEM      ] Seeing: 2.4/10  Sharpness: 15%
+[20:32:57] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:33:02] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:33:08] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:33:13] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:33:18] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:33:18] [MOUNT       ] Planet lock ON

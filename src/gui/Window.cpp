@@ -421,6 +421,14 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             }
             break;
 
+        case WM_CHAR:
+            // ? key — toggle help window (Shift+/ on US keyboard)
+            if (wParam == L'?' && m_onHelpToggle) {
+                m_onHelpToggle();
+                return 0;
+            }
+            break;
+
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;

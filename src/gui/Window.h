@@ -48,6 +48,7 @@ public:
     void SetFXCycleHandler(std::function<void()> h)           { m_onFXCycle             = h; }
     void SetNightVisionHandler(std::function<void()> h)       { m_onNightVision         = h; }
     void SetChannelCycleHandler(std::function<void()> h)      { m_onChannelCycle        = h; }  // H key
+    void SetHelpToggleHandler(std::function<void()> h)        { m_onHelpToggle          = h; }  // ? key
     void SetMouseMoveHandler(std::function<void(float,float)> h) { m_onMouseMove        = h; }
     void SetPixelClickHandler(std::function<void(float,float)> h){ m_onPixelClick        = h; }
     void SetZoomCycleHandler(std::function<void()> h)        { m_onZoomCycle        = h; }
@@ -131,6 +132,7 @@ private:
     std::function<void()>               m_onFXCycle;
     std::function<void()>               m_onNightVision;
     std::function<void()>               m_onChannelCycle;
+    std::function<void()>               m_onHelpToggle;
     std::function<void(float,float)>    m_onPixelClick;
     std::function<void()>               m_onZoomCycle;
     std::function<void()>               m_onGoToToggle;

@@ -46,6 +46,7 @@
 #include "gui/SkyMapWindow.h"
 #include "gui/MountController.h"
 #include "gui/StatusBar.h"
+#include "gui/HelpWindow.h"
 #include "profiles/TargetProfile.h"
 #include "profiles/ProfileManager.h"
 #include "core/AutofocusRoutine.h"
@@ -519,6 +520,18 @@ static int RunApp(bool useEmulator) {
     mountCtrl.Create(window.Handle());
     mountCtrl.Show();  // visible by default - safety first
     Log("[INIT] Mount controller ready (always on top)\n");
+
+    // Phase 49: Help Window
+    raduk::gui::HelpWindow helpWindow;
+    {
+        wchar_t exePath[MAX_PATH] = {};
+        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+        std::wstring exeDir(exePath);
+        auto slash = exeDir.find_last_of(L"\\/");
+        if (slash != std::wstring::npos) exeDir = exeDir.substr(0, slash);
+        helpWindow.Create(window.Handle(), exeDir);
+    }
+    Log("[INIT] Help window ready\n");
 
     // RC is always in control - no CPWI. Set initial state before callbacks wired.
     if (startInRCControl) {
@@ -1336,6 +1349,10 @@ static int RunApp(bool useEmulator) {
     toolbar.SetGoToCallback([&]()  { gotoPanel.ShowCentered(); });
     toolbar.SetReticleCallback([&]() { doReticle(); });
     toolbar.SetClipCallback([&]()    { preview.ToggleClip(); });
+    // Phase 49: Help toggle — toolbar [?] button and ? key
+    auto doHelp = [&]() { helpWindow.Toggle(); };
+    toolbar.SetHelpCallback([&]()       { doHelp(); });
+    window.SetHelpToggleHandler([&]()   { doHelp(); });
 
     // Forward WM_COMMAND from main window to toolbar
     window.SetToolbarCommandHandler([&](int id) -> bool {
@@ -1668,7 +1685,8 @@ static int RunApp(bool useEmulator) {
                 skyMap.IsVisible(),
                 gotoPanel.IsVisible(),
                 preview.ReticleVisible(),
-                preview.ClipVisible());
+                preview.ClipVisible(),
+                helpWindow.IsVisible());
 
             // Phase 23: update RGB align label with live shift value
             if (preview.RGBAlignEnabled())

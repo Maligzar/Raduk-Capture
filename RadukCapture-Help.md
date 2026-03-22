@@ -8,18 +8,21 @@
 | Key | Action |
 |-----|--------|
 | `Space` | Emergency stop all mount movement |
+| `?` | Toggle this Help window |
 | `A` | Toggle Autofocus (start / abort) |
+| `B` | Cycle Display FX (Normal → Boost ×2 → Boost ×4 → Stack 3/5/10) |
 | `C` | Toggle Clipping Warning Overlay |
 | `F` | Toggle Fullscreen |
 | `G` | Open GoTo panel |
+| `H` | Cycle Channel Mode (All → Red → Green → Blue → All) |
 | `M` | Open Map (Sky Map) |
+| `N` | Toggle Night Vision Mode |
 | `P` | Pause / Resume recording |
 | `Q` | Toggle Quality Bar Graph |
 | `R` | Toggle Reticle |
 | `S` | Save Snapshot (PNG) |
 | `V` | Toggle RGB Align |
 | `X` | Toggle Pixel Value Readout |
-| `B` | Cycle Display FX (Normal → Boost ×2 → Boost ×4 → Stack 3/5/10) |
 | `Z` | Cycle Zoom (FIT → 50% → 100% → 200%) |
 | `↑↓←→` | Jog mount (hold to slew) |
 | `+` / `-` | Fine focus step |
@@ -32,7 +35,7 @@
 ## Panels Overview
 
 ### Toolbar (top strip)
-Eight buttons across the top of the preview window:
+Nine buttons across the top of the preview window:
 
 | Button | Key | Function |
 |--------|-----|----------|
@@ -44,6 +47,7 @@ Eight buttons across the top of the preview window:
 | `[I] GOTO` | `G` | Open GoTo panel |
 | `[+] RETICLE` | `R` | Toggle crosshair reticle overlay |
 | `[CLIP]` | `C` | Toggle clipping warning (red flash on saturated pixels) |
+| `[?]` | `?` | Toggle this Help window |
 
 Buttons highlight (bold) when their feature is active.
 
@@ -58,6 +62,9 @@ All sections are collapsible — click the section header to expand/collapse.
 - **RGB ALIGN** — Toggle atmospheric dispersion correction on the display. Auto-computes pixel shift from mount altitude using the Edlen refractivity model. Blue channel shifts UP, red shifts DOWN by half. Display only — SER data is unaffected.
 - **Manual slider** — Fine-tune the RGB align offset ±20px on top of the auto value. Center position = 0px offset.
 - HUD shows `RGB ALIGN +N px` in amber when active.
+- **[FX] NORMAL** — Cycle Display FX modes (see Display FX section below). Also `B` key.
+- **[N] NIGHT** — Toggle Night Vision Mode (red-tinted preview for dark adaptation). Also `N` key. HUD shows `NIGHT VISION` in red when active.
+- **[H] CH: ALL** — Cycle single-channel display mode: All → Red → Green → Blue. Shows selected channel as grayscale. Display only — SER data unaffected. Also `H` key. HUD shows channel label in cyan when active.
 
 ### PROFILE
 - Load, save, and edit named target profiles (e.g. Jupiter, Saturn, Moon).
@@ -330,7 +337,10 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 | v1.0.11 | 24 | Pixel Value Readout (X key, hover tooltip, click to lock) |
 | v1.0.11 | — | Notes linked to profile (save/load with PROFILE section) |
 | v1.0.12 | 25 | Image Boost/Frame Stack FX (B key, 6 modes, auto-reset on record) |
+| v1.0.13 | 26 | Night Vision Mode (N key, red tint via Rec.709 luminance) |
+| v1.0.14 | 38 | Single-Channel Display Mode (H key, R/G/B/All cycle, grayscale) |
+| v1.0.15 | 49 | Help System (? key, floating window, live search filter) |
 
 ---
 
-*RadukCapture Help v1.0.12 — Updated after each release*
+*RadukCapture Help v1.0.15 — Updated after each release*

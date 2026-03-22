@@ -42,7 +42,8 @@ enum ToolbarCmd : int {
     ID_TB_GOTO      = 3005,
     ID_TB_RETICLE   = 3006,
     ID_TB_CLIP      = 3007,
-    ID_TB_LAST      = 3007,
+    ID_TB_HELP      = 3008,
+    ID_TB_LAST      = 3008,
 };
 
 static constexpr int TOOLBAR_HEIGHT = 30; // physical pixels
@@ -126,11 +127,13 @@ public:
     void SetGoToCallback    (std::function<void()> cb) { m_onGoTo     = cb; }
     void SetReticleCallback (std::function<void()> cb) { m_onReticle  = cb; }
     void SetClipCallback    (std::function<void()> cb) { m_onClip     = cb; }
+    void SetHelpCallback    (std::function<void()> cb) { m_onHelp     = cb; }
 
     // Update button labels to reflect active state — only repaints when changed
     void UpdateStates(int acqStage, bool lockReady, bool roiReady,
                       bool colorActive, bool mapVisible, bool gotoVisible,
-                      bool reticleVisible, bool clipVisible = false) {
+                      bool reticleVisible, bool clipVisible = false,
+                      bool helpVisible = false) {
         if (!m_hwnd) return;
 
         if (acqStage      == m_lastAcqStage   &&
@@ -140,7 +143,8 @@ public:
             mapVisible    == m_lastMapVisible  &&
             gotoVisible   == m_lastGotoVisible &&
             reticleVisible== m_lastReticleVis  &&
-            clipVisible   == m_lastClipVis) return;
+            clipVisible   == m_lastClipVis     &&
+            helpVisible   == m_lastHelpVis) return;
 
         m_lastAcqStage    = acqStage;
         m_lastLockReady   = lockReady;
@@ -150,6 +154,7 @@ public:
         m_lastGotoVisible = gotoVisible;
         m_lastReticleVis  = reticleVisible;
         m_lastClipVis     = clipVisible;
+        m_lastHelpVis     = helpVisible;
 
         const wchar_t* centLabel =
             (acqStage >= 2) ? L"[CENTROID \u2713]" :
@@ -169,6 +174,7 @@ public:
         SetWindowTextW(m_btnGoTo,     gotoVisible     ? L"[I] GOTO ON"     : L"[I] GOTO");
         SetWindowTextW(m_btnReticle,  reticleVisible  ? L"[+] RETICLE ON"  : L"[+] RETICLE");
         SetWindowTextW(m_btnClip,     clipVisible     ? L"[CLIP ON]"       : L"[CLIP]");
+        SetWindowTextW(m_btnHelp,     helpVisible     ? L"[? ON]"          : L"[?]");
 
         SendMessage(m_btnCentroid, WM_SETFONT, (WPARAM)(acqStage > 0  ? m_fontActive : m_font), TRUE);
         SendMessage(m_btnLock,     WM_SETFONT, (WPARAM)(acqStage >= 2 ? m_fontActive : m_font), TRUE);
@@ -178,6 +184,7 @@ public:
         SendMessage(m_btnGoTo,     WM_SETFONT, (WPARAM)(gotoVisible   ? m_fontActive : m_font), TRUE);
         SendMessage(m_btnReticle,  WM_SETFONT, (WPARAM)(reticleVisible? m_fontActive : m_font), TRUE);
         SendMessage(m_btnClip,     WM_SETFONT, (WPARAM)(clipVisible   ? m_fontActive : m_font), TRUE);
+        SendMessage(m_btnHelp,     WM_SETFONT, (WPARAM)(helpVisible   ? m_fontActive : m_font), TRUE);
     }
 
     // Handle WM_COMMAND forwarded from main window — returns true if consumed
@@ -193,6 +200,7 @@ public:
             case ID_TB_GOTO:     if (m_onGoTo)     m_onGoTo();     return true;
             case ID_TB_RETICLE:  if (m_onReticle)  m_onReticle();  return true;
             case ID_TB_CLIP:     if (m_onClip)     m_onClip();     return true;
+            case ID_TB_HELP:     if (m_onHelp)     m_onHelp();     return true;
         }
         return false;
     }
@@ -218,6 +226,7 @@ private:
             { ID_TB_GOTO,     L"[I] GOTO",    64, &m_btnGoTo     },
             { ID_TB_RETICLE,  L"[+] RETICLE", 84, &m_btnReticle  },
             { ID_TB_CLIP,     L"[CLIP]",      60, &m_btnClip     },
+            { ID_TB_HELP,     L"[?]",         36, &m_btnHelp     },
         };
 
         const int pad  = 4;
@@ -226,7 +235,7 @@ private:
         const int btnY = 3;
         int x = 4;
 
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 9; i++) {
             auto& d = defs[i];
             if (i == 3) x += sep;
 
@@ -255,6 +264,7 @@ private:
         if (m_btnGoTo)     { DestroyWindow(m_btnGoTo);     m_btnGoTo     = nullptr; }
         if (m_btnReticle)  { DestroyWindow(m_btnReticle);  m_btnReticle  = nullptr; }
         if (m_btnClip)     { DestroyWindow(m_btnClip);     m_btnClip     = nullptr; }
+        if (m_btnHelp)     { DestroyWindow(m_btnHelp);     m_btnHelp     = nullptr; }
         BuildButtons(w, h);
     }
 
@@ -310,6 +320,7 @@ private:
     HWND  m_btnGoTo     = nullptr;
     HWND  m_btnReticle  = nullptr;
     HWND  m_btnClip     = nullptr;
+    HWND  m_btnHelp     = nullptr;
 
     // State cache — UpdateStates skips SetWindowTextW when unchanged (prevents flash)
     int  m_lastAcqStage    = -1;
@@ -320,6 +331,7 @@ private:
     bool m_lastGotoVisible = false;
     bool m_lastReticleVis  = false;
     bool m_lastClipVis     = false;
+    bool m_lastHelpVis     = false;
 
     std::function<void()> m_onCentroid;
     std::function<void()> m_onLock;
@@ -329,6 +341,7 @@ private:
     std::function<void()> m_onGoTo;
     std::function<void()> m_onReticle;
     std::function<void()> m_onClip;
+    std::function<void()> m_onHelp;
 };
 
 } // namespace raduk::gui

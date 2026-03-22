@@ -20,6 +20,7 @@
 [INIT] Capture manager ready
 [INIT] GoTo panel ready (G key to toggle)
 [INIT] Mount controller ready (always on top)
+[INIT] Help window ready
 [INIT] RC in control (NexStar direct)
 [INIT] Auto-exposure assistant ready
 
@@ -30,18 +31,6 @@
   P4:  Remote commands: start/stop_capture, load_profile, move_eaf, goto_target
   P4:  Session summary written to log at shutdown
 
-[RGB] Align ON
-[RGB] Align OFF
-[RGB] Align ON
-[RGB] Align OFF
-[CHANNEL] CH: RED
-[CHANNEL] CH: GREEN
-[CHANNEL] CH: BLUE
-[CHANNEL] CH: ALL
-[CHANNEL] CH: RED
-[CHANNEL] CH: GREEN
-[CHANNEL] CH: BLUE
-[CHANNEL] CH: ALL
 
 Shutting down...
 Goodbye.

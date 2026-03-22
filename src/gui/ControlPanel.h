@@ -58,6 +58,9 @@ public:
 
     void EmergencyStop();
     void UpdateReadouts();
+    // Programmatically update a slider position and its value label.
+    // isExposure=true updates the exposure slider, false updates gain.
+    void UpdateSlider(bool isExposure, int val);
 
     // Called each render tick with latest frame analysis.
     void UpdateAnalysis(const raduk::core::AnalysisResult& analysis);
@@ -115,6 +118,28 @@ public:
     void SetAutofocusCallback(std::function<void(bool)> cb) { m_onAutofocus = cb; }
     // Mount controller button — clicked to show/reposition the floating panel
     void SetMountCtrlCallback(std::function<void()> cb) { m_onMountCtrl = cb; }
+
+    // Phase 12 — Auto-Exposure
+    // cb(true) = enable AE advisory; cb(false) = disable
+    // cb with second bool: true = auto apply, false = advisory only
+    void SetAECallback(std::function<void(bool enabled, bool autoApply)> cb) {
+        m_onAEToggle = cb;
+    }
+    void SetAEStatus(const wchar_t* msg) {
+        if (m_lblAEStatus) SetWindowTextW(m_lblAEStatus, msg ? msg : L"");
+    }
+    // state: 0=off, 1=advisory, 2=auto
+    void SetAEState(int state) {
+        m_aeState = state;
+        if (m_btnAEAuto) {
+            const wchar_t* label = (state == 2) ? L"AE AUTO"
+                                 : (state == 1) ? L"AE ADV"
+                                 :                L"AE OFF";
+            SetWindowTextW(m_btnAEAuto, label);
+            InvalidateRect(m_btnAEAuto, nullptr, TRUE);
+        }
+    }
+    int AEState() const { return m_aeState; }
     void SetAutofocusRunning(bool running) {
         m_afRunning = running;
         if (m_btnAutofocus) {
@@ -125,6 +150,10 @@ public:
     void SetAutofocusStatus(const wchar_t* msg) {
         m_afStatusMsg = msg ? msg : L"";
         if (m_lblAFStatus) SetWindowTextW(m_lblAFStatus, m_afStatusMsg.c_str());
+    }
+    // ADC readout — called from readout loop with ADCAssistant::SuggestionText()
+    void SetADCStatus(const wchar_t* msg) {
+        if (m_lblADCStatus) SetWindowTextW(m_lblADCStatus, msg ? msg : L"");
     }
 
     // GoTo status label — safe to call from any thread via SendMessage
@@ -336,6 +365,8 @@ private:
     HWND m_sliderGain = nullptr, m_sliderExposure = nullptr;
     HWND m_sliderGamma = nullptr, m_sliderWBR = nullptr;
     HWND m_sliderWBB = nullptr, m_sliderUSB = nullptr;
+    HWND m_btnAEAuto = nullptr;   // Phase 12: AE mode toggle
+    HWND m_lblAEStatus = nullptr; // Phase 12: AE status text
     HWND m_lblGainVal = nullptr, m_lblExpVal = nullptr;
     HWND m_lblGammaVal = nullptr, m_lblWBRVal = nullptr;
     HWND m_lblWBBVal = nullptr, m_lblUSBVal = nullptr;
@@ -350,6 +381,7 @@ private:
     HWND m_btnFocusOut10 = nullptr, m_btnFocusOut100 = nullptr;
     HWND m_btnAutofocus = nullptr;
     HWND m_lblAFStatus  = nullptr;
+    HWND m_lblADCStatus = nullptr;  // ADC dispersion readout in FOCUSER section
 
     // ── Mount controls ─────────────────────────────────────────
     HWND m_lblMountConnected = nullptr;  // "● Device Name  Connected" status line
@@ -416,6 +448,7 @@ private:
     enum ControlId {
         ID_SLIDER_GAIN = 1001, ID_SLIDER_EXP, ID_SLIDER_GAMMA,
         ID_SLIDER_WBR, ID_SLIDER_WBB, ID_SLIDER_USB,
+        ID_BTN_AE_AUTO, ID_LBL_AE_STATUS,
         ID_LBL_GAIN_VAL = 1100, ID_LBL_EXP_VAL, ID_LBL_GAMMA_VAL,
         ID_LBL_WBR_VAL, ID_LBL_WBB_VAL, ID_LBL_USB_VAL,
         ID_LBL_FOCUS_POS = 1200, ID_LBL_FOCUS_TEMP, ID_EDIT_FOCUS_GOTO,
@@ -426,6 +459,7 @@ private:
         ID_BTN_FOCUS_GOTO, ID_BTN_FOCUS_STOP,
         ID_BTN_AUTOFOCUS,
         ID_LBL_AF_STATUS,
+        ID_LBL_ADC_STATUS,
         ID_LBL_MOUNT_RA = 1400, ID_LBL_MOUNT_DEC, ID_LBL_MOUNT_TRACK,
         ID_LBL_MOUNT_AZ, ID_LBL_MOUNT_ALT, ID_LBL_MOUNT_HA,
         ID_LBL_MOUNT_CONNECTED,
@@ -479,6 +513,8 @@ private:
     std::function<void()>                   m_onSolveSync;
     std::function<void(bool)>               m_onAutofocus;  // Phase 9
     std::function<void()>                   m_onMountCtrl;  // floating mount controller toggle
+    std::function<void(bool,bool)>          m_onAEToggle;   // Phase 12: AE enable, autoApply
+    int                                     m_aeState = 0;  // 0=off, 1=advisory, 2=auto
 };
 
 } // namespace raduk::gui

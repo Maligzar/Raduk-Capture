@@ -72,7 +72,6 @@ public:
     bool Create(HWND parent, int x, int y, int w, int h) {
         m_parent = parent;
 
-        // Register window class
         WNDCLASSEXW wc = {};
         wc.cbSize       = sizeof(wc);
         wc.lpfnWndProc  = WndProc;
@@ -80,7 +79,7 @@ public:
         wc.hCursor      = LoadCursor(nullptr, IDC_ARROW);
         wc.hbrBackground = CreateSolidBrush(RGB(10, 21, 32));
         wc.lpszClassName = L"RadukGoToPanel";
-        RegisterClassExW(&wc); // ok if already registered
+        RegisterClassExW(&wc);
 
         m_hwnd = CreateWindowExW(
             WS_EX_TOOLWINDOW,
@@ -92,14 +91,25 @@ public:
         if (!m_hwnd) return false;
 
         BuildControls(w - 20, h);
-
-        // Update planet positions and populate list
         m_catalog.UpdatePlanets();
         PopulateList("");
 
-        ShowWindow(m_hwnd, SW_SHOW);
+        ShowWindow(m_hwnd, SW_HIDE); // hidden by default
         printf("[GoToPanel] Created\n");
         return true;
+    }
+
+    // Show centered on the primary monitor — called when GOTO button pressed
+    void ShowCentered() {
+        if (!m_hwnd) return;
+        int sw = GetSystemMetrics(SM_CXSCREEN);
+        int sh = GetSystemMetrics(SM_CYSCREEN);
+        RECT r; GetWindowRect(m_hwnd, &r);
+        int w = r.right - r.left;
+        int h = r.bottom - r.top;
+        int x = (sw - w) / 2;
+        int y = (sh - h) / 2;
+        SetWindowPos(m_hwnd, HWND_TOP, x, y, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW);
     }
 
     HWND Handle() const { return m_hwnd; }

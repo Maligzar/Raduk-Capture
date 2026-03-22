@@ -112,10 +112,18 @@ public:
         return L"FIT";
     }
 
+    // ── ADC overlay ────────────────────────────────────────────
+    // Feed current mount altitude so the ADC dispersion arrow updates live.
+    void SetMountAltitude(double altDeg) { m_mountAltDeg = altDeg; }
+    void SetShowADC(bool show)           { m_showADC = show; }
+    bool ADCVisible() const              { return m_showADC; }
+    void ToggleADC()                     { m_showADC = !m_showADC; }
+
 private:
     void DebayerRGGB(const uint8_t* raw, uint8_t* rgb, int width, int height, int bitDepth);
     D2D1_RECT_F CalculateZoomedRect(int frameW, int frameH, int previewX, int previewW, int previewH);
     void DrawReticle(float cx, float cy, float rw, float rh);
+    void DrawADCOverlay(float previewW, float previewH);
     void DrawRubberBand();
     void DrawResetPopup();
 
@@ -146,7 +154,11 @@ private:
 
     bool                    m_showReticle   = false;
     ZoomMode                m_zoom          = ZoomMode::Fit;
-    DebayerMode             m_debayerMode   = DebayerMode::Color; // default: color debayer
+    DebayerMode             m_debayerMode   = DebayerMode::Color;
+
+    // ADC overlay
+    double                  m_mountAltDeg   = -1.0;  // -1 = unknown
+    bool                    m_showADC       = true;   // on by default
 
     // Last drawn frame rect — used for hit testing frame bar clicks
     D2D1_RECT_F             m_lastDestRect  = {};

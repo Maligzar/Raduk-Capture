@@ -420,7 +420,9 @@
             "d:\\radukcapture\\src\\profiles\\targetprofile.h",
             "d:\\radukcapture\\src\\profiles\\profilemanager.h",
             "d:\\radukcapture\\src\\core\\autofocusroutine.h",
-            "d:\\program files (x86)\\visual studio\\vc\\tools\\msvc\\14.50.35717\\include\\numeric"
+            "d:\\program files (x86)\\visual studio\\vc\\tools\\msvc\\14.50.35717\\include\\numeric",
+            "d:\\radukcapture\\src\\core\\adcassistant.h",
+            "d:\\radukcapture\\src\\core\\autoexposureassistant.h"
         ],
         "ImportedModules": [],
         "ImportedHeaderUnits": []

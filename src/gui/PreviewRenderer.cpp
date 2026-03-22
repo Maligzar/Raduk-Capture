@@ -7,6 +7,7 @@
 // ============================================================
 #include "PreviewRenderer.h"
 #include "Theme.h"
+#include "core/ADCAssistant.h"
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -510,6 +511,10 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
     if (m_showReticle && m_reticleBrush)
         DrawReticle(reticleCX, reticleCY, reticleW, reticleH);
 
+    // ADC overlay — dispersion arrow + severity label
+    if (m_showADC && m_mountAltDeg > 0.0)
+        DrawADCOverlay(pw, ph);
+
     // HUD
     if (m_hudFont && m_titleFont) {
         wchar_t buf[256];
@@ -657,6 +662,93 @@ void PreviewRenderer::DrawReticle(float cx, float cy, float rw, float rh) {
     m_renderTarget->DrawLine(D2D1::Point2F(cx, cy+gap),  D2D1::Point2F(cx, bot),      m_reticleBrush, 1.5f);
     m_renderTarget->DrawEllipse(D2D1::Ellipse(D2D1::Point2F(cx,cy), r, r),            m_reticleBrush, 1.5f);
     m_renderTarget->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx,cy), 2.5f, 2.5f),     m_reticleBrush);
+}
+
+// ── DrawADCOverlay ─────────────────────────────────────────────
+// Draws a dispersion indicator in the bottom-right of the preview.
+// Shows: severity color, arrow pointing in dispersion direction
+// (always toward zenith = upward in alt-az), and arcsec value.
+// Only visible when m_mountAltDeg > 0 and separation is meaningful.
+
+void PreviewRenderer::DrawADCOverlay(float previewW, float previewH) {
+    if (!m_renderTarget || !m_hudFont) return;
+
+    using namespace raduk::core;
+    ADCResult adc = ADCAssistant::Compute(m_mountAltDeg);
+
+    // Don't clutter the view if dispersion is negligible
+    if (adc.separationArcsec < 0.15f) return;
+
+    // Choose color by severity
+    ID2D1SolidColorBrush* brush = nullptr;
+    if (adc.adcRequired)         brush = m_redBrush;
+    else if (adc.adcRecommended) brush = m_amberBrush;
+    else                         brush = m_dimBrush;
+    if (!brush) return;
+
+    // ── Panel position: bottom-right corner ───────────────────
+    const float PAD   = 12.0f;
+    const float BOXW  = 110.0f;
+    const float BOXH  = 52.0f;
+    float bx = previewW - BOXW - PAD;
+    float by = previewH - BOXH - PAD - 22.0f; // above status bar
+
+    // Semi-transparent background box
+    ID2D1SolidColorBrush* bgBrush = nullptr;
+    m_renderTarget->CreateSolidColorBrush(
+        D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.55f), &bgBrush);
+    if (bgBrush) {
+        m_renderTarget->FillRectangle(
+            D2D1::RectF(bx, by, bx+BOXW, by+BOXH), bgBrush);
+        bgBrush->Release();
+    }
+
+    // ── "ADC" label top line ──────────────────────────────────
+    {
+        wchar_t buf[32];
+        swprintf(buf, 32, L"ADC  %.2f\"", adc.separationArcsec);
+        D2D1_RECT_F tr = D2D1::RectF(bx+4, by+3, bx+BOXW-4, by+19);
+        m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+        m_renderTarget->DrawText(buf, (UINT32)wcslen(buf), m_hudFont, tr, brush);
+    }
+
+    // ── Severity label ────────────────────────────────────────
+    {
+        wchar_t buf[24];
+        swprintf(buf, 24, L"%hs", adc.SeverityLabel());
+        D2D1_RECT_F sr = D2D1::RectF(bx+4, by+18, bx+BOXW-4, by+33);
+        m_renderTarget->DrawText(buf, (UINT32)wcslen(buf), m_hudFont, sr, brush);
+    }
+
+    // ── Dispersion arrow ──────────────────────────────────────
+    // Arrow points UP (toward zenith) — blue is displaced upward
+    // relative to red. Length scaled to severity (4–20px).
+    float arrowLen = 6.0f + adc.separationArcsec * 2.5f;
+    if (arrowLen > 22.0f) arrowLen = 22.0f;
+
+    float ax = bx + BOXW - 18.0f;  // arrow x center
+    float ay = by + BOXH/2.0f + 4; // arrow y center
+
+    // Shaft (upward)
+    m_renderTarget->DrawLine(
+        D2D1::Point2F(ax, ay + arrowLen/2),
+        D2D1::Point2F(ax, ay - arrowLen/2),
+        brush, 1.5f);
+    // Arrowhead
+    m_renderTarget->DrawLine(
+        D2D1::Point2F(ax, ay - arrowLen/2),
+        D2D1::Point2F(ax - 4, ay - arrowLen/2 + 5),
+        brush, 1.5f);
+    m_renderTarget->DrawLine(
+        D2D1::Point2F(ax, ay - arrowLen/2),
+        D2D1::Point2F(ax + 4, ay - arrowLen/2 + 5),
+        brush, 1.5f);
+
+    // "B" label above arrow tip (blue displaced upward)
+    {
+        D2D1_RECT_F br = D2D1::RectF(ax-8, ay-arrowLen/2-14, ax+8, ay-arrowLen/2-2);
+        m_renderTarget->DrawText(L"B", 1, m_hudFont, br, m_accentBrush);
+    }
 }
 
 // ── CalculateZoomedRect ───────────────────────────────────────

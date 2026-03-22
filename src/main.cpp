@@ -50,6 +50,7 @@
 #include "profiles/ProfileManager.h"
 #include "core/AutofocusRoutine.h"
 #include "core/ADCAssistant.h"
+#include "core/AutoExposureAssistant.h"
 
 using namespace raduk::core;
 using namespace raduk::gui;
@@ -1003,7 +1004,27 @@ static int RunApp(bool useEmulator) {
         Log("[INIT] Mount controller repositioned\n");
     });
 
-    // ── Three-stage centroid acquisition (Phase 6.5) ──────────
+    // ── Phase 12: Auto-Exposure Assistant ─────────────────────
+    raduk::core::AutoExposureAssistant ae;
+    {
+        raduk::core::AutoExposureAssistant::Config aeCfg;
+        // ASI678MC HCG floor — never go below 182 in auto mode
+        aeCfg.gainMin   = raduk::profiles::CameraRails::GAIN_HCG_THRESHOLD;
+        aeCfg.gainMax   = 570;
+        aeCfg.expMinMs  = 0.5;
+        aeCfg.expMaxMs  = 40.0;
+        ae.SetConfig(aeCfg);
+    }
+    controls.SetAECallback([&](bool enabled, bool autoApply) {
+        ae.SetEnabled(enabled);
+        if (enabled) ae.SetAuto(autoApply);
+        const wchar_t* msg = !enabled    ? L"AE: off"
+                           : !autoApply  ? L"AE: advisory"
+                           :               L"AE: auto";
+        controls.SetAEStatus(msg);
+        Log("[AE] %s\n", !enabled ? "off" : (autoApply ? "AUTO" : "advisory"));
+    });
+    Log("[INIT] Auto-exposure assistant ready\n");
     // Stage buttons live in the frame bar. Main thread owns all transitions.
     // Jog suspend: corrections pause during mount jog + 500ms settle.
     // ESC: Reset() wired in emergency stop handler below.
@@ -1551,6 +1572,36 @@ static int RunApp(bool useEmulator) {
             controls.UpdateReadouts();
             mountCtrl.UpdateReadouts();
 
+            // Phase 12 — Auto-Exposure: feed analysis, tick, apply/display
+            if (ae.IsEnabled() && lastAnalysis.valid && cam.IsOpen()) {
+                long curGain = cam.GetControl(ASI_GAIN);
+                long curExpUs = cam.GetControl(ASI_EXPOSURE);
+                double curExpMs = curExpUs / 1000.0;
+
+                ae.Feed(lastAnalysis.meanBrightness,
+                        lastAnalysis.clipPct,
+                        curGain, curExpMs);
+                auto sug = ae.Tick();
+
+                // Update panel status text
+                wchar_t aeBuf[80];
+                MultiByteToWideChar(CP_UTF8, 0, sug.text.c_str(), -1, aeBuf, 80);
+                controls.SetAEStatus(aeBuf);
+
+                // Apply suggestions if AUTO mode
+                if (ae.IsAuto()) {
+                    if (sug.gain >= 0 && sug.gain != (int)curGain) {
+                        cam.SetGain(sug.gain);
+                        controls.UpdateSlider(false, sug.gain);
+                    }
+                    if (sug.exposureMs > 0 &&
+                        fabs(sug.exposureMs - curExpMs) >= 0.05) {
+                        cam.SetExposure(sug.exposureMs);
+                        controls.UpdateSlider(true, (int)(sug.exposureMs * 1000.0));
+                    }
+                }
+            }
+
             // GoTo panel — refresh planet positions and slew status
             if (gotoPanel.IsVisible())
                 gotoPanel.Tick();
@@ -1587,11 +1638,22 @@ static int RunApp(bool useEmulator) {
                             std::string(IMount::TrackingModeName(mount->GetTrackingMode())),
                             true);
                     }
-                    // Feed altitude to preview for ADC overlay + panel readout
-                    double alt = 0, az = 0;
-                    if (mount->GetAltAz(alt, az)) {
+                    // GetAltAz is a serial round-trip — run it on a dedicated thread
+                    // so it never stalls the render loop. Cached result read back here.
+                    static std::atomic<float> cachedAlt{-1.0f};
+                    static std::atomic<bool>  altPending{false};
+                    if (!altPending.load()) {
+                        altPending.store(true);
+                        std::thread([&]() {
+                            double alt = 0, az = 0;
+                            if (mount && mount->IsConnected() && mount->GetAltAz(alt, az))
+                                cachedAlt.store((float)alt);
+                            altPending.store(false);
+                        }).detach();
+                    }
+                    float alt = cachedAlt.load();
+                    if (alt >= 0.0f) {
                         preview.SetMountAltitude(alt);
-                        // Update ADC readout in focuser panel
                         auto adcResult = raduk::core::ADCAssistant::Compute(alt);
                         auto adcText   = raduk::core::ADCAssistant::SuggestionText(adcResult);
                         wchar_t adcBuf[64];

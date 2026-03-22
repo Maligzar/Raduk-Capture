@@ -338,6 +338,42 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 return TRUE;
             }
 
+            // AE AUTO button — dim=off, cyan=advisory, green=auto
+            if (dis->hwndItem == self->m_btnAEAuto) {
+                HDC  hdc     = dis->hDC;
+                RECT r       = dis->rcItem;
+                bool pressed = (dis->itemState & ODS_SELECTED) != 0;
+                int  state   = self->m_aeState;  // 0=off, 1=advisory, 2=auto
+
+                COLORREF bg = (state == 2) ? (pressed ? RGB(0, 100, 30) : RGB(0, 70, 20))
+                            : (state == 1) ? (pressed ? RGB(0, 60, 80)  : RGB(0, 40, 60))
+                            :               (pressed ? RGB(25, 30, 40)  : RGB(15, 20, 30));
+                COLORREF fg = (state == 2) ? RGB(77, 255, 145)
+                            : (state == 1) ? RGB(0, 229, 255)
+                            :               RGB(80, 100, 110);
+                HBRUSH hbg = CreateSolidBrush(bg);
+                FillRect(hdc, &r, hbg);
+                DeleteObject(hbg);
+                HPEN pen = CreatePen(PS_SOLID, 1, fg);
+                HPEN oldPen = (HPEN)SelectObject(hdc, pen);
+                HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+                Rectangle(hdc, r.left, r.top, r.right, r.bottom);
+                SelectObject(hdc, oldPen); SelectObject(hdc, oldBrush);
+                DeleteObject(pen);
+                const wchar_t* lbl = (state == 2) ? L"AE AUTO"
+                                   : (state == 1) ? L"AE ADV" : L"AE OFF";
+                SetBkMode(hdc, TRANSPARENT);
+                SetTextColor(hdc, fg);
+                HFONT f = CreateFontW(-12, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                    ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                    CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
+                HFONT old = f ? (HFONT)SelectObject(hdc, f) : nullptr;
+                DrawTextW(hdc, lbl, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                if (old) SelectObject(hdc, old);
+                if (f) DeleteObject(f);
+                return TRUE;
+            }
+
             // RECORD / STOP button — red pulse when recording, cyan when idle
             if (dis->hwndItem == self->m_btnRecord) {
                 HDC  hdc     = dis->hDC;
@@ -918,6 +954,15 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
             if (m_onAutofocus) m_onAutofocus(!m_afRunning);
             return true;
 
+        case ID_BTN_AE_AUTO:
+            // Cycle: off -> advisory -> auto -> off
+            {
+                int next = (m_aeState + 1) % 3;
+                SetAEState(next);
+                if (m_onAEToggle) m_onAEToggle(next > 0, next == 2);
+            }
+            return true;
+
         case ID_BTN_MOUNT_CTRL:
             // Show and reposition floating mount controller to default position
             if (m_onMountCtrl) m_onMountCtrl();
@@ -1074,6 +1119,29 @@ void ControlPanel::UpdateJogRateButtons() {
         else
             swprintf(lbl, 32, L"%s", b.label);
         SetWindowTextW(b.btn, lbl);
+    }
+}
+
+// ── UpdateSlider ───────────────────────────────────────────────
+// Programmatically moves a slider and updates its value label.
+// Used by Auto-Exposure assistant to sync panel when it applies changes.
+void ControlPanel::UpdateSlider(bool isExposure, int val) {
+    HWND slider = isExposure ? m_sliderExposure : m_sliderGain;
+    HWND lbl    = isExposure ? m_lblExpVal      : m_lblGainVal;
+
+    if (slider) SendMessage(slider, TBM_SETPOS, TRUE, (LPARAM)val);
+
+    if (lbl) {
+        wchar_t buf[32];
+        if (isExposure) {
+            double ms = val / 1000.0;
+            if      (ms < 1.0)  swprintf(buf, 32, L"%.3fms", ms);
+            else if (ms < 10.0) swprintf(buf, 32, L"%.2fms", ms);
+            else                swprintf(buf, 32, L"%.1fms", ms);
+        } else {
+            swprintf(buf, 32, L"%d", val);
+        }
+        SetWindowTextW(lbl, buf);
     }
 }
 
@@ -1896,6 +1964,8 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_btnFocusOut10  = m_btnFocusOut1000 = nullptr;
     m_editFocusGoto  = m_btnFocusGoto    = nullptr;
     m_btnAutofocus   = m_lblAFStatus     = nullptr;
+    m_lblADCStatus   = nullptr;
+    m_btnAEAuto      = m_lblAEStatus     = nullptr;
     m_lblMountRA = m_lblMountDec = m_lblMountTrack = m_lblMountControl = nullptr;
     m_lblMountAz = m_lblMountAlt = m_lblMountHA = m_lblMountConnected = nullptr;
     m_btnTracking = m_btnPark = m_btnMountStop = nullptr;
@@ -2037,6 +2107,17 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     makeSliderRow(L"USB",      40, 100,  initUSB,   ID_SLIDER_USB,   ID_LBL_USB_VAL,   m_sliderUSB,      m_lblUSBVal,   usbBuf);
     TagControls({ m_sliderGain, m_sliderExposure, m_sliderGamma,
                   m_sliderUSB, m_sliderWBR, m_sliderWBB }, Section::Camera);
+
+    // Phase 12 — Auto-Exposure row: [AE ADVISORY] label + [AUTO] toggle button
+    {
+        int btnW = 52;
+        m_lblAEStatus = MakeValueLabel(L"AE: off", x, y, w - btnW - 2, SH, ID_LBL_AE_STATUS);
+        TagControl(m_lblAEStatus, Section::Camera);
+        m_btnAEAuto = MakeButton(L"AE OFF", x + w - btnW, y - 2, btnW, BH, ID_BTN_AE_AUTO);
+        SetWindowTheme(m_btnAEAuto, L"", L"");
+        TagControl(m_btnAEAuto, Section::Camera);
+        y += BH + 2;
+    }
     } // end Camera
 
     // ── FOCUSER ───────────────────────────────────────────────────
@@ -2072,6 +2153,11 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     y += BH + 4;
     m_lblAFStatus = MakeValueLabel(L"", x, y, w, SH, ID_LBL_AF_STATUS);
     TagControl(m_lblAFStatus, Section::EAF);
+    y += SH + 2;
+
+    // ADC dispersion readout — updates live from mount altitude
+    m_lblADCStatus = MakeValueLabel(L"ADC: --", x, y, w, SH, ID_LBL_ADC_STATUS);
+    TagControl(m_lblADCStatus, Section::EAF);
     y += SH + 2;
     } // end Focuser
 

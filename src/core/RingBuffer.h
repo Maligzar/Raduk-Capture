@@ -123,7 +123,7 @@ public:
     // Mark the slot as READY (frame data is complete) and advance write position.
     void CommitWrite(FrameSlot* slot) {
         slot->state.store(FrameState::READY, std::memory_order_release);
-        m_writePos.fetch_add(1, std::memory_order_relaxed);
+        m_writePos.fetch_add(1, std::memory_order_release);
         m_totalFrames.fetch_add(1, std::memory_order_relaxed);
     }
 

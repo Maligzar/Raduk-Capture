@@ -460,18 +460,64 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                 uint8_t r = m_rgbBuffer[i*3+0];
                 uint8_t g = m_rgbBuffer[i*3+1];
                 uint8_t b = m_rgbBuffer[i*3+2];
-                // Clip: any channel saturated
                 if (flashOn && (r == 255 || g == 255 || b == 255)) {
-                    rgba[i*4+0] = 220;
-                    rgba[i*4+1] = 10;
-                    rgba[i*4+2] = 10;
+                    rgba[i*4+0] = 220; rgba[i*4+1] = 10; rgba[i*4+2] = 10;
                 } else {
-                    rgba[i*4+0] = r;
-                    rgba[i*4+1] = g;
-                    rgba[i*4+2] = b;
+                    rgba[i*4+0] = r; rgba[i*4+1] = g; rgba[i*4+2] = b;
                 }
                 rgba[i*4+3] = 255;
             }
+
+            // ── RGB Align (Phase 23) ──────────────────────────
+            // Compute pixel shift from ADC dispersion + manual offset.
+            // Plate scale: 0.203 arcsec/px for 8SE+ASI678MC at f/10.
+            // Blue displaced toward zenith (UP) by shift pixels.
+            // Red displaced DOWN by shift/2 pixels (smaller correction).
+            if (m_rgbAlignEnabled && frame->width > 0 && frame->height > 0) {
+                float dispArcsec = 0.0f;
+                if (m_mountAltDeg > 0.0) {
+                    auto adc = raduk::core::ADCAssistant::Compute(m_mountAltDeg);
+                    dispArcsec = adc.separationArcsec;
+                }
+                constexpr float PLATE_SCALE = 0.203f; // arcsec/px
+                int autoShift = (dispArcsec > 0.0f)
+                    ? (int)roundf(dispArcsec / PLATE_SCALE) : 0;
+                int shift = autoShift + m_rgbAlignManual;
+                shift = (shift > 40) ? 40 : (shift < -40) ? -40 : shift;
+                m_rgbAlignShift = shift;
+
+                if (shift != 0) {
+                    int W = frame->width, H = frame->height;
+                    // Shift blue UP by |shift| (positive shift = dispersion correction)
+                    int bShift = shift;    // blue up
+                    int rShift = -shift/2; // red down by half (partial correction)
+
+                    std::vector<uint8_t> aligned(rgba);
+                    for (int y = 0; y < H; y++) {
+                        for (int x = 0; x < W; x++) {
+                            size_t dst = (size_t)(y * W + x) * 4;
+                            // Blue channel from (y + bShift) row
+                            int srcY_b = y + bShift;
+                            if (srcY_b >= 0 && srcY_b < H) {
+                                size_t src = (size_t)(srcY_b * W + x) * 4;
+                                aligned[dst+2] = rgba[src+2];
+                            } else {
+                                aligned[dst+2] = 0;
+                            }
+                            // Red channel from (y + rShift) row
+                            int srcY_r = y + rShift;
+                            if (srcY_r >= 0 && srcY_r < H && rShift != 0) {
+                                size_t src = (size_t)(srcY_r * W + x) * 4;
+                                aligned[dst+0] = rgba[src+0];
+                            }
+                        }
+                    }
+                    rgba = std::move(aligned);
+                }
+            } else {
+                m_rgbAlignShift = 0;
+            }
+
             if (m_bitmap) {
                 D2D1_RECT_U srcRect = D2D1::RectU(0, 0, frame->width, frame->height);
                 m_bitmap->CopyFromMemory(&srcRect, rgba.data(), frame->width * 4);
@@ -573,13 +619,22 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
         if (m_showClip && m_clipPct > 0.05f && m_redBrush) {
             wchar_t clipBuf[32];
             swprintf(clipBuf, 32, L"CLIP %.1f%%", m_clipPct);
-            // Flash the label in sync with the pixel flash
             bool labelFlash = (m_clipFlash / 8) % 2 == 0;
             ID2D1SolidColorBrush* clipBrush = labelFlash ? m_redBrush : m_amberBrush;
             D2D1_RECT_F clipRect = D2D1::RectF(px+pw-140, 58, px+pw-8, 72);
             m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
             m_renderTarget->DrawText(clipBuf, (UINT32)wcslen(clipBuf),
                                      m_hudFont, clipRect, clipBrush);
+        }
+
+        // RGB Align HUD — show shift value when enabled
+        if (m_rgbAlignEnabled && m_amberBrush) {
+            wchar_t rgbBuf[32];
+            swprintf(rgbBuf, 32, L"RGB ALIGN  %+d px", m_rgbAlignShift);
+            D2D1_RECT_F rgbRect = D2D1::RectF(px+pw-160, 74, px+pw-8, 88);
+            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+            m_renderTarget->DrawText(rgbBuf, (UINT32)wcslen(rgbBuf),
+                                     m_hudFont, rgbRect, m_amberBrush);
         }
 
         if (hasFrame && frame) {

@@ -361,6 +361,9 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                 case 'P':
                     if (firstPress && m_onPause) m_onPause();
                     return 0;
+                case 'V':
+                    if (firstPress && m_onRGBAlign) m_onRGBAlign();
+                    return 0;
                 case 'Z':
                     if (firstPress && m_onZoomCycle) m_onZoomCycle();
                     return 0;

@@ -678,15 +678,16 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 | v1.0.6: Phase 21 Clipping Warning Overlay | Saturated pixel flash (red, 2.5Hz) in RGBA loop, CLIP% HUD label, C key + toolbar button |
 | v1.0.7: Phase 22 Snapshot + Phase 25a Quality Graph | PNG save via WIC (S key), rolling 200-frame sharpness bar chart (Q key), green/amber/red by quality |
 | v1.0.8: Phase 41 Pause Capture | P key pauses SER write without closing file; amber PAUSED button; resumes seamlessly |
+| v1.0.9: Phase 44 Frame Type Labels + App Icon | Light/Dark/Flat/Bias dropdown in CAPTURE; type in filename; .rc + .ico embedded in exe |
+| v1.0.10: Phase 23 RGB Align Display Mode | V key; blue shift up / red down by Edlen dispersion / plate scale; manual ±20px slider; RGB ALIGN HUD |
 
 ### 🔲 Next Up
 
 | Phase | Feature | Priority |
 |-------|---------|---------|
-| Phase 44 | Frame Type Labels + App Icon | Tier 1 — Next |
-| Phase 23 | RGB Align Display Mode | Tier 1 |
-| Phase 24 | Pixel Value Readout | Tier 1 |
+| Phase 24 | Pixel Value Readout | Tier 1 — Next |
 | Phase 25 | Image Boost / Frame Stack FX | Tier 1 |
+| Phase 49 | Help System | Tier 1 |
 | Phase 26 | Night Vision Mode | Tier 2 |
 | Phase 38 | Single-Channel Display Mode | Tier 2 |
 | Phase 40 | Notification Bar | Tier 2 |
@@ -1042,6 +1043,16 @@ Load a previously saved SER file, plate-solve its first frame, slew to those coo
 - Plate-solves the first frame of the SER to get sky coordinates
 - Feeds into GoTo pipeline — same slew/center/sync path as GoTo panel
 - **Effort: Medium** — SER first-frame extraction + plate solve + GoTo invocation
+
+#### Phase 49 — Help System
+In-app help window (`?` key or `[?]` toolbar button) showing the full reference guide.
+- `RadukCapture-Help.md` maintained alongside the codebase — updated after every release
+- Help window: `WS_EX_TOPMOST | WS_EX_TOOLWINDOW` floating panel (~700×900px)
+- Content loaded from `RadukCapture-Help.md` at runtime; falls back to embedded string if file not found
+- Search bar filters visible sections (type "focus" → shows FOCUSER + Autofocus sections)
+- Rendered using a read-only Win32 `EDIT` control with monospace font
+- Toolbar button `[?]` added as 9th button
+- **Effort: Medium** — file I/O + search + Win32 text display, ~3 hours
 Transient status bar below the toolbar that confirms completed actions. Provides clickable link to open the folder where a file was just saved.
 - Green bar: "Saved: Jupiter_20260322_213045_0001.ser (1.2 GB) → Open folder"
 - Amber bar: warnings (buffer overrun, EAF position limit, mount lost)
@@ -1126,9 +1137,10 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 | 22 | Snapshot PNG/FITS | 1 | Easy | ✅ v1.0.7 |
 | 25a | Quality Bar Graph | 1 | Easy | ✅ v1.0.7 |
 | 41 | Pause Capture | 1 | Easy | ✅ v1.0.8 |
-| 44 | Frame Type Labels + App Icon | 1 | Easy | 🔲 Next |
-| 23 | RGB Align Display Mode | 1 | Easy-Med | 🔲 |
-| 24 | Pixel Value Readout | 1 | Easy | 🔲 |
+| 44 | Frame Type Labels + App Icon | 1 | Easy | ✅ v1.0.9 |
+| 23 | RGB Align Display Mode | 1 | Easy-Med | ✅ v1.0.10 |
+| 24 | Pixel Value Readout | 1 | Easy | 🔲 Next |
+| 49 | Help System | 1 | Medium | 🔲 |
 | 25 | Image Boost / Frame Stack FX | 1 | Medium | 🔲 |
 | 26 | Night Vision Mode | 2 | Easy | 🔲 |
 | 38 | Single-Channel Display Mode | 2 | Easy | 🔲 |
@@ -1146,6 +1158,7 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 | 35 | ADC Alignment Tool | 2 | Medium | 🔲 |
 | 47 | Pixel Position / Click to Recentre | 2 | Medium | 🔲 |
 | 48 | Goto Previous Image | 2 | Medium | 🔲 |
+| 49 | Help System | 1 | Medium | 🔲 |
 | 6.6 | GoTo Map Learning | 2 | Med-Hard | 🔲 |
 | 42 | Two Monitor Mode | 2 | Hard | 🔲 |
 | 16 | Polar Alignment Assistant | 2 | Hard | 🔲 |
@@ -1185,4 +1198,4 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 ---
 
-*RadukCapture v1.0.8 — Built for the stars, from Anthem, Arizona*
+*RadukCapture v1.0.10 — Built for the stars, from Anthem, Arizona*

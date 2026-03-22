@@ -881,6 +881,7 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
     switch (id) {
         case ID_BTN_ZOOM:        if (m_onZoomCycle)        m_onZoomCycle();        return true;
         case ID_BTN_FULLSCREEN:  if (m_onFullscreenToggle) m_onFullscreenToggle(); return true;
+        case ID_BTN_RGB_ALIGN:   if (m_onRGBAlign)         m_onRGBAlign();         return true;
         case ID_BTN_DOCK:        ToggleDock(); if (m_onDockToggle) m_onDockToggle(); return true;
 
         case ID_BTN_RECORD:
@@ -1993,6 +1994,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_editGoToTarget = m_btnGoToFind = nullptr;
     m_editFilePrefix = m_btnBrowseDir = m_editOutputDir = nullptr;
     m_comboFrameType = nullptr;
+    m_btnRGBAlign = m_sliderRGBManual = m_lblRGBAlign = nullptr;
     m_editLimitFrames = m_editLimitTime = nullptr;
     m_radioFrames = m_radioTime = nullptr;
     m_editGateThreshold = m_btnGateEnable = nullptr;
@@ -2056,6 +2058,19 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         m_btnZoom       = MakeButton(L"ZOOM: FIT", x,      y, vW, BH, ID_BTN_ZOOM);
         m_btnFullscreen = MakeButton(L"FULLSCR",   x+vW+2, y, vW, BH, ID_BTN_FULLSCREEN);
         y += BH + 2;
+    }
+    // RGB Align — Phase 23
+    {
+        int btnW = 100;
+        m_btnRGBAlign = MakeButton(L"RGB ALIGN", x, y, btnW, BH, ID_BTN_RGB_ALIGN);
+        m_lblRGBAlign = MakeLabel(L"ALIGN  +0 px", x + btnW + 4, y, w - btnW - 4, SH);
+        TagControl(m_lblRGBAlign, Section::Image);
+        y += BH + 2;
+
+        // Manual offset slider: range 0-40, center 20 = 0px offset
+        TagControl(MakeLabel(L"Manual:", x, y, 50, SH), Section::Image);
+        m_sliderRGBManual = MakeSlider(x+52, y, w-52, SL, 0, 40, 20, ID_SLIDER_RGB_MANUAL);
+        y += SL + 3;
     }
     } // end Image
     m_btnDock = nullptr;

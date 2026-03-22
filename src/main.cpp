@@ -1170,6 +1170,20 @@ static int RunApp(bool useEmulator) {
         Log("[REC] %s\n", paused ? "PAUSED" : "RESUMED");
     });
 
+    // Phase 23 — RGB Align: V key or panel button toggles, slider sets manual offset
+    window.SetRGBAlignHandler([&]() {
+        preview.ToggleRGBAlign();
+        bool on = preview.RGBAlignEnabled();
+        controls.SetRGBAlignActive(on);
+        Log("[RGB] Align %s\n", on ? "ON" : "OFF");
+    });
+    controls.SetRGBAlignCallback([&]() {
+        preview.ToggleRGBAlign();
+        bool on = preview.RGBAlignEnabled();
+        controls.SetRGBAlignActive(on);
+        Log("[RGB] Align %s\n", on ? "ON" : "OFF");
+    });
+
     // Phase 22 — Snapshot: save current debayered frame as PNG
     static int snapCount = 0;
     auto doSnapshot = [&]() {
@@ -1539,6 +1553,10 @@ static int RunApp(bool useEmulator) {
         if (lastAnalysis.valid)
             preview.PushQualitySample(lastAnalysis.sharpnessPct);
 
+        // Phase 23: sync manual offset slider → preview each frame
+        if (preview.RGBAlignEnabled())
+            preview.SetRGBAlignManual(controls.GetRGBManual());
+
         // Phase 9: feed sharpness to autofocus scan if running
         if (lastAnalysis.valid && autofocus.IsRunning())
             autofocus.SubmitSharpness(lastAnalysis.sharpnessPct);
@@ -1589,6 +1607,10 @@ static int RunApp(bool useEmulator) {
                 gotoPanel.IsVisible(),
                 preview.ReticleVisible(),
                 preview.ClipVisible());
+
+            // Phase 23: update RGB align label with live shift value
+            if (preview.RGBAlignEnabled())
+                controls.SetRGBAlignLabel(preview.RGBAlignShift());
         }
 
         int clientW = window.ClientWidth();

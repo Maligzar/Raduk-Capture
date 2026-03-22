@@ -142,15 +142,24 @@ public:
     }
     bool HasFrame() const { return m_rgbBuffer && m_frameWidth > 0 && m_frameHeight > 0; }
     // Save the current debayered RGB frame as PNG using WIC.
-    // Call from main thread after a frame has been rendered.
-    // Returns true on success.
     bool SaveSnapshotPNG(const std::wstring& path);
 
     // Show "SAVED: filename" notification in HUD for ~3 seconds.
     void SetSnapshotNotification(const std::wstring& msg) {
         m_snapMsg   = msg;
-        m_snapTimer = 180;  // ~3s at 60fps
+        m_snapTimer = 180;
     }
+
+    // ── RGB Align — Phase 23 ──────────────────────────────────
+    // Shift blue channel UP by computed pixel offset to compensate
+    // atmospheric dispersion. Auto value from ADCAssistant altitude.
+    // Manual slider adds ±20px fine-tune on top. Display-only.
+    void SetRGBAlignEnabled(bool e)    { m_rgbAlignEnabled = e; }
+    bool RGBAlignEnabled()       const { return m_rgbAlignEnabled; }
+    void ToggleRGBAlign()              { m_rgbAlignEnabled = !m_rgbAlignEnabled; }
+    void SetRGBAlignManual(int px)     { m_rgbAlignManual = px; }
+    int  RGBAlignManual()        const { return m_rgbAlignManual; }
+    int  RGBAlignShift()         const { return m_rgbAlignShift; }
 
 private:
     void DebayerRGGB(const uint8_t* raw, uint8_t* rgb, int width, int height, int bitDepth);
@@ -201,7 +210,12 @@ private:
 
     // Snapshot notification (Phase 22)
     std::wstring            m_snapMsg;
-    int                     m_snapTimer     = 0;   // countdown frames (~3s at 60fps)
+    int                     m_snapTimer     = 0;
+
+    // RGB Align (Phase 23)
+    bool                    m_rgbAlignEnabled = false;
+    int                     m_rgbAlignManual  = 0;     // user fine-tune ±20px
+    int                     m_rgbAlignShift   = 0;     // last applied shift (for HUD)
 
     // Quality bar graph (Phase 25a)
     static constexpr int    QUAL_HISTORY    = 200; // ~5s at 40fps

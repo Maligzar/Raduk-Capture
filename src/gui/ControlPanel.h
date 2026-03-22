@@ -140,6 +140,25 @@ public:
         }
     }
     int AEState() const { return m_aeState; }
+
+    // Phase 23 — RGB Align
+    void SetRGBAlignCallback(std::function<void()> cb) { m_onRGBAlign = cb; }
+    int  GetRGBManual() const {
+        if (!m_sliderRGBManual) return 0;
+        return (int)SendMessage(m_sliderRGBManual, TBM_GETPOS, 0, 0) - 20;
+    }
+    void SetRGBAlignActive(bool active) {
+        if (m_btnRGBAlign) {
+            SetWindowTextW(m_btnRGBAlign, active ? L"RGB ALIGN ON" : L"RGB ALIGN");
+            InvalidateRect(m_btnRGBAlign, nullptr, TRUE);
+        }
+    }
+    void SetRGBAlignLabel(int shift) {
+        if (m_lblRGBAlign) {
+            wchar_t buf[24]; swprintf(buf, 24, L"ALIGN  %+d px", shift);
+            SetWindowTextW(m_lblRGBAlign, buf);
+        }
+    }
     void SetAutofocusRunning(bool running) {
         m_afRunning = running;
         if (m_btnAutofocus) {
@@ -448,8 +467,12 @@ private:
     HWND m_editOutputDir   = nullptr;
     HWND m_btnBrowseDir    = nullptr;
     HWND m_editFilePrefix  = nullptr;
-    HWND m_comboFrameType  = nullptr;  // Phase 44: Light/Dark/Flat/Bias
+    HWND m_comboFrameType  = nullptr;
     HWND m_editLimitFrames = nullptr;
+    // Phase 23: RGB align
+    HWND m_btnRGBAlign     = nullptr;
+    HWND m_sliderRGBManual = nullptr;
+    HWND m_lblRGBAlign     = nullptr;
     HWND m_editLimitTime   = nullptr;
     HWND m_radioFrames     = nullptr;
     HWND m_radioTime       = nullptr;
@@ -499,6 +522,8 @@ private:
         ID_BTN_DOCK,
         ID_BTN_RECORD = 1800,
         ID_COMBO_FRAME_TYPE,
+        ID_BTN_RGB_ALIGN,       // Phase 23: toggle RGB align
+        ID_SLIDER_RGB_MANUAL,   // Phase 23: manual fine-tune ±20px
         ID_LBL_REC_STATUS,
         ID_LBL_REC_FRAMES,
         ID_LBL_REC_BUFFER,
@@ -529,7 +554,8 @@ private:
     std::function<void()>                   m_onSolveSync;
     std::function<void(bool)>               m_onAutofocus;  // Phase 9
     std::function<void()>                   m_onMountCtrl;  // floating mount controller toggle
-    std::function<void(bool,bool)>          m_onAEToggle;   // Phase 12: AE enable, autoApply
+    std::function<void(bool,bool)>          m_onAEToggle;
+    std::function<void()>                   m_onRGBAlign;
     int                                     m_aeState = 0;  // 0=off, 1=advisory, 2=auto
 };
 

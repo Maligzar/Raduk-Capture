@@ -117,7 +117,7 @@
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;_MBCS;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\RadukCapture;D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
       <AdditionalIncludeDirectories>D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -201,7 +201,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_MBCS;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\RadukCapture;D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
       <AdditionalIncludeDirectories>D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -285,7 +285,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_MBCS;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\RadukCapture;D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
       <AdditionalIncludeDirectories>D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -368,7 +368,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_MBCS;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\RadukCapture;D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
       <AdditionalIncludeDirectories>D:\RadukCapture\src;D:\RadukCapture\external\ASI_SDK\include;D:\RadukCapture\external\EAF_SDK\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -481,6 +481,12 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="D:\RadukCapture\src\main.cpp" />
+    <ResourceCompile Include="D:\RadukCapture\src\RadukCapture.rc">
+      <ScanSourceForModuleDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ScanSourceForModuleDependencies>
+      <ScanSourceForModuleDependencies Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ScanSourceForModuleDependencies>
+      <ScanSourceForModuleDependencies Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</ScanSourceForModuleDependencies>
+      <ScanSourceForModuleDependencies Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</ScanSourceForModuleDependencies>
+    </ResourceCompile>
     <ClCompile Include="D:\RadukCapture\src\core\ASICamera.cpp" />
     <ClCompile Include="D:\RadukCapture\src\core\EAFFocuser.cpp" />
     <ClCompile Include="D:\RadukCapture\src\core\NexStarMount.cpp" />

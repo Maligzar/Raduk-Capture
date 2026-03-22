@@ -677,13 +677,13 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 | v1.0.5: Phase 12 Auto-Exposure Assistant | I-controller, clip detection, HCG floor (182), advisory + auto modes, AE button in CAMERA section |
 | v1.0.6: Phase 21 Clipping Warning Overlay | Saturated pixel flash (red, 2.5Hz) in RGBA loop, CLIP% HUD label, C key + toolbar button |
 | v1.0.7: Phase 22 Snapshot + Phase 25a Quality Graph | PNG save via WIC (S key), rolling 200-frame sharpness bar chart (Q key), green/amber/red by quality |
+| v1.0.8: Phase 41 Pause Capture | P key pauses SER write without closing file; amber PAUSED button; resumes seamlessly |
 
 ### 🔲 Next Up
 
 | Phase | Feature | Priority |
 |-------|---------|---------|
-| Phase 41 | Pause Capture | Tier 1 — Next |
-| Phase 44 | Frame Type Labels + App Icon | Tier 1 |
+| Phase 44 | Frame Type Labels + App Icon | Tier 1 — Next |
 | Phase 23 | RGB Align Display Mode | Tier 1 |
 | Phase 24 | Pixel Value Readout | Tier 1 |
 | Phase 25 | Image Boost / Frame Stack FX | Tier 1 |
@@ -1125,8 +1125,8 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 | 21 | Clipping Warning Overlay | 1 | Easy | ✅ v1.0.6 |
 | 22 | Snapshot PNG/FITS | 1 | Easy | ✅ v1.0.7 |
 | 25a | Quality Bar Graph | 1 | Easy | ✅ v1.0.7 |
-| 41 | Pause Capture | 1 | Easy | 🔲 Next |
-| 44 | Frame Type Labels | 1 | Easy | 🔲 |
+| 41 | Pause Capture | 1 | Easy | ✅ v1.0.8 |
+| 44 | Frame Type Labels + App Icon | 1 | Easy | 🔲 Next |
 | 23 | RGB Align Display Mode | 1 | Easy-Med | 🔲 |
 | 24 | Pixel Value Readout | 1 | Easy | 🔲 |
 | 25 | Image Boost / Frame Stack FX | 1 | Medium | 🔲 |
@@ -1185,4 +1185,4 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 ---
 
-*RadukCapture v1.0.7 — Built for the stars, from Anthem, Arizona*
+*RadukCapture v1.0.8 — Built for the stars, from Anthem, Arizona*

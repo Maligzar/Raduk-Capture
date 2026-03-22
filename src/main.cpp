@@ -931,6 +931,7 @@ static int RunApp(bool useEmulator) {
             CaptureConfig cfg = capturer.Config();
             cfg.filePrefix    = controls.GetFilePrefix();
             cfg.outputDir     = controls.GetOutputDir();
+            cfg.frameType     = controls.GetFrameType();  // Phase 44
             cfg.limitFrames   = controls.GetLimitFrames();
             cfg.limitTimeSec  = controls.GetLimitTimeSec();
             cfg.limitType     = controls.GetLimitByFrames()

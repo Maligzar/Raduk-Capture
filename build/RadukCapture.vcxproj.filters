@@ -30,6 +30,11 @@
     <CustomBuild Include="D:\RadukCapture\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="D:\RadukCapture\src\RadukCapture.rc">
+      <Filter>Source Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
     <Filter Include="Source Files">
       <UniqueIdentifier>{4CD68E31-2989-37BB-8023-B2E6C153725F}</UniqueIdentifier>
     </Filter>

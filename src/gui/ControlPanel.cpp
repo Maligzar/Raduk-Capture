@@ -1306,6 +1306,17 @@ std::string ControlPanel::GetFilePrefix() const {
     return std::string(out[0] ? out : "Capture");
 }
 
+std::string ControlPanel::GetFrameType() const {
+    if (!m_comboFrameType) return "Light";
+    int sel = (int)SendMessage(m_comboFrameType, CB_GETCURSEL, 0, 0);
+    switch (sel) {
+        case 1:  return "Dark";
+        case 2:  return "Flat";
+        case 3:  return "Bias";
+        default: return "Light";
+    }
+}
+
 std::string ControlPanel::GetOutputDir() const {
     if (!m_editOutputDir) return "D:\\RadukCapture\\captures";
     wchar_t buf[MAX_PATH] = {};
@@ -1981,6 +1992,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_lblGoToStatus  = nullptr;
     m_editGoToTarget = m_btnGoToFind = nullptr;
     m_editFilePrefix = m_btnBrowseDir = m_editOutputDir = nullptr;
+    m_comboFrameType = nullptr;
     m_editLimitFrames = m_editLimitTime = nullptr;
     m_radioFrames = m_radioTime = nullptr;
     m_editGateThreshold = m_btnGateEnable = nullptr;
@@ -2272,6 +2284,25 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         GetWindowLong(m_editFilePrefix, GWL_STYLE) & ~ES_NUMBER);
     m_btnBrowseDir = MakeButton(L"...", x+w-20, y-2, 20, BH, ID_BTN_BROWSE_DIR);
     y += BH + 1;
+
+    // Frame type dropdown — Light / Dark / Flat / Bias
+    {
+        int lblW = 32;
+        TagControl(MakeLabel(L"Type:", x, y, lblW, SH), Section::Capture);
+        m_comboFrameType = CreateWindowExW(0, L"COMBOBOX", L"",
+            WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+            x + lblW + 2, y - 2, w - lblW - 2, 80, m_panelHwnd,
+            (HMENU)(INT_PTR)ID_COMBO_FRAME_TYPE, GetModuleHandle(nullptr), nullptr);
+        if (m_comboFrameType) {
+            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Light");
+            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Dark");
+            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Flat");
+            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Bias");
+            SendMessage(m_comboFrameType, CB_SETCURSEL, 0, 0);  // default Light
+        }
+        TagControl(m_comboFrameType, Section::Capture);
+        y += BH + 1;
+    }
     m_editOutputDir = MakeEditBox(L"D:\\RadukCapture\\captures",
                                    x, y-1, w, BH-2, ID_EDIT_OUTPUT_DIR);
     SetWindowLong(m_editOutputDir, GWL_STYLE,

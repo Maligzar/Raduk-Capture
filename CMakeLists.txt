@@ -48,6 +48,9 @@ endif()
 add_executable(RadukCapture WIN32
     src/main.cpp
 
+    # Win32 resources — application icon + version info (Phase 44)
+    src/RadukCapture.rc
+
     # Core
     ${DEVICE_SOURCES}
     src/core/CaptureThread.cpp
@@ -108,6 +111,8 @@ endif()
 # of Unicode characters in string literals when system codepage is not UTF-8.
 if(MSVC)
     target_compile_options(RadukCapture PRIVATE /utf-8)
+    # RC compiler needs the project root so assets/RadukCapture.ico resolves
+    set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} /I \"${CMAKE_SOURCE_DIR}\"")
 endif()
 
 if(RADUK_EMULATOR)

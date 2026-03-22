@@ -45,7 +45,10 @@ bool Window::Create(const wchar_t* title, int width, int height) {
     wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
     wc.hbrBackground = CreateSolidBrush(RGB(2, 5, 9));
     wc.lpszClassName = L"RadukCaptureWindow";
-    wc.hIcon         = LoadIcon(nullptr, IDI_APPLICATION);
+    // Load embedded icon (IDI_RADUK=101 from RadukCapture.rc)
+    // Falls back to default app icon if resource not found.
+    HICON hIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(101));
+    wc.hIcon = hIcon ? hIcon : LoadIcon(nullptr, IDI_APPLICATION);
 
     if (!RegisterClassExW(&wc)) {
         DWORD err = GetLastError();

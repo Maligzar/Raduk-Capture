@@ -225,6 +225,7 @@ public:
     }
 
     std::string GetFilePrefix() const;
+    std::string GetFrameType() const;  // Phase 44: "Light", "Dark", "Flat", "Bias"
     std::string GetOutputDir() const;
     uint32_t    GetLimitFrames() const;
     double      GetLimitTimeSec() const;
@@ -447,6 +448,7 @@ private:
     HWND m_editOutputDir   = nullptr;
     HWND m_btnBrowseDir    = nullptr;
     HWND m_editFilePrefix  = nullptr;
+    HWND m_comboFrameType  = nullptr;  // Phase 44: Light/Dark/Flat/Bias
     HWND m_editLimitFrames = nullptr;
     HWND m_editLimitTime   = nullptr;
     HWND m_radioFrames     = nullptr;
@@ -496,6 +498,7 @@ private:
         ID_BTN_FULLSCREEN,
         ID_BTN_DOCK,
         ID_BTN_RECORD = 1800,
+        ID_COMBO_FRAME_TYPE,
         ID_LBL_REC_STATUS,
         ID_LBL_REC_FRAMES,
         ID_LBL_REC_BUFFER,

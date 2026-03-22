@@ -33,10 +33,11 @@ enum class LimitType { Frames, Time };
 struct CaptureConfig {
     std::string outputDir   = "D:\\RadukCapture\\captures";
     std::string filePrefix  = "Capture";      // e.g. "Jupiter"
+    std::string frameType   = "Light";        // Phase 44: Light/Dark/Flat/Bias
     LimitType   limitType   = LimitType::Frames;
-    uint32_t    limitFrames = 1000;           // frames to capture
-    double      limitTimeSec = 60.0;          // seconds to capture
-    int         writeBufferSlots = 512;       // RAM buffer depth
+    uint32_t    limitFrames = 1000;
+    double      limitTimeSec = 60.0;
+    int         writeBufferSlots = 512;
 };
 
 struct CaptureStatus {
@@ -262,8 +263,9 @@ private:
         int run = 1;
         while (true) {
             char name[256];
-            sprintf_s(name, "%s_%s_%dx%d_%dbit_%04d.ser",
+            sprintf_s(name, "%s_%s_%s_%dx%d_%dbit_%04d.ser",
                 m_config.filePrefix.c_str(), timebuf,
+                m_config.frameType.c_str(),
                 width, height, bitDepth, run);
             std::string path = m_config.outputDir + "\\" + name;
             FILE* f = nullptr;

@@ -217,7 +217,7 @@ bool Window::InitDirect2D() {
         reinterpret_cast<IUnknown**>(&m_dwriteFactory));
     if (FAILED(hr)) { printf("[Window] DWriteCreateFactory failed: 0x%lx\n", hr); return false; }
 
-    printf("[Window] Direct2D initialized (%dx%d pixels)\n", initPreviewW, m_clientHeight);
+    printf("[Window] Direct2D initialized (%dx%d pixels)\n", pr.right, m_clientHeight);
     return true;
 }
 

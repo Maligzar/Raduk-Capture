@@ -67,6 +67,7 @@ public:
 
     // ── Getters ────────────────────────────────────────────────
     HWND Handle()                         const { return m_hwnd; }
+    HWND PreviewHandle()                  const { return m_previewHwnd; }
     ID2D1HwndRenderTarget* RenderTarget() const { return m_renderTarget; }
     IDWriteFactory* DWriteFactory()       const { return m_dwriteFactory; }
     int  ClientWidth()                    const { return m_clientWidth; }

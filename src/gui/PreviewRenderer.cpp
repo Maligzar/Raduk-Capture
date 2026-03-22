@@ -687,11 +687,17 @@ void PreviewRenderer::DrawADCOverlay(float previewW, float previewH) {
     if (!brush) return;
 
     // ── Panel position: bottom-right corner ───────────────────
-    const float PAD   = 12.0f;
-    const float BOXW  = 110.0f;
-    const float BOXH  = 52.0f;
+    const float PAD   = 14.0f;
+    const float BOXW  = 114.0f;
+    const float BOXH  = 56.0f;
+    // previewH is the preview child window height — status bar is separate,
+    // so just clear the bottom edge with PAD
     float bx = previewW - BOXW - PAD;
-    float by = previewH - BOXH - PAD - 22.0f; // above status bar
+    float by = previewH - BOXH - PAD - 30.0f; // above the HUD status line
+
+    // Clamp to visible area
+    if (bx < 4.0f) bx = 4.0f;
+    if (by < 4.0f) by = 4.0f;
 
     // Semi-transparent background box
     ID2D1SolidColorBrush* bgBrush = nullptr;
@@ -744,9 +750,10 @@ void PreviewRenderer::DrawADCOverlay(float previewW, float previewH) {
         D2D1::Point2F(ax + 4, ay - arrowLen/2 + 5),
         brush, 1.5f);
 
-    // "B" label above arrow tip (blue displaced upward)
+    // "B" label — kept inside the box top area, not above the box
     {
-        D2D1_RECT_F br = D2D1::RectF(ax-8, ay-arrowLen/2-14, ax+8, ay-arrowLen/2-2);
+        float lblY = by + 3.0f;  // top of box + small margin
+        D2D1_RECT_F br = D2D1::RectF(ax-8, lblY, ax+8, lblY+12);
         m_renderTarget->DrawText(L"B", 1, m_hudFont, br, m_accentBrush);
     }
 }

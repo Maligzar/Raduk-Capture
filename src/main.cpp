@@ -352,8 +352,8 @@ static int RunApp(bool useEmulator) {
     // ── Window ─────────────────────────────────────────────────
     Window window;
     wchar_t title[128];
-    swprintf(title, 128, L"RADUKCAPTURE  ASI678MC  v0.9%s",
-             useEmulator ? L"  [EMULATOR]" : L"");
+    swprintf(title, 128, L"RadukCapture v1.0.5%s",
+             useEmulator ? L" [EMULATOR]" : L"");
     if (!window.Create(title, screenW, screenH)) {
         Log("[FATAL] Window creation failed\n");
         analyzer.Stop(); capture.Stop(); cam.Close(); return 1;

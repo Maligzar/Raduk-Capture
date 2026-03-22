@@ -509,6 +509,19 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                 uint8_t r = fxSrc[i*3+0];
                 uint8_t g = fxSrc[i*3+1];
                 uint8_t b = fxSrc[i*3+2];
+                // Phase 26: Night Vision — Rec.709 luminance → red channel only
+                if (m_nightVision) {
+                    uint8_t lum = (uint8_t)(0.2126f*r + 0.7152f*g + 0.0722f*b);
+                    r = lum;
+                    g = (uint8_t)(lum * 0.10f);
+                    b = 0;
+                }
+                // Phase 38: Single-Channel Display Mode
+                if (m_channelMode != ChannelMode::All) {
+                    uint8_t ch = (m_channelMode == ChannelMode::R) ? r
+                               : (m_channelMode == ChannelMode::G) ? g : b;
+                    r = ch; g = ch; b = ch;
+                }
                 if (flashOn && (r == 255 || g == 255 || b == 255)) {
                     rgba[i*4+0] = 220; rgba[i*4+1] = 10; rgba[i*4+2] = 10;
                 } else {
@@ -693,6 +706,21 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
             m_renderTarget->DrawText(fxLbl, (UINT32)wcslen(fxLbl),
                                      m_hudFont, fxRect, m_amberBrush);
+        }
+
+        // Phase 26: Night Vision HUD label
+        if (m_nightVision && m_redBrush) {
+            D2D1_RECT_F nvRect = D2D1::RectF(px+pw-120, 106, px+pw-8, 120);
+            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+            m_renderTarget->DrawText(L"NIGHT VISION", 12, m_hudFont, nvRect, m_redBrush);
+        }
+
+        // Phase 38: Single-Channel HUD label
+        if (m_channelMode != ChannelMode::All && m_accentBrush) {
+            const wchar_t* chLbl = ChannelLabel();
+            D2D1_RECT_F chRect = D2D1::RectF(px+pw-120, 122, px+pw-8, 136);
+            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+            m_renderTarget->DrawText(chLbl, (UINT32)wcslen(chLbl), m_hudFont, chRect, m_accentBrush);
         }
 
         // Pixel Value Readout (Phase 24)

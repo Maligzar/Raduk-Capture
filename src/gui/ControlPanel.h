@@ -168,6 +168,24 @@ public:
             InvalidateRect(m_btnFX, nullptr, TRUE);
         }
     }
+
+    // Phase 26: Night Vision Mode
+    void SetNightVisionCallback(std::function<void()> cb) { m_onNightVision = cb; }
+    void SetNightVisionActive(bool on) {
+        if (m_btnNight) {
+            SetWindowTextW(m_btnNight, on ? L"[N] NIGHT ON" : L"[N] NIGHT");
+            InvalidateRect(m_btnNight, nullptr, TRUE);
+        }
+    }
+
+    // Phase 38: Single-Channel Display Mode
+    void SetChannelCycleCallback(std::function<void()> cb) { m_onChannelCycle = cb; }
+    void SetChannelLabel(const wchar_t* label) {
+        if (m_btnChannel) {
+            SetWindowTextW(m_btnChannel, label ? label : L"[H] CH: ALL");
+            InvalidateRect(m_btnChannel, nullptr, TRUE);
+        }
+    }
     void SetAutofocusRunning(bool running) {
         m_afRunning = running;
         if (m_btnAutofocus) {
@@ -522,6 +540,10 @@ private:
     HWND m_lblRGBAlign     = nullptr;
     // Phase 25: FX
     HWND m_btnFX           = nullptr;
+    // Phase 26: Night Vision
+    HWND m_btnNight        = nullptr;
+    // Phase 38: Single-Channel Display
+    HWND m_btnChannel      = nullptr;
     HWND m_editLimitTime   = nullptr;
     HWND m_radioFrames     = nullptr;
     HWND m_radioTime       = nullptr;
@@ -574,6 +596,8 @@ private:
         ID_BTN_RGB_ALIGN,       // Phase 23: toggle RGB align
         ID_SLIDER_RGB_MANUAL,   // Phase 23: manual fine-tune ±20px
         ID_BTN_FX,              // Phase 25: Display FX cycle
+        ID_BTN_NIGHT,           // Phase 26: Night Vision Mode
+        ID_BTN_CHANNEL,         // Phase 38: Single-Channel Display
         ID_LBL_REC_STATUS,
         ID_LBL_REC_FRAMES,
         ID_LBL_REC_BUFFER,
@@ -607,6 +631,8 @@ private:
     std::function<void(bool,bool)>          m_onAEToggle;
     std::function<void()>                   m_onRGBAlign;
     std::function<void()>                   m_onFXCycle;
+    std::function<void()>                   m_onNightVision;
+    std::function<void()>                   m_onChannelCycle;
     int                                     m_aeState = 0;  // 0=off, 1=advisory, 2=auto
 };
 

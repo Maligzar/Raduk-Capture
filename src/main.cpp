@@ -1218,6 +1218,27 @@ static int RunApp(bool useEmulator) {
     window.SetFXCycleHandler([&]() { doFXCycle(); });
     controls.SetFXCycleCallback([&]() { doFXCycle(); });
 
+    // Phase 26: N key and panel button toggle Night Vision Mode
+    auto doNightVision = [&]() {
+        preview.ToggleNightVision();
+        bool on = preview.NightVisionOn();
+        controls.SetNightVisionActive(on);
+        Log("[NIGHT] Night Vision %s\n", on ? "ON" : "OFF");
+    };
+    window.SetNightVisionHandler([&]() { doNightVision(); });
+    controls.SetNightVisionCallback([&]() { doNightVision(); });
+
+    // Phase 38: V key and panel button cycle Single-Channel Display Mode
+    auto doChannelCycle = [&]() {
+        preview.CycleChannelMode();
+        const wchar_t* lbl = preview.ChannelLabel();
+        wchar_t wbuf[32]; swprintf(wbuf, 32, L"[H] %s", lbl);
+        controls.SetChannelLabel(wbuf);
+        Log("[CHANNEL] %ls\n", lbl);
+    };
+    window.SetChannelCycleHandler([&]() { doChannelCycle(); });
+    controls.SetChannelCycleCallback([&]() { doChannelCycle(); });
+
     // Phase 24: X key toggles pixel value readout
     window.SetPixelReadoutHandler([&]() {
         preview.TogglePixelReadout();

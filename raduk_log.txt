@@ -30,18 +30,18 @@
   P4:  Remote commands: start/stop_capture, load_profile, move_eaf, goto_target
   P4:  Session summary written to log at shutdown
 
-[FX] BOOST ×2
-[FX] BOOST ×4
-[FX] STACK 3f
-[FX] STACK 5f
-[FX] STACK 10f
-[FX] NORMAL
-[FX] BOOST ×2
-[FX] BOOST ×4
-[FX] STACK 3f
-[FX] STACK 5f
-[FX] STACK 10f
-[FX] NORMAL
+[RGB] Align ON
+[RGB] Align OFF
+[RGB] Align ON
+[RGB] Align OFF
+[CHANNEL] CH: RED
+[CHANNEL] CH: GREEN
+[CHANNEL] CH: BLUE
+[CHANNEL] CH: ALL
+[CHANNEL] CH: RED
+[CHANNEL] CH: GREEN
+[CHANNEL] CH: BLUE
+[CHANNEL] CH: ALL
 
 Shutting down...
 Goodbye.

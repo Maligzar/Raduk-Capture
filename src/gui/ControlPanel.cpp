@@ -882,7 +882,9 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
         case ID_BTN_ZOOM:        if (m_onZoomCycle)        m_onZoomCycle();        return true;
         case ID_BTN_FULLSCREEN:  if (m_onFullscreenToggle) m_onFullscreenToggle(); return true;
         case ID_BTN_RGB_ALIGN:   if (m_onRGBAlign)  m_onRGBAlign();  return true;
-        case ID_BTN_FX:          if (m_onFXCycle)   m_onFXCycle();   return true;
+        case ID_BTN_FX:          if (m_onFXCycle)       m_onFXCycle();       return true;
+        case ID_BTN_NIGHT:       if (m_onNightVision)   m_onNightVision();   return true;
+        case ID_BTN_CHANNEL:     if (m_onChannelCycle)  m_onChannelCycle();  return true;
         case ID_BTN_DOCK:        ToggleDock(); if (m_onDockToggle) m_onDockToggle(); return true;
 
         case ID_BTN_RECORD:
@@ -1997,6 +1999,8 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_comboFrameType = nullptr;
     m_btnRGBAlign = m_sliderRGBManual = m_lblRGBAlign = nullptr;
     m_btnFX = nullptr;
+    m_btnNight = nullptr;
+    m_btnChannel = nullptr;
     m_editLimitFrames = m_editLimitTime = nullptr;
     m_radioFrames = m_radioTime = nullptr;
     m_editGateThreshold = m_btnGateEnable = nullptr;
@@ -2074,9 +2078,18 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         m_sliderRGBManual = MakeSlider(x+52, y, w-52, SL, 0, 40, 20, ID_SLIDER_RGB_MANUAL);
         y += SL + 3;
     }
-    // FX button — cycles Normal/Boost2x/Boost4x/Stack3/Stack5/Stack10
-    m_btnFX = MakeButton(L"[FX] NORMAL", x, y, w, BH, ID_BTN_FX);
-    TagControl(m_btnFX, Section::Image);
+    // FX + Night Vision buttons — side by side
+    {
+        int half = (w - 2) / 2;
+        m_btnFX    = MakeButton(L"[FX] NORMAL", x,          y, half, BH, ID_BTN_FX);
+        m_btnNight = MakeButton(L"[N] NIGHT",   x+half+2,   y, half, BH, ID_BTN_NIGHT);
+        TagControl(m_btnFX,    Section::Image);
+        TagControl(m_btnNight, Section::Image);
+        y += BH + 2;
+    }
+    // Single-Channel Display button — full width
+    m_btnChannel = MakeButton(L"[H] CH: ALL", x, y, w, BH, ID_BTN_CHANNEL);
+    TagControl(m_btnChannel, Section::Image);
     y += BH + 2;
     } // end Image
     m_btnDock = nullptr;

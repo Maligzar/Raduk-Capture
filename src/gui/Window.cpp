@@ -371,6 +371,12 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                 case 'B':
                     if (firstPress && m_onFXCycle) m_onFXCycle();
                     return 0;
+                case 'N':
+                    if (firstPress && m_onNightVision) m_onNightVision();
+                    return 0;
+                case 'H':
+                    if (firstPress && m_onChannelCycle) m_onChannelCycle();
+                    return 0;
                 case 'Z':
                     if (firstPress && m_onZoomCycle) m_onZoomCycle();
                     return 0;

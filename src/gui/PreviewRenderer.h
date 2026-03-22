@@ -215,6 +215,31 @@ public:
         }
     }
 
+    // Phase 26: Night Vision Mode — red tint for dark adaptation
+    void SetNightVision(bool on)   { m_nightVision = on; }
+    bool NightVisionOn()     const { return m_nightVision; }
+    void ToggleNightVision()       { m_nightVision = !m_nightVision; }
+
+    // Phase 38: Single-Channel Display Mode — R / G / B / All
+    enum class ChannelMode { All = 0, R, G, B };
+    ChannelMode GetChannelMode()   const { return m_channelMode; }
+    void CycleChannelMode() {
+        switch (m_channelMode) {
+            case ChannelMode::All: m_channelMode = ChannelMode::R; break;
+            case ChannelMode::R:   m_channelMode = ChannelMode::G; break;
+            case ChannelMode::G:   m_channelMode = ChannelMode::B; break;
+            case ChannelMode::B:   m_channelMode = ChannelMode::All; break;
+        }
+    }
+    const wchar_t* ChannelLabel() const {
+        switch (m_channelMode) {
+            case ChannelMode::R:  return L"CH: RED";
+            case ChannelMode::G:  return L"CH: GREEN";
+            case ChannelMode::B:  return L"CH: BLUE";
+            default:              return L"CH: ALL";
+        }
+    }
+
 private:
     void DebayerRGGB(const uint8_t* raw, uint8_t* rgb, int width, int height, int bitDepth);
     D2D1_RECT_F CalculateZoomedRect(int frameW, int frameH, int previewX, int previewW, int previewH);
@@ -287,6 +312,12 @@ private:
     int                     m_fxHead        = 0;           // next slot to write
     int                     m_fxFilled      = 0;           // how many slots valid
     int                     m_fxN           = 0;           // current stack depth (3/5/10)
+
+    // Night Vision Mode (Phase 26)
+    bool                    m_nightVision   = false;
+
+    // Single-Channel Display Mode (Phase 38)
+    ChannelMode             m_channelMode   = ChannelMode::All;
 
     // Quality bar graph (Phase 25a)
     static constexpr int    QUAL_HISTORY    = 200; // ~5s at 40fps

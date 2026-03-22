@@ -1,0 +1,53 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-22 14:14:59
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[14:14:59] [SYSTEM      ] Started -- HARDWARE
+[14:15:00] [CAMERA      ] Opened: ZWO ASI678MC
+[14:15:00] [SYSTEM      ] Mount: RC direct via COM3
+[14:15:00] [SYSTEM      ] Ready
+[14:15:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:15:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:15:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:15:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:15:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:15:28] [PROFILE     ] Saved: Jupiter
+[14:15:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:15:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:15:41] [PROFILE     ] Edited: Moon
+[14:15:43] [PROFILE     ] Applied: Moon
+[14:15:44] [FOCUSER     ] GoTo 150000
+[14:15:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:15:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:15:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:16:00] [PROFILE     ] Applied: Jupiter
+[14:16:01] [FOCUSER     ] GoTo 150000
+[14:16:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:16:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:16:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:16:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:16:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:16:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:16:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:16:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[14:16:41] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-22 14:16:41
+# ============================================================
+#   Target profile  : Jupiter
+#   Capture runs    : 0
+#   Frames recorded : 0
+#   Frames dropped  : 0  (0.0%)
+#   Recording time  : 0.0 min
+#   Data written    : 0.00 GB
+#   Avg seeing score: 1.0 / 10
+#   EAF position    : 150000  (30.0 C)
+#   Mount final pos : RA 01h 17m 49s  Dec +56° 55' 43"
+# ============================================================
+[14:16:41] [SYSTEM      ] Done
+
+[14:16:41] Session ended

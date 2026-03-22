@@ -680,13 +680,13 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 | v1.0.8: Phase 41 Pause Capture | P key pauses SER write without closing file; amber PAUSED button; resumes seamlessly |
 | v1.0.9: Phase 44 Frame Type Labels + App Icon | Light/Dark/Flat/Bias dropdown in CAPTURE; type in filename; .rc + .ico embedded in exe |
 | v1.0.10: Phase 23 RGB Align Display Mode | V key; blue shift up / red down by Edlen dispersion / plate scale; manual ±20px slider; RGB ALIGN HUD |
+| v1.0.11: Phase 24 Pixel Value Readout + Notes/Profile link | X key; hover tooltip R/G/B DN + coords; click to lock; notes saved/loaded with profile |
 
 ### 🔲 Next Up
 
 | Phase | Feature | Priority |
 |-------|---------|---------|
-| Phase 24 | Pixel Value Readout | Tier 1 — Next |
-| Phase 25 | Image Boost / Frame Stack FX | Tier 1 |
+| Phase 25 | Image Boost / Frame Stack FX | Tier 1 — Next |
 | Phase 49 | Help System | Tier 1 |
 | Phase 26 | Night Vision Mode | Tier 2 |
 | Phase 38 | Single-Channel Display Mode | Tier 2 |
@@ -1139,9 +1139,9 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 | 41 | Pause Capture | 1 | Easy | ✅ v1.0.8 |
 | 44 | Frame Type Labels + App Icon | 1 | Easy | ✅ v1.0.9 |
 | 23 | RGB Align Display Mode | 1 | Easy-Med | ✅ v1.0.10 |
-| 24 | Pixel Value Readout | 1 | Easy | 🔲 Next |
+| 24 | Pixel Value Readout | 1 | Easy | ✅ v1.0.11 |
 | 49 | Help System | 1 | Medium | 🔲 |
-| 25 | Image Boost / Frame Stack FX | 1 | Medium | 🔲 |
+| 25 | Image Boost / Frame Stack FX | 1 | Medium | 🔲 Next |
 | 26 | Night Vision Mode | 2 | Easy | 🔲 |
 | 38 | Single-Channel Display Mode | 2 | Easy | 🔲 |
 | 40 | Notification Bar | 2 | Easy | 🔲 |
@@ -1198,4 +1198,4 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 ---
 
-*RadukCapture v1.0.10 — Built for the stars, from Anthem, Arizona*
+*RadukCapture v1.0.11 — Built for the stars, from Anthem, Arizona*

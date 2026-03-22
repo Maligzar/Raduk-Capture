@@ -2309,11 +2309,14 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
             x + lblW + 2, y - 2, w - lblW - 2, 80, m_panelHwnd,
             (HMENU)(INT_PTR)ID_COMBO_FRAME_TYPE, GetModuleHandle(nullptr), nullptr);
         if (m_comboFrameType) {
+            // Apply panel font immediately so items render at correct size
+            HFONT hf = (HFONT)SendMessage(m_panelHwnd, WM_GETFONT, 0, 0);
+            if (hf) SendMessage(m_comboFrameType, WM_SETFONT, (WPARAM)hf, FALSE);
             SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Light");
             SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Dark");
             SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Flat");
             SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Bias");
-            SendMessage(m_comboFrameType, CB_SETCURSEL, 0, 0);  // default Light
+            SendMessage(m_comboFrameType, CB_SETCURSEL, 0, 0);
         }
         TagControl(m_comboFrameType, Section::Capture);
         y += BH + 1;
@@ -2357,13 +2360,14 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     } // end Capture
 
     // ── NOTES ────────────────────────────────────────────────────
-    secC("NOTES", Section::Notes);
+    secC("NOTES  (saved with profile)", Section::Notes);
     if (!IsCollapsed(Section::Notes)) {
     m_editNotes = CreateWindowExW(
         WS_EX_CLIENTEDGE, L"EDIT", L"",
         WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL,
         x, y, w, 72, m_panelHwnd,
         (HMENU)(INT_PTR)ID_EDIT_NOTES, GetModuleHandle(nullptr), nullptr);
+    TagControl(m_editNotes, Section::Notes);
     y += 72 + 4;
     } // end Notes
 

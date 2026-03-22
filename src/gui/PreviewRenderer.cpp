@@ -637,6 +637,11 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                                      m_hudFont, rgbRect, m_amberBrush);
         }
 
+        // Pixel Value Readout (Phase 24)
+        if (m_pixelReadout && m_rgbBuffer && m_frameWidth > 0 && m_hasLastRect) {
+            DrawPixelReadout(px, pw, ph);
+        }
+
         if (hasFrame && frame) {
             swprintf(buf, 256, L"LIVE  %ux%u  %s  %.1f FPS  FRAMES: %llu  DROPS: %d",
                 frame->width, frame->height,
@@ -750,6 +755,93 @@ void PreviewRenderer::DrawAnalysisOverlay(const raduk::core::AnalysisResult& /*a
                                            int /*previewX*/, int /*previewWidth*/,
                                            int /*windowHeight*/, int /*statusBarHeight*/) {
     // No-op: histogram now drawn in ControlPanel::PaintHistogram (GDI WM_PAINT).
+}
+
+// ── DrawPixelReadout ──────────────────────────────────────────
+// Maps current hover/locked screen position to frame pixel coords,
+// reads RGB from m_rgbBuffer, shows tooltip + crosshair.
+// Tooltip follows cursor when unlocked, stays fixed when locked.
+
+void PreviewRenderer::DrawPixelReadout(float px, float pw, float ph) {
+    if (!m_renderTarget || !m_hudFont) return;
+
+    float sx = m_pixelHoverX;
+    float sy = m_pixelHoverY;
+
+    // Map screen pos → frame pixel (accounting for zoom/letterbox)
+    float dW = m_lastDestRect.right  - m_lastDestRect.left;
+    float dH = m_lastDestRect.bottom - m_lastDestRect.top;
+    if (dW <= 0 || dH <= 0) return;
+
+    float normX = (sx - m_lastDestRect.left) / dW;
+    float normY = (sy - m_lastDestRect.top)  / dH;
+    if (normX < 0 || normX > 1 || normY < 0 || normY > 1) return;
+
+    int fx = (int)(normX * m_frameWidth);
+    int fy = (int)(normY * m_frameHeight);
+    fx = fx < 0 ? 0 : (fx >= m_frameWidth  ? m_frameWidth  - 1 : fx);
+    fy = fy < 0 ? 0 : (fy >= m_frameHeight ? m_frameHeight - 1 : fy);
+
+    size_t idx = (size_t)fy * m_frameWidth + fx;
+    uint8_t r = m_rgbBuffer[idx*3+0];
+    uint8_t g = m_rgbBuffer[idx*3+1];
+    uint8_t b = m_rgbBuffer[idx*3+2];
+
+    // ── Small crosshair at hover position ────────────────────
+    const float CH = 8.0f;
+    ID2D1SolidColorBrush* xBrush = m_pixelLocked ? m_greenBrush : m_dimBrush;
+    if (xBrush) {
+        m_renderTarget->DrawLine(D2D1::Point2F(sx - CH, sy), D2D1::Point2F(sx + CH, sy),
+                                 xBrush, 1.0f);
+        m_renderTarget->DrawLine(D2D1::Point2F(sx, sy - CH), D2D1::Point2F(sx, sy + CH),
+                                 xBrush, 1.0f);
+    }
+
+    // ── Tooltip box ───────────────────────────────────────────
+    wchar_t line1[48], line2[32];
+    swprintf(line1, 48, L"R:%3d  G:%3d  B:%3d", r, g, b);
+    swprintf(line2, 32, L"[%d, %d]", fx, fy);
+
+    const float TW = 130.0f, TH = 36.0f, TPAD = 4.0f;
+    // Position tooltip: prefer right of cursor, flip left near edge
+    float tx = sx + 10.0f;
+    float ty = sy - TH - 4.0f;
+    if (tx + TW > px + pw - 8) tx = sx - TW - 10.0f;
+    if (ty < 4.0f) ty = sy + 10.0f;
+
+    // Background
+    {
+        ID2D1SolidColorBrush* bgBr = nullptr;
+        m_renderTarget->CreateSolidColorBrush(
+            D2D1::ColorF(0.02f, 0.06f, 0.12f, 0.88f), &bgBr);
+        if (bgBr) {
+            m_renderTarget->FillRectangle(
+                D2D1::RectF(tx, ty, tx+TW, ty+TH), bgBr);
+            bgBr->Release();
+        }
+    }
+    // Border
+    if (xBrush)
+        m_renderTarget->DrawRectangle(
+            D2D1::RectF(tx, ty, tx+TW, ty+TH), xBrush, 0.5f);
+
+    // Text
+    m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+    ID2D1SolidColorBrush* txtBrush = m_pixelLocked ? m_greenBrush : m_amberBrush;
+    if (!txtBrush) txtBrush = m_dimBrush;
+    if (txtBrush) {
+        m_renderTarget->DrawText(line1, (UINT32)wcslen(line1), m_hudFont,
+            D2D1::RectF(tx+TPAD, ty+2, tx+TW-TPAD, ty+TH/2+2), txtBrush);
+        m_renderTarget->DrawText(line2, (UINT32)wcslen(line2), m_hudFont,
+            D2D1::RectF(tx+TPAD, ty+TH/2+2, tx+TW-TPAD, ty+TH), m_dimBrush ? m_dimBrush : txtBrush);
+    }
+
+    // Lock indicator
+    if (m_pixelLocked && m_greenBrush) {
+        D2D1_RECT_F lr = D2D1::RectF(px+pw-80, 90, px+pw-8, 104);
+        m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+        m_renderTarget->DrawText(L"PIXEL LOCK", 10, m_hudFont, lr, m_greenBrush);
+    }
 }
 
 // ── DrawQualityGraph ──────────────────────────────────────────

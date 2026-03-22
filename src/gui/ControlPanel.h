@@ -246,6 +246,27 @@ public:
     std::string GetFilePrefix() const;
     std::string GetFrameType() const;  // Phase 44: "Light", "Dark", "Flat", "Bias"
     std::string GetOutputDir() const;
+
+    // Notes — profile-linked (Phase 24 / notes redesign)
+    std::string GetNotes() const {
+        if (!m_editNotes) return "";
+        int len = GetWindowTextLengthW(m_editNotes);
+        if (len <= 0) return "";
+        std::wstring wbuf(len + 1, L'\0');
+        GetWindowTextW(m_editNotes, &wbuf[0], len + 1);
+        int sz = WideCharToMultiByte(CP_UTF8, 0, wbuf.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        if (sz <= 0) return "";
+        std::string out(sz, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, wbuf.c_str(), -1, &out[0], sz, nullptr, nullptr);
+        if (!out.empty() && out.back() == '\0') out.pop_back();
+        return out;
+    }
+    void SetNotes(const std::string& text) {
+        if (!m_editNotes) return;
+        wchar_t wbuf[1024] = {};
+        MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, wbuf, 1024);
+        SetWindowTextW(m_editNotes, wbuf);
+    }
     uint32_t    GetLimitFrames() const;
     double      GetLimitTimeSec() const;
     bool        GetLimitByFrames() const;
@@ -368,8 +389,25 @@ private:
         return h;
     }
     void ToggleCollapse(Section s) {
+        // Preserve scroll position so panel doesn't jump to top on collapse
+        int savedScroll = m_scrollY;
         m_collapsed[s] = !IsCollapsed(s);
         RebuildControls(PANEL_WIDTH, true);
+        // Restore scroll if it's still valid within the new content height
+        if (savedScroll > 0) {
+            RECT cr; GetClientRect(m_panelHwnd, &cr);
+            int maxScroll = m_contentBottom + GdiStripHeight() - cr.bottom;
+            if (maxScroll > 0) {
+                int restored = savedScroll < maxScroll ? savedScroll : maxScroll;
+                SCROLLINFO si = {};
+                si.cbSize = sizeof(si); si.fMask = SIF_POS;
+                si.nPos = restored;
+                SetScrollInfo(m_panelHwnd, SB_VERT, &si, TRUE);
+                ScrollWindowEx(m_panelHwnd, 0, -restored, nullptr, nullptr,
+                               nullptr, nullptr, SW_SCROLLCHILDREN | SW_INVALIDATE);
+                m_scrollY = restored;
+            }
+        }
     }
     // Subclass proc for clickable section headers
     static LRESULT CALLBACK HeaderClickProc(HWND hwnd, UINT msg, WPARAM wParam,

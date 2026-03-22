@@ -44,6 +44,9 @@ public:
     void SetQualityGraphToggleHandler(std::function<void()> h){ m_onQualityGraphToggle = h; }
     void SetPauseHandler(std::function<void()> h)             { m_onPause              = h; }
     void SetRGBAlignHandler(std::function<void()> h)          { m_onRGBAlign           = h; }
+    void SetPixelReadoutHandler(std::function<void()> h)      { m_onPixelReadout        = h; }
+    void SetMouseMoveHandler(std::function<void(float,float)> h) { m_onMouseMove        = h; }
+    void SetPixelClickHandler(std::function<void(float,float)> h){ m_onPixelClick        = h; }
     void SetZoomCycleHandler(std::function<void()> h)        { m_onZoomCycle        = h; }
     void SetGoToToggleHandler(std::function<void()> h)       { m_onGoToToggle       = h; }
     void SetSkyMapToggleHandler(std::function<void()> h)     { m_onSkyMapToggle     = h; }
@@ -62,8 +65,6 @@ public:
 
     // Called on WM_LBUTTONDOWN — x/y in client coords. Return true to consume.
     void SetClickHandler(std::function<bool(float,float)> h)        { m_onClick     = h; }
-    // Called on WM_MOUSEMOVE
-    void SetMouseMoveHandler(std::function<void(float,float)> h)    { m_onMouseMove = h; }
     // Called on WM_LBUTTONUP
     void SetMouseUpHandler(std::function<void(float,float)> h)      { m_onMouseUp   = h; }
     // Called on WM_USER + n — for cross-thread signalling (e.g. from WS command thread)
@@ -123,6 +124,8 @@ private:
     std::function<void()>               m_onQualityGraphToggle;
     std::function<void()>               m_onPause;
     std::function<void()>               m_onRGBAlign;
+    std::function<void()>               m_onPixelReadout;
+    std::function<void(float,float)>    m_onPixelClick;
     std::function<void()>               m_onZoomCycle;
     std::function<void()>               m_onGoToToggle;
     std::function<void()>               m_onSkyMapToggle;

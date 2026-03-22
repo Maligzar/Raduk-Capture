@@ -18,6 +18,7 @@
 | `R` | Toggle Reticle |
 | `S` | Save Snapshot (PNG) |
 | `V` | Toggle RGB Align |
+| `X` | Toggle Pixel Value Readout |
 | `Z` | Cycle Zoom (FIT → 50% → 100% → 200%) |
 | `↑↓←→` | Jog mount (hold to slew) |
 | `+` / `-` | Fine focus step |
@@ -108,8 +109,8 @@ All sections are collapsible — click the section header to expand/collapse.
 - Live 256-bin luminance histogram of the current frame.
 - Peak channel and clip percentage shown below.
 
-### NOTES
-- Free-text session notes, saved with the session log.
+### NOTES  (saved with profile)
+- Free-text notes for the current session. **Saved and restored with the active profile** — click SAVE on the profile to persist, click LOAD to restore. Notes are also editable in the profile EDIT dialog.
 
 ---
 
@@ -164,6 +165,17 @@ Watch for a burst of green bars during a good seeing cell — that's when to cap
 Shifts blue channel UP and red channel DOWN during the display debayer pass to correct atmospheric dispersion. Auto value computed from mount altitude + Edlen model. Manual slider adds ±20px fine-tune.
 - HUD shows `RGB ALIGN +N px` in amber when active
 - Plate scale: 0.203 arcsec/px (8SE + ASI678MC at f/10)
+
+
+### Pixel Value Readout (`X` key)
+Toggle with `X`. When active, hover the cursor over any pixel in the preview to see a tooltip:
+- **`R:NNN  G:NNN  B:NNN`** — raw 8-bit channel values from the debayered RGB buffer
+- **`[fx, fy]`** — sensor pixel coordinates (accounts for zoom and pan)
+
+**Click** to lock the readout to that pixel — tooltip turns green and `PIXEL LOCK` appears in the HUD top-right. Click again to unlock. Useful for:
+- Checking exact exposure level on a planet's limb vs. disk center
+- Confirming clipping (R/G/B = 255) on specific detail
+- Verifying white balance by checking neutral gray stars
 
 ### HUD Status Bar (bottom)
 `LIVE 3840×2160 RAW8 38.3 FPS FRAMES: 2151 DROPS: 0`
@@ -298,7 +310,9 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 | v1.0.8 | 41 | Pause Capture (P key, amber button, SER stays open) |
 | v1.0.9 | 44 | Frame Type Labels + App Icon (.rc embedded) |
 | v1.0.10 | 23 | RGB Align Display Mode (V key, auto+manual) |
+| v1.0.11 | 24 | Pixel Value Readout (X key, hover tooltip, click to lock) |
+| v1.0.11 | — | Notes linked to profile (save/load with PROFILE section) |
 
 ---
 
-*RadukCapture Help v1.0.10 — Updated after each release*
+*RadukCapture Help v1.0.11 — Updated after each release*

@@ -303,6 +303,7 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_LBUTTONDOWN: {
             float x = (float)GET_X_LPARAM(lParam);
             float y = (float)GET_Y_LPARAM(lParam);
+            if (m_onPixelClick) m_onPixelClick(x, y);
             if (m_onClick && m_onClick(x, y)) return 0;
             break;
         }
@@ -363,6 +364,9 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                     return 0;
                 case 'V':
                     if (firstPress && m_onRGBAlign) m_onRGBAlign();
+                    return 0;
+                case 'X':
+                    if (firstPress && m_onPixelReadout) m_onPixelReadout();
                     return 0;
                 case 'Z':
                     if (firstPress && m_onZoomCycle) m_onZoomCycle();

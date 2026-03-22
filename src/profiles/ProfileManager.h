@@ -25,8 +25,13 @@ public:
         LoadAll();
     }
 
-    // All loaded profiles
+    // All loaded profiles (const)
     const std::vector<TargetProfile>& Profiles() const { return m_profiles; }
+    // Mutable access by index — for writing notes/fields back before save
+    TargetProfile* ProfileAt(int index) {
+        if (index < 0 || index >= (int)m_profiles.size()) return nullptr;
+        return &m_profiles[index];
+    }
 
     // Find by name (case-insensitive). Returns nullptr if not found.
     const TargetProfile* Find(const std::string& name) const {

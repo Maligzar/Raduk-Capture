@@ -161,12 +161,31 @@ public:
     int  RGBAlignManual()        const { return m_rgbAlignManual; }
     int  RGBAlignShift()         const { return m_rgbAlignShift; }
 
+    // ── Pixel Value Readout — Phase 24 ───────────────────────
+    // Hover: live tooltip at cursor. Click: lock to pixel. Click again: unlock.
+    // Disabled by default — toggle with X key or panel button.
+    void SetPixelReadoutEnabled(bool e) { m_pixelReadout = e; }
+    bool PixelReadoutEnabled()    const { return m_pixelReadout; }
+    void TogglePixelReadout()           { m_pixelReadout = !m_pixelReadout;
+                                          if (!m_pixelReadout) m_pixelLocked = false; }
+    // Feed mouse position (D2D coords, already DPI-corrected) each WM_MOUSEMOVE
+    void SetPixelHover(float sx, float sy) {
+        if (!m_pixelLocked) { m_pixelHoverX = sx; m_pixelHoverY = sy; }
+    }
+    // Left-click: toggle lock on current hover position
+    void ClickPixelLock(float sx, float sy) {
+        if (!m_pixelReadout) return;
+        if (m_pixelLocked) { m_pixelLocked = false; }
+        else { m_pixelHoverX = sx; m_pixelHoverY = sy; m_pixelLocked = true; }
+    }
+
 private:
     void DebayerRGGB(const uint8_t* raw, uint8_t* rgb, int width, int height, int bitDepth);
     D2D1_RECT_F CalculateZoomedRect(int frameW, int frameH, int previewX, int previewW, int previewH);
     void DrawReticle(float cx, float cy, float rw, float rh);
     void DrawADCOverlay(float previewW, float previewH);
     void DrawQualityGraph(float px, float pw, float ph);
+    void DrawPixelReadout(float px, float pw, float ph);
     void DrawRubberBand();
     void DrawResetPopup();
 
@@ -216,6 +235,12 @@ private:
     bool                    m_rgbAlignEnabled = false;
     int                     m_rgbAlignManual  = 0;     // user fine-tune ±20px
     int                     m_rgbAlignShift   = 0;     // last applied shift (for HUD)
+
+    // Pixel Value Readout (Phase 24)
+    bool                    m_pixelReadout  = false;
+    bool                    m_pixelLocked   = false;
+    float                   m_pixelHoverX   = 0.0f;
+    float                   m_pixelHoverY   = 0.0f;
 
     // Quality bar graph (Phase 25a)
     static constexpr int    QUAL_HISTORY    = 200; // ~5s at 40fps

@@ -544,13 +544,17 @@ static int RunApp(bool useEmulator) {
         CaptureConfig cfg = capturer.Config();
         cfg.filePrefix = p->filePrefix.empty() ? p->name : p->filePrefix;
         capturer.SetConfig(cfg);
+        // Restore profile notes into the NOTES panel
+        controls.SetNotes(p->notes);
     });
 
     controls.SetProfileSaveCallback([&](int index) {
-        if (index >= 0 && index < (int)profiles.Profiles().size()) {
-            profiles.Save(profiles.Profiles()[index]);
-            slog.Profile("Saved: %s", profiles.Profiles()[index].name.c_str());
-        }
+        TargetProfile* p = profiles.ProfileAt(index);
+        if (!p) return;
+        // Write current notes box back into profile before saving
+        p->notes = controls.GetNotes();
+        profiles.Save(*p);
+        slog.Profile("Saved: %s", p->name.c_str());
     });
 
     // ── Profile editor modal (Phase 9/10 — EDIT button) ───────────
@@ -855,6 +859,19 @@ static int RunApp(bool useEmulator) {
     // Mouse move — feeds rubber-band drag
     window.SetMouseMoveHandler([&](float x, float y) {
         preview.HandleMouseMove(x, y);
+        // Phase 24: feed hover position for pixel readout (convert screen→D2D coords)
+        if (preview.PixelReadoutEnabled()) {
+            float dpi = window.DpiScale();
+            preview.SetPixelHover(x / dpi, y / dpi);
+        }
+    });
+
+    // Phase 24: pixel click lock/unlock
+    window.SetPixelClickHandler([&](float x, float y) {
+        if (preview.PixelReadoutEnabled()) {
+            float dpi = window.DpiScale();
+            preview.ClickPixelLock(x / dpi, y / dpi);
+        }
     });
 
     // Mouse up — completes ROI selection
@@ -1182,6 +1199,12 @@ static int RunApp(bool useEmulator) {
         bool on = preview.RGBAlignEnabled();
         controls.SetRGBAlignActive(on);
         Log("[RGB] Align %s\n", on ? "ON" : "OFF");
+    });
+
+    // Phase 24: X key toggles pixel value readout
+    window.SetPixelReadoutHandler([&]() {
+        preview.TogglePixelReadout();
+        Log("[PIXEL] Readout %s\n", preview.PixelReadoutEnabled() ? "ON" : "OFF");
     });
 
     // Phase 22 — Snapshot: save current debayered frame as PNG

@@ -212,6 +212,18 @@ public:
         }
     }
 
+    // Phase 41: show PAUSED state on RECORD button (amber)
+    void SetPausedState(bool paused) {
+        m_recordPaused = paused;
+        if (m_btnRecord) {
+            const wchar_t* label = paused             ? L"\u23F8  PAUSED"
+                                 : m_status.recording ? L"\u25A0  STOP RECORDING"
+                                 :                      L"\u25BA  RECORD";
+            SetWindowTextW(m_btnRecord, label);
+            InvalidateRect(m_btnRecord, nullptr, TRUE);
+        }
+    }
+
     std::string GetFilePrefix() const;
     std::string GetOutputDir() const;
     uint32_t    GetLimitFrames() const;
@@ -260,6 +272,7 @@ private:
     double   m_paintDiskFreeGB  = 0.0;
     double   m_paintDiskTotalGB = 1.0;
     bool     m_paintRecording   = false;
+    bool     m_recordPaused     = false;  // Phase 41: amber PAUSED state on RECORD button
     uint32_t m_paintFrames      = 0;
     uint32_t m_paintDrops       = 0;
     double   m_paintElapsed     = 0.0;

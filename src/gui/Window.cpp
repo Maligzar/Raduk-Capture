@@ -355,6 +355,9 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                 case 'Q':
                     if (firstPress && m_onQualityGraphToggle) m_onQualityGraphToggle();
                     return 0;
+                case 'P':
+                    if (firstPress && m_onPause) m_onPause();
+                    return 0;
                 case 'Z':
                     if (firstPress && m_onZoomCycle) m_onZoomCycle();
                     return 0;

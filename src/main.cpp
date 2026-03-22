@@ -1160,6 +1160,14 @@ static int RunApp(bool useEmulator) {
     window.SetReticleToggleHandler([&]()    { doReticle();          });
     window.SetClipToggleHandler([&]()       { preview.ToggleClip(); });
     window.SetQualityGraphToggleHandler([&]() { preview.ToggleQualityGraph(); });
+    window.SetPauseHandler([&]() {
+        if (!capturer.IsRecording()) return;
+        capturer.TogglePause();
+        bool paused = capturer.IsPaused();
+        controls.SetPausedState(paused);
+        slog.System(paused ? "Recording paused" : "Recording resumed");
+        Log("[REC] %s\n", paused ? "PAUSED" : "RESUMED");
+    });
 
     // Phase 22 — Snapshot: save current debayered frame as PNG
     static int snapCount = 0;

@@ -374,24 +374,27 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 return TRUE;
             }
 
-            // RECORD / STOP button — red pulse when recording, cyan when idle
+            // RECORD / STOP button — red=recording, amber=paused, cyan=idle
             if (dis->hwndItem == self->m_btnRecord) {
                 HDC  hdc     = dis->hDC;
                 RECT r       = dis->rcItem;
                 bool pressed = (dis->itemState & ODS_SELECTED) != 0;
                 bool rec     = self->m_status.recording;
+                bool paused  = self->m_recordPaused;
 
                 // Background
-                COLORREF bg = rec
-                    ? (pressed ? RGB(220,  20,  40) : RGB(180,  10,  25))
-                    : (pressed ? RGB( 0,   70,  90) : RGB( 0,   40,  60));
+                COLORREF bg = paused ? (pressed ? RGB(120, 70,  0)  : RGB(90,  50,  0))
+                            : rec    ? (pressed ? RGB(220, 20,  40) : RGB(180, 10,  25))
+                            :          (pressed ? RGB(0,   70,  90) : RGB(0,   40,  60));
                 HBRUSH hbg = CreateSolidBrush(bg);
                 FillRect(hdc, &r, hbg);
                 DeleteObject(hbg);
 
                 // Border
-                HPEN pen = CreatePen(PS_SOLID, 2,
-                    rec ? RGB(255, 59, 92) : RGB(0, 229, 255));
+                COLORREF borderCol = paused ? RGB(255, 160, 0)
+                                   : rec    ? RGB(255,  59, 92)
+                                   :          RGB(0,   229, 255);
+                HPEN pen = CreatePen(PS_SOLID, 2, borderCol);
                 HPEN oldPen = (HPEN)SelectObject(hdc, pen);
                 HBRUSH oldBr = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
                 Rectangle(hdc, r.left, r.top, r.right, r.bottom);
@@ -399,15 +402,16 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 SelectObject(hdc, oldBr);
                 DeleteObject(pen);
 
-                // Label — large Barlow Condensed bold
+                // Label
                 HFONT f = CreateFontW(-16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
                 HFONT oldf = f ? (HFONT)SelectObject(hdc, f) : nullptr;
                 SetBkMode(hdc, TRANSPARENT);
-                SetTextColor(hdc, rec ? RGB(255, 59, 92) : RGB(0, 229, 255));
-                // Pulsing dot + label
-                const wchar_t* label = rec ? L"\u25A0  STOP RECORDING" : L"\u25BA  RECORD";
+                SetTextColor(hdc, borderCol);
+                const wchar_t* label = paused        ? L"\u23F8  PAUSED"
+                                     : rec           ? L"\u25A0  STOP RECORDING"
+                                     :                 L"\u25BA  RECORD";
                 DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                 if (oldf) SelectObject(hdc, oldf);
                 if (f)    DeleteObject(f);

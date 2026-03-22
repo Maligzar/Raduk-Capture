@@ -42,6 +42,7 @@ public:
     void SetClipToggleHandler(std::function<void()> h)       { m_onClipToggle       = h; }
     void SetSnapshotHandler(std::function<void()> h)         { m_onSnapshot         = h; }
     void SetQualityGraphToggleHandler(std::function<void()> h){ m_onQualityGraphToggle = h; }
+    void SetPauseHandler(std::function<void()> h)             { m_onPause              = h; }
     void SetZoomCycleHandler(std::function<void()> h)        { m_onZoomCycle        = h; }
     void SetGoToToggleHandler(std::function<void()> h)       { m_onGoToToggle       = h; }
     void SetSkyMapToggleHandler(std::function<void()> h)     { m_onSkyMapToggle     = h; }
@@ -119,6 +120,7 @@ private:
     std::function<void()>               m_onClipToggle;
     std::function<void()>               m_onSnapshot;
     std::function<void()>               m_onQualityGraphToggle;
+    std::function<void()>               m_onPause;
     std::function<void()>               m_onZoomCycle;
     std::function<void()>               m_onGoToToggle;
     std::function<void()>               m_onSkyMapToggle;

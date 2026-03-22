@@ -675,19 +675,21 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 | v1.0.3: Phase 11 Lucky Imaging Frame Tagger | sharpness score per frame → WriteSlot → SERWriter → _quality.txt alongside every SER |
 | v1.0.4: GetAltAz render loop fix | Serial GetAltAz moved off render thread → detached background thread + atomic cache; RingBuffer release ordering fix |
 | v1.0.5: Phase 12 Auto-Exposure Assistant | I-controller, clip detection, HCG floor (182), advisory + auto modes, AE button in CAMERA section |
+| v1.0.6: Phase 21 Clipping Warning Overlay | Saturated pixel flash (red, 2.5Hz) in RGBA loop, CLIP% HUD label, C key + toolbar button |
+| v1.0.7: Phase 22 Snapshot + Phase 25a Quality Graph | PNG save via WIC (S key), rolling 200-frame sharpness bar chart (Q key), green/amber/red by quality |
 
 ### 🔲 Next Up
 
 | Phase | Feature | Priority |
 |-------|---------|---------|
-| Phase 21 | Clipping Warning Overlay | Tier 1 — Next |
-| Phase 22 | Snapshot PNG/FITS | Tier 1 |
-| Phase 41 | Pause Capture | Tier 1 |
+| Phase 41 | Pause Capture | Tier 1 — Next |
 | Phase 44 | Frame Type Labels + App Icon | Tier 1 |
 | Phase 23 | RGB Align Display Mode | Tier 1 |
 | Phase 24 | Pixel Value Readout | Tier 1 |
 | Phase 25 | Image Boost / Frame Stack FX | Tier 1 |
 | Phase 26 | Night Vision Mode | Tier 2 |
+| Phase 38 | Single-Channel Display Mode | Tier 2 |
+| Phase 40 | Notification Bar | Tier 2 |
 | Phase 13 | Sky Survey / Pointing Model | Tier 2 |
 | Phase 14 | Session Planner | Tier 2 |
 | Phase 16 | Polar Alignment Assistant | Tier 2 |
@@ -1120,9 +1122,10 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 | # | Phase | Tier | Effort | Status |
 |---|-------|------|--------|--------|
 | 12 | Auto-Exposure Assistant | 1 | Medium | ✅ v1.0.5 |
-| 21 | Clipping Warning Overlay | 1 | Easy | 🔲 Next |
-| 22 | Snapshot PNG/FITS | 1 | Easy | 🔲 |
-| 41 | Pause Capture | 1 | Easy | 🔲 |
+| 21 | Clipping Warning Overlay | 1 | Easy | ✅ v1.0.6 |
+| 22 | Snapshot PNG/FITS | 1 | Easy | ✅ v1.0.7 |
+| 25a | Quality Bar Graph | 1 | Easy | ✅ v1.0.7 |
+| 41 | Pause Capture | 1 | Easy | 🔲 Next |
 | 44 | Frame Type Labels | 1 | Easy | 🔲 |
 | 23 | RGB Align Display Mode | 1 | Easy-Med | 🔲 |
 | 24 | Pixel Value Readout | 1 | Easy | 🔲 |
@@ -1182,4 +1185,4 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 ---
 
-*RadukCapture v1.0.5 — Built for the stars, from Anthem, Arizona*
+*RadukCapture v1.0.7 — Built for the stars, from Anthem, Arizona*

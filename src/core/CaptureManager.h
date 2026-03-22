@@ -97,6 +97,7 @@ public:
         m_status.framesRecorded.store(0);
         m_status.framesDropped.store(0);
         m_status.bytesWritten.store(0);
+        m_paused.store(false);  // always start unpaused
         m_status.elapsedSec.store(0.0);
         m_frameWidth  = width;
         m_frameHeight = height;
@@ -154,6 +155,9 @@ public:
         if (!m_status.recording.load()) return false;
         if (!slot || !slot->data) return false;
 
+        // Phase 41 — Pause: skip frames without closing the SER file
+        if (m_paused.load()) return false;
+
         uint32_t recorded = m_status.framesRecorded.load();
         if (m_config.limitType == LimitType::Frames &&
             recorded >= m_config.limitFrames) {
@@ -183,6 +187,14 @@ public:
 
         return true;
     }
+
+    // ── Pause / Resume (Phase 41) ─────────────────────────────
+    // Pause skips incoming frames without closing the SER file.
+    // The writer thread keeps draining the buffer during pause.
+    void Pause()   { m_paused.store(true);  printf("[CaptureManager] PAUSED\n"); }
+    void Resume()  { m_paused.store(false); printf("[CaptureManager] RESUMED\n"); }
+    void TogglePause() { m_paused.load() ? Resume() : Pause(); }
+    bool IsPaused() const { return m_paused.load(); }
 
     // ── Status ─────────────────────────────────────────────────
 
@@ -270,6 +282,7 @@ private:
 
     std::thread     m_writerThread;
     std::atomic<bool> m_writerRunning{false};
+    std::atomic<bool> m_paused{false};         // Phase 41: pause without closing SER
 
     int       m_frameWidth  = 0;
     int       m_frameHeight = 0;

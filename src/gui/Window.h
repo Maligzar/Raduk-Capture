@@ -40,6 +40,7 @@ public:
     void SetEmergencyStopHandler(std::function<void()> h)    { m_onEmergencyStop    = h; }
     void SetReticleToggleHandler(std::function<void()> h)    { m_onReticleToggle    = h; }
     void SetClipToggleHandler(std::function<void()> h)       { m_onClipToggle       = h; }
+    void SetSnapshotHandler(std::function<void()> h)         { m_onSnapshot         = h; }
     void SetZoomCycleHandler(std::function<void()> h)        { m_onZoomCycle        = h; }
     void SetGoToToggleHandler(std::function<void()> h)       { m_onGoToToggle       = h; }
     void SetSkyMapToggleHandler(std::function<void()> h)     { m_onSkyMapToggle     = h; }
@@ -115,6 +116,7 @@ private:
     std::function<void()>               m_onEmergencyStop;
     std::function<void()>               m_onReticleToggle;
     std::function<void()>               m_onClipToggle;
+    std::function<void()>               m_onSnapshot;
     std::function<void()>               m_onZoomCycle;
     std::function<void()>               m_onGoToToggle;
     std::function<void()>               m_onSkyMapToggle;

@@ -349,6 +349,9 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                 case 'C':
                     if (firstPress && m_onClipToggle) m_onClipToggle();
                     return 0;
+                case 'S':
+                    if (firstPress && m_onSnapshot) m_onSnapshot();
+                    return 0;
                 case 'Z':
                     if (firstPress && m_onZoomCycle) m_onZoomCycle();
                     return 0;

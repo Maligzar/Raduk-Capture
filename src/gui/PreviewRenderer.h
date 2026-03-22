@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <array>
 #include <chrono>
+#include <string>
 #include <functional>
 #include "ASICamera2.h"
 #include "../core/FrameSlot.h"
@@ -127,6 +128,20 @@ public:
     void ToggleClip()           { m_showClip = !m_showClip; }
     void SetClipPct(float pct)  { m_clipPct = pct; }
 
+    // ── Snapshot — Phase 22 ────────────────────────────────────
+    // Returns true if a frame has been rendered (buffer is valid).
+    bool HasFrame() const { return m_rgbBuffer && m_frameWidth > 0 && m_frameHeight > 0; }
+    // Save the current debayered RGB frame as PNG using WIC.
+    // Call from main thread after a frame has been rendered.
+    // Returns true on success.
+    bool SaveSnapshotPNG(const std::wstring& path);
+
+    // Show "SAVED: filename" notification in HUD for ~3 seconds.
+    void SetSnapshotNotification(const std::wstring& msg) {
+        m_snapMsg   = msg;
+        m_snapTimer = 180;  // ~3s at 60fps
+    }
+
 private:
     void DebayerRGGB(const uint8_t* raw, uint8_t* rgb, int width, int height, int bitDepth);
     D2D1_RECT_F CalculateZoomedRect(int frameW, int frameH, int previewX, int previewW, int previewH);
@@ -169,9 +184,13 @@ private:
     bool                    m_showADC       = true;
 
     // Clipping warning
-    bool                    m_showClip      = false; // off by default
+    bool                    m_showClip      = false;
     float                   m_clipPct       = 0.0f;
-    int                     m_clipFlash     = 0;    // frame counter for flash
+    int                     m_clipFlash     = 0;
+
+    // Snapshot notification (Phase 22)
+    std::wstring            m_snapMsg;
+    int                     m_snapTimer     = 0;   // countdown frames (~3s at 60fps)
 
     // Last drawn frame rect — used for hit testing frame bar clicks
     D2D1_RECT_F             m_lastDestRect  = {};

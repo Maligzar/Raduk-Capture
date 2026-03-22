@@ -1159,6 +1159,46 @@ static int RunApp(bool useEmulator) {
     });
     window.SetReticleToggleHandler([&]()    { doReticle();          });
     window.SetClipToggleHandler([&]()       { preview.ToggleClip(); });
+
+    // Phase 22 — Snapshot: save current debayered frame as PNG
+    static int snapCount = 0;
+    auto doSnapshot = [&]() {
+        if (!preview.HasFrame()) return;
+
+        std::string outDir  = controls.GetOutputDir();
+        std::string prefix  = controls.GetFilePrefix();
+        if (outDir.empty())  outDir  = "D:\\RadukCapture\\captures";
+        if (prefix.empty())  prefix  = "Capture";
+
+        // Timestamp: YYYYMMDD_HHMMSS
+        SYSTEMTIME st; GetLocalTime(&st);
+        char timestamp[32];
+        snprintf(timestamp, sizeof(timestamp), "%04d%02d%02d_%02d%02d%02d",
+                 st.wYear, st.wMonth, st.wDay,
+                 st.wHour, st.wMinute, st.wSecond);
+
+        // Build path: outDir\prefix_YYYYMMDD_HHMMSS_snap_NNNN.png
+        char filename[256];
+        snprintf(filename, sizeof(filename), "%s\\%s_%s_snap_%04d.png",
+                 outDir.c_str(), prefix.c_str(), timestamp, ++snapCount);
+
+        // Convert to wstring for WIC
+        wchar_t wpath[512];
+        MultiByteToWideChar(CP_ACP, 0, filename, -1, wpath, 512);
+
+        if (preview.SaveSnapshotPNG(wpath)) {
+            // Show filename only (no path) in notification
+            wchar_t* fname = wcsrchr(wpath, L'\\');
+            std::wstring notif = std::wstring(L"SAVED: ") + (fname ? fname+1 : wpath);
+            preview.SetSnapshotNotification(notif);
+            slog.System("Snapshot: %s", filename);
+            Log("[SNAP] %s\n", filename);
+        } else {
+            preview.SetSnapshotNotification(L"SNAPSHOT FAILED");
+            Log("[SNAP] Failed to save %s\n", filename);
+        }
+    };
+    window.SetSnapshotHandler([&]() { doSnapshot(); });
     window.SetZoomCycleHandler([&]()        { doZoom();              });
     window.SetFullscreenToggleHandler([&]() { doFullscreen();        });
     window.SetGoToToggleHandler([&]()       { gotoPanel.ShowCentered(); });

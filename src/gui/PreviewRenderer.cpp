@@ -11,6 +11,8 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include <wincodec.h>   // WIC — PNG encoder
+#pragma comment(lib, "windowscodecs.lib")
 
 namespace raduk::gui {
 
@@ -605,6 +607,17 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
     // Rubber-band ROI selection overlay
     DrawRubberBand();
 
+    // Snapshot notification (Phase 22) — "SAVED: filename" for ~3s
+    if (m_snapTimer > 0 && m_hudFont && m_greenBrush) {
+        --m_snapTimer;
+        D2D1_RECT_F nr = D2D1::RectF(px + pw/2.0f - 200, ph/2.0f - 14,
+                                      px + pw/2.0f + 200, ph/2.0f + 14);
+        m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+        m_renderTarget->DrawText(m_snapMsg.c_str(),
+                                 (UINT32)m_snapMsg.size(),
+                                 m_hudFont, nr, m_greenBrush);
+    }
+
     // Reset popup
     if (m_showResetPopup) DrawResetPopup();
 
@@ -678,6 +691,77 @@ void PreviewRenderer::DrawAnalysisOverlay(const raduk::core::AnalysisResult& /*a
                                            int /*previewX*/, int /*previewWidth*/,
                                            int /*windowHeight*/, int /*statusBarHeight*/) {
     // No-op: histogram now drawn in ControlPanel::PaintHistogram (GDI WM_PAINT).
+}
+
+// ── SaveSnapshotPNG ───────────────────────────────────────────
+// Encodes the current m_rgbBuffer to PNG via WIC.
+// m_rgbBuffer is RGB 24bpp; WIC needs a pixel format — we use
+// GUID_WICPixelFormat24bppRGB which maps directly.
+
+bool PreviewRenderer::SaveSnapshotPNG(const std::wstring& path) {
+    if (!m_rgbBuffer || m_frameWidth <= 0 || m_frameHeight <= 0) {
+        printf("[Snapshot] No frame data available\n");
+        return false;
+    }
+
+    IWICImagingFactory* factory = nullptr;
+    IWICStream*         stream  = nullptr;
+    IWICBitmapEncoder*  encoder = nullptr;
+    IWICBitmapFrameEncode* frame = nullptr;
+    bool ok = false;
+
+    HRESULT hr = CoCreateInstance(
+        CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+        IID_PPV_ARGS(&factory));
+    if (FAILED(hr)) { printf("[Snapshot] WIC factory failed: 0x%lx\n", hr); goto cleanup; }
+
+    hr = factory->CreateStream(&stream);
+    if (FAILED(hr)) goto cleanup;
+
+    hr = stream->InitializeFromFilename(path.c_str(), GENERIC_WRITE);
+    if (FAILED(hr)) { printf("[Snapshot] Cannot open file for write\n"); goto cleanup; }
+
+    hr = factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder);
+    if (FAILED(hr)) goto cleanup;
+
+    hr = encoder->Initialize(stream, WICBitmapEncoderNoCache);
+    if (FAILED(hr)) goto cleanup;
+
+    hr = encoder->CreateNewFrame(&frame, nullptr);
+    if (FAILED(hr)) goto cleanup;
+
+    hr = frame->Initialize(nullptr);
+    if (FAILED(hr)) goto cleanup;
+
+    hr = frame->SetSize((UINT)m_frameWidth, (UINT)m_frameHeight);
+    if (FAILED(hr)) goto cleanup;
+
+    {
+        WICPixelFormatGUID fmt = GUID_WICPixelFormat24bppRGB;
+        hr = frame->SetPixelFormat(&fmt);
+        if (FAILED(hr)) goto cleanup;
+
+        UINT stride = (UINT)m_frameWidth * 3;
+        UINT bufSize = stride * (UINT)m_frameHeight;
+        hr = frame->WritePixels((UINT)m_frameHeight, stride, bufSize, m_rgbBuffer);
+        if (FAILED(hr)) { printf("[Snapshot] WritePixels failed: 0x%lx\n", hr); goto cleanup; }
+    }
+
+    hr = frame->Commit();
+    if (FAILED(hr)) goto cleanup;
+
+    hr = encoder->Commit();
+    if (FAILED(hr)) goto cleanup;
+
+    ok = true;
+    printf("[Snapshot] Saved: %ls  (%dx%d)\n", path.c_str(), m_frameWidth, m_frameHeight);
+
+cleanup:
+    if (frame)   frame->Release();
+    if (encoder) encoder->Release();
+    if (stream)  stream->Release();
+    if (factory) factory->Release();
+    return ok;
 }
 
 // ── DrawReticle ───────────────────────────────────────────────

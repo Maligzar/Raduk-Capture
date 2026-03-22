@@ -159,6 +159,15 @@ public:
             SetWindowTextW(m_lblRGBAlign, buf);
         }
     }
+
+    // Phase 25: Display FX
+    void SetFXCycleCallback(std::function<void()> cb) { m_onFXCycle = cb; }
+    void SetFXLabel(const wchar_t* label) {
+        if (m_btnFX) {
+            SetWindowTextW(m_btnFX, label ? label : L"[FX] NORMAL");
+            InvalidateRect(m_btnFX, nullptr, TRUE);
+        }
+    }
     void SetAutofocusRunning(bool running) {
         m_afRunning = running;
         if (m_btnAutofocus) {
@@ -511,6 +520,8 @@ private:
     HWND m_btnRGBAlign     = nullptr;
     HWND m_sliderRGBManual = nullptr;
     HWND m_lblRGBAlign     = nullptr;
+    // Phase 25: FX
+    HWND m_btnFX           = nullptr;
     HWND m_editLimitTime   = nullptr;
     HWND m_radioFrames     = nullptr;
     HWND m_radioTime       = nullptr;
@@ -562,6 +573,7 @@ private:
         ID_COMBO_FRAME_TYPE,
         ID_BTN_RGB_ALIGN,       // Phase 23: toggle RGB align
         ID_SLIDER_RGB_MANUAL,   // Phase 23: manual fine-tune ±20px
+        ID_BTN_FX,              // Phase 25: Display FX cycle
         ID_LBL_REC_STATUS,
         ID_LBL_REC_FRAMES,
         ID_LBL_REC_BUFFER,
@@ -594,6 +606,7 @@ private:
     std::function<void()>                   m_onMountCtrl;  // floating mount controller toggle
     std::function<void(bool,bool)>          m_onAEToggle;
     std::function<void()>                   m_onRGBAlign;
+    std::function<void()>                   m_onFXCycle;
     int                                     m_aeState = 0;  // 0=off, 1=advisory, 2=auto
 };
 

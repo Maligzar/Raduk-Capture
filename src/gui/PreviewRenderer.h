@@ -24,6 +24,16 @@ namespace raduk::gui {
 enum class ZoomMode    { Fit, One, Two, Four };
 enum class DebayerMode { Color, Raw };  // Color=RGGB debayer, Raw=grayscale Bayer
 
+// Phase 25 — Display FX mode
+enum class DisplayFX {
+    Normal,    // no modification
+    Boost2x,   // multiply channels ×2, clamp 255
+    Boost4x,   // multiply channels ×4, clamp 255
+    Stack3,    // rolling average of last 3 debayered frames
+    Stack5,    // rolling average of last 5 frames
+    Stack10,   // rolling average of last 10 frames
+};
+
 class PreviewRenderer {
 public:
     PreviewRenderer() = default;
@@ -179,6 +189,32 @@ public:
         else { m_pixelHoverX = sx; m_pixelHoverY = sy; m_pixelLocked = true; }
     }
 
+    // ── Display FX — Phase 25 ─────────────────────────────────
+    // Boost or stack frames for display only. SER data unaffected.
+    DisplayFX GetDisplayFX()       const { return m_displayFX; }
+    void      SetDisplayFX(DisplayFX fx);   // defined in .cpp — handles alloc/free
+    void      CycleDisplayFX() {
+        // Normal → Boost2x → Boost4x → Stack3 → Stack5 → Stack10 → Normal
+        switch (m_displayFX) {
+            case DisplayFX::Normal:   SetDisplayFX(DisplayFX::Boost2x);  break;
+            case DisplayFX::Boost2x:  SetDisplayFX(DisplayFX::Boost4x);  break;
+            case DisplayFX::Boost4x:  SetDisplayFX(DisplayFX::Stack3);   break;
+            case DisplayFX::Stack3:   SetDisplayFX(DisplayFX::Stack5);   break;
+            case DisplayFX::Stack5:   SetDisplayFX(DisplayFX::Stack10);  break;
+            case DisplayFX::Stack10:  SetDisplayFX(DisplayFX::Normal);   break;
+        }
+    }
+    const wchar_t* DisplayFXLabel() const {
+        switch (m_displayFX) {
+            case DisplayFX::Boost2x:  return L"BOOST ×2";
+            case DisplayFX::Boost4x:  return L"BOOST ×4";
+            case DisplayFX::Stack3:   return L"STACK 3f";
+            case DisplayFX::Stack5:   return L"STACK 5f";
+            case DisplayFX::Stack10:  return L"STACK 10f";
+            default:                  return L"NORMAL";
+        }
+    }
+
 private:
     void DebayerRGGB(const uint8_t* raw, uint8_t* rgb, int width, int height, int bitDepth);
     D2D1_RECT_F CalculateZoomedRect(int frameW, int frameH, int previewX, int previewW, int previewH);
@@ -241,6 +277,16 @@ private:
     bool                    m_pixelLocked   = false;
     float                   m_pixelHoverX   = 0.0f;
     float                   m_pixelHoverY   = 0.0f;
+
+    // Display FX (Phase 25)
+    DisplayFX               m_displayFX     = DisplayFX::Normal;
+    // Stack accumulator — uint32 per channel to avoid overflow
+    static constexpr int    FX_STACK_MAX    = 10;
+    uint8_t*                m_fxFrames[FX_STACK_MAX] = {}; // circular history of RGB frames
+    uint32_t*               m_fxAccum       = nullptr;     // running sum (R,G,B per pixel)
+    int                     m_fxHead        = 0;           // next slot to write
+    int                     m_fxFilled      = 0;           // how many slots valid
+    int                     m_fxN           = 0;           // current stack depth (3/5/10)
 
     // Quality bar graph (Phase 25a)
     static constexpr int    QUAL_HISTORY    = 200; // ~5s at 40fps

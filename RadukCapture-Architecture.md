@@ -681,14 +681,15 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 | v1.0.9: Phase 44 Frame Type Labels + App Icon | Light/Dark/Flat/Bias dropdown in CAPTURE; type in filename; .rc + .ico embedded in exe |
 | v1.0.10: Phase 23 RGB Align Display Mode | V key; blue shift up / red down by Edlen dispersion / plate scale; manual ±20px slider; RGB ALIGN HUD |
 | v1.0.11: Phase 24 Pixel Value Readout + Notes/Profile link | X key; hover tooltip R/G/B DN + coords; click to lock; notes saved/loaded with profile |
+| v1.0.12: Phase 25 Image Boost / Frame Stack FX | B key cycles Normal/Boost2x/Boost4x/Stack3/Stack5/Stack10; display-only; auto-reset on record |
 
 ### 🔲 Next Up
 
 | Phase | Feature | Priority |
 |-------|---------|---------|
-| Phase 25 | Image Boost / Frame Stack FX | Tier 1 — Next |
+| Phase 26 | Night Vision Mode | Tier 1 — Next |
 | Phase 49 | Help System | Tier 1 |
-| Phase 26 | Night Vision Mode | Tier 2 |
+
 | Phase 38 | Single-Channel Display Mode | Tier 2 |
 | Phase 40 | Notification Bar | Tier 2 |
 | Phase 13 | Sky Survey / Pointing Model | Tier 2 |
@@ -1141,8 +1142,8 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 | 23 | RGB Align Display Mode | 1 | Easy-Med | ✅ v1.0.10 |
 | 24 | Pixel Value Readout | 1 | Easy | ✅ v1.0.11 |
 | 49 | Help System | 1 | Medium | 🔲 |
-| 25 | Image Boost / Frame Stack FX | 1 | Medium | 🔲 Next |
-| 26 | Night Vision Mode | 2 | Easy | 🔲 |
+| 25 | Image Boost / Frame Stack FX | 1 | Medium | ✅ v1.0.12 |
+| 26 | Night Vision Mode | 2 | Easy | 🔲 Next |
 | 38 | Single-Channel Display Mode | 2 | Easy | 🔲 |
 | 40 | Notification Bar | 2 | Easy | 🔲 |
 | 45 | Multi-Reticle Overlays | 2 | Easy-Med | 🔲 |
@@ -1198,4 +1199,4 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 ---
 
-*RadukCapture v1.0.11 — Built for the stars, from Anthem, Arizona*
+*RadukCapture v1.0.12 — Built for the stars, from Anthem, Arizona*

@@ -107,6 +107,12 @@ bool PreviewRenderer::SetFrameSize(int width, int height) {
     printf("[PreviewRenderer] Frame %dx%d  debayer: %s\n",
         width, height,
         m_debayerMode == DebayerMode::Color ? "COLOR" : "RAW");
+
+    // Phase 25: reset stack buffers on size change — stale data would corrupt average
+    if (m_fxAccum) {
+        memset(m_fxAccum, 0, (size_t)width * height * 3 * sizeof(uint32_t));
+        m_fxHead = m_fxFilled = 0;
+    }
     return true;
 }
 
@@ -449,7 +455,50 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
         if (m_debayerMode == DebayerMode::Color) {
             DebayerRGGB(frame->data, m_rgbBuffer,
                         frame->width, frame->height, frame->bitDepth);
+
+            // ── Phase 25: Display FX ──────────────────────────
+            const uint8_t* fxSrc = m_rgbBuffer; // default: unmodified
             size_t n = (size_t)frame->width * frame->height;
+
+            if (m_displayFX == DisplayFX::Boost2x ||
+                m_displayFX == DisplayFX::Boost4x) {
+                int mult = (m_displayFX == DisplayFX::Boost2x) ? 2 : 4;
+                // Apply in-place to a temp copy so m_rgbBuffer stays raw for snapshot
+                static thread_local std::vector<uint8_t> boostBuf;
+                boostBuf.resize(n * 3);
+                for (size_t i = 0; i < n * 3; i++) {
+                    int v = (int)m_rgbBuffer[i] * mult;
+                    boostBuf[i] = (uint8_t)(v > 255 ? 255 : v);
+                }
+                fxSrc = boostBuf.data();
+            } else if ((m_displayFX == DisplayFX::Stack3  ||
+                        m_displayFX == DisplayFX::Stack5  ||
+                        m_displayFX == DisplayFX::Stack10) &&
+                       m_fxAccum && m_fxFrames[0] && m_fxN > 0) {
+                // Rolling sum: subtract oldest slot, add new frame, divide by filled count
+                int oldest = m_fxHead % m_fxN;
+                uint8_t* oldSlot = m_fxFrames[oldest];
+                // Subtract oldest from accumulator
+                if (m_fxFilled >= m_fxN) {
+                    for (size_t i = 0; i < n * 3; i++)
+                        m_fxAccum[i] -= oldSlot[i];
+                }
+                // Copy new frame into oldest slot and add to accumulator
+                memcpy(oldSlot, m_rgbBuffer, n * 3);
+                for (size_t i = 0; i < n * 3; i++)
+                    m_fxAccum[i] += m_rgbBuffer[i];
+                m_fxHead = (m_fxHead + 1) % m_fxN;
+                if (m_fxFilled < m_fxN) m_fxFilled++;
+                // Divide to get average into temp buffer
+                static thread_local std::vector<uint8_t> stackBuf;
+                stackBuf.resize(n * 3);
+                uint32_t div = (uint32_t)m_fxFilled;
+                for (size_t i = 0; i < n * 3; i++)
+                    stackBuf[i] = (uint8_t)(m_fxAccum[i] / div);
+                fxSrc = stackBuf.data();
+            }
+            // ── End FX ────────────────────────────────────────
+
             std::vector<uint8_t> rgba(n * 4);
 
             // Clip flash: alternate red / original every 8 frames
@@ -457,9 +506,9 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             ++m_clipFlash;
 
             for (size_t i = 0; i < n; i++) {
-                uint8_t r = m_rgbBuffer[i*3+0];
-                uint8_t g = m_rgbBuffer[i*3+1];
-                uint8_t b = m_rgbBuffer[i*3+2];
+                uint8_t r = fxSrc[i*3+0];
+                uint8_t g = fxSrc[i*3+1];
+                uint8_t b = fxSrc[i*3+2];
                 if (flashOn && (r == 255 || g == 255 || b == 255)) {
                     rgba[i*4+0] = 220; rgba[i*4+1] = 10; rgba[i*4+2] = 10;
                 } else {
@@ -627,7 +676,7 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                                      m_hudFont, clipRect, clipBrush);
         }
 
-        // RGB Align HUD — show shift value when enabled
+        // RGB Align HUD — shown when enabled
         if (m_rgbAlignEnabled && m_amberBrush) {
             wchar_t rgbBuf[32];
             swprintf(rgbBuf, 32, L"RGB ALIGN  %+d px", m_rgbAlignShift);
@@ -635,6 +684,15 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
             m_renderTarget->DrawText(rgbBuf, (UINT32)wcslen(rgbBuf),
                                      m_hudFont, rgbRect, m_amberBrush);
+        }
+
+        // FX mode HUD — shown when not Normal
+        if (m_displayFX != DisplayFX::Normal && m_amberBrush) {
+            const wchar_t* fxLbl = DisplayFXLabel();
+            D2D1_RECT_F fxRect = D2D1::RectF(px+pw-120, 90, px+pw-8, 104);
+            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+            m_renderTarget->DrawText(fxLbl, (UINT32)wcslen(fxLbl),
+                                     m_hudFont, fxRect, m_amberBrush);
         }
 
         // Pixel Value Readout (Phase 24)
@@ -942,6 +1000,53 @@ void PreviewRenderer::DrawQualityGraph(float px, float pw, float ph) {
         D2D1::RectF(lx, gy + 28, lx + LABEL_W, gy + 42), m_dimBrush ? m_dimBrush : labelBrush);
 }
 
+// ── SetDisplayFX ─────────────────────────────────────────────
+// Allocates/frees the stack accumulation buffer when mode changes.
+
+void PreviewRenderer::SetDisplayFX(DisplayFX fx) {
+    if (fx == m_displayFX) return;
+
+    // Free existing stack buffers if switching away from stack mode
+    auto isStack = [](DisplayFX f) {
+        return f == DisplayFX::Stack3 || f == DisplayFX::Stack5 || f == DisplayFX::Stack10;
+    };
+
+    if (isStack(m_displayFX) && !isStack(fx)) {
+        // Leaving stack mode — free all
+        for (int i = 0; i < FX_STACK_MAX; i++) {
+            delete[] m_fxFrames[i];
+            m_fxFrames[i] = nullptr;
+        }
+        delete[] m_fxAccum;
+        m_fxAccum  = nullptr;
+        m_fxHead   = 0;
+        m_fxFilled = 0;
+        m_fxN      = 0;
+    }
+
+    m_displayFX = fx;
+
+    if (isStack(fx) && m_frameWidth > 0 && m_frameHeight > 0) {
+        m_fxN = (fx == DisplayFX::Stack3) ? 3 :
+                (fx == DisplayFX::Stack5) ? 5 : 10;
+        size_t frameBytes = (size_t)m_frameWidth * m_frameHeight * 3;
+        size_t accumBytes = (size_t)m_frameWidth * m_frameHeight * 3 * sizeof(uint32_t);
+        // Allocate history slots and clear accumulator
+        for (int i = 0; i < m_fxN; i++) {
+            if (!m_fxFrames[i]) {
+                m_fxFrames[i] = new uint8_t[frameBytes]();
+            }
+        }
+        if (!m_fxAccum) {
+            m_fxAccum = new uint32_t[m_frameWidth * m_frameHeight * 3]();
+        }
+        m_fxHead   = 0;
+        m_fxFilled = 0;
+    }
+
+    printf("[FX] Mode: %ls\n", DisplayFXLabel());
+}
+
 // ── SaveSnapshotPNG ───────────────────────────────────────────
 // Encodes the current m_rgbBuffer to PNG via WIC.
 // m_rgbBuffer is RGB 24bpp; WIC needs a pixel format — we use
@@ -1163,6 +1268,13 @@ void PreviewRenderer::Release() {
     if (m_barFont)     { m_barFont->Release();     m_barFont     = nullptr; }
     delete[] m_rgbBuffer;
     m_rgbBuffer = nullptr; m_rgbBufferSize = 0;
+    // Phase 25: free FX stack buffers
+    for (int i = 0; i < FX_STACK_MAX; i++) {
+        delete[] m_fxFrames[i];
+        m_fxFrames[i] = nullptr;
+    }
+    delete[] m_fxAccum;
+    m_fxAccum = nullptr;
     m_hasLastRect = false;
 }
 

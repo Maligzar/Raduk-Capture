@@ -19,6 +19,7 @@
 | `S` | Save Snapshot (PNG) |
 | `V` | Toggle RGB Align |
 | `X` | Toggle Pixel Value Readout |
+| `B` | Cycle Display FX (Normal → Boost ×2 → Boost ×4 → Stack 3/5/10) |
 | `Z` | Cycle Zoom (FIT → 50% → 100% → 200%) |
 | `↑↓←→` | Jog mount (hold to slew) |
 | `+` / `-` | Fine focus step |
@@ -177,6 +178,22 @@ Toggle with `X`. When active, hover the cursor over any pixel in the preview to 
 - Confirming clipping (R/G/B = 255) on specific detail
 - Verifying white balance by checking neutral gray stars
 
+### Display FX (`B` key)
+Cycles through six display modes — all display-only, SER data is always raw:
+
+| Mode | Effect |
+|------|--------|
+| `NORMAL` | Unmodified debayered output |
+| `BOOST ×2` | Each channel multiplied ×2, clamped at 255 |
+| `BOOST ×4` | Each channel multiplied ×4, clamped at 255 |
+| `STACK 3f` | Rolling average of last 3 frames (~75ms at 40fps) |
+| `STACK 5f` | Rolling average of last 5 frames (~125ms) |
+| `STACK 10f` | Rolling average of last 10 frames (~250ms) |
+
+Active mode shown in amber HUD top-right (e.g. `BOOST ×2` or `STACK 5f`). **FX automatically resets to NORMAL when recording starts** — you always capture raw frames. Also accessible via `[FX]` button in the IMAGE panel section.
+
+Use Boost to find a dim target or check focus in poor seeing. Use Stack to reduce noise when evaluating optics or alignment.
+
 ### HUD Status Bar (bottom)
 `LIVE 3840×2160 RAW8 38.3 FPS FRAMES: 2151 DROPS: 0`
 - Click on the resolution readout to get a reset popup (reset to full sensor resolution).
@@ -312,7 +329,8 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 | v1.0.10 | 23 | RGB Align Display Mode (V key, auto+manual) |
 | v1.0.11 | 24 | Pixel Value Readout (X key, hover tooltip, click to lock) |
 | v1.0.11 | — | Notes linked to profile (save/load with PROFILE section) |
+| v1.0.12 | 25 | Image Boost/Frame Stack FX (B key, 6 modes, auto-reset on record) |
 
 ---
 
-*RadukCapture Help v1.0.11 — Updated after each release*
+*RadukCapture Help v1.0.12 — Updated after each release*

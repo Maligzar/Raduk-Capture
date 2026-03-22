@@ -45,6 +45,7 @@ public:
     void SetPauseHandler(std::function<void()> h)             { m_onPause              = h; }
     void SetRGBAlignHandler(std::function<void()> h)          { m_onRGBAlign           = h; }
     void SetPixelReadoutHandler(std::function<void()> h)      { m_onPixelReadout        = h; }
+    void SetFXCycleHandler(std::function<void()> h)           { m_onFXCycle             = h; }
     void SetMouseMoveHandler(std::function<void(float,float)> h) { m_onMouseMove        = h; }
     void SetPixelClickHandler(std::function<void(float,float)> h){ m_onPixelClick        = h; }
     void SetZoomCycleHandler(std::function<void()> h)        { m_onZoomCycle        = h; }
@@ -125,6 +126,7 @@ private:
     std::function<void()>               m_onPause;
     std::function<void()>               m_onRGBAlign;
     std::function<void()>               m_onPixelReadout;
+    std::function<void()>               m_onFXCycle;
     std::function<void(float,float)>    m_onPixelClick;
     std::function<void()>               m_onZoomCycle;
     std::function<void()>               m_onGoToToggle;

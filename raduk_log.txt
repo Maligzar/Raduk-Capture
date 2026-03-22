@@ -30,9 +30,18 @@
   P4:  Remote commands: start/stop_capture, load_profile, move_eaf, goto_target
   P4:  Session summary written to log at shutdown
 
-[PROFILE] Edited and saved: Moon
-[PROFILE] Applying: Moon
-[PROFILE] Applying: Jupiter
+[FX] BOOST ×2
+[FX] BOOST ×4
+[FX] STACK 3f
+[FX] STACK 5f
+[FX] STACK 10f
+[FX] NORMAL
+[FX] BOOST ×2
+[FX] BOOST ×4
+[FX] STACK 3f
+[FX] STACK 5f
+[FX] STACK 10f
+[FX] NORMAL
 
 Shutting down...
 Goodbye.

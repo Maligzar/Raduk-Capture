@@ -368,6 +368,9 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                 case 'X':
                     if (firstPress && m_onPixelReadout) m_onPixelReadout();
                     return 0;
+                case 'B':
+                    if (firstPress && m_onFXCycle) m_onFXCycle();
+                    return 0;
                 case 'Z':
                     if (firstPress && m_onZoomCycle) m_onZoomCycle();
                     return 0;

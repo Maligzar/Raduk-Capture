@@ -960,6 +960,12 @@ static int RunApp(bool useEmulator) {
                 usbMgr.SetCapturing(true);
                 slog.System("USB capture mode — %s", usbMgr.StatusString());
                 Log("[USB] Throttling EAF+mount: %s\n", usbMgr.StatusString());
+                // Phase 25: disable FX on recording start — capture raw frames
+                if (preview.GetDisplayFX() != DisplayFX::Normal) {
+                    preview.SetDisplayFX(DisplayFX::Normal);
+                    controls.SetFXLabel(L"[FX] NORMAL");
+                    Log("[FX] Reset to NORMAL for capture\n");
+                }
             }
         }
         // Immediately sync the button visual — don't wait for the 500ms readout tick.
@@ -1201,11 +1207,23 @@ static int RunApp(bool useEmulator) {
         Log("[RGB] Align %s\n", on ? "ON" : "OFF");
     });
 
+    // Phase 25: B key and panel button cycle Display FX
+    auto doFXCycle = [&]() {
+        preview.CycleDisplayFX();
+        const wchar_t* lbl = preview.DisplayFXLabel();
+        wchar_t wbuf[32]; swprintf(wbuf, 32, L"[FX] %s", lbl);
+        controls.SetFXLabel(wbuf);
+        Log("[FX] %ls\n", lbl);
+    };
+    window.SetFXCycleHandler([&]() { doFXCycle(); });
+    controls.SetFXCycleCallback([&]() { doFXCycle(); });
+
     // Phase 24: X key toggles pixel value readout
     window.SetPixelReadoutHandler([&]() {
         preview.TogglePixelReadout();
         Log("[PIXEL] Readout %s\n", preview.PixelReadoutEnabled() ? "ON" : "OFF");
     });
+ 
 
     // Phase 22 — Snapshot: save current debayered frame as PNG
     static int snapCount = 0;

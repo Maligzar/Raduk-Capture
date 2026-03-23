@@ -79,6 +79,10 @@ bool PreviewRenderer::Init(ID2D1HwndRenderTarget* renderTarget,
 }
 
 bool PreviewRenderer::SetFrameSize(int width, int height) {
+    // Phase 29: If frame dimensions change, the ghost is stale — clear it
+    if (width != m_frameWidth || height != m_frameHeight)
+        m_ghostEnabled = false;
+
     m_frameWidth = width; m_frameHeight = height;
 
     // CPU-path RGB buffer (always maintained as fallback)
@@ -497,7 +501,20 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                     stackBuf[i] = (uint8_t)(m_fxAccum[i] / div);
                 fxSrc = stackBuf.data();
             }
-            // ── End FX ────────────────────────────────────────
+            // ── Phase 29: Ghost Frame Overlay ─────────────────
+            // Blend stored ghost at 50% over fxSrc into a temp buffer.
+            // Only active if ghost enabled and dimensions match.
+            static thread_local std::vector<uint8_t> ghostBuf;
+            if (m_ghostEnabled && m_ghostFrame &&
+                m_ghostW == frame->width && m_ghostH == frame->height) {
+                ghostBuf.resize(n * 3);
+                for (size_t i = 0; i < n * 3; i++) {
+                    // 50% live + 50% ghost
+                    ghostBuf[i] = (uint8_t)(((int)fxSrc[i] + (int)m_ghostFrame[i]) >> 1);
+                }
+                fxSrc = ghostBuf.data();
+            }
+            // ── End Ghost ─────────────────────────────────────
 
             std::vector<uint8_t> rgba(n * 4);
 
@@ -721,6 +738,13 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             D2D1_RECT_F chRect = D2D1::RectF(px+pw-120, 122, px+pw-8, 136);
             m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
             m_renderTarget->DrawText(chLbl, (UINT32)wcslen(chLbl), m_hudFont, chRect, m_accentBrush);
+        }
+
+        // Phase 29: Ghost Frame HUD label
+        if (m_ghostEnabled && m_amberBrush) {
+            D2D1_RECT_F ghRect = D2D1::RectF(px+pw-120, 138, px+pw-8, 152);
+            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+            m_renderTarget->DrawText(L"GHOST", 5, m_hudFont, ghRect, m_amberBrush);
         }
 
         // Pixel Value Readout (Phase 24)
@@ -1303,6 +1327,9 @@ void PreviewRenderer::Release() {
     }
     delete[] m_fxAccum;
     m_fxAccum = nullptr;
+    // Phase 29: free ghost frame buffer
+    delete[] m_ghostFrame;
+    m_ghostFrame = nullptr; m_ghostFrameSize = 0;
     m_hasLastRect = false;
 }
 

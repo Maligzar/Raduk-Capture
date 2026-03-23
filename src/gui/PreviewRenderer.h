@@ -220,6 +220,32 @@ public:
     bool NightVisionOn()     const { return m_nightVision; }
     void ToggleNightVision()       { m_nightVision = !m_nightVision; }
 
+    // Phase 29: Ghost Frame Overlay
+    // CaptureGhost() snaps the current RGB frame as reference.
+    // ToggleGhost() captures on first press, clears on second (and any time
+    // GhostEnabled() is true), matching the [GH] button cycle.
+    void CaptureGhost() {
+        if (!m_rgbBuffer || m_frameWidth == 0 || m_frameHeight == 0) return;
+        size_t bytes = (size_t)m_frameWidth * m_frameHeight * 3;
+        if (m_ghostFrameSize != bytes) {
+            delete[] m_ghostFrame;
+            m_ghostFrame     = new uint8_t[bytes];
+            m_ghostFrameSize = bytes;
+        }
+        memcpy(m_ghostFrame, m_rgbBuffer, bytes);
+        m_ghostW       = m_frameWidth;
+        m_ghostH       = m_frameHeight;
+        m_ghostEnabled = true;
+    }
+    void ClearGhost() {
+        m_ghostEnabled = false;
+    }
+    void ToggleGhost() {
+        if (m_ghostEnabled) ClearGhost();
+        else                CaptureGhost();
+    }
+    bool GhostEnabled() const { return m_ghostEnabled; }
+
     // Phase 38: Single-Channel Display Mode — R / G / B / All
     enum class ChannelMode { All = 0, R, G, B };
     ChannelMode GetChannelMode()   const { return m_channelMode; }
@@ -318,6 +344,15 @@ private:
 
     // Single-Channel Display Mode (Phase 38)
     ChannelMode             m_channelMode   = ChannelMode::All;
+
+    // Ghost Frame Overlay (Phase 29)
+    // Stores a snapshot of m_rgbBuffer at the moment CaptureGhost() is called.
+    // Blended at 50% opacity over the live frame for framing reference.
+    uint8_t*                m_ghostFrame    = nullptr;
+    size_t                  m_ghostFrameSize= 0;
+    int                     m_ghostW        = 0;
+    int                     m_ghostH        = 0;
+    bool                    m_ghostEnabled  = false;
 
     // Quality bar graph (Phase 25a)
     static constexpr int    QUAL_HISTORY    = 200; // ~5s at 40fps

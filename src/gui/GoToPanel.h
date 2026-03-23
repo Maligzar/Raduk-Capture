@@ -866,6 +866,165 @@ private:
                m_pointingModel.MeanError());
     }
 
+    // ── Phase 29b: Action Popup ─────────────────────────────────
+    // Small WS_POPUP near a clicked list row with SLEW / INFO / CANCEL.
+    // Created fresh on each click, destroys on any action or focus loss.
+
+    struct ActionPopupState {
+        HWND         hwnd      = nullptr;
+        std::string  name;
+        double       ra        = 0;
+        double       dec       = 0;
+        float        alt       = -999;
+        float        az        = -999;
+        float        mag       = 99;
+        GoToPanel*   owner     = nullptr;
+    };
+
+    static constexpr int AP_SLEW   = 7100;
+    static constexpr int AP_INFO   = 7101;
+    static constexpr int AP_CANCEL = 7102;
+
+    static LRESULT CALLBACK ActionPopupProc(HWND hwnd, UINT msg,
+                                             WPARAM wp, LPARAM lp) {
+        ActionPopupState* s = nullptr;
+        if (msg == WM_NCCREATE) {
+            s = reinterpret_cast<ActionPopupState*>(
+                reinterpret_cast<CREATESTRUCT*>(lp)->lpCreateParams);
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, (LONG_PTR)s);
+        } else {
+            s = reinterpret_cast<ActionPopupState*>(
+                GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+        }
+        switch (msg) {
+            case WM_COMMAND: {
+                int id = LOWORD(wp);
+                if (!s || !s->owner) { DestroyWindow(hwnd); return 0; }
+                GoToPanel* p = s->owner;
+                if (id == AP_SLEW) {
+                    p->DoGoTo(s->ra, s->dec, s->name);
+                    p->ShowTab(0);
+                    TabCtrl_SetCurSel(p->m_tabCtrl, 0);
+                } else if (id == AP_INFO) {
+                    if (p->m_onInfo)
+                        p->m_onInfo(s->name, s->alt, s->az, s->mag);
+                }
+                DestroyWindow(hwnd);
+                return 0;
+            }
+            case WM_KILLFOCUS:
+                // Dismiss if focus moves outside the popup and its children
+                if ((HWND)wp != hwnd) {
+                    HWND child = GetWindow(hwnd, GW_CHILD);
+                    bool focusOnChild = false;
+                    while (child) {
+                        if (child == (HWND)wp) { focusOnChild = true; break; }
+                        child = GetWindow(child, GW_HWNDNEXT);
+                    }
+                    if (!focusOnChild) DestroyWindow(hwnd);
+                }
+                return 0;
+            case WM_DESTROY:
+                if (s) { delete s; }
+                return 0;
+            case WM_CTLCOLORBTN:
+            case WM_CTLCOLORSTATIC: {
+                HDC hdc = (HDC)wp;
+                SetBkColor(hdc, RGB(10, 18, 30));
+                SetTextColor(hdc, RGB(200, 230, 245));
+                static HBRUSH bg = CreateSolidBrush(RGB(10, 18, 30));
+                return (LRESULT)bg;
+            }
+        }
+        return DefWindowProcW(hwnd, msg, wp, lp);
+    }
+
+    void ShowActionPopup(HWND listHwnd, int row,
+                         const std::string& name, double ra, double dec,
+                         float alt, float az, float mag) {
+        // Register window class once
+        static bool registered = false;
+        if (!registered) {
+            WNDCLASSEXW wc = {};
+            wc.cbSize        = sizeof(wc);
+            wc.lpfnWndProc   = ActionPopupProc;
+            wc.hInstance     = GetModuleHandle(nullptr);
+            wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
+            wc.hbrBackground = CreateSolidBrush(RGB(10, 18, 30));
+            wc.lpszClassName = L"RadukActionPopup";
+            RegisterClassExW(&wc);
+            registered = true;
+        }
+
+        // Position near the clicked row
+        RECT itemRect = {};
+        ListView_GetItemRect(listHwnd, row, &itemRect, LVIR_BOUNDS);
+        POINT pt = { itemRect.left, itemRect.bottom };
+        ClientToScreen(listHwnd, &pt);
+
+        const int PW = 228, PH = 34;
+        // Keep on screen
+        int sw = GetSystemMetrics(SM_CXSCREEN);
+        if (pt.x + PW > sw - 4) pt.x = sw - PW - 4;
+
+        bool belowHorizon = (alt > -90 && alt < 15.0f);
+
+        auto* state = new ActionPopupState();
+        state->name  = name;
+        state->ra    = ra;
+        state->dec   = dec;
+        state->alt   = alt;
+        state->az    = az;
+        state->mag   = mag;
+        state->owner = this;
+
+        HWND popup = CreateWindowExW(
+            WS_EX_TOPMOST,
+            L"RadukActionPopup", L"",
+            WS_POPUP | WS_BORDER,
+            pt.x, pt.y, PW, PH,
+            m_hwnd, nullptr, GetModuleHandle(nullptr), state);
+        if (!popup) { delete state; return; }
+        state->hwnd = popup;
+
+        // Fonts
+        HFONT fnt = CreateFontW(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+
+        const int BH = PH - 6, BY = 3;
+        int x = 3;
+
+        // ✓ SLEW button — disabled if below horizon
+        if (!belowHorizon) {
+            HWND bSlew = CreateWindowExW(0, L"BUTTON", L"\u2713 Slew",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                x, BY, 68, BH, popup, (HMENU)(intptr_t)AP_SLEW,
+                GetModuleHandle(nullptr), nullptr);
+            if (fnt) SendMessage(bSlew, WM_SETFONT, (WPARAM)fnt, TRUE);
+            x += 71;
+        }
+
+        // ℹ INFO button
+        HWND bInfo = CreateWindowExW(0, L"BUTTON", L"\u2139 Info",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            x, BY, 68, BH, popup, (HMENU)(intptr_t)AP_INFO,
+            GetModuleHandle(nullptr), nullptr);
+        if (fnt) SendMessage(bInfo, WM_SETFONT, (WPARAM)fnt, TRUE);
+        x += 71;
+
+        // ✗ CANCEL
+        HWND bCancel = CreateWindowExW(0, L"BUTTON", L"\u2716 Cancel",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            x, BY, 68, BH, popup, (HMENU)(intptr_t)AP_CANCEL,
+            GetModuleHandle(nullptr), nullptr);
+        if (fnt) SendMessage(bCancel, WM_SETFONT, (WPARAM)fnt, TRUE);
+
+        ShowWindow(popup, SW_SHOWNOACTIVATE);
+        // Give focus so WM_KILLFOCUS fires when user clicks elsewhere
+        SetFocus(popup);
+    }
+
     void BuildControls(int w, int h) {
         const int x = 8, SH = 15, BH = 24;
         int y = 4;
@@ -1475,7 +1634,44 @@ private:
                     int tab = TabCtrl_GetCurSel(self->m_tabCtrl);
                     self->ShowTab(tab);
                 }
-                // Double-click on Tonight list → show info panel
+                // Single click on GoTo list → action popup
+                if (hdr->hwndFrom == self->m_listObjects
+                        && hdr->code == NM_CLICK) {
+                    auto* nm = reinterpret_cast<NMITEMACTIVATE*>(lParam);
+                    int row = nm->iItem;
+                    if (row >= 0) {
+                        wchar_t wname[64] = {};
+                        LVITEMW li = {}; li.iItem = row;
+                        li.iSubItem = 0; li.mask = LVIF_TEXT;
+                        li.pszText = wname; li.cchTextMax = 64;
+                        SendMessageW(self->m_listObjects, LVM_GETITEMW, 0, (LPARAM)&li);
+                        char name[64] = {};
+                        WideCharToMultiByte(CP_UTF8, 0, wname, -1, name, 64, nullptr, nullptr);
+                        auto results = self->m_catalog.Search(name);
+                        if (!results.empty()) {
+                            const raduk::sky::SkyObject* obj = results[0];
+                            double lstNow = self->LSTFromJD(raduk::sky::CurrentJD());
+                            float alt = (float)raduk::sky::SkyObjectCatalog::CalcAlt(
+                                obj->ra, obj->dec, lstNow, self->m_lat);
+                            self->ShowActionPopup(self->m_listObjects, row,
+                                obj->name, obj->ra, obj->dec,
+                                alt, 0.0f, obj->magnitude);
+                        }
+                    }
+                }
+                // Single click on Tonight list → action popup
+                if (hdr->hwndFrom == self->m_listTonight
+                        && hdr->code == NM_CLICK) {
+                    auto* nm = reinterpret_cast<NMITEMACTIVATE*>(lParam);
+                    int row = nm->iItem;
+                    if (row >= 0 && row < (int)self->m_plannerItems.size()) {
+                        const auto& e = self->m_plannerItems[row];
+                        self->ShowActionPopup(self->m_listTonight, row,
+                            e.name, e.ra, e.dec,
+                            e.altNow, e.azDeg, e.mag);
+                    }
+                }
+                // Double-click on Tonight list → info panel (keep as shortcut)
                 if (hdr->hwndFrom == self->m_listTonight
                         && (hdr->code == NM_DBLCLK || hdr->code == NM_RETURN)) {
                     int sel = ListView_GetNextItem(self->m_listTonight, -1, LVNI_SELECTED);

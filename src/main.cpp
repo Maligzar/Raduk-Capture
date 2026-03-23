@@ -1450,6 +1450,11 @@ static int RunApp(bool useEmulator) {
     toolbar.SetAICallback([&]()         { doAIToggle(); });
     window.SetAIToggleHandler([&]()     { doAIToggle(); });
 
+    // Phase 29: Ghost Frame Overlay — O key and [GH] toolbar button
+    auto doGhostToggle = [&]() { preview.ToggleGhost(); };
+    toolbar.SetGhostCallback([&]()      { doGhostToggle(); });
+    window.SetGhostToggleHandler([&]()  { doGhostToggle(); });
+
     // Forward WM_COMMAND from main window to toolbar
     window.SetToolbarCommandHandler([&](int id) -> bool {
         return toolbar.HandleCommand((WPARAM)id);
@@ -1783,7 +1788,8 @@ static int RunApp(bool useEmulator) {
                 preview.ReticleVisible(),
                 preview.ClipVisible(),
                 helpWindow.IsVisible(),
-                aiChat.IsVisible());
+                aiChat.IsVisible(),
+                preview.GhostEnabled());
 
             // Phase 50: Update AI session state every frame
             {

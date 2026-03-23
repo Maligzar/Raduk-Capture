@@ -1,0 +1,380 @@
+[17:01:32] === Knowledge DB build started 2026-03-22T17:01:32.459581 ===
+[17:01:32] DB path: D:\RadukCapture\data\object_knowledge.db
+[17:01:32] 
+── Phase 1: Loading structural data ──────────────────────────────
+[17:01:32] Downloading OpenNGC catalogue...
+[17:01:34]   Loaded 13969 objects from OpenNGC
+[17:01:34] Downloading IAU star names...
+[17:01:34]   Loaded 454 named stars from IAU catalogue
+[17:01:34] Loading solar system objects...
+[17:01:34]   Loaded 9 solar system objects
+[17:01:34] Loading 88 constellations...
+[17:01:34]   Loaded 88 constellations
+[17:01:34] Loading curated imaging notes...
+[17:01:34]   Loaded 26 imaging note entries
+[17:01:34] 
+── Phase 2: SIMBAD physical data ─────────────────────────────────
+[17:01:34] Fetching distances from SIMBAD...
+[17:01:35]   SIMBAD error: 400 Client Error: 400 for url: https://simbad.cds.unistra.fr/simbad/sim-tap/sync
+[17:01:35] 
+── Phase 3: Wikipedia narratives ─────────────────────────────────
+[17:01:35]   This takes ~20-30 min. Press Ctrl+C to pause (safe, restartable).
+[17:01:35] Fetching Wikipedia narratives...
+[17:01:35]   [1/14520] IC0136 → Wikipedia: IC0136
+[17:01:38]   [1/14520] IC0137 → Wikipedia: IC0137
+[17:01:41]   [1/14520] IC0139 → Wikipedia: IC0139
+[17:01:43]   [1/14520] IC0140 → Wikipedia: IC0140
+[17:01:45]   [1/14520] IC1203 → Wikipedia: IC1203
+[17:01:47]   [1/14520] IC1207 → Wikipedia: IC1207
+[17:01:49]   [1/14520] IC1290 → Wikipedia: IC1290
+[17:01:50]   [1/14520] IC1304 → Wikipedia: IC1304
+[17:01:52]   [1/14520] IC1306 → Wikipedia: IC1306
+[17:01:54]   [1/14520] IC1307 → Wikipedia: IC1307
+[17:01:56]   [1/14520] IC1314 → Wikipedia: IC1314
+[17:01:58]   [1/14520] IC1400 → Wikipedia: IC1400
+[17:02:01]   [1/14520] IC1402 → Wikipedia: IC1402
+[17:02:03]   [1/14520] IC2139 → Wikipedia: IC2139
+[17:02:05]   [1/14520] IC2141 → Wikipedia: IC2141
+[17:02:08]   [1/14520] IC2884 → Wikipedia: IC2884
+[17:02:09]   [1/14520] IC3564 → Wikipedia: IC3564
+[17:02:13]   [1/14520] M024 → Wikipedia: Small Sgr Star Cloud
+[17:02:15]   [1/14520] NGC0206 → Wikipedia: NGC0206
+[17:02:17]   [1/14520] NGC0592 → Wikipedia: NGC0592
+[17:02:19]   [1/14520] NGC1712 → Wikipedia: NGC1712
+[17:02:22]   [1/14520] NGC1731 → Wikipedia: NGC1731
+[17:02:24]   [1/14520] NGC1761 → Wikipedia: NGC1761
+[17:02:26]   [1/14520] NGC1785 → Wikipedia: NGC1785
+[17:02:28]   [1/14520] NGC1845 → Wikipedia: NGC1845
+[17:02:30]   [1/14520] NGC1855 → Wikipedia: NGC1855
+[17:02:32]   [1/14520] NGC1915 → Wikipedia: NGC1915
+[17:02:34]   [1/14520] NGC1925 → Wikipedia: NGC1925
+[17:02:36]   [1/14520] NGC1937 → Wikipedia: NGC1937
+[17:02:38]   [1/14520] NGC1968 → Wikipedia: NGC1968
+[17:02:39]   [1/14520] NGC2001 → Wikipedia: NGC2001
+[17:02:41]   [1/14520] NGC2006 → Wikipedia: NGC2006
+[17:02:43]   [1/14520] NGC2015 → Wikipedia: NGC2015
+[17:02:46]   [1/14520] NGC2033 → Wikipedia: NGC2033
+[17:02:48]   [1/14520] NGC2034 → Wikipedia: NGC2034
+[17:02:51]   [1/14520] NGC2044 → Wikipedia: NGC2044
+[17:02:53]   [1/14520] NGC2050 → Wikipedia: NGC2050
+[17:02:55]   [1/14520] NGC2055 → Wikipedia: NGC2055
+[17:02:57]   [1/14520] NGC2093 → Wikipedia: NGC2093
+[17:03:00]   [1/14520] NGC2932 → Wikipedia: NGC2932
+[17:03:02]   [1/14520] NGC2995 → Wikipedia: NGC2995
+[17:03:03]   [1/14520] NGC4937 → Wikipedia: NGC4937
+[17:03:05]   [1/14520] NGC5045 → Wikipedia: NGC5045
+[17:03:06]   [1/14520] NGC5155 → Wikipedia: NGC5155
+[17:03:08]   [1/14520] NGC5284 → Wikipedia: NGC5284
+[17:03:10]   [1/14520] NGC6335 → Wikipedia: NGC6335
+[17:03:12]   [1/14520] NGC6360 → Wikipedia: NGC6360
+[17:03:13]   [1/14520] NGC6415 → Wikipedia: NGC6415
+[17:03:15]   [1/14520] NGC6421 → Wikipedia: NGC6421
+[17:03:18]   [1/14520] NGC6437 → Wikipedia: NGC6437
+[17:03:20]   [1/14520] NGC6455 → Wikipedia: NGC6455
+[17:03:23]   [1/14520] NGC6476 → Wikipedia: NGC6476
+[17:03:25]   [1/14520] NGC6480 → Wikipedia: NGC6480
+[17:03:27]   [1/14520] NGC6529 → Wikipedia: NGC6529
+[17:03:28]   [1/14520] NGC6556 → Wikipedia: NGC6556
+[17:03:30]   [1/14520] NGC6573 → Wikipedia: NGC6573
+[17:03:32]   [1/14520] NGC6714 → Wikipedia: NGC6714
+[17:03:34]   [1/14520] NGC6738 → Wikipedia: NGC6738
+[17:03:37]   [1/14520] NGC6815 → Wikipedia: NGC6815
+[17:03:39]   [1/14520] NGC6874 → Wikipedia: NGC6874
+[17:03:41]   [1/14520] NGC6996 → Wikipedia: NGC6996
+[17:03:43]   [1/14520] NGC7071 → Wikipedia: NGC7071
+[17:03:44]   [1/14520] IC0348 → Wikipedia: omi Per Cloud
+[17:03:47]   [1/14520] IC0446 → Wikipedia: IC0446
+[17:03:49]   [1/14520] IC1310 → Wikipedia: IC1310
+[17:03:51]   [1/14520] IC1396 → Wikipedia: IC1396
+[17:03:52]   [2/14520] IC1590 → Wikipedia: IC1590
+[17:03:54]   [2/14520] IC1805 → Wikipedia: IC1805
+[17:03:55]   [3/14520] IC1848 → Wikipedia: IC1848
+[17:03:57]   [4/14520] IC2105 → Wikipedia: IC2105
+[17:03:58]   [4/14520] IC2111 → Wikipedia: IC2111
+[17:04:00]   [4/14520] IC2117 → Wikipedia: IC2117
+[17:04:02]   [4/14520] IC2128 → Wikipedia: IC2128
+[17:04:04]   [4/14520] IC2944 → Wikipedia: lam Cen Nebula
+[17:04:06]   [4/14520] IC2948 → Wikipedia: IC2948
+[17:04:08]   [4/14520] IC5146 → Wikipedia: Cocoon Nebula
+[17:04:08]   [5/14520] M042 → Wikipedia: Great Orion Nebula,Orion Nebula
+[17:04:10]   [5/14520] NGC0248 → Wikipedia: NGC0248
+[17:04:12]   [5/14520] NGC0460 → Wikipedia: NGC0460
+[17:04:14]   [5/14520] NGC1333 → Wikipedia: NGC1333
+[17:04:15]   [6/14520] NGC1579 → Wikipedia: NGC1579
+[17:04:19]   [6/14520] NGC1624 → Wikipedia: NGC1624
+[17:04:21]   [6/14520] NGC1714 → Wikipedia: NGC1714
+[17:04:23]   [6/14520] NGC1722 → Wikipedia: NGC1722
+[17:04:24]   [6/14520] NGC1727 → Wikipedia: NGC1727
+[17:04:26]   [6/14520] NGC1763 → Wikipedia: NGC1763
+[17:04:29]   [6/14520] NGC1770 → Wikipedia: NGC1770
+[17:04:30]   [6/14520] NGC1814 → Wikipedia: NGC1814
+[17:04:32]   [6/14520] NGC1829 → Wikipedia: NGC1829
+[17:04:35]   [6/14520] NGC1833 → Wikipedia: NGC1833
+[17:04:37]   [6/14520] NGC1858 → Wikipedia: NGC1858
+[17:04:39]   [6/14520] NGC1869 → Wikipedia: NGC1869
+[17:04:42]   [6/14520] NGC1871 → Wikipedia: NGC1871
+[17:04:49]   [6/14520] NGC1873 → Wikipedia: NGC1873
+[17:04:51]   [6/14520] NGC1874 → Wikipedia: NGC1874
+[17:04:53]   [6/14520] NGC1876 → Wikipedia: NGC1876
+[17:04:55]   [6/14520] NGC1910 → Wikipedia: NGC1910
+[17:04:57]   [6/14520] NGC1914 → Wikipedia: NGC1914
+[17:04:59]   [6/14520] NGC1923 → Wikipedia: NGC1923
+[17:05:00]   [6/14520] NGC1931 → Wikipedia: NGC1931
+[17:05:02]   [6/14520] NGC1934 → Wikipedia: NGC1934
+[17:05:04]   [6/14520] NGC1941 → Wikipedia: NGC1941
+[17:05:06]   [6/14520] NGC1948 → Wikipedia: NGC1948
+[17:05:08]   [6/14520] NGC1977 → Wikipedia: the Running Man Nebula
+[17:05:09]   [7/14520] NGC1980 → Wikipedia: Lower Sword
+[17:05:11]   [7/14520] NGC1981 → Wikipedia: Upper Sword
+[17:05:13]   [7/14520] NGC2071 → Wikipedia: NGC2071
+[17:05:16]   [7/14520] NGC2074 → Wikipedia: NGC2074
+[17:05:17]   [7/14520] NGC2075 → Wikipedia: NGC2075
+[17:05:19]   [7/14520] NGC2081 → Wikipedia: NGC2081
+[17:05:21]   [7/14520] NGC2113 → Wikipedia: NGC2113
+[17:05:22]   [7/14520] NGC2122 → Wikipedia: NGC2122
+[17:05:25]   [7/14520] NGC2175 → Wikipedia: NGC2175
+[17:05:26]   [8/14520] NGC2239 → Wikipedia: NGC2239
+[17:05:28]   [8/14520] NGC2264 → Wikipedia: Christmas Tree Cluster
+[17:05:29]   [9/14520] NGC2467 → Wikipedia: NGC2467
+[17:05:31]   [9/14520] NGC2579 → Wikipedia: NGC2579
+[17:05:33]   [9/14520] NGC2818A → Wikipedia: NGC2818A
+[17:05:34]   [9/14520] NGC3324 → Wikipedia: NGC3324
+[17:05:36]   [9/14520] NGC3603 → Wikipedia: NGC3603
+[17:05:38]   [9/14520] NGC6250 → Wikipedia: NGC6250
+[17:05:40]   [9/14520] NGC6357 → Wikipedia: the War and Peace Nebula
+[17:05:41]   [9/14520] NGC6530 → Wikipedia: NGC6530
+[17:05:47]   [10/14520] NGC6823 → Wikipedia: NGC6823
+[17:05:49]   [11/14520] NGC6847 → Wikipedia: NGC6847
+[17:05:50]   [11/14520] NGC6997 → Wikipedia: NGC6997
+[17:05:52]   [11/14520] NGC7129 → Wikipedia: NGC7129
+[17:05:53]   [12/14520] NGC7380 → Wikipedia: NGC7380
+[17:05:55]   [12/14520] NGC7538 → Wikipedia: NGC7538
+[17:05:57]   [12/14520] Andromeda → Wikipedia: Andromeda (constellation)
+[17:05:58]   [13/14520] Antlia → Wikipedia: Antlia (constellation)
+[17:06:03]   [14/14520] Apus → Wikipedia: Apus (constellation)
+[17:06:04]   [15/14520] Aquarius → Wikipedia: Aquarius (constellation)
+[17:06:05]   [16/14520] Aquila → Wikipedia: Aquila (constellation)
+[17:06:06]   [17/14520] Ara → Wikipedia: Ara (constellation)
+[17:06:07]   [18/14520] Aries → Wikipedia: Aries (constellation)
+[17:06:08]   [19/14520] Auriga → Wikipedia: Auriga (constellation)
+[17:06:09]   [20/14520] Boötes → Wikipedia: Boötes (constellation)
+[17:06:10]   [21/14520] Caelum → Wikipedia: Caelum (constellation)
+[17:06:11]   [22/14520] Camelopardalis → Wikipedia: Camelopardalis (constellation)
+[17:06:12]   [23/14520] Cancer → Wikipedia: Cancer (constellation)
+[17:06:13]   [24/14520] Canes Venatici → Wikipedia: Canes Venatici (constellation)
+[17:06:15]   [25/14520] Canis Major → Wikipedia: Canis Major (constellation)
+[17:06:16]   [26/14520] Canis Minor → Wikipedia: Canis Minor (constellation)
+[17:06:17]   [27/14520] Capricornus → Wikipedia: Capricornus (constellation)
+[17:06:18]   [28/14520] Carina → Wikipedia: Carina (constellation)
+[17:06:19]   [29/14520] Cassiopeia → Wikipedia: Cassiopeia (constellation)
+[17:06:20]   [30/14520] Centaurus → Wikipedia: Centaurus (constellation)
+[17:06:21]   [31/14520] Cepheus → Wikipedia: Cepheus (constellation)
+[17:06:22]   [32/14520] Cetus → Wikipedia: Cetus (constellation)
+[17:06:23]   [33/14520] Chamaeleon → Wikipedia: Chamaeleon (constellation)
+[17:06:24]   [34/14520] Circinus → Wikipedia: Circinus (constellation)
+[17:06:28]   [35/14520] Columba → Wikipedia: Columba (constellation)
+[17:06:29]   [36/14520] Coma Berenices → Wikipedia: Coma Berenices (constellation)
+[17:06:30]   [37/14520] Corona Australis → Wikipedia: Corona Australis (constellation)
+[17:06:34]   [38/14520] Corona Borealis → Wikipedia: Corona Borealis (constellation)
+[17:06:38]   [39/14520] Corvus → Wikipedia: Corvus (constellation)
+[17:06:39]   [40/14520] Crater → Wikipedia: Crater (constellation)
+[17:06:40]   [41/14520] Crux → Wikipedia: Crux (constellation)
+[17:06:41]   [42/14520] Cygnus → Wikipedia: Cygnus (constellation)
+[17:06:44]   [43/14520] Delphinus → Wikipedia: Delphinus (constellation)
+[17:06:45]   [44/14520] Dorado → Wikipedia: Dorado (constellation)
+[17:06:47]   [45/14520] Draco → Wikipedia: Draco (constellation)
+[17:06:47]   [46/14520] Equuleus → Wikipedia: Equuleus (constellation)
+[17:06:49]   [47/14520] Eridanus → Wikipedia: Eridanus (constellation)
+[17:06:49]   [48/14520] Fornax → Wikipedia: Fornax (constellation)
+[17:06:50]   [49/14520] Gemini → Wikipedia: Gemini (constellation)
+[17:06:52]   [50/14520] Grus → Wikipedia: Grus (constellation)
+[17:06:53]   [51/14520] Hercules → Wikipedia: Hercules (constellation)
+[17:06:54]   [52/14520] Horologium → Wikipedia: Horologium (constellation)
+[17:06:55]   [53/14520] Hydra → Wikipedia: Hydra (constellation)
+[17:06:56]   [54/14520] Hydrus → Wikipedia: Hydrus (constellation)
+[17:06:58]   [55/14520] Indus → Wikipedia: Indus (constellation)
+[17:06:59]   [56/14520] Lacerta → Wikipedia: Lacerta (constellation)
+[17:07:00]   [57/14520] Leo → Wikipedia: Leo (constellation)
+[17:07:03]   [58/14520] Leo Minor → Wikipedia: Leo Minor (constellation)
+[17:07:07]   [59/14520] Lepus → Wikipedia: Lepus (constellation)
+[17:07:08]   [60/14520] Libra → Wikipedia: Libra (constellation)
+[17:07:10]   [61/14520] Lupus → Wikipedia: Lupus (constellation)
+[17:07:13]   [62/14520] Lynx → Wikipedia: Lynx (constellation)
+[17:07:15]   [63/14520] Lyra → Wikipedia: Lyra (constellation)
+[17:07:17]   [64/14520] Mensa → Wikipedia: Mensa (constellation)
+[17:07:20]   [65/14520] Microscopium → Wikipedia: Microscopium (constellation)
+[17:07:22]   [66/14520] Monoceros → Wikipedia: Monoceros (constellation)
+[17:07:23]   [67/14520] Musca → Wikipedia: Musca (constellation)
+[17:07:24]   [68/14520] Norma → Wikipedia: Norma (constellation)
+[17:07:25]   [69/14520] Octans → Wikipedia: Octans (constellation)
+[17:07:27]   [70/14520] Ophiuchus → Wikipedia: Ophiuchus (constellation)
+[17:07:28]   [71/14520] Orion → Wikipedia: Orion (constellation)
+[17:07:29]   [72/14520] Pavo → Wikipedia: Pavo (constellation)
+[17:07:30]   [73/14520] Pegasus → Wikipedia: Pegasus (constellation)
+[17:07:31]   [74/14520] Perseus → Wikipedia: Perseus (constellation)
+[17:07:34]   [75/14520] Phoenix → Wikipedia: Phoenix (constellation)
+[17:07:35]   [76/14520] Pictor → Wikipedia: Pictor (constellation)
+[17:07:36]   [77/14520] Pisces → Wikipedia: Pisces (constellation)
+[17:07:37]   [78/14520] Piscis Austrinus → Wikipedia: Piscis Austrinus (constellation)
+[17:07:38]   [79/14520] Puppis → Wikipedia: Puppis (constellation)
+[17:07:39]   [80/14520] Pyxis → Wikipedia: Pyxis (constellation)
+[17:07:42]   [81/14520] Reticulum → Wikipedia: Reticulum (constellation)
+[17:07:45]   [82/14520] Sagitta → Wikipedia: Sagitta (constellation)
+[17:07:49]   [83/14520] Sagittarius → Wikipedia: Sagittarius (constellation)
+[17:07:50]   [84/14520] Scorpius → Wikipedia: Scorpius (constellation)
+[17:07:51]   [85/14520] Sculptor → Wikipedia: Sculptor (constellation)
+[17:07:52]   [86/14520] Scutum → Wikipedia: Scutum (constellation)
+[17:07:54]   [87/14520] Serpens → Wikipedia: Serpens (constellation)
+[17:07:55]   [88/14520] Sextans → Wikipedia: Sextans (constellation)
+[17:07:57]   [89/14520] Taurus → Wikipedia: Taurus (constellation)
+[17:07:58]   [90/14520] Telescopium → Wikipedia: Telescopium (constellation)
+[17:08:02]   [91/14520] Triangulum → Wikipedia: Triangulum (constellation)
+[17:08:03]   [92/14520] Triangulum Australe → Wikipedia: Triangulum Australe (constellation)
+[17:08:05]   [93/14520] Tucana → Wikipedia: Tucana (constellation)
+[17:08:06]   [94/14520] Ursa Major → Wikipedia: Ursa Major (constellation)
+[17:08:07]   [95/14520] Ursa Minor → Wikipedia: Ursa Minor (constellation)
+[17:08:09]   [96/14520] Vela → Wikipedia: Vela (constellation)
+[17:08:18]   [97/14520] Virgo → Wikipedia: Virgo (constellation)
+[17:08:18]   [98/14520] Volans → Wikipedia: Volans (constellation)
+[17:08:20]   [99/14520] Vulpecula → Wikipedia: Vulpecula (constellation)
+[17:08:22]   [100/14520] IC0001 → Wikipedia: IC0001
+[17:08:24]   [100/14520] IC0014 → Wikipedia: IC0014
+[17:08:33]   [100/14520] IC0024 → Wikipedia: IC0024
+[17:08:35]   [100/14520] IC0054 → Wikipedia: IC0054
+[17:08:37]   [100/14520] IC0104 → Wikipedia: IC0104
+[17:08:38]   [100/14520] IC0242 → Wikipedia: IC0242
+[17:08:40]   [100/14520] IC0297 → Wikipedia: IC0297
+[17:08:42]   [100/14520] IC0470 → Wikipedia: IC0470
+[17:08:43]   [100/14520] IC0483 → Wikipedia: IC0483
+[17:08:45]   [100/14520] IC0675 → Wikipedia: IC0675
+[17:08:47]   [100/14520] IC1115 → Wikipedia: IC1115
+[17:08:49]   [100/14520] IC1175 → Wikipedia: IC1175
+[17:08:52]   [100/14520] IC1238 → Wikipedia: IC1238
+[17:08:56]   [100/14520] IC1273 → Wikipedia: IC1273
+[17:08:57]   [100/14520] IC1323 → Wikipedia: IC1323
+[17:09:01]   [100/14520] IC1426 → Wikipedia: IC1426
+[17:09:02]   [100/14520] IC1450 → Wikipedia: IC1450
+[17:09:04]   [100/14520] IC1463 → Wikipedia: IC1463
+[17:09:06]   [100/14520] IC1499 → Wikipedia: IC1499
+[17:09:08]   [100/14520] IC1589 → Wikipedia: IC1589
+[17:09:09]   [100/14520] IC1593 → Wikipedia: IC1593
+[17:09:11]   [100/14520] IC1740 → Wikipedia: IC1740
+[17:09:13]   [100/14520] IC1845 → Wikipedia: IC1845
+[17:09:15]   [100/14520] IC1927 → Wikipedia: IC1927
+[17:09:17]   [100/14520] IC1979 → Wikipedia: IC1979
+[17:09:18]   [100/14520] IC2001 → Wikipedia: IC2001
+[17:09:20]   [100/14520] IC2011 → Wikipedia: IC2011
+[17:09:22]   [100/14520] IC2100 → Wikipedia: IC2100
+[17:09:24]   [100/14520] IC2168 → Wikipedia: IC2168
+[17:09:26]   [100/14520] IC2175 → Wikipedia: IC2175
+[17:09:28]   [100/14520] IC2210 → Wikipedia: IC2210
+[17:09:30]   [100/14520] IC2216 → Wikipedia: IC2216
+[17:09:33]   [100/14520] IC2235 → Wikipedia: IC2235
+[17:09:35]   [100/14520] IC2236 → Wikipedia: IC2236
+[17:09:37]   [100/14520] IC2241 → Wikipedia: IC2241
+[17:09:38]   [100/14520] IC2251 → Wikipedia: IC2251
+[17:09:40]   [100/14520] IC2255 → Wikipedia: IC2255
+[17:09:42]   [100/14520] IC2257 → Wikipedia: IC2257
+[17:09:43]   [100/14520] IC2261 → Wikipedia: IC2261
+[17:09:45]   [100/14520] IC2270 → Wikipedia: IC2270
+[17:09:47]   [100/14520] IC2272 → Wikipedia: IC2272
+[17:09:49]   [100/14520] IC2285 → Wikipedia: IC2285
+[17:09:50]   [100/14520] IC2295 → Wikipedia: IC2295
+[17:09:52]   [100/14520] IC2299 → Wikipedia: IC2299
+[17:09:54]   [100/14520] IC2304 → Wikipedia: IC2304
+[17:09:56]   [100/14520] IC2314 → Wikipedia: IC2314
+[17:09:58]   [100/14520] IC2316 → Wikipedia: IC2316
+[17:10:03]   [100/14520] IC2331 → Wikipedia: IC2331
+[17:10:05]   [100/14520] IC2354 → Wikipedia: IC2354
+[17:10:07]   [100/14520] IC2355 → Wikipedia: IC2355
+[17:10:09]   [100/14520] IC2362 → Wikipedia: IC2362
+[17:10:10]   [100/14520] IC2364 → Wikipedia: IC2364
+[17:10:12]   [100/14520] IC2381 → Wikipedia: IC2381
+[17:10:15]   [100/14520] IC2397 → Wikipedia: IC2397
+[17:10:17]   [100/14520] IC2413 → Wikipedia: IC2413
+[17:10:18]   [100/14520] IC2419 → Wikipedia: IC2419
+[17:10:20]   [100/14520] IC2436 → Wikipedia: IC2436
+[17:10:22]   [100/14520] IC2545 → Wikipedia: IC2545
+[17:10:24]   [100/14520] IC2618 → Wikipedia: IC2618
+[17:10:26]   [100/14520] IC2635 → Wikipedia: IC2635
+[17:10:27]   [100/14520] IC2653 → Wikipedia: IC2653
+[17:10:29]   [100/14520] IC2664 → Wikipedia: IC2664
+[17:10:31]   [100/14520] IC2669 → Wikipedia: IC2669
+[17:10:32]   [100/14520] IC2682 → Wikipedia: IC2682
+[17:10:34]   [100/14520] IC2687 → Wikipedia: IC2687
+[17:10:36]   [100/14520] IC2710 → Wikipedia: IC2710
+[17:10:38]   [100/14520] IC2733 → Wikipedia: IC2733
+[17:10:39]   [100/14520] IC2747 → Wikipedia: IC2747
+[17:10:41]   [100/14520] IC2899 → Wikipedia: IC2899
+[17:10:42]   [100/14520] IC2911 → Wikipedia: IC2911
+[17:10:44]   [100/14520] IC2932 → Wikipedia: IC2932
+[17:10:46]   [100/14520] IC2949 → Wikipedia: IC2949
+[17:10:48]   [100/14520] IC3086 → Wikipedia: IC3086
+[17:10:50]   [100/14520] IC3087 → Wikipedia: IC3087
+[17:10:52]   [100/14520] IC3090 → Wikipedia: IC3090
+[17:10:53]   [100/14520] IC3117 → Wikipedia: IC3117
+[17:10:56]   [100/14520] IC3130 → Wikipedia: IC3130
+[17:10:57]   [100/14520] IC3158 → Wikipedia: IC3158
+[17:10:59]   [100/14520] IC3163 → Wikipedia: IC3163
+[17:11:01]   [100/14520] IC3164 → Wikipedia: IC3164
+[17:11:02]   [100/14520] IC3182 → Wikipedia: IC3182
+[17:11:04]   [100/14520] IC3183 → Wikipedia: IC3183
+[17:11:06]   [100/14520] IC3252 → Wikipedia: IC3252
+[17:11:22]   [100/14520] IC3279 → Wikipedia: IC3279
+[17:11:39]   [100/14520] IC3350 → Wikipedia: IC3350
+[17:11:56]   [100/14520] IC3444 → Wikipedia: IC3444
+[17:12:13]   [100/14520] IC3480 → Wikipedia: IC3480
+[17:12:29]   [100/14520] IC3495 → Wikipedia: IC3495
+[17:12:46]   [100/14520] IC3514 → Wikipedia: IC3514
+[17:13:03]   [100/14520] IC3526 → Wikipedia: IC3526
+[17:13:20]   [100/14520] IC3527 → Wikipedia: IC3527
+[17:13:36]   [100/14520] IC3544 → Wikipedia: IC3544
+[17:13:53]   [100/14520] IC3572 → Wikipedia: IC3572
+[17:14:09]   [100/14520] IC3619 → Wikipedia: IC3619
+[17:14:26]   [100/14520] IC3636 → Wikipedia: IC3636
+[17:14:43]   [100/14520] IC3650 → Wikipedia: IC3650
+[17:14:59]   [100/14520] IC3674 → Wikipedia: IC3674
+[17:15:16]   [100/14520] IC3679 → Wikipedia: IC3679
+[17:15:33]   [100/14520] IC3699 → Wikipedia: IC3699
+[17:15:49]   [100/14520] IC3706 → Wikipedia: IC3706
+[17:16:06]   [100/14520] IC3737 → Wikipedia: IC3737
+[17:16:22]   [100/14520] IC3741 → Wikipedia: IC3741
+[17:16:39]   [100/14520] IC3752 → Wikipedia: IC3752
+[17:16:56]   [100/14520] IC3755 → Wikipedia: IC3755
+[17:17:12]   [100/14520] IC3765 → Wikipedia: IC3765
+[17:17:29]   [100/14520] IC3781 → Wikipedia: IC3781
+[17:17:46]   [100/14520] IC3787 → Wikipedia: IC3787
+[17:18:02]   [100/14520] IC3792 → Wikipedia: IC3792
+[17:18:19]   [100/14520] IC3805 → Wikipedia: IC3805
+[17:18:36]   [100/14520] IC3821 → Wikipedia: IC3821
+[17:18:52]   [100/14520] IC3841 → Wikipedia: IC3841
+[17:19:09]   [100/14520] IC3887 → Wikipedia: IC3887
+[17:19:25]   [100/14520] IC3894 → Wikipedia: IC3894
+[17:19:42]   [100/14520] IC3910 → Wikipedia: IC3910
+[17:19:59]   [100/14520] IC3923 → Wikipedia: IC3923
+[17:20:15]   [100/14520] IC3925 → Wikipedia: IC3925
+[17:20:32]   [100/14520] IC3983 → Wikipedia: IC3983
+[17:20:49]   [100/14520] IC3996 → Wikipedia: IC3996
+[17:21:05]   [100/14520] IC4005 → Wikipedia: IC4005
+[17:21:22]   [100/14520] IC4008 → Wikipedia: IC4008
+[17:21:39]   [100/14520] IC4019 → Wikipedia: IC4019
+[17:21:55]   [100/14520] IC4050 → Wikipedia: IC4050
+[17:22:12]   [100/14520] IC4052 → Wikipedia: IC4052
+[17:22:28]   [100/14520] IC4078 → Wikipedia: IC4078
+[17:22:45]   [100/14520] IC4084 → Wikipedia: IC4084
+[17:23:02]   [100/14520] IC4186 → Wikipedia: IC4186
+[17:23:18]   [100/14520] IC4437 → Wikipedia: IC4437
+[17:23:35]   [100/14520] IC4490 → Wikipedia: IC4490
+[17:23:52]   [100/14520] IC4626 → Wikipedia: IC4626
+[17:24:08]   [100/14520] IC4648 → Wikipedia: IC4648
+[17:24:25]   [100/14520] IC4695 → Wikipedia: IC4695
+[17:24:41]   [100/14520] IC4762 → Wikipedia: IC4762
+[17:24:58]   [100/14520] IC4863 → Wikipedia: IC4863
+[17:25:15]   [100/14520] IC4865 → Wikipedia: IC4865
+[17:25:31]   [100/14520] IC4868 → Wikipedia: IC4868
+[17:25:48]   [100/14520] IC5006 → Wikipedia: IC5006
+[17:26:05]   [100/14520] IC5062 → Wikipedia: IC5062
+[17:26:21]   [100/14520] IC5113 → Wikipedia: IC5113
+[17:26:38]   [100/14520] IC5155 → Wikipedia: IC5155
+[17:26:55]   [100/14520] IC5303 → Wikipedia: IC5303
+[17:27:11]   [100/14520] IC5311 → Wikipedia: IC5311

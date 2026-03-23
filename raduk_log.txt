@@ -9,7 +9,7 @@
 
 [INIT] 8 profiles loaded
 [INIT] Camera: ZWO ASI678MC
-[INIT] EAF OK pos=150000
+[INIT] EAF OK pos=149900
 [INIT] Mount: NexStar direct (COM3) — RC in control
 [SAFETY] Heartbeat watchdog armed (timeout=8000ms)
 [INIT] Capture thread started
@@ -33,3 +33,12 @@
   P4:  Remote commands: start/stop_capture, load_profile, move_eaf, goto_target
   P4:  Session summary written to log at shutdown
 
+[PROFILE] Auto-loading 'Jupiter' profile for GoTo target 'Jupiter'
+[PROFILE] Applying: Jupiter
+[GOTO] Slew to 'Jupiter' complete — starting acquisition in 3s
+[ACQ] Auto-start: Stage 1 SEARCHING (post-GoTo settle)
+[GOTO] Slew to 'Jupiter' complete — starting acquisition in 3s
+[ACQ] Auto-start: Stage 1 SEARCHING (post-GoTo settle)
+
+Shutting down...
+Goodbye.

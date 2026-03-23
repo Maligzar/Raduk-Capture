@@ -45,7 +45,8 @@ enum ToolbarCmd : int {
     ID_TB_HELP      = 3008,
     ID_TB_AI        = 3009,
     ID_TB_EXIT      = 3010,
-    ID_TB_LAST      = 3010,
+    ID_TB_GHOST     = 3011,
+    ID_TB_LAST      = 3011,
 };
 
 static constexpr int TOOLBAR_HEIGHT = 30; // physical pixels
@@ -132,12 +133,14 @@ public:
     void SetHelpCallback    (std::function<void()> cb) { m_onHelp     = cb; }
     void SetAICallback      (std::function<void()> cb) { m_onAI       = cb; }
     void SetExitCallback    (std::function<void()> cb) { m_onExit     = cb; }
+    void SetGhostCallback   (std::function<void()> cb) { m_onGhost    = cb; }
 
     // Update button labels to reflect active state — only repaints when changed
     void UpdateStates(int acqStage, bool lockReady, bool roiReady,
                       bool colorActive, bool mapVisible, bool gotoVisible,
                       bool reticleVisible, bool clipVisible = false,
-                      bool helpVisible = false, bool aiVisible = false) {
+                      bool helpVisible = false, bool aiVisible = false,
+                      bool ghostActive = false) {
         if (!m_hwnd) return;
 
         if (acqStage      == m_lastAcqStage   &&
@@ -149,7 +152,8 @@ public:
             reticleVisible== m_lastReticleVis  &&
             clipVisible   == m_lastClipVis     &&
             helpVisible   == m_lastHelpVis     &&
-            aiVisible     == m_lastAIVis) return;
+            aiVisible     == m_lastAIVis       &&
+            ghostActive   == m_lastGhostActive) return;
 
         m_lastAcqStage    = acqStage;
         m_lastLockReady   = lockReady;
@@ -161,6 +165,7 @@ public:
         m_lastClipVis     = clipVisible;
         m_lastHelpVis     = helpVisible;
         m_lastAIVis       = aiVisible;
+        m_lastGhostActive = ghostActive;
 
         const wchar_t* centLabel =
             (acqStage >= 2) ? L"[CENTROID \u2713]" :
@@ -182,6 +187,7 @@ public:
         SetWindowTextW(m_btnClip,     clipVisible     ? L"[CLIP ON]"       : L"[CLIP]");
         SetWindowTextW(m_btnHelp,     helpVisible     ? L"[? ON]"          : L"[?]");
         SetWindowTextW(m_btnAI,       aiVisible       ? L"[AI ON]"         : L"[AI]");
+        SetWindowTextW(m_btnGhost,    ghostActive     ? L"[GH ON]"         : L"[GH]");
 
         SendMessage(m_btnCentroid, WM_SETFONT, (WPARAM)(acqStage > 0  ? m_fontActive : m_font), TRUE);
         SendMessage(m_btnLock,     WM_SETFONT, (WPARAM)(acqStage >= 2 ? m_fontActive : m_font), TRUE);
@@ -193,6 +199,7 @@ public:
         SendMessage(m_btnClip,     WM_SETFONT, (WPARAM)(clipVisible   ? m_fontActive : m_font), TRUE);
         SendMessage(m_btnHelp,     WM_SETFONT, (WPARAM)(helpVisible   ? m_fontActive : m_font), TRUE);
         SendMessage(m_btnAI,       WM_SETFONT, (WPARAM)(aiVisible     ? m_fontActive : m_font), TRUE);
+        SendMessage(m_btnGhost,    WM_SETFONT, (WPARAM)(ghostActive   ? m_fontActive : m_font), TRUE);
     }
 
     // Handle WM_COMMAND forwarded from main window — returns true if consumed
@@ -210,6 +217,7 @@ public:
             case ID_TB_CLIP:     if (m_onClip)     m_onClip();     return true;
             case ID_TB_HELP:     if (m_onHelp)     m_onHelp();     return true;
             case ID_TB_AI:       if (m_onAI)       m_onAI();       return true;
+            case ID_TB_GHOST:    if (m_onGhost)    m_onGhost();    return true;
             case ID_TB_EXIT:     if (m_onExit)     m_onExit();     return true;
         }
         return false;
@@ -230,12 +238,13 @@ private:
             { ID_TB_CENTROID, L"[CENTROID]",  90, &m_btnCentroid },
             { ID_TB_LOCK,     L"[LOCK]",      56, &m_btnLock     },
             { ID_TB_ROI,      L"[ROI]",       46, &m_btnROI      },
-            // gap handled by x offset below
+            // gap at i==3
             { ID_TB_COLOR,    L"[C] COLOR",   74, &m_btnColor    },
             { ID_TB_MAP,      L"[*] MAP",     60, &m_btnMap      },
             { ID_TB_GOTO,     L"[I] GOTO",    64, &m_btnGoTo     },
             { ID_TB_RETICLE,  L"[+] RETICLE", 84, &m_btnReticle  },
             { ID_TB_CLIP,     L"[CLIP]",      60, &m_btnClip     },
+            { ID_TB_GHOST,    L"[GH]",        40, &m_btnGhost    },
             { ID_TB_HELP,     L"[?]",         36, &m_btnHelp     },
             { ID_TB_AI,       L"[AI]",        40, &m_btnAI       },
             { ID_TB_EXIT,     L"EXIT",        44, &m_btnExit     },
@@ -247,10 +256,10 @@ private:
         const int btnY = 3;
         int x = 4;
 
-        for (int i = 0; i < 11; i++) {
+        for (int i = 0; i < 12; i++) {
             auto& d = defs[i];
-            if (i == 3) x += sep;   // gap before view buttons
-            if (i == 10) x += sep;  // gap before EXIT
+            if (i == 3)  x += sep;   // gap before view buttons
+            if (i == 11) x += sep;   // gap before EXIT
 
             HWND btn = CreateWindowExW(
                 0, L"BUTTON", d.label,
@@ -279,6 +288,7 @@ private:
         if (m_btnClip)     { DestroyWindow(m_btnClip);     m_btnClip     = nullptr; }
         if (m_btnHelp)     { DestroyWindow(m_btnHelp);     m_btnHelp     = nullptr; }
         if (m_btnAI)       { DestroyWindow(m_btnAI);       m_btnAI       = nullptr; }
+        if (m_btnGhost)    { DestroyWindow(m_btnGhost);    m_btnGhost    = nullptr; }
         if (m_btnExit)     { DestroyWindow(m_btnExit);     m_btnExit     = nullptr; }
         BuildButtons(w, h);
     }
@@ -337,6 +347,7 @@ private:
     HWND  m_btnClip     = nullptr;
     HWND  m_btnHelp     = nullptr;
     HWND  m_btnAI       = nullptr;
+    HWND  m_btnGhost    = nullptr;
     HWND  m_btnExit     = nullptr;
 
     // State cache — UpdateStates skips SetWindowTextW when unchanged (prevents flash)
@@ -350,6 +361,7 @@ private:
     bool m_lastClipVis     = false;
     bool m_lastHelpVis     = false;
     bool m_lastAIVis       = false;
+    bool m_lastGhostActive = false;
 
     std::function<void()> m_onCentroid;
     std::function<void()> m_onLock;
@@ -361,6 +373,7 @@ private:
     std::function<void()> m_onClip;
     std::function<void()> m_onHelp;
     std::function<void()> m_onAI;
+    std::function<void()> m_onGhost;
     std::function<void()> m_onExit;
 };
 

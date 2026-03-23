@@ -433,6 +433,11 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                 m_onAIToggle();
                 return 0;
             }
+            // O key — toggle ghost frame overlay
+            if ((wParam == L'o' || wParam == L'O') && m_onGhostToggle) {
+                m_onGhostToggle();
+                return 0;
+            }
             break;
 
         case WM_CLOSE:

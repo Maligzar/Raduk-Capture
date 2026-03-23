@@ -119,6 +119,73 @@ public:
     void Hide()  { if (m_hwnd) ShowWindow(m_hwnd, SW_HIDE); }
     void Toggle(){ IsVisible() ? Hide() : Show(); }
 
+    // ── Phase 14: PlannerEntry — public so AIContextBuilder can reference it ──
+    struct PlannerEntry {
+        std::string name;
+        std::string type;
+        float       mag;
+        float       altNow;     // degrees, current altitude
+        float       azDeg;      // degrees, current azimuth
+        float       peakAlt;    // max altitude tonight
+        int         minsLeft;   // imaging minutes remaining (alt > 30°)
+        std::string windowStr;  // e.g. "21:15–02:40"
+        double      ra, dec;
+    };
+
+    // ── Phase 14 / Phase 50 AI integration ────────────────────
+    // Returns the last-built planner list (from most recent Tonight tab visit).
+    // If the list is empty (tab never opened), builds it fresh.
+    // AIContextBuilder calls this to inject tonight's imaging windows into the
+    // AI system prompt so it can reason about urgency and recommend targets.
+    const std::vector<PlannerEntry>& GetPlannerData() {
+        if (m_plannerItems.empty())
+            m_plannerItems = BuildPlannerList();
+        return m_plannerItems;
+    }
+
+    // Force a fresh rebuild — call before each AI query to ensure data is current.
+    const std::vector<PlannerEntry>& RefreshPlannerData() {
+        m_catalog.UpdatePlanets();
+        m_plannerItems = BuildPlannerList();
+        return m_plannerItems;
+    }
+
+    // Expose LST publicly for AI session state injection in main.cpp
+    double ApproximateLSTPublic() const { return ApproximateLST(); }
+
+    // Phase 13: Survey — called by main.cpp to deliver a frame for plate-solving
+    // Wire: window.SetSurveyFrameCallback([&]{ gotoPanel.SurveyFrameReady(data,w,h); });
+    void SetSurveyFrameCallback(std::function<void()> cb) { m_onSurveyNeedFrame = cb; }
+
+    // Call from main.cpp when a fresh frame is ready during a survey solve request
+    void SurveyProvideFrame(const uint8_t* data, uint32_t w, uint32_t h,
+                             float tempC, float seeingScore) {
+        if (!m_surveyRunning.load()) return;
+        // Build a position label for this survey point
+        char label[32];
+        snprintf(label, 32, "Survey_%02d", m_surveyIdx);
+        // Set a flag so the AutoSolveOnLock completion can signal the thread
+        m_surveySolveReady.store(false);
+        m_surveyLastSolved = false;
+        // Wire a one-shot completion hook via m_onAutoSolveComplete override
+        auto prevHook = m_onAutoSolveComplete;
+        m_onAutoSolveComplete = [this, prevHook](bool ok, const std::string& msg,
+                                                  double ra, const std::string& obj) {
+            m_surveyLastSolved = ok;
+            m_surveySolveReady.store(true);
+            if (prevHook) prevHook(ok, msg, ra, obj);
+        };
+        AutoSolveOnLock(data, w, h, label, tempC, seeingScore);
+    }
+
+    bool IsSurveying() const { return m_surveyRunning.load(); }
+
+    // Phase 50a: double-click in Tonight list → show knowledge panel
+    // args: name, altDeg, azDeg, mag
+    void SetInfoCallback(std::function<void(const std::string&,
+                                            float, float, float)> cb)
+        { m_onInfo = cb; }
+
     // Public GoTo entry point — used by SkyMapWindow click-to-GoTo
     // Fires profile auto-load + mount slew + status updates
     void RequestGoTo(double raH, double decDeg, const std::string& name) {
@@ -368,11 +435,455 @@ private:
         ID_BTN_GOTO_COORD = 2011,
         ID_LBL_ALIGN_STATE = 2012,
         ID_BTN_SOLVE_ALIGN = 2013,
+        ID_TAB_MAIN        = 2020,  // Phase 14: tab control
+        ID_LIST_TONIGHT    = 2021,  // Phase 14: tonight's planner list
+        ID_BTN_GOTO_TONIGHT= 2022,  // Phase 14: GoTo selected from planner
+        ID_LBL_TONIGHT_HDR = 2023,  // Phase 14: header label
+        ID_BTN_SURVEY      = 2030,  // Phase 13: start/stop sky survey
+        ID_LBL_SURVEY      = 2031,  // Phase 13: survey progress label
     };
 
-    void BuildControls(int w, int) {
+    // ── Phase 14: Session Planner ──────────────────────────────
+
+    // Astronomical dusk JD: first time tonight the sun drops BELOW -18°.
+    // If already below -18° (i.e. it's nighttime), returns nowJD immediately.
+    double AstroDuskJD() const {
+        using namespace raduk::sky;
+        double jd = CurrentJD();
+        // Check if already dark
+        {
+            double sunRA, sunDec;
+            SunRADec(jd, sunRA, sunDec);
+            double lst = LSTFromJD(jd);
+            double alt = SkyObjectCatalog::CalcAlt(sunRA, sunDec, lst, m_lat);
+            if (alt <= -18.0) return jd; // already astronomical night
+        }
+        // Scan forward up to 24h for sun to drop below -18°
+        for (int i = 1; i <= 1440; i++) {
+            double testJD = jd + i / 1440.0;
+            double sunRA, sunDec;
+            SunRADec(testJD, sunRA, sunDec);
+            double lst = LSTFromJD(testJD);
+            double alt = SkyObjectCatalog::CalcAlt(sunRA, sunDec, lst, m_lat);
+            if (alt <= -18.0) return testJD;
+        }
+        return jd + 0.5; // fallback (polar summer — no true night)
+    }
+
+    // Astronomical dawn JD: first time the sun rises ABOVE -18° after dusk.
+    double AstroDawnJD(double duskJD) const {
+        using namespace raduk::sky;
+        // Scan forward from dusk up to 16 hours
+        for (int i = 1; i <= 960; i++) {
+            double testJD = duskJD + i / 1440.0;
+            double sunRA, sunDec;
+            SunRADec(testJD, sunRA, sunDec);
+            double lst = LSTFromJD(testJD);
+            double alt = SkyObjectCatalog::CalcAlt(sunRA, sunDec, lst, m_lat);
+            if (alt > -18.0) return testJD;
+        }
+        return duskJD + 0.55; // fallback ~8h
+    }
+
+    double LSTFromJD(double jd) const {
+        using namespace raduk::sky;
+        double T = JD_to_T(jd);
+        double gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0)
+                    + 0.000387933 * T * T;
+        return NormDeg(gmst + m_lon) / 15.0;
+    }
+
+    std::vector<PlannerEntry> BuildPlannerList() {
+        using namespace raduk::sky;
+        double nowJD  = CurrentJD();
+        double duskJD = AstroDuskJD();
+        double dawnJD = AstroDawnJD(duskJD);
+
+        // Scan starts at the later of now or astronomical dusk
+        double scanStart = (nowJD > duskJD) ? nowJD : duskJD;
+
+        m_catalog.UpdatePlanets();
+        const auto& objects = m_catalog.Objects();
+
+        std::vector<PlannerEntry> entries;
+        entries.reserve(objects.size());
+
+        for (const auto& obj : objects) {
+            // Skip very faint objects and Sun (daytime only)
+            if (obj.magnitude > 9.5f) continue;
+            if (obj.type == "Sun") continue;
+
+            PlannerEntry e;
+            e.name = obj.name;
+            e.type = obj.type;
+            e.mag  = obj.magnitude;
+            e.ra   = obj.ra;
+            e.dec  = obj.dec;
+
+            // Current altitude and azimuth (always from right now, even if daytime)
+            double lstNow = LSTFromJD(nowJD);
+            e.altNow = (float)SkyObjectCatalog::CalcAlt(obj.ra, obj.dec, lstNow, m_lat);
+            // Compute azimuth
+            {
+                using namespace raduk::sky;
+                double ha  = Rad((lstNow - obj.ra) * 15.0);
+                double dec = Rad(obj.dec);
+                double lat = Rad(m_lat);
+                double sinAlt = sin(lat)*sin(dec) + cos(lat)*cos(dec)*cos(ha);
+                double cosAlt = sqrt(1.0 - sinAlt*sinAlt);
+                double az = 0.0;
+                if (cosAlt > 1e-6) {
+                    double cosAz = (sin(dec) - sin(lat)*sinAlt) / (cos(lat)*cosAlt);
+                    cosAz = cosAz < -1.0 ? -1.0 : (cosAz > 1.0 ? 1.0 : cosAz);
+                    az = Deg(acos(cosAz));
+                    if (sin(ha) > 0) az = 360.0 - az;
+                }
+                e.azDeg = (float)az;
+            }
+
+            // Scan from dusk (or now if already dark) to dawn in 10-min steps
+            int    minsAbove  = 0;
+            float  peakAlt    = -90.0f;
+            double winStartJD = 0, winEndJD = 0;
+            bool   inWindow   = false;
+
+            double stepJD = 10.0 / 1440.0; // 10 minutes
+            // Peak scan covers full dusk→dawn regardless of current time
+            for (double t = duskJD; t < dawnJD; t += stepJD) {
+                double lst = LSTFromJD(t);
+                double alt = SkyObjectCatalog::CalcAlt(obj.ra, obj.dec, lst, m_lat);
+                if ((float)alt > peakAlt) peakAlt = (float)alt;
+            }
+            // Remaining time scan starts from now (or dusk if not yet dark)
+            for (double t = scanStart; t < dawnJD; t += stepJD) {
+                double lst = LSTFromJD(t);
+                double alt = SkyObjectCatalog::CalcAlt(obj.ra, obj.dec, lst, m_lat);
+                if (alt >= 30.0) {
+                    minsAbove += 10;
+                    if (!inWindow) { winStartJD = t; inWindow = true; }
+                    winEndJD = t + stepJD;
+                }
+            }
+            e.peakAlt  = peakAlt;
+            e.minsLeft = minsAbove;
+
+            // Format imaging window as local time strings (UTC-7)
+            if (minsAbove > 0) {
+                auto jdToLocal = [](double jd, wchar_t* buf, int bufLen) {
+                    double dayFrac = fmod(jd + 0.5 - 7.0/24.0, 1.0);
+                    if (dayFrac < 0) dayFrac += 1.0;
+                    int h = (int)(dayFrac * 24) % 24;
+                    int m = (int)(dayFrac * 1440) % 60;
+                    swprintf(buf, bufLen, L"%02d:%02d", h, m);
+                };
+                wchar_t s1[8], s2[8];
+                jdToLocal(winStartJD, s1, 8);
+                jdToLocal(winEndJD,   s2, 8);
+                wchar_t win[20]; swprintf(win, 20, L"%s\u2013%s", s1, s2);
+                char winA[24] = {};
+                WideCharToMultiByte(CP_UTF8, 0, win, -1, winA, 24, nullptr, nullptr);
+                e.windowStr = winA;
+            } else {
+                e.windowStr = "—";
+            }
+
+            entries.push_back(e);
+        }
+
+        // Sort: objects with time remaining first (most minutes first),
+        // then planets always at top within their group
+        std::sort(entries.begin(), entries.end(),
+            [](const PlannerEntry& a, const PlannerEntry& b) {
+                bool aP = (a.type == "Planet" || a.type == "Moon");
+                bool bP = (b.type == "Planet" || b.type == "Moon");
+                if (aP != bP) return aP > bP; // planets first
+                return a.minsLeft > b.minsLeft;
+            });
+
+        return entries;
+    }
+
+    void PopulateTonightList() {
+        if (!m_listTonight) return;
+        ListView_DeleteAllItems(m_listTonight);
+        m_plannerItems.clear();
+        m_plannerItems = BuildPlannerList();
+
+        for (int i = 0; i < (int)m_plannerItems.size(); i++) {
+            const auto& e = m_plannerItems[i];
+
+            // Col 0: name
+            LVITEMW lvi = {};
+            lvi.mask    = LVIF_TEXT;
+            lvi.iItem   = i;
+            lvi.iSubItem = 0;
+            wchar_t wname[64];
+            MultiByteToWideChar(CP_ACP, 0, e.name.c_str(), -1, wname, 64);
+            lvi.pszText = wname;
+            SendMessageW(m_listTonight, LVM_INSERTITEMW, 0, (LPARAM)&lvi);
+
+            // Col 1: Alt now
+            wchar_t alt[16];
+            if (e.altNow < -5.0f) swprintf(alt, 16, L"below");
+            else                   swprintf(alt, 16, L"%d°", (int)e.altNow);
+            LVITEMW sub = {}; sub.mask = LVIF_TEXT; sub.iItem = i;
+            sub.iSubItem = 1; sub.pszText = alt;
+            SendMessageW(m_listTonight, LVM_SETITEMW, 0, (LPARAM)&sub);
+
+            // Col 2: Best window
+            wchar_t win[24];
+            MultiByteToWideChar(CP_UTF8, 0, e.windowStr.c_str(), -1, win, 24);
+            sub.iSubItem = 2; sub.pszText = win;
+            SendMessageW(m_listTonight, LVM_SETITEMW, 0, (LPARAM)&sub);
+
+            // Col 3: Mins left
+            wchar_t mins[12];
+            if (e.minsLeft == 0) swprintf(mins, 12, L"—");
+            else                  swprintf(mins, 12, L"%dh%02d", e.minsLeft/60, e.minsLeft%60);
+            sub.iSubItem = 3; sub.pszText = mins;
+            SendMessageW(m_listTonight, LVM_SETITEMW, 0, (LPARAM)&sub);
+
+            // Col 4: Peak alt
+            wchar_t peak[12]; swprintf(peak, 12, L"%d°", (int)e.peakAlt);
+            sub.iSubItem = 4; sub.pszText = peak;
+            SendMessageW(m_listTonight, LVM_SETITEMW, 0, (LPARAM)&sub);
+
+            // Col 5: Mag
+            wchar_t magW[10]; swprintf(magW, 10, L"%.1f", e.mag);
+            sub.iSubItem = 5; sub.pszText = magW;
+            SendMessageW(m_listTonight, LVM_SETITEMW, 0, (LPARAM)&sub);
+        }
+    }
+
+    void ShowTab(int tab) {
+        m_activeTab = tab;
+        // Tab 0: GoTo controls
+        bool g = (tab == 0);
+        auto setVis = [](HWND h, bool v) { if (h) ShowWindow(h, v ? SW_SHOW : SW_HIDE); };
+        setVis(m_editSearch,    g);
+        setVis(m_listObjects,   g);
+        setVis(m_btnGoTo,       g);
+        setVis(m_editRA,        g);
+        setVis(m_editDec,       g);
+        setVis(m_btnGoToCoord,  g);
+        setVis(m_btnSolve,      g);
+        setVis(m_btnSync,       g);
+        setVis(m_btnStop,       g);
+        setVis(m_lblStatus,     g);
+        setVis(m_lblAlign,      g);
+        setVis(m_lblAlignState, g);
+        setVis(m_btnSolveAlign, g);
+        // Tab 1: Tonight planner
+        bool t = (tab == 1);
+        setVis(m_listTonight,      t);
+        setVis(m_btnGoToTonight,   t);
+        setVis(m_lblTonightHdr,    t);
+        if (t) PopulateTonightList();
+    }
+
+    // ── Phase 13: Sky Survey ────────────────────────────────────
+
+    struct SurveyPoint {
+        double az_deg;
+        double alt_deg;
+        bool   solved   = false;
+        double errorArcsec = 0.0;
+    };
+
+    // Generate a grid of survey positions spread across the sky above minAlt
+    std::vector<SurveyPoint> GenerateSurveyGrid(int count = 20,
+                                                 double minAlt = 30.0,
+                                                 double maxAlt = 78.0) {
+        std::vector<SurveyPoint> grid;
+        // Concentric altitude rings with evenly-spaced azimuths
+        // Ring altitudes: 35, 50, 65, 75 degrees
+        struct Ring { double alt; int n; };
+        Ring rings[] = { {35,8}, {50,6}, {65,4}, {75,2} };
+        for (auto& ring : rings) {
+            if (ring.alt < minAlt || ring.alt > maxAlt) continue;
+            for (int i = 0; i < ring.n; i++) {
+                SurveyPoint p;
+                p.az_deg  = (360.0 / ring.n) * i;
+                p.alt_deg = ring.alt;
+                grid.push_back(p);
+            }
+        }
+        // Truncate to requested count
+        if ((int)grid.size() > count) grid.resize(count);
+        return grid;
+    }
+
+    // Convert Alt/Az to RA/Dec for current time and site
+    void AltAzToRADec(double alt_deg, double az_deg,
+                      double& ra_h, double& dec_deg) {
+        using namespace raduk::sky;
+        double lst = ApproximateLST();
+        double lat = Rad(m_lat);
+        double alt = Rad(alt_deg);
+        double az  = Rad(az_deg);
+
+        double sinDec = sin(lat)*sin(alt) - cos(lat)*cos(alt)*cos(az);
+        dec_deg = Deg(asin(sinDec));
+
+        double cosHA = (sin(alt) - sin(lat)*sinDec) /
+                       (cos(lat)*cos(Rad(dec_deg)));
+        cosHA = cosHA < -1.0 ? -1.0 : (cosHA > 1.0 ? 1.0 : cosHA);
+        double ha_deg = Deg(acos(cosHA));
+        if (sin(az) > 0) ha_deg = 360.0 - ha_deg;
+
+        ra_h = NormDeg(lst * 15.0 - ha_deg) / 15.0;
+    }
+
+    void StartSurvey() {
+        if (m_surveyRunning.load()) return;
+        if (!m_mount || !m_mount->IsConnected()) {
+            SetStatus(L"No mount — cannot survey");
+            return;
+        }
+        if (!m_solver.IsAvailable()) {
+            SetStatus(L"ASTAP not found — cannot survey (install from hnsky.org)");
+            return;
+        }
+        m_surveyGrid    = GenerateSurveyGrid(20);
+        m_surveyIdx     = 0;
+        m_surveyRunning.store(true);
+        m_surveyAbort.store(false);
+        UpdateSurveyLabel();
+        SetWindowTextW(m_btnSurvey, L"STOP SURVEY");
+        SetStatus(L"Survey started — slewing to position 1...");
+        // Launch sequencer on a background thread
+        std::thread([this]() { SurveyThread(); }).detach();
+    }
+
+    void StopSurvey() {
+        m_surveyAbort.store(true);
+        // Thread will exit on next iteration
+    }
+
+    void UpdateSurveyLabel() {
+        if (!m_lblSurvey) return;
+        if (!m_surveyRunning.load() && m_surveyGrid.empty()) {
+            int total = m_pointingModel.EntryCount();
+            wchar_t buf[128];
+            if (total == 0)
+                swprintf(buf, 128, L"Survey: not run yet   [GoTo accuracy: uncalibrated]");
+            else
+                swprintf(buf, 128, L"Survey: %d points   Mean error: %.0f\"",
+                         total, m_pointingModel.MeanError());
+            SetWindowTextW(m_lblSurvey, buf);
+            return;
+        }
+        int solved = 0;
+        for (auto& p : m_surveyGrid) if (p.solved) solved++;
+        int total = (int)m_surveyGrid.size();
+        wchar_t buf[128];
+        swprintf(buf, 128, L"Survey: %d/%d   Mean: %.0f\"",
+                 solved, total, m_pointingModel.MeanError());
+        SetWindowTextW(m_lblSurvey, buf);
+    }
+
+    // Survey sequencer — runs on background thread
+    void SurveyThread() {
+        printf("[Survey] Starting %d-point sky survey\n",
+               (int)m_surveyGrid.size());
+
+        for (int i = 0; i < (int)m_surveyGrid.size(); i++) {
+            if (m_surveyAbort.load()) break;
+
+            m_surveyIdx = i;
+            auto& pt = m_surveyGrid[i];
+
+            // Convert Alt/Az to RA/Dec for current LST
+            double ra_h = 0, dec_deg = 0;
+            AltAzToRADec(pt.alt_deg, pt.az_deg, ra_h, dec_deg);
+
+            // Status update (safe via PostMessage → WM_USER+20)
+            wchar_t status[128];
+            swprintf(status, 128,
+                     L"Survey %d/%d: slewing to Az %.0f\u00B0 Alt %.0f\u00B0...",
+                     i+1, (int)m_surveyGrid.size(), pt.az_deg, pt.alt_deg);
+            {
+                auto* ws = new std::wstring(status);
+                PostMessageW(m_hwnd, WM_USER+20, 0, (LPARAM)ws);
+            }
+
+            // Slew to position
+            if (m_mount && m_mount->IsConnected())
+                m_mount->GoToRADec(ra_h, dec_deg);
+
+            // Wait for slew to start (up to 3s)
+            Sleep(3000);
+
+            // Wait for slew to complete (up to 90s)
+            int waitMs = 0;
+            while (waitMs < 90000 && !m_surveyAbort.load()) {
+                if (!m_mount->IsSlewing()) break;
+                Sleep(500);
+                waitMs += 500;
+            }
+            if (m_surveyAbort.load()) break;
+
+            // Settle time — vibration dampening
+            Sleep(5000);
+            if (m_surveyAbort.load()) break;
+
+            // Plate-solve current position
+            swprintf(status, 128, L"Survey %d/%d: plate solving...",
+                     i+1, (int)m_surveyGrid.size());
+            {
+                auto* ws = new std::wstring(status);
+                PostMessageW(m_hwnd, WM_USER+20, 0, (LPARAM)ws);
+            }
+
+            // Request a solve via main thread (WM_USER+21)
+            // Main thread will call AutoSolveOnLock with current frame
+            m_surveySolveReady.store(false);
+            PostMessageW(m_hwnd, WM_USER+21, i, 0);
+
+            // Wait for solve result (up to 30s)
+            int solveWait = 0;
+            while (solveWait < 30000 && !m_surveySolveReady.load()
+                   && !m_surveyAbort.load()) {
+                Sleep(200);
+                solveWait += 200;
+            }
+
+            if (m_surveyLastSolved) {
+                pt.solved      = true;
+                pt.errorArcsec = m_pointingModel.LastError();
+            }
+
+            // Update label on main thread
+            PostMessageW(m_hwnd, WM_USER+22, 0, 0);
+        }
+
+        // Survey complete
+        m_surveyRunning.store(false);
+        m_surveyAbort.store(false);
+        PostMessageW(m_hwnd, WM_USER+23, 0, 0);
+        printf("[Survey] Complete. %d entries in pointing model. Mean error: %.0f\"\n",
+               m_pointingModel.EntryCount(),
+               m_pointingModel.MeanError());
+    }
+
+    void BuildControls(int w, int h) {
         const int x = 8, SH = 15, BH = 24;
         int y = 4;
+
+        // ── Phase 14: Tab control ─────────────────────────────
+        m_tabCtrl = CreateWindowExW(0, WC_TABCONTROLW, L"",
+            WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | TCS_FIXEDWIDTH,
+            x, y, w, 26,
+            m_hwnd, (HMENU)(INT_PTR)ID_TAB_MAIN,
+            GetModuleHandle(nullptr), nullptr);
+        if (m_tabCtrl) {
+            TCITEMW ti = {}; ti.mask = TCIF_TEXT;
+            ti.pszText = const_cast<wchar_t*>(L"GoTo");
+            SendMessageW(m_tabCtrl, TCM_INSERTITEMW, 0, (LPARAM)&ti);
+            ti.pszText = const_cast<wchar_t*>(L"Tonight");
+            SendMessageW(m_tabCtrl, TCM_INSERTITEMW, 1, (LPARAM)&ti);
+        }
+        y += 30;
 
         // ── Alignment status banner ───────────────────────────
         // Shows alignment state prominently — GoTo is locked until aligned
@@ -460,6 +971,57 @@ private:
         m_btnStop  = Button(L"!! STOP SLEW !!", x, y, w, BH, ID_BTN_STOP);
         y += BH + 4;
         m_lblStatus = Label(L"READY", x, y, w, SH*2, ID_LBL_STATUS);
+        y += SH*2 + 6;
+
+        // ── Phase 13: Sky Survey ──────────────────────────────
+        Label(L"\u2500\u2500 SKY SURVEY (POINTING MODEL) \u2500\u2500", x, y, w, SH);
+        y += SH + 4;
+        m_lblSurvey = Label(L"Survey: not run yet   [GoTo accuracy: uncalibrated]",
+                            x, y, w, SH*2, ID_LBL_SURVEY);
+        y += SH*2 + 4;
+        m_btnSurvey = Button(L"START SURVEY  (20 positions, ~15 min)",
+                             x, y, w, BH, ID_BTN_SURVEY);
+        y += BH + 4;
+
+        // ── Phase 14: Tonight Planner controls (Tab 1) ────────
+        int tonightY = 34; // just below tab strip
+        m_lblTonightHdr = Label(
+            L"Objects sorted by imaging time remaining tonight (> 30° alt)",
+            x, tonightY, w, SH, ID_LBL_TONIGHT_HDR);
+        tonightY += SH + 4;
+
+        int tonightListH = h - tonightY - BH - 20;
+        if (tonightListH < 100) tonightListH = 100;
+        m_listTonight = CreateWindowExW(WS_EX_CLIENTEDGE, WC_LISTVIEWW, L"",
+            WS_CHILD | WS_VSCROLL |
+            LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
+            x, tonightY, w, tonightListH,
+            m_hwnd, (HMENU)(INT_PTR)ID_LIST_TONIGHT,
+            GetModuleHandle(nullptr), nullptr);
+        if (m_listTonight) {
+            ListView_SetExtendedListViewStyle(m_listTonight,
+                LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+            SetWindowTheme(m_listTonight, L"", L"");
+            auto addCol = [&](const wchar_t* text, int width, int col) {
+                LVCOLUMNW lvc = {};
+                lvc.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+                lvc.cx = width; lvc.pszText = const_cast<wchar_t*>(text);
+                lvc.iSubItem = col;
+                SendMessageW(m_listTonight, LVM_INSERTCOLUMNW, col, (LPARAM)&lvc);
+            };
+            addCol(L"Object",   155, 0);
+            addCol(L"Alt",       38, 1);
+            addCol(L"Window",    90, 2);
+            addCol(L"Left",      48, 3);
+            addCol(L"Peak",      40, 4);
+            addCol(L"Mag",       36, 5);
+        }
+        tonightY += tonightListH + 4;
+        m_btnGoToTonight = Button(L"GOTO SELECTED OBJECT", x, tonightY, w, BH+4,
+                                  ID_BTN_GOTO_TONIGHT);
+
+        // Start on GoTo tab (tab 0), tonight controls hidden
+        ShowTab(0);
     }
 
     // ── List population ────────────────────────────────────────
@@ -847,7 +1409,83 @@ private:
                     self->PopulateList(buf);
                     return 0;
                 }
+                // Phase 14: GoTo from tonight planner
+                if (id == ID_BTN_GOTO_TONIGHT) {
+                    int sel = ListView_GetNextItem(self->m_listTonight, -1, LVNI_SELECTED);
+                    if (sel >= 0 && sel < (int)self->m_plannerItems.size()) {
+                        const auto& e = self->m_plannerItems[sel];
+                        self->DoGoTo(e.ra, e.dec, e.name);
+                        // Switch to GoTo tab so status is visible
+                        self->ShowTab(0);
+                        TabCtrl_SetCurSel(self->m_tabCtrl, 0);
+                    } else {
+                        self->SetStatus(L"Select an object from Tonight list first");
+                    }
+                    return 0;
+                }
+                // Phase 13: Survey start/stop
+                if (id == ID_BTN_SURVEY) {
+                    if (self->m_surveyRunning.load())
+                        self->StopSurvey();
+                    else
+                        self->StartSurvey();
+                    return 0;
+                }
                 break;
+            }
+            // Phase 13: Survey thread messages
+            case WM_USER+20: {
+                // Status string from survey thread
+                auto* ws = reinterpret_cast<std::wstring*>(lParam);
+                if (ws) { self->SetStatus(ws->c_str()); delete ws; }
+                return 0;
+            }
+            case WM_USER+21: {
+                // Survey thread requesting a plate solve of current frame
+                // main.cpp wires this via SetSurveyFrameCallback
+                if (self->m_onSurveyNeedFrame) self->m_onSurveyNeedFrame();
+                return 0;
+            }
+            case WM_USER+22: {
+                // Survey step complete — update label
+                self->UpdateSurveyLabel();
+                return 0;
+            }
+            case WM_USER+23: {
+                // Survey fully complete
+                self->UpdateSurveyLabel();
+                SetWindowTextW(self->m_btnSurvey,
+                    L"START SURVEY  (20 positions, ~15 min)");
+                double mean = self->m_pointingModel.MeanError();
+                wchar_t buf[128];
+                swprintf(buf, 128,
+                    L"Survey complete! %d points  Mean error: %.0f\"  "
+                    L"GoTo accuracy improved.",
+                    self->m_pointingModel.EntryCount(), mean);
+                self->SetStatus(buf);
+                return 0;
+            }
+            // Phase 14: tab switch
+            case WM_NOTIFY: {
+                auto* hdr = reinterpret_cast<NMHDR*>(lParam);
+                if (!hdr) return 0;
+                // Tab switch
+                if (hdr->hwndFrom == self->m_tabCtrl
+                        && hdr->code == TCN_SELCHANGE) {
+                    int tab = TabCtrl_GetCurSel(self->m_tabCtrl);
+                    self->ShowTab(tab);
+                }
+                // Double-click on Tonight list → show info panel
+                if (hdr->hwndFrom == self->m_listTonight
+                        && (hdr->code == NM_DBLCLK || hdr->code == NM_RETURN)) {
+                    int sel = ListView_GetNextItem(self->m_listTonight, -1, LVNI_SELECTED);
+                    if (sel >= 0 && sel < (int)self->m_plannerItems.size()
+                            && self->m_onInfo) {
+                        const auto& e = self->m_plannerItems[sel];
+                        self->m_onInfo(e.name, e.altNow, e.azDeg, e.mag);
+                    }
+                }
+                return 0;
             }
             case WM_CLOSE:
                 ShowWindow(hwnd, SW_HIDE);
@@ -874,6 +1512,14 @@ private:
     HWND m_lblAlign      = nullptr;
     HWND m_lblAlignState = nullptr;   // alignment banner
     HWND m_btnSolveAlign = nullptr;   // "SOLVE TO ALIGN" button
+
+    // Phase 14: Session Planner controls
+    HWND m_tabCtrl        = nullptr;
+    HWND m_listTonight    = nullptr;
+    HWND m_btnGoToTonight = nullptr;
+    HWND m_lblTonightHdr  = nullptr;
+    int  m_activeTab      = 0;
+    std::vector<PlannerEntry> m_plannerItems;
 
     // Data
     raduk::sky::SkyObjectCatalog m_catalog;
@@ -909,12 +1555,24 @@ private:
     std::function<void(const std::string&)> m_onGoToComplete;
     std::function<void(const std::string&)> m_onProfileAutoLoad;
     std::function<void(double,double)>      m_onSync;
+    std::function<void(const std::string&, float, float, float)> m_onInfo;
 
     // Phase 6.6: auto solve+sync on Stage 3 lock
     std::atomic<bool>           m_autoSolving{false};
     raduk::sky::PointingModel   m_pointingModel;
     std::function<void(bool, const std::string&, double, const std::string&)>
                                 m_onAutoSolveComplete;
+
+    // Phase 13: Sky Survey
+    std::vector<SurveyPoint>    m_surveyGrid;
+    int                         m_surveyIdx        = 0;
+    std::atomic<bool>           m_surveyRunning{false};
+    std::atomic<bool>           m_surveyAbort{false};
+    std::atomic<bool>           m_surveySolveReady{false};
+    bool                        m_surveyLastSolved = false;
+    HWND                        m_btnSurvey        = nullptr;
+    HWND                        m_lblSurvey        = nullptr;
+    std::function<void()>       m_onSurveyNeedFrame;
 };
 
 } // namespace raduk::gui

@@ -49,6 +49,21 @@ public:
     void SetNightVisionHandler(std::function<void()> h)       { m_onNightVision         = h; }
     void SetChannelCycleHandler(std::function<void()> h)      { m_onChannelCycle        = h; }  // H key
     void SetHelpToggleHandler(std::function<void()> h)        { m_onHelpToggle          = h; }  // ? key
+    void SetAIToggleHandler(std::function<void()> h)          { m_onAIToggle            = h; }  // / key
+
+    // Called when user clicks X or presses Alt+F4.
+    // Handler should show confirm dialog if needed, then call DestroyWindow(Handle())
+    // to proceed. If handler is not set, default WM_CLOSE behaviour (destroy) applies.
+    void SetCloseRequestHandler(std::function<void()> h)      { m_onCloseRequest        = h; }
+
+    // Called by main when notification bar shows/hides to reflow preview child
+    void SetNotifBarHeight(int h) {
+        if (h == m_notifBarH) return;
+        m_notifBarH = h;
+        // Trigger a layout update by firing OnResize with current dimensions
+        OnResize(m_clientWidth, m_clientHeight);
+    }
+    int NotifBarHeight() const { return m_notifBarH; }
     void SetMouseMoveHandler(std::function<void(float,float)> h) { m_onMouseMove        = h; }
     void SetPixelClickHandler(std::function<void(float,float)> h){ m_onPixelClick        = h; }
     void SetZoomCycleHandler(std::function<void()> h)        { m_onZoomCycle        = h; }
@@ -133,6 +148,9 @@ private:
     std::function<void()>               m_onNightVision;
     std::function<void()>               m_onChannelCycle;
     std::function<void()>               m_onHelpToggle;
+    std::function<void()>               m_onAIToggle;
+    std::function<void()>               m_onCloseRequest;
+    int                                 m_notifBarH = 0;
     std::function<void(float,float)>    m_onPixelClick;
     std::function<void()>               m_onZoomCycle;
     std::function<void()>               m_onGoToToggle;

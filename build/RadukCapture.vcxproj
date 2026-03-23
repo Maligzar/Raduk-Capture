@@ -155,7 +155,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>D:\RadukCapture\external\ASI_SDK\lib\x64\ASICamera2.lib;D:\RadukCapture\external\EAF_SDK\lib\x64\EAF_focuser.lib;d2d1.lib;dwrite.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;windowscodecs.lib;shell32.lib;ws2_32.lib;ole32.lib;oleaut32.lib;advapi32.lib;uxtheme.lib;Shcore.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>D:\RadukCapture\external\ASI_SDK\lib\x64\ASICamera2.lib;D:\RadukCapture\external\EAF_SDK\lib\x64\EAF_focuser.lib;d2d1.lib;dwrite.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;windowscodecs.lib;shell32.lib;ws2_32.lib;winhttp.lib;ole32.lib;oleaut32.lib;advapi32.lib;uxtheme.lib;Shcore.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <DataExecutionPrevention></DataExecutionPrevention>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -239,7 +239,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>D:\RadukCapture\external\ASI_SDK\lib\x64\ASICamera2.lib;D:\RadukCapture\external\EAF_SDK\lib\x64\EAF_focuser.lib;d2d1.lib;dwrite.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;windowscodecs.lib;shell32.lib;ws2_32.lib;ole32.lib;oleaut32.lib;advapi32.lib;uxtheme.lib;Shcore.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>D:\RadukCapture\external\ASI_SDK\lib\x64\ASICamera2.lib;D:\RadukCapture\external\EAF_SDK\lib\x64\EAF_focuser.lib;d2d1.lib;dwrite.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;windowscodecs.lib;shell32.lib;ws2_32.lib;winhttp.lib;ole32.lib;oleaut32.lib;advapi32.lib;uxtheme.lib;Shcore.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <DataExecutionPrevention></DataExecutionPrevention>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -323,7 +323,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>D:\RadukCapture\external\ASI_SDK\lib\x64\ASICamera2.lib;D:\RadukCapture\external\EAF_SDK\lib\x64\EAF_focuser.lib;d2d1.lib;dwrite.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;windowscodecs.lib;shell32.lib;ws2_32.lib;ole32.lib;oleaut32.lib;advapi32.lib;uxtheme.lib;Shcore.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>D:\RadukCapture\external\ASI_SDK\lib\x64\ASICamera2.lib;D:\RadukCapture\external\EAF_SDK\lib\x64\EAF_focuser.lib;d2d1.lib;dwrite.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;windowscodecs.lib;shell32.lib;ws2_32.lib;winhttp.lib;ole32.lib;oleaut32.lib;advapi32.lib;uxtheme.lib;Shcore.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <DataExecutionPrevention></DataExecutionPrevention>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -406,7 +406,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>D:\RadukCapture\external\ASI_SDK\lib\x64\ASICamera2.lib;D:\RadukCapture\external\EAF_SDK\lib\x64\EAF_focuser.lib;d2d1.lib;dwrite.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;windowscodecs.lib;shell32.lib;ws2_32.lib;ole32.lib;oleaut32.lib;advapi32.lib;uxtheme.lib;Shcore.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>D:\RadukCapture\external\ASI_SDK\lib\x64\ASICamera2.lib;D:\RadukCapture\external\EAF_SDK\lib\x64\EAF_focuser.lib;d2d1.lib;dwrite.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;windowscodecs.lib;shell32.lib;ws2_32.lib;winhttp.lib;ole32.lib;oleaut32.lib;advapi32.lib;uxtheme.lib;Shcore.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <DataExecutionPrevention></DataExecutionPrevention>
       <GenerateDebugInformation>true</GenerateDebugInformation>

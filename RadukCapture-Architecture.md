@@ -692,6 +692,7 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 
 | Phase 38 | Single-Channel Display Mode | Tier 2 |
 | Phase 40 | Notification Bar | Tier 2 |
+| Phase 50 | Local AI Assistant | Tier 2 |
 | Phase 13 | Sky Survey / Pointing Model | Tier 2 |
 | Phase 14 | Session Planner | Tier 2 |
 | Phase 16 | Polar Alignment Assistant | Tier 2 |
@@ -1100,6 +1101,124 @@ Measure apparent magnitude of stars/planets in frame using comparison star datab
 - Report estimated magnitude ± error for brightest objects in frame
 - **Effort: Very Hard** — catalog integration, photon calibration math
 
+#### Phase 50 — Local AI Assistant
+
+Floating chat panel powered by a local LLM (Ollama + llama3.2:3b). Fully offline — no internet required after initial model pull. Toggle with `/` key or `[AI]` toolbar button.
+
+**Stack**
+- **Runtime:** Ollama (`https://ollama.com`) running as a local HTTP server on `localhost:11434`
+- **Model:** `llama3.2:3b` — ~2GB VRAM, ~1-2s first-token latency on StarMachine GPU
+- **Install once:** `ollama pull llama3.2:3b` — after that fully offline forever
+- **RadukCapture side:** WinHTTP calls to `http://localhost:11434/api/chat` (streaming NDJSON)
+
+**UI — `AIChatPanel.h`**
+- `WS_EX_TOPMOST | WS_EX_TOOLWINDOW` floating window, ~500×620px, right side of screen
+- Scrollable read-only EDIT for conversation history (Segoe UI 12pt)
+- Single-line EDIT for user input at bottom
+- `[Send]` button + Enter key to submit
+- `[Clear]` button resets conversation history
+- Token streaming: each chunk from Ollama appended to history EDIT in real-time via `PostMessage` from background thread
+- Thinking indicator: `...` appended while waiting for first token
+- `/` key or `[AI]` toolbar button (10th button, after `[?]`) toggles panel
+- Window title shows model name: `RadukCapture AI  ·  llama3.2:3b`
+
+**Context injection — `AIContextBuilder.h`**
+Builds a system prompt prepended to every conversation. Refreshed on each new user message. Five context blocks:
+
+```
+[IDENTITY]
+You are RadukScope, an AI assistant for the RadukCapture astrophotography application.
+You are running locally on StarMachine (Anthem, AZ — Bortle 4, elevation 1732ft, UTC-7).
+Answer concisely. If unsure, say so. Never invent equipment specs or sky positions.
+
+[APP REFERENCE]
+{full contents of RadukCapture-Help.md — loaded once at startup}
+
+[SESSION STATE]  — injected fresh each query
+Time: 2026-03-22 21:45 MST  |  LST: 08h 32m
+Target: Jupiter  |  Profile: Jupiter
+Mount: RA 11h 52m  Dec +1°14'  Alt 42.3°  Az 198°  Tracking: ON
+Camera: Gain 300  Exp 8ms  FPS 38.2  Seeing 7.4/10
+EAF: 152340  Temp: 18.2°C
+Recording: YES  Frames: 4821  Buffer: 12/512  Drops: 0
+
+[TONIGHT'S SKY]  — altitude-sorted, above 15°, updated each query
+Jupiter   Alt 42°  Az 198°  Mag -2.7  (currently targeted)
+Venus     Alt 28°  Az 245°  Mag -4.4
+Saturn    Alt 18°  Az 112°  Mag  0.7
+M42       Alt 55°  Az 210°  Mag  4.0  (Great Nebula in Orion)
+M45       Alt 61°  Az 188°  Mag  1.6  (Pleiades)
+... (top 20 objects above 15°)
+
+[CAPTURES TONIGHT]  — scanned from output directory
+Jupiter_20260322_213045_Light_3840x2160_8bit_0001.ser  (1.2 GB)
+Jupiter_20260322_214512_Light_3840x2160_8bit_0002.ser  (890 MB)
+
+[OBJECT KNOWLEDGE DATABASE]  — future phase
+{SQLite lookup for queried object name — Wikipedia scraped summaries,
+ physical data, imaging notes. Stub returns empty string until populated.}
+```
+
+**What it can answer:**
+- *"How do I use the quality gate?"* → Help.md context
+- *"Why are my frames dropping?"* → sees Drops: 0 in session context, checks buffer
+- *"What else is good to image tonight near Jupiter?"* → Tonight's sky context
+- *"What is M42?"* → Object knowledge DB (once built)
+- *"Is the seeing good enough to record?"* → Seeing 7.4/10 in context, gives recommendation
+- *"How long have I been recording?"* → Captures tonight context
+- *"What's the best exposure for Saturn?"* → Help.md + session context
+
+**Architecture — files**
+
+| File | Responsibility |
+|------|---------------|
+| `gui/AIChatPanel.h` | Floating Win32 chat window, streaming EDIT display |
+| `core/AIAssistant.h` | Ollama HTTP client, streaming JSON parser, background thread |
+| `core/AIContextBuilder.h` | System prompt assembly from all five context sources |
+| `core/ObjectKnowledgeDB.h` | SQLite stub — returns empty string until knowledge base built |
+
+**Context pipeline**
+```
+User types question
+  → AIContextBuilder::Build(sessionState, gotoPanel, capturesList)
+      → loads Help.md (cached after first load)
+      → injects live session snapshot
+      → calls gotoPanel.RefreshPlannerData() — gets fresh PlannerEntry list
+          with minsLeft, window, peakAlt, altNow for every catalog object
+      → formats as "[TONIGHT'S PLANNER]" block (sorted by mins remaining)
+      → scans captures directory
+      → queries ObjectKnowledgeDB (stub → empty)
+  → AIAssistant::SendMessage(systemPrompt, conversationHistory, userMessage)
+      → POST http://localhost:11434/api/chat  {stream: true}
+      → background thread reads NDJSON chunks
+      → each chunk → PostMessage(WM_USER+50, ...) → appends to EDIT
+  → User sees streaming response
+```
+
+**Example AI interactions enabled by planner integration:**
+- *"What should I image next?"* → sees Saturn has 2h20m left, M42 has 5h20m, recommends Saturn first
+- *"Is it too late for M13?"* → checks minsLeft for M13, gives honest answer with window time
+- *"Give me an imaging sequence for the rest of the night"* → sorts by urgency, builds a plan
+- *"How long do I have on Jupiter?"* → reads Jupiter's window directly from planner context
+
+**Object Knowledge Database — future sub-phase 50a**
+- SQLite file: `D:\RadukCapture\data\object_knowledge.db`
+- Schema: `object_name TEXT, common_name TEXT, type TEXT, summary TEXT, physical_data TEXT, imaging_notes TEXT, source_url TEXT`
+- Population: Python scraper (`tools\build_knowledge_db.py`) — reads Messier catalog, queries Wikipedia API for each object, extracts lead paragraphs + infobox data, stores locally. Run once, update periodically.
+- ~110 Messier + 7 planets + NGC bright subset (~500 objects total)
+- `ObjectKnowledgeDB.h` stub returns `""` until DB file exists — AI gracefully says "I don't have detailed notes on that object yet"
+
+**Installation instructions (add to Help.md)**
+```
+1. Download Ollama: https://ollama.com/download
+2. Install on StarMachine
+3. Open Command Prompt: ollama pull llama3.2:3b
+4. Ollama runs automatically as a background service
+5. Press / in RadukCapture to open the AI assistant
+```
+
+**Effort: Medium** — WinHTTP streaming, Win32 chat UI, context builder, ~1 day
+
 #### Phase 12b — Ollama Integration (Advisory)
 Local LLM on Elminster reads session telemetry via WebSocket and offers suggestions.
 - Suggests capture start/stop, ROI adjustments, target transitions
@@ -1126,6 +1245,116 @@ ASCOM camera/focuser/mount support for non-ZWO hardware. WiX installer. Auto-upd
 RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Media Source on Elminster. ~5–10 Mbps H.264.
 - Deferred until home WiFi bandwidth confirmed sufficient for low-latency video
 - No timeline — revisit after all Tier 1 and Tier 2 phases complete
+
+---
+
+#### Phase 51 — March Madness Bracket Agent 🏀
+
+*Post-final-phase fun project. The same local LLM (llama3.2:3b) that learns to predict seeing conditions, optimize imaging sequences, and model atmospheric behavior is applied to NCAA tournament bracket prediction. The underlying reasoning pattern is identical: correlate historical signal against outcomes, weigh competing variables, make probabilistic decisions under uncertainty.*
+
+**Why RadukScope AI is good prep for this:**
+
+The astrophotography agent reasons like:
+- "Seeing is 6.2/10 trending up — wait 20 minutes" → probabilistic timing under uncertainty
+- "Saturn has 2h left, M42 has 5h — image Saturn first" → urgency-weighted sequencing
+- "Buffer at 40% — reduce gain before overrun" → threshold-triggered adaptive response
+
+Bracket prediction uses the same patterns:
+- "Duke favored by 4 but trending down last 3 games — fade them" → signal weighting
+- "Gonzaga has the easiest path to Elite 8 — lock them in early" → path analysis
+- "Team X's 3-point defense collapses vs pace teams — trap pick" → matchup modeling
+
+Both domains: **context-aware probabilistic sequencing with historical calibration.**
+
+**Architecture — sub-phase of Phase 50 AI assistant**
+
+The bracket agent is a knowledge-base extension, not a separate application. It runs inside the same `AIChatPanel.h` floating window using the same llama3.2:3b model. A new knowledge database (`bracket_knowledge.db`) supplements `object_knowledge.db` in the context pipeline.
+
+**Data sources (all public, no API key):**
+- KenPom efficiency ratings (AdjEM, tempo, luck-adjusted record)
+- NCAA NET rankings
+- ESPN injury reports (RSS feed, Python scraper)
+- Historical seed performance (1985–present upset rates by seed matchup)
+- Coaching tournament win rates and upset history
+- Conference tournament results + strength of schedule
+
+**Files:**
+
+| File | Responsibility |
+|------|---------------|
+| `tools\build_bracket_db.py` | Annual scraper — pulls current season data each March, populates SQLite |
+| `data\bracket_knowledge.db` | SQLite: team stats, seed, region, injuries, coach record, historical matchups |
+| `core\BracketKnowledgeDB.h` | C++ reader — queries DB by team name, returns JSON context blob |
+| `core\AIContextBuilder.h` | Extended to inject bracket context when query contains tournament keywords |
+
+**Database schema:**
+```sql
+CREATE TABLE teams (
+    name            TEXT PRIMARY KEY,
+    seed            INTEGER,
+    region          TEXT,        -- East / West / South / Midwest
+    kenpom_rank     INTEGER,
+    net_rank         INTEGER,
+    adj_em          REAL,        -- KenPom adjusted efficiency margin
+    tempo           REAL,        -- possessions per 40 min
+    sos_rank        INTEGER,     -- strength of schedule
+    conf_tourney    TEXT,        -- won / lost / runner-up
+    injuries        TEXT,        -- free text, scraped from ESPN
+    coach           TEXT,
+    coach_tourney_w INTEGER,
+    coach_tourney_l INTEGER
+);
+
+CREATE TABLE historical_upsets (
+    year        INTEGER,
+    seed_winner INTEGER,
+    seed_loser  INTEGER,
+    winner      TEXT,
+    loser       TEXT,
+    round       TEXT
+);
+
+CREATE TABLE matchup_predictions (
+    year        INTEGER,
+    team_a      TEXT,
+    team_b      TEXT,
+    predicted_winner TEXT,
+    confidence  REAL,        -- 0.0–1.0
+    actual_winner    TEXT,   -- filled in after game
+    correct     INTEGER      -- 1/0, for calibration tracking
+);
+```
+
+**Context injection (auto-triggered when query contains bracket keywords):**
+```
+[BRACKET CONTEXT — March 2027]
+Tournament: NCAA March Madness  Round: Round of 64
+Your region picks so far: [East: Duke, West: Gonzaga, ...]
+
+Relevant matchup data:
+Michigan (5-seed):  KenPom #34  NET #41  AdjEM +12.4  Tempo 68.2  SOS #28  Coach: 14-8 tourney
+Colorado State (12-seed): KenPom #51  NET #58  AdjEM +9.1  Tempo 71.8  SOS #47  Coach: 3-4 tourney
+Historical 5 vs 12: 12-seeds win 35.4% (1985–2026, n=164)
+Injury note: Michigan PG day-to-day (ankle, ESPN 3/14)
+
+Your bracket history with this model:
+2026: 68% correct (42/63 games)  ESPN percentile: 74th
+```
+
+**Example interactions:**
+- *"Who wins the 5-12 game between Michigan and Colorado State?"*
+- *"Fill out my whole bracket — give me all 63 picks with confidence levels"*
+- *"Which 12-seeds should I pick as upsets this year?"*
+- *"How did your picks do last year?"* → reads `matchup_predictions` table
+- *"Build me an aggressive bracket — I need to win my pool"*
+- *"My family pool uses confidence points — optimize my bracket for that format"*
+
+**Calibration loop:**
+After each tournament game, results are written back to `matchup_predictions.actual_winner` and `correct`. Over multiple seasons the model accumulates a track record. You can ask "how calibrated are you on 5-12 matchups?" and it will know.
+
+**Effort: Easy** — knowledge DB + context injection already architected from Phase 50. The bracket agent is data + prompting, not new C++ code. Python scraper + SQLite schema + updated `AIContextBuilder.h` to detect tournament queries. Total new code: ~300 lines Python, ~100 lines C++.
+
+**Timeline:** Run `build_bracket_db.py` each March when bracket is announced. Model improves with each season's calibration data.
 
 ---
 
@@ -1196,7 +1425,8 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 | 12b | Ollama Integration | 3 | Medium | 🔲 |
 | 20 | Distribution / ASCOM | 3 | Very Hard | 🔲 |
 | — | OBS Streaming | — | Hard | 🚫 Deferred |
+| 51 | March Madness Bracket Agent | 🏀 | Easy | 🚫 Post-final |
 
 ---
 
-*RadukCapture v1.0.12 — Built for the stars, from Anthem, Arizona*
+*RadukCapture v1.0.18 — Built for the stars, from Anthem, Arizona*

@@ -109,7 +109,7 @@ bool Window::Create(const wchar_t* title, int width, int height) {
         m_previewHwnd = CreateWindowExW(
             0, L"RadukPreviewWindow", L"",
             WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-            0, TOOLBAR_HEIGHT_PX, previewW, previewH,
+            0, TOOLBAR_HEIGHT_PX + m_notifBarH, previewW, previewH - m_notifBarH,
             m_hwnd, nullptr, GetModuleHandle(nullptr), nullptr);
         if (!m_previewHwnd) {
             printf("[Window] Preview child HWND failed: %lu\n", GetLastError());
@@ -234,11 +234,12 @@ void Window::OnResize(int width, int height) {
     m_clientWidth  = width;
     m_clientHeight = height;
     int previewW = CalcPreviewW(width);
-    int previewH = (height > TOOLBAR_HEIGHT_PX) ? height - TOOLBAR_HEIGHT_PX : height;
+    int topOffset = TOOLBAR_HEIGHT_PX + m_notifBarH;
+    int previewH  = (height > topOffset) ? height - topOffset : height;
 
     // Resize the preview child window first
     if (m_previewHwnd) {
-        SetWindowPos(m_previewHwnd, nullptr, 0, TOOLBAR_HEIGHT_PX,
+        SetWindowPos(m_previewHwnd, nullptr, 0, topOffset,
                      previewW, previewH, SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
@@ -427,7 +428,21 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                 m_onHelpToggle();
                 return 0;
             }
+            // / key — toggle AI chat panel
+            if (wParam == L'/' && m_onAIToggle) {
+                m_onAIToggle();
+                return 0;
+            }
             break;
+
+        case WM_CLOSE:
+            if (m_onCloseRequest) {
+                m_onCloseRequest(); // handler decides whether to destroy
+                return 0;          // suppress default close behaviour
+            }
+            // No handler — fall through to default (DestroyWindow → WM_DESTROY)
+            DestroyWindow(m_hwnd);
+            return 0;
 
         case WM_DESTROY:
             PostQuitMessage(0);

@@ -21,6 +21,8 @@
 [INIT] GoTo panel ready (G key to toggle)
 [INIT] Mount controller ready (always on top)
 [INIT] Help window ready
+[INIT] AI chat panel ready
+[INIT] Notification bar ready
 [INIT] RC in control (NexStar direct)
 [INIT] Auto-exposure assistant ready
 
@@ -31,6 +33,3 @@
   P4:  Remote commands: start/stop_capture, load_profile, move_eaf, goto_target
   P4:  Session summary written to log at shutdown
 
-
-Shutting down...
-Goodbye.

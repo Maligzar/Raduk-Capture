@@ -178,7 +178,72 @@ inline bool PlanetRADec(const PlanetElements& p, double jd,
     return true;
 }
 
-// ── Messier catalog ────────────────────────────────────────────
+// ── Sun position (Meeus Ch.25, low-precision ~0.01°) ──────────────
+inline void SunRADec(double jd, double& ra_h, double& dec_deg) {
+    double T  = JD_to_T(jd);
+    double L0 = NormDeg(280.46646 + 36000.76983 * T);
+    double M  = Rad(NormDeg(357.52911 + 35999.05029 * T));
+    double C  = (1.914602 - 0.004817*T - 0.000014*T*T) * sin(M)
+              + (0.019993 - 0.000101*T) * sin(2*M)
+              +  0.000289 * sin(3*M);
+    double sunLon = Rad(NormDeg(L0 + C));
+    double eps    = Rad(23.439291 - 0.013004 * T);
+    ra_h    = NormDeg(Deg(atan2(cos(eps)*sin(sunLon), cos(sunLon)))) / 15.0;
+    dec_deg = Deg(asin(sin(eps) * sin(sunLon)));
+}
+
+// ── Moon position (Meeus Ch.47, simplified ~0.1°) ─────────────────
+// Also returns phase angle (0=new, 0.5=full, 1=new)
+inline void MoonRADec(double jd, double& ra_h, double& dec_deg,
+                      double& phaseAngle) {
+    double T  = JD_to_T(jd);
+    // Fundamental arguments (deg)
+    double Lp = NormDeg(218.3164477 + 481267.88123421 * T); // mean long Moon
+    double D  = NormDeg(297.8501921 + 445267.1114034  * T); // mean elongation
+    double M  = NormDeg(357.5291092 +  35999.0502909  * T); // Sun mean anomaly
+    double Mp = NormDeg(134.9633964 + 477198.8675055  * T); // Moon mean anomaly
+    double F  = NormDeg( 93.2720950 + 483202.0175233  * T); // lat argument
+
+    double Lr = Rad(Lp), Dr = Rad(D), Mr = Rad(M), Mpr = Rad(Mp), Fr = Rad(F);
+
+    // Longitude corrections (arcsec → deg)
+    double dL = 6288774*sin(Mpr)
+              + 1274027*sin(2*Dr-Mpr)
+              +  658314*sin(2*Dr)
+              +  213618*sin(2*Mpr)
+              -  185116*sin(Mr)
+              -  114332*sin(2*Fr)
+              +   58793*sin(2*Dr-2*Mpr)
+              +   57066*sin(2*Dr-Mr-Mpr)
+              +   53322*sin(2*Dr+Mpr)
+              +   45758*sin(2*Dr-Mr);
+    double lon = NormDeg(Lp + dL / 1000000.0);
+
+    // Latitude corrections (arcsec → deg)
+    double dB = 5128122*sin(Fr)
+              +  280602*sin(Mpr+Fr)
+              +  277693*sin(Mpr-Fr)
+              +  173237*sin(2*Dr-Fr)
+              +   55413*sin(2*Dr-Mpr+Fr)
+              +   46271*sin(2*Dr-Mpr-Fr)
+              +   32573*sin(2*Dr+Fr);
+    double lat = dB / 1000000.0;
+
+    // Convert ecliptic → equatorial
+    double eps = Rad(23.439291 - 0.013004 * T);
+    double lonR = Rad(lon), latR = Rad(lat);
+    ra_h    = NormDeg(Deg(atan2(sin(lonR)*cos(eps) - tan(latR)*sin(eps),
+                                cos(lonR)))) / 15.0;
+    dec_deg = Deg(asin(sin(latR)*cos(eps) + cos(latR)*sin(eps)*sin(lonR)));
+
+    // Phase: elongation of Moon from Sun
+    double sunRA, sunDec;
+    SunRADec(jd, sunRA, sunDec);
+    double elong = NormDeg(lon - (sunRA * 15.0)); // approx ecliptic elongation
+    phaseAngle = elong / 360.0; // 0=new, 0.25=first quarter, 0.5=full
+}
+
+
 // 110 objects with J2000 coordinates and visual magnitudes
 // Coordinates: RA in decimal hours, Dec in decimal degrees
 
@@ -451,7 +516,14 @@ public:
     void UpdatePlanets(double jd = 0) {
         if (jd == 0) jd = CurrentJD();
         for (auto& obj : m_objects) {
-            if (obj.isPlanet()) {
+            if (obj.type == "Sun") {
+                SunRADec(jd, obj.ra, obj.dec);
+            } else if (obj.type == "Moon") {
+                double phase;
+                MoonRADec(jd, obj.ra, obj.dec, phase);
+                // Store phase in magnitude field (reused as scratch — not displayed)
+                obj.magnitude = (float)phase;
+            } else if (obj.isPlanet()) {
                 // Find planet entry
                 for (const auto& p : kPlanets) {
                     if (obj.name == p.name) {
@@ -491,6 +563,13 @@ private:
     std::vector<SkyObject> m_objects;
 
     void BuildCatalog() {
+        // Sun
+        { SkyObject obj; obj.name="Sun"; obj.type="Sun";
+          obj.ra=0; obj.dec=0; obj.magnitude=-26.7f; m_objects.push_back(obj); }
+        // Moon
+        { SkyObject obj; obj.name="Moon"; obj.type="Moon";
+          obj.ra=0; obj.dec=0; obj.magnitude=-12.7f; m_objects.push_back(obj); }
+
         // Planets — positions computed at runtime via UpdatePlanets()
         for (const auto& p : kPlanets) {
             SkyObject obj;

@@ -38,6 +38,7 @@
 #include <functional>
 #include <cmath>
 #include <cstdio>
+#include <chrono>
 
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
@@ -67,6 +68,12 @@ public:
     void SetGoToCallback(std::function<void(double raH, double decDeg,
                                             const std::string& name)> cb)
         { m_onGoTo = cb; }
+
+    // Phase 50a: right-click on object → show knowledge panel
+    // args: name, altDeg, azDeg, mag
+    void SetInfoCallback(std::function<void(const std::string&,
+                                            float, float, float)> cb)
+        { m_onInfo = cb; }
 
     // Feed current mount RA/Dec each Tick() for crosshair display
     void SetMountPosition(double raH, double decDeg, bool valid) {
@@ -125,6 +132,15 @@ public:
     // Call from main readout loop (~500ms) — updates mount crosshair
     void Tick() {
         if (!IsVisible()) return;
+
+        // Rate-limit redraws — sky objects move slowly, mount updates at 2s.
+        // Redraw at most once per second to avoid tanking the render loop FPS.
+        auto now = std::chrono::steady_clock::now();
+        auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now - m_lastTickRedraw).count();
+        if (elapsedMs < 1000) return;
+        m_lastTickRedraw = now;
+
         // Update mount position from cache
         if (m_mount && m_mount->IsConnected()) {
             double ra, dec;
@@ -243,7 +259,8 @@ private:
 
         for (const auto& obj : m_catalog.Objects()) {
             // Planets always shown; others gated by zoom-dependent mag limit
-            if (obj.type != "Planet" && obj.magnitude > magLim) continue;
+            if (obj.type != "Planet" && obj.type != "Sun" && obj.type != "Moon"
+                && obj.magnitude > magLim) continue;
 
             MapObject mo;
             mo.name = obj.name;
@@ -346,12 +363,12 @@ private:
         m_rt->CreateSolidColorBrush(D2D1::ColorF(0.3f, 0.4f, 0.5f, 0.3f), &dsoFade);
 
         for (const auto& obj : m_objects) {
-            if (obj.type == "Planet") continue;
+            if (obj.type == "Planet" || obj.type == "Sun" || obj.type == "Moon") continue;
             if (!InCircle(obj.px, obj.py)) continue;
 
             if (obj.type == "Star") {
-                // White dots, size by magnitude
-                float sz = std::max(0.8f, 3.5f - obj.mag * 0.45f);
+                // White dots, size by magnitude — more aggressive scaling
+                float sz = std::max(0.8f, 4.5f - obj.mag * 0.55f);
                 if (!starBrush) continue;
                 m_rt->FillEllipse(
                     D2D1::Ellipse(D2D1::Point2F(obj.px, obj.py), sz, sz),
@@ -361,25 +378,117 @@ private:
                     DrawObjectLabel(obj.name.c_str(),
                         obj.px + sz + 2, obj.py - 5, 0.8f, 0.85f, 0.95f);
             } else {
-                // Messier / DSO — cyan, size by magnitude
-                float sz = std::max(1.5f, 5.0f - obj.mag * 0.35f);
+                // Messier / DSO — cyan, more aggressive magnitude scaling
+                float sz = std::max(2.0f, 7.0f - obj.mag * 0.55f);
                 auto* br = obj.visible ? dsoBrush : dsoFade;
                 if (!br) continue;
                 if (obj.type == "GC" || obj.type == "OC")
                     m_rt->DrawEllipse(
-                        D2D1::Ellipse(D2D1::Point2F(obj.px, obj.py), sz, sz), br, 1.0f);
+                        D2D1::Ellipse(D2D1::Point2F(obj.px, obj.py), sz, sz), br, 1.2f);
                 else
                     m_rt->FillEllipse(
                         D2D1::Ellipse(D2D1::Point2F(obj.px, obj.py), sz, sz), br);
-                // Label Messier when zoomed
-                if (obj.visible && m_zoom >= 2.0f && m_labelFormat)
+                // Label Messier at lower zoom threshold — always show M-number
+                if (obj.visible && m_zoom >= 1.5f && m_labelFormat)
                     DrawObjectLabel(obj.name.c_str(),
-                        obj.px + sz + 2, obj.py - 5, 0.0f, 0.8f, 0.9f);
+                        obj.px + sz + 3, obj.py - 5, 0.0f, 0.8f, 0.9f);
             }
         }
         if (dsoBrush)  dsoBrush->Release();
         if (starBrush) starBrush->Release();
         if (dsoFade)   dsoFade->Release();
+
+        // ── Sun ───────────────────────────────────────────────
+        for (const auto& obj : m_objects) {
+            if (obj.type != "Sun") continue;
+            if (!InCircle(obj.px, obj.py)) continue;
+            float sz = 14.0f;
+            ID2D1SolidColorBrush *sunFill = nullptr, *sunGlow = nullptr, *sunRay = nullptr;
+            m_rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.92f, 0.2f,
+                                        obj.visible ? 1.0f : 0.25f), &sunFill);
+            m_rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.75f, 0.1f, 0.25f), &sunGlow);
+            m_rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.92f, 0.2f, 0.6f), &sunRay);
+            if (sunGlow)
+                m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(obj.px,obj.py), sz+8, sz+8), sunGlow);
+            if (sunFill) {
+                m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(obj.px,obj.py), sz, sz), sunFill);
+                // Ray lines
+                if (sunRay) {
+                    float angles[] = {0,45,90,135,180,225,270,315};
+                    for (float ang : angles) {
+                        float ar = ang * (float)M_PI / 180.0f;
+                        float x1 = obj.px + cosf(ar)*(sz+3), y1 = obj.py + sinf(ar)*(sz+3);
+                        float x2 = obj.px + cosf(ar)*(sz+9), y2 = obj.py + sinf(ar)*(sz+9);
+                        m_rt->DrawLine(D2D1::Point2F(x1,y1), D2D1::Point2F(x2,y2), sunRay, 1.5f);
+                    }
+                    sunRay->Release();
+                }
+            }
+            if (sunFill)  sunFill->Release();
+            if (sunGlow)  sunGlow->Release();
+            // Label — use title format (bold)
+            if (m_titleFormat) {
+                ID2D1SolidColorBrush* lb = nullptr;
+                m_rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.92f, 0.2f,
+                                            obj.visible ? 0.95f : 0.4f), &lb);
+                if (lb) {
+                    D2D1_RECT_F r = D2D1::RectF(obj.px+sz+5, obj.py-10, obj.px+sz+80, obj.py+10);
+                    m_titleFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+                    m_rt->DrawText(L"Sun", 3, m_titleFormat, r, lb);
+                    lb->Release();
+                }
+            }
+        }
+
+        // ── Moon ──────────────────────────────────────────────
+        for (const auto& obj : m_objects) {
+            if (obj.type != "Moon") continue;
+            if (!InCircle(obj.px, obj.py)) continue;
+            // phase stored in magnitude field by UpdatePlanets
+            double phase = obj.mag; // 0=new, 0.5=full
+            float sz = 12.0f;
+            float illum = (float)(0.5 - 0.5*cos(2.0*M_PI*phase)); // 0=new, 1=full
+
+            ID2D1SolidColorBrush *moonFill = nullptr, *moonShadow = nullptr, *moonGlow = nullptr;
+            m_rt->CreateSolidColorBrush(D2D1::ColorF(0.85f,0.87f,0.90f,
+                                        obj.visible ? 1.0f : 0.25f), &moonFill);
+            m_rt->CreateSolidColorBrush(D2D1::ColorF(0.05f,0.08f,0.14f,
+                                        obj.visible ? 0.85f : 0.2f), &moonShadow);
+            m_rt->CreateSolidColorBrush(D2D1::ColorF(0.7f,0.75f,0.85f, 0.18f), &moonGlow);
+
+            if (moonGlow)
+                m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(obj.px,obj.py), sz+5, sz+5), moonGlow);
+            if (moonFill)
+                m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(obj.px,obj.py), sz, sz), moonFill);
+            // Draw shadow crescent to indicate phase
+            // Shadow X offset: full moon = no shadow, new = full shadow
+            if (moonShadow && moonFill) {
+                float shadowX = obj.px + sz*(1.0f - 2.0f*illum);
+                // Clip shadow to moon circle via geometry is complex —
+                // approximate: draw shadow ellipse offset over the lit disk
+                float shadowRx = sz * fabsf(1.0f - 2.0f*illum);
+                if (shadowRx > 0.5f)
+                    m_rt->FillEllipse(
+                        D2D1::Ellipse(D2D1::Point2F(shadowX, obj.py), shadowRx, sz),
+                        moonShadow);
+            }
+            if (moonFill)   moonFill->Release();
+            if (moonShadow) moonShadow->Release();
+            if (moonGlow)   moonGlow->Release();
+
+            // Label
+            if (m_titleFormat) {
+                ID2D1SolidColorBrush* lb = nullptr;
+                m_rt->CreateSolidColorBrush(D2D1::ColorF(0.75f,0.80f,0.90f,
+                                            obj.visible ? 0.95f : 0.4f), &lb);
+                if (lb) {
+                    D2D1_RECT_F r = D2D1::RectF(obj.px+sz+5, obj.py-10, obj.px+sz+80, obj.py+10);
+                    m_titleFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+                    m_rt->DrawText(L"Moon", 4, m_titleFormat, r, lb);
+                    lb->Release();
+                }
+            }
+        }
 
         // ── Planet objects ─────────────────────────────────────
         static const struct { const char* name; UINT32 color; float sz; } kPlanetStyle[] = {
@@ -493,12 +602,12 @@ private:
             if (m_zoom <= 1.0f) {
                 swprintf(status, 256,
                     L"Anthem AZ 33.87°N 112.12°W   %02d:%02d MST   "
-                    L"Scroll to zoom  ·  Click to GoTo  ·  Right-click to reset",
+                    L"Left-click to GoTo  \u00B7  Right-click object for Info  \u00B7  Right-click sky to reset",
                     mstH, utc->tm_min);
             } else {
                 swprintf(status, 256,
-                    L"%.1f× zoom  ·  FOV %.1f°  ·  Alt %.0f° Az %.0f°   "
-                    L"Drag to pan  ·  Click to GoTo  ·  Right-click to reset",
+                    L"%.1f\u00D7 zoom  \u00B7  FOV %.1f\u00B0  \u00B7  Alt %.0f\u00B0 Az %.0f\u00B0   "
+                    L"Left-click to GoTo  \u00B7  Right-click object for Info  \u00B7  Right-click sky to reset",
                     m_zoom, FOVDeg(), m_centerAlt, m_centerAz);
             }
             if (m_statusFormat) {
@@ -513,9 +622,9 @@ private:
             }
         }
 
-        // ── Confirmation popup overlay ─────────────────────────
-        if (m_pending.valid)
-            DrawConfirmation();
+        // ── Click-to-confirm popup ─────────────────────────────
+        if (m_confirmIdx >= 0 && m_confirmIdx < (int)m_objects.size())
+            DrawConfirmPopup();
 
         HRESULT hr = m_rt->EndDraw();
         if (hr == D2DERR_RECREATE_TARGET) { ReleaseD2D(); InitD2D(); }
@@ -546,6 +655,95 @@ private:
         }
     }
 
+    void DrawConfirmPopup() {
+        if (!m_rt || m_confirmIdx < 0 || m_confirmIdx >= (int)m_objects.size()) return;
+        const auto& obj = m_objects[m_confirmIdx];
+        bool belowHorizon = obj.altDeg < 15.0f;
+
+        // Popup dims
+        const float PW = 200, PH = belowHorizon ? 56 : 76;
+        // Anchor near the object, keep on screen
+        float px = m_confirmPx + 14;
+        float py = m_confirmPy - PH / 2;
+        if (px + PW > m_w - 4) px = m_confirmPx - PW - 8;
+        if (py < 4)              py = 4;
+        if (py + PH > m_h - 22) py = m_h - 22 - PH;
+        D2D1_RECT_F popR = D2D1::RectF(px, py, px+PW, py+PH);
+
+        // Background + border
+        ID2D1SolidColorBrush *bgBr = nullptr, *borderBr = nullptr,
+                             *titleBr = nullptr, *altBr = nullptr,
+                             *slewBr = nullptr, *cancelBr = nullptr;
+        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.04f, 0.09f, 0.18f, 0.97f), &bgBr);
+        m_rt->CreateSolidColorBrush(
+            belowHorizon ? D2D1::ColorF(0.8f, 0.2f, 0.1f, 0.9f)
+                         : D2D1::ColorF(0.0f, 0.9f, 1.0f, 0.7f),
+            &borderBr);
+        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.9f, 0.95f, 1.0f, 1.0f),  &titleBr);
+        m_rt->CreateSolidColorBrush(
+            belowHorizon ? D2D1::ColorF(1.0f, 0.35f, 0.2f, 1.0f)
+                         : D2D1::ColorF(0.6f, 0.8f, 0.9f, 0.9f),
+            &altBr);
+        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.1f, 0.9f, 0.4f, 1.0f),  &slewBr);
+        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.9f, 0.3f, 0.2f, 1.0f),  &cancelBr);
+
+        if (bgBr)     m_rt->FillRectangle(popR, bgBr);
+        if (borderBr) m_rt->DrawRectangle(popR, borderBr, 1.5f);
+
+        if (m_labelFormat && titleBr) {
+            // Object name
+            wchar_t wname[64]; MultiByteToWideChar(CP_UTF8, 0, obj.name.c_str(), -1, wname, 64);
+            D2D1_RECT_F nr = D2D1::RectF(px+6, py+5, px+PW-6, py+21);
+            m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+            m_rt->DrawText(wname, (UINT32)wcslen(wname), m_labelFormat, nr, titleBr);
+
+            // Altitude / horizon warning
+            if (altBr) {
+                wchar_t altStr[48];
+                if (belowHorizon)
+                    swprintf(altStr, 48, L"BELOW HORIZON (Alt %.0f°)", obj.altDeg);
+                else
+                    swprintf(altStr, 48, L"Alt %.0f°  Az %.0f°", obj.altDeg, obj.azDeg);
+                D2D1_RECT_F ar = D2D1::RectF(px+6, py+22, px+PW-6, py+36);
+                m_rt->DrawText(altStr, (UINT32)wcslen(altStr), m_labelFormat, ar, altBr);
+            }
+
+            // Buttons
+            if (!belowHorizon && slewBr) {
+                // ✓ SLEW button
+                m_btnSlewRect = D2D1::RectF(px+6, py+40, px+PW/2-4, py+PH-6);
+                ID2D1SolidColorBrush* slewBg = nullptr;
+                m_rt->CreateSolidColorBrush(D2D1::ColorF(0.05f, 0.25f, 0.12f, 0.9f), &slewBg);
+                if (slewBg) { m_rt->FillRectangle(m_btnSlewRect, slewBg); slewBg->Release(); }
+                m_rt->DrawRectangle(m_btnSlewRect, slewBr, 1.0f);
+                D2D1_RECT_F st = D2D1::RectF(m_btnSlewRect.left+2, m_btnSlewRect.top+2,
+                                              m_btnSlewRect.right-2, m_btnSlewRect.bottom-2);
+                m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+                m_rt->DrawText(L"\u2713 SLEW", 7, m_labelFormat, st, slewBr);
+            } else {
+                m_btnSlewRect = {};  // disabled
+            }
+
+            // ✗ CANCEL button
+            if (cancelBr) {
+                float cancelLeft = belowHorizon ? px+6 : px+PW/2+4;
+                m_btnCancelRect = D2D1::RectF(cancelLeft, py+40, px+PW-6, py+PH-6);
+                ID2D1SolidColorBrush* cancelBg = nullptr;
+                m_rt->CreateSolidColorBrush(D2D1::ColorF(0.25f, 0.05f, 0.05f, 0.9f), &cancelBg);
+                if (cancelBg) { m_rt->FillRectangle(m_btnCancelRect, cancelBg); cancelBg->Release(); }
+                m_rt->DrawRectangle(m_btnCancelRect, cancelBr, 1.0f);
+                D2D1_RECT_F ct = D2D1::RectF(m_btnCancelRect.left+2, m_btnCancelRect.top+2,
+                                              m_btnCancelRect.right-2, m_btnCancelRect.bottom-2);
+                m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+                m_rt->DrawText(L"\u2716 CANCEL", 9, m_labelFormat, ct, cancelBr);
+            }
+        }
+
+        auto rel = [](ID2D1SolidColorBrush* b) { if (b) b->Release(); };
+        rel(bgBr); rel(borderBr); rel(titleBr); rel(altBr);
+        rel(slewBr); rel(cancelBr);
+    }
+
     void DrawTooltip(const wchar_t* text, float ox, float oy) {
         if (!m_statusFormat) return;
         float tx = ox + 14, ty = oy - 20;
@@ -564,129 +762,6 @@ private:
                            D2D1::RectF(tx, ty, tx+150, ty+14), fg);
             fg->Release();
         }
-    }
-
-    // ── Slew confirmation popup ────────────────────────────────
-    // Drawn over the sky map when user clicks an object.
-    // Shows object name, type, altitude, and SLEW / CANCEL buttons.
-    // If object is below HORIZON_LIMIT_DEG, SLEW is replaced with a
-    // red "BELOW HORIZON" warning and only CANCEL is offered.
-    void DrawConfirmation() {
-        if (!m_rt || !m_labelFormat || !m_statusFormat) return;
-
-        const bool belowHorizon = (m_pending.altDeg < HORIZON_LIMIT_DEG);
-
-        // ── Popup box dimensions ───────────────────────────────
-        const float BOX_W  = 240.0f;
-        const float BOX_H  = belowHorizon ? 110.0f : 130.0f;
-        const float BOX_X  = (m_w - BOX_W) * 0.5f;
-        const float BOX_Y  = (m_h - BOX_H) * 0.5f;
-        const float PAD    = 12.0f;
-        const float BTN_H  = 26.0f;
-        const float BTN_W  = (BOX_W - PAD*2 - 8.0f) * 0.5f;
-
-        m_confirmBox = D2D1::RectF(BOX_X, BOX_Y, BOX_X+BOX_W, BOX_Y+BOX_H);
-
-        // ── Background + border ───────────────────────────────
-        ID2D1SolidColorBrush* bgBrush  = nullptr;
-        ID2D1SolidColorBrush* brdBrush = nullptr;
-        ID2D1SolidColorBrush* txtBrush = nullptr;
-        ID2D1SolidColorBrush* dimBrush = nullptr;
-        ID2D1SolidColorBrush* redBrush = nullptr;
-        ID2D1SolidColorBrush* slewBg   = nullptr;
-        ID2D1SolidColorBrush* cancelBg = nullptr;
-
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.04f, 0.10f, 0.18f, 0.96f), &bgBrush);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.0f,  0.70f, 0.90f, 0.80f), &brdBrush);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.85f, 0.93f, 1.00f, 1.00f), &txtBrush);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.50f, 0.65f, 0.75f, 0.85f), &dimBrush);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(1.00f, 0.23f, 0.36f, 1.00f), &redBrush);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.00f, 0.40f, 0.55f, 0.85f), &slewBg);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.15f, 0.20f, 0.28f, 0.85f), &cancelBg);
-
-        if (bgBrush)  m_rt->FillRectangle(m_confirmBox, bgBrush);
-        if (brdBrush) m_rt->DrawRectangle(m_confirmBox, brdBrush, 1.5f);
-
-        float ty = BOX_Y + PAD;
-
-        // ── Object name ───────────────────────────────────────
-        {
-            wchar_t wname[64] = {};
-            MultiByteToWideChar(CP_UTF8, 0, m_pending.name.c_str(), -1, wname, 64);
-            D2D1_RECT_F r = D2D1::RectF(BOX_X+PAD, ty, BOX_X+BOX_W-PAD, ty+18);
-            if (m_labelFormat && txtBrush) {
-                m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-                m_rt->DrawText(wname, (UINT32)wcslen(wname), m_labelFormat, r, txtBrush);
-            }
-            ty += 20.0f;
-        }
-
-        // ── "Slew to Planet?" / "BELOW HORIZON" line ─────────
-        {
-            wchar_t line2[64] = {};
-            if (belowHorizon) {
-                swprintf(line2, 64, L"BELOW HORIZON  (%.0f\u00B0)", m_pending.altDeg);
-            } else {
-                wchar_t wtype[32] = {};
-                MultiByteToWideChar(CP_UTF8, 0, m_pending.type.c_str(), -1, wtype, 32);
-                swprintf(line2, 64, L"Slew to %s?   Alt %.0f\u00B0", wtype, m_pending.altDeg);
-            }
-            D2D1_RECT_F r = D2D1::RectF(BOX_X+PAD, ty, BOX_X+BOX_W-PAD, ty+14);
-            auto* brush = belowHorizon ? redBrush : dimBrush;
-            if (m_statusFormat && brush) {
-                m_statusFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-                m_rt->DrawText(line2, (UINT32)wcslen(line2), m_statusFormat, r, brush);
-            }
-            ty += 18.0f;
-        }
-
-        // ── Separator ─────────────────────────────────────────
-        if (brdBrush) {
-            m_rt->DrawLine(D2D1::Point2F(BOX_X+PAD, ty),
-                           D2D1::Point2F(BOX_X+BOX_W-PAD, ty),
-                           brdBrush, 0.5f);
-        }
-        ty += 6.0f;
-
-        // ── Buttons ───────────────────────────────────────────
-        float bx1 = BOX_X + PAD;
-        float bx2 = BOX_X + PAD + BTN_W + 8.0f;
-
-        if (!belowHorizon) {
-            // SLEW button
-            m_btnSlew = D2D1::RectF(bx1, ty, bx1+BTN_W, ty+BTN_H);
-            if (slewBg)  m_rt->FillRectangle(m_btnSlew, slewBg);
-            if (brdBrush) m_rt->DrawRectangle(m_btnSlew, brdBrush, 1.0f);
-            if (txtBrush && m_labelFormat) {
-                m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-                m_rt->DrawText(L"\u2713  SLEW", 7, m_labelFormat, m_btnSlew, txtBrush);
-            }
-        } else {
-            m_btnSlew = D2D1::RectF(0,0,0,0); // invalid — not clickable
-        }
-
-        // CANCEL button — centred when no slew button, right-side otherwise
-        float cancelX = belowHorizon
-            ? (BOX_X + (BOX_W - BTN_W) * 0.5f)
-            : bx2;
-        m_btnCancel = D2D1::RectF(cancelX, ty, cancelX+BTN_W, ty+BTN_H);
-        if (cancelBg) m_rt->FillRectangle(m_btnCancel, cancelBg);
-        auto* brd2 = belowHorizon ? redBrush : brdBrush;
-        if (brd2) m_rt->DrawRectangle(m_btnCancel, brd2, 1.0f);
-        auto* cTxt = belowHorizon ? redBrush : dimBrush;
-        if (cTxt && m_labelFormat) {
-            m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-            m_rt->DrawText(L"\u2717  CANCEL", 9, m_labelFormat, m_btnCancel, cTxt);
-        }
-
-        // Cleanup
-        if (bgBrush)  bgBrush->Release();
-        if (brdBrush) brdBrush->Release();
-        if (txtBrush) txtBrush->Release();
-        if (dimBrush) dimBrush->Release();
-        if (redBrush) redBrush->Release();
-        if (slewBg)   slewBg->Release();
-        if (cancelBg) cancelBg->Release();
     }
 
     // ── Hit testing — find object nearest to click ─────────────
@@ -725,10 +800,13 @@ private:
         if (dw) {
             dw->CreateTextFormat(L"Barlow Condensed", nullptr,
                 DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL, 10.0f, L"en-us", &m_labelFormat);
+                DWRITE_FONT_STRETCH_NORMAL, 14.0f, L"en-us", &m_labelFormat);
             dw->CreateTextFormat(L"Space Mono", nullptr,
                 DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL, 9.0f, L"en-us", &m_statusFormat);
+                DWRITE_FONT_STRETCH_NORMAL, 11.0f, L"en-us", &m_statusFormat);
+            dw->CreateTextFormat(L"Barlow Condensed", nullptr,
+                DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
+                DWRITE_FONT_STRETCH_NORMAL, 15.0f, L"en-us", &m_titleFormat);
             dw->Release();
         }
         return true;
@@ -737,6 +815,7 @@ private:
     void ReleaseD2D() {
         if (m_labelFormat)  { m_labelFormat->Release();  m_labelFormat  = nullptr; }
         if (m_statusFormat) { m_statusFormat->Release(); m_statusFormat = nullptr; }
+        if (m_titleFormat)  { m_titleFormat->Release();  m_titleFormat  = nullptr; }
         if (m_rt)           { m_rt->Release();           m_rt           = nullptr; }
     }
 
@@ -829,13 +908,26 @@ private:
                 return 0;
             }
             case WM_RBUTTONDOWN: {
-                // Right-click: reset zoom to full sky, also dismiss any pending confirm
-                self->m_pending.valid = false;
-                self->m_zoom      = 1.0f;
-                self->m_centerAlt = 90.0f;
-                self->m_centerAz  =  0.0f;
-                self->BuildObjectList();
-                self->Redraw();
+                float mx = (float)LOWORD(lParam);
+                float my = (float)HIWORD(lParam);
+                // Dismiss any confirm popup first
+                self->m_confirmIdx = -1;
+                // Check if right-click landed on an object
+                int idx = self->HitTest(mx, my);
+                if (idx >= 0 && self->m_onInfo) {
+                    // Fire info callback — caller shows ObjectInfoPanel
+                    const auto& obj = self->m_objects[idx];
+                    self->m_onInfo(obj.name,
+                                   obj.altDeg, obj.azDeg,
+                                   obj.mag);
+                } else {
+                    // Empty space — reset zoom to full sky
+                    self->m_zoom      = 1.0f;
+                    self->m_centerAlt = 90.0f;
+                    self->m_centerAz  =  0.0f;
+                    self->BuildObjectList();
+                    self->Redraw();
+                }
                 return 0;
             }
             case WM_MOUSEMOVE: {
@@ -874,62 +966,38 @@ private:
                 float mx = (float)LOWORD(lParam);
                 float my = (float)HIWORD(lParam);
 
-                // ── If confirmation popup is open, handle its buttons ──
-                if (self->m_pending.valid) {
-                    // Hit SLEW?
-                    auto& sr = self->m_btnSlew;
-                    bool slewHit = (sr.right > sr.left) &&
-                                   mx >= sr.left && mx <= sr.right &&
-                                   my >= sr.top  && my <= sr.bottom;
-                    // Hit CANCEL or anywhere outside the popup box?
-                    auto& cr = self->m_btnCancel;
-                    bool cancelHit = (mx >= cr.left && mx <= cr.right &&
-                                      my >= cr.top  && my <= cr.bottom);
-                    bool outsideBox = (mx < self->m_confirmBox.left  ||
-                                       mx > self->m_confirmBox.right ||
-                                       my < self->m_confirmBox.top   ||
-                                       my > self->m_confirmBox.bottom);
-
-                    if (slewHit && self->m_pending.altDeg >= HORIZON_LIMIT_DEG) {
-                        printf("[SkyMap] Confirmed GoTo: %s  RA=%.4fh Dec=%.4f°  Alt=%.1f°\n",
-                               self->m_pending.name.c_str(),
-                               self->m_pending.ra, self->m_pending.dec,
-                               self->m_pending.altDeg);
+                // If popup is showing, check button hits first
+                if (self->m_confirmIdx >= 0) {
+                    auto hit = [](float x, float y, const D2D1_RECT_F& r) {
+                        return x >= r.left && x <= r.right
+                            && y >= r.top  && y <= r.bottom;
+                    };
+                    if (hit(mx, my, self->m_btnSlewRect)) {
+                        // ✓ SLEW confirmed
+                        const auto& obj = self->m_objects[self->m_confirmIdx];
+                        printf("[SkyMap] GoTo confirmed: %s  RA=%.4fh Dec=%.4f°\n",
+                               obj.name.c_str(), obj.ra, obj.dec);
                         if (self->m_onGoTo)
-                            self->m_onGoTo(self->m_pending.ra,
-                                           self->m_pending.dec,
-                                           self->m_pending.name);
-                        self->m_pending.valid = false;
+                            self->m_onGoTo(obj.ra, obj.dec, obj.name);
+                        self->m_confirmIdx = -1;
                         self->Redraw();
-                    } else if (cancelHit || outsideBox) {
-                        // Cancel — dismiss popup
-                        self->m_pending.valid = false;
-                        self->Redraw();
+                        return 0;
                     }
+                    // ✗ CANCEL or click outside — dismiss popup
+                    self->m_confirmIdx = -1;
+                    self->Redraw();
                     return 0;
                 }
 
-                // ── No popup open — hit test for an object ─────────────
+                // No popup — first click: show confirmation
                 int idx = self->HitTest(mx, my);
                 if (idx >= 0) {
-                    const auto& obj = self->m_objects[idx];
-                    // Build a human-readable type label
-                    std::string typeLabel = "Object";
-                    if (obj.type == "Planet")                               typeLabel = "Planet";
-                    else if (obj.type == "Star")                            typeLabel = "Star";
-                    else if (obj.type == "GC" || obj.type == "OC" ||
-                             obj.type == "EN" || obj.type == "Gal" ||
-                             obj.type == "PN" || obj.type == "SNR")         typeLabel = "Messier";
-
-                    self->m_pending.valid  = true;
-                    self->m_pending.name   = obj.name;
-                    self->m_pending.type   = typeLabel;
-                    self->m_pending.ra     = obj.ra;
-                    self->m_pending.dec    = obj.dec;
-                    self->m_pending.altDeg = obj.altDeg;
+                    self->m_confirmIdx = idx;
+                    self->m_confirmPx  = mx;
+                    self->m_confirmPy  = my;
                     self->Redraw();
                 } else if (self->m_zoom > 1.0f) {
-                    // Start drag pan (only when zoomed and no object hit)
+                    // Start drag pan (only when zoomed, no object hit)
                     self->m_dragging = true;
                     self->m_dragStartX   = mx;
                     self->m_dragStartY   = my;
@@ -968,6 +1036,7 @@ private:
     ID2D1HwndRenderTarget* m_rt           = nullptr;
     IDWriteTextFormat*     m_labelFormat  = nullptr;
     IDWriteTextFormat*     m_statusFormat = nullptr;
+    IDWriteTextFormat*     m_titleFormat  = nullptr;  // bold, larger — Sun/Moon/bright planets
 
     // Sky data
     raduk::sky::SkyObjectCatalog m_catalog;
@@ -980,24 +1049,18 @@ private:
     bool                 m_mountValid = false;
 
     // Interaction
-    int m_hoverIdx = -1;
+    int m_hoverIdx    = -1;
 
-    // ── Pending GoTo confirmation ──────────────────────────────
-    static constexpr float HORIZON_LIMIT_DEG = 15.0f; // safety floor — Anthem AZ
+    // Click-to-confirm popup state (Phase 6.5.1)
+    int         m_confirmIdx  = -1;   // index into m_objects, -1 = no popup
+    float       m_confirmPx   = 0;    // popup anchor screen coords
+    float       m_confirmPy   = 0;
+    D2D1_RECT_F m_btnSlewRect   = {};
+    D2D1_RECT_F m_btnCancelRect = {};
 
-    struct PendingGoTo {
-        bool        valid  = false;
-        std::string name;
-        std::string type;   // "Planet" / "Messier" / "Star"
-        double      ra     = 0, dec = 0;
-        float       altDeg = 0;
-    };
-    PendingGoTo m_pending;
+    // Rate limiting for Tick() redraws — max once per second
+    std::chrono::steady_clock::time_point m_lastTickRedraw{};
 
-    // Button rects in window coords — updated each Draw when popup is shown
-    D2D1_RECT_F m_confirmBox = {};
-    D2D1_RECT_F m_btnSlew    = {};
-    D2D1_RECT_F m_btnCancel  = {};
     // ── Zoom / pan state ───────────────────────────────────────
     // m_zoom: 1.0 = full sky, higher = zoomed in
     // m_centerAz/Alt: centre of the zoomed view in degrees
@@ -1026,6 +1089,7 @@ private:
 
     // Callback
     std::function<void(double, double, const std::string&)> m_onGoTo;
+    std::function<void(const std::string&, float, float, float)> m_onInfo;
 };
 
 } // namespace raduk::gui

@@ -47,6 +47,10 @@
 #include "gui/MountController.h"
 #include "gui/StatusBar.h"
 #include "gui/HelpWindow.h"
+#include "gui/AIChatPanel.h"
+#include "gui/NotificationBar.h"
+#include "gui/ObjectInfoPanel.h"
+#include "core/AIContextBuilder.h"
 #include "profiles/TargetProfile.h"
 #include "profiles/ProfileManager.h"
 #include "core/AutofocusRoutine.h"
@@ -422,6 +426,26 @@ static int RunApp(bool useEmulator) {
         gotoPanel.RequestGoTo(ra, dec, name);
     });
 
+    // Phase 50a: Object Info Panel — shown on right-click (sky map) or
+    // double-click (Tonight planner)
+    raduk::gui::ObjectInfoPanel objectInfo;
+    objectInfo.Create(window.Handle());
+    // DB wired after aiChat is created below — see "Phase 50a DB wire" comment
+    // GoTo from info panel — same path as sky map GoTo
+    objectInfo.SetGoToCallback([&](const std::string& name) {
+        gotoPanel.RequestGoToByName(name);
+    });
+    // Wire sky map right-click → info panel
+    skyMap.SetInfoCallback([&](const std::string& name,
+                               float alt, float az, float mag) {
+        objectInfo.ShowObject(name, alt, az, mag);
+    });
+    // Wire Tonight planner double-click → info panel
+    gotoPanel.SetInfoCallback([&](const std::string& name,
+                                  float alt, float az, float mag) {
+        objectInfo.ShowObject(name, alt, az, mag);
+    });
+
     gotoPanel.SetGoToCompleteCallback([&](const std::string& target) {
         Log("[GOTO] Slew to '%s' complete — starting acquisition in 3s\n",
             target.c_str());
@@ -532,6 +556,29 @@ static int RunApp(bool useEmulator) {
         helpWindow.Create(window.Handle(), exeDir);
     }
     Log("[INIT] Help window ready\n");
+
+    // Phase 50: AI Chat Panel
+    raduk::gui::AIChatPanel aiChat;
+    {
+        wchar_t exePath2[MAX_PATH] = {};
+        GetModuleFileNameW(nullptr, exePath2, MAX_PATH);
+        std::wstring exeDir2(exePath2);
+        auto slash2 = exeDir2.find_last_of(L"\\/");
+        if (slash2 != std::wstring::npos) exeDir2 = exeDir2.substr(0, slash2);
+        aiChat.Create(window.Handle(), exeDir2);
+    }
+    Log("[INIT] AI chat panel ready\n");
+    // Phase 50a DB wire — both AI panel and object info panel share the same DB
+    objectInfo.SetKnowledgeDB(&aiChat.GetKnowledgeDB());
+
+    // Phase 40: Notification Bar
+    raduk::gui::NotificationBar notifBar;
+    notifBar.Create(window.Handle(), PANEL_WIDTH);
+    notifBar.SetDismissCallback([&]() {
+        window.SetNotifBarHeight(notifBar.Height());
+        notifBar.SnapToMainWindow();
+    });
+    Log("[INIT] Notification bar ready\n");
 
     // RC is always in control - no CPWI. Set initial state before callbacks wired.
     if (startInRCControl) {
@@ -862,6 +909,8 @@ static int RunApp(bool useEmulator) {
     window.SetMoveHandler([&]() {
         controls.OnMainWindowMoved();
         toolbar.SnapToMainWindow();
+        notifBar.SnapToMainWindow();
+        window.SetNotifBarHeight(notifBar.Height());
     });
 
     // Forward clicks to preview renderer for frame bar + ROI drag start
@@ -1074,6 +1123,19 @@ static int RunApp(bool useEmulator) {
 
     // lastAnalysis also captured by ROILock lambda — must be declared before it
     AnalysisResult lastAnalysis{};
+
+    // Phase 13: Survey frame delivery — wired here so lastFrameForSolve/lastAnalysis are in scope
+    gotoPanel.SetSurveyFrameCallback([&]() {
+        if (lastFrameForSolve.empty() || lastFrameSolveW == 0) {
+            Log("[SURVEY] Frame not ready for solve\n");
+            return;
+        }
+        gotoPanel.SurveyProvideFrame(
+            lastFrameForSolve.data(),
+            lastFrameSolveW, lastFrameSolveH,
+            cam.IsOpen() ? cam.Temperature() : 0.0f,
+            lastAnalysis.valid ? lastAnalysis.seeingScore : 0.0f);
+    });
 
     // [CENTROID] button — toggles searching on/off
     // Centroid/Lock/ROI callbacks now wired to toolbar buttons above.
@@ -1290,10 +1352,14 @@ static int RunApp(bool useEmulator) {
             wchar_t* fname = wcsrchr(wpath, L'\\');
             std::wstring notif = std::wstring(L"SAVED: ") + (fname ? fname+1 : wpath);
             preview.SetSnapshotNotification(notif);
+            // Notification bar — with folder link
+            std::wstring folder = std::wstring(wpath, wcsrchr(wpath, L'\\') ? wcsrchr(wpath, L'\\') - wpath : 0);
+            notifBar.NotifyInfo(std::wstring(L"\u2714 Snapshot saved: ") + (fname ? fname+1 : wpath), folder);
             slog.System("Snapshot: %s", filename);
             Log("[SNAP] %s\n", filename);
         } else {
             preview.SetSnapshotNotification(L"SNAPSHOT FAILED");
+            notifBar.NotifyError(L"\u2716 Snapshot failed — check output directory");
             Log("[SNAP] Failed to save %s\n", filename);
         }
     };
@@ -1353,6 +1419,36 @@ static int RunApp(bool useEmulator) {
     auto doHelp = [&]() { helpWindow.Toggle(); };
     toolbar.SetHelpCallback([&]()       { doHelp(); });
     window.SetHelpToggleHandler([&]()   { doHelp(); });
+
+    // Phase 50 / Graceful Exit — wired to X button, Alt+F4, and toolbar EXIT
+    // Confirms if recording is active, then tears down AI/floating windows before
+    // posting WM_QUIT so the cleanup sequence runs normally.
+    auto doGracefulExit = [&]() {
+        // Confirm if recording active
+        if (capturer.IsRecording()) {
+            int choice = MessageBoxW(window.Handle(),
+                L"A capture is currently recording.\n\nStop recording and exit?",
+                L"RadukCapture — Exit",
+                MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+            if (choice != IDYES) return;
+            capturer.StopRecording();
+        }
+        // Shut down floating windows and AI gracefully before message loop exits
+        aiChat.Destroy();
+        helpWindow.Destroy();
+        objectInfo.Hide();
+        notifBar.Dismiss();
+        mountCtrl.Hide();
+        // Destroy main window → WM_DESTROY → PostQuitMessage → message loop exits
+        DestroyWindow(window.Handle());
+    };
+    window.SetCloseRequestHandler([&]() { doGracefulExit(); });
+    toolbar.SetExitCallback([&]()       { doGracefulExit(); });
+
+    // Phase 50: AI Chat Panel — / key and [AI] toolbar button
+    auto doAIToggle = [&]() { aiChat.Toggle(); };
+    toolbar.SetAICallback([&]()         { doAIToggle(); });
+    window.SetAIToggleHandler([&]()     { doAIToggle(); });
 
     // Forward WM_COMMAND from main window to toolbar
     window.SetToolbarCommandHandler([&](int id) -> bool {
@@ -1686,7 +1782,69 @@ static int RunApp(bool useEmulator) {
                 gotoPanel.IsVisible(),
                 preview.ReticleVisible(),
                 preview.ClipVisible(),
-                helpWindow.IsVisible());
+                helpWindow.IsVisible(),
+                aiChat.IsVisible());
+
+            // Phase 50: Update AI session state every frame
+            {
+                using namespace raduk::core;
+                AISessionState aiState;
+                // Time
+                time_t t = time(nullptr);
+                struct tm* loc = localtime(&t);
+                char timeBuf[32];
+                snprintf(timeBuf, 32, "%04d-%02d-%02d %02d:%02d MST",
+                    loc->tm_year+1900, loc->tm_mon+1, loc->tm_mday,
+                    loc->tm_hour, loc->tm_min);
+                aiState.localTime = timeBuf;
+                // LST
+                {
+                    double lstH = gotoPanel.ApproximateLSTPublic();
+                    int lh = (int)lstH % 24;
+                    int lm = (int)((lstH - (int)lstH) * 60);
+                    char lstBuf[16]; snprintf(lstBuf, 16, "%02dh %02dm", lh, lm);
+                    aiState.lstStr = lstBuf;
+                }
+                // Target / profile — use file prefix as target name
+                aiState.targetName  = controls.GetFilePrefix();
+                aiState.profileName = controls.GetFilePrefix(); // best available
+                // Mount
+                if (mount && mount->IsConnected()) {
+                    double ra, dec;
+                    mount->GetRADec(ra, dec);
+                    int rh = (int)ra, rm = (int)((ra - rh) * 60);
+                    char raBuf[16], decBuf[16];
+                    snprintf(raBuf,  16, "%02dh %02dm", rh, rm);
+                    snprintf(decBuf, 16, "%+.1f deg", dec);
+                    aiState.mountRA  = raBuf;
+                    aiState.mountDec = decBuf;
+                    aiState.tracking = (mount->GetTrackingMode() != raduk::core::IMount::OFF);
+                }
+                aiState.mountAlt = 0.0f;  // alt injected via planner context
+                aiState.mountAz  = 0.0f;
+                // Camera
+                if (cam.IsOpen()) {
+                    aiState.gain       = (int)cam.GetControl(ASI_GAIN);
+                    aiState.exposureMs = (float)(cam.GetControl(ASI_EXPOSURE) / 1000.0);
+                }
+                aiState.fps        = (float)stats.fps.load();
+                aiState.seeingScore= lastAnalysis.valid ? lastAnalysis.seeingScore : 0.0f;
+                // Focuser
+                if (focuser.IsOpen()) {
+                    aiState.eafPos   = focuser.GetPosition();
+                    aiState.eafTempC = focuser.GetTemperature();
+                }
+                // Capture + buffer
+                aiState.recording      = capturer.IsRecording();
+                aiState.framesRecorded = capturer.FramesRecorded();
+                aiState.framesDropped  = capturer.FramesDropped();
+                aiState.bufferUsed     = (int)capturer.BufferPending();
+                aiState.bufferTotal    = 512;
+                aiState.outputDir      = controls.GetOutputDir();
+                aiChat.SetSessionState(aiState);
+                // Inject planner data (uses cached list — no recompute each frame)
+                aiChat.UpdatePlanner(gotoPanel.GetPlannerData());
+            }
 
             // Phase 23: update RGB align label with live shift value
             if (preview.RGBAlignEnabled())
@@ -1883,6 +2041,29 @@ static int RunApp(bool useEmulator) {
                 summaryElapsedSec     += capturer.ElapsedSec();
                 summaryBytesWritten   += capturer.BytesWritten();
                 ++summaryRunCount;
+
+                // Notification bar — show frame count + file size
+                uint64_t bytes = capturer.BytesWritten();
+                double   mb    = bytes / (1024.0 * 1024.0);
+                wchar_t  nbuf[256];
+                if (mb >= 1024.0)
+                    swprintf(nbuf, 256, L"\u2714 Capture complete: %u frames  %.2f GB",
+                             capturer.FramesRecorded(), mb / 1024.0);
+                else
+                    swprintf(nbuf, 256, L"\u2714 Capture complete: %u frames  %.0f MB",
+                             capturer.FramesRecorded(), mb);
+                // Open folder link — use output dir from controls
+                std::string outDirA = controls.GetOutputDir();
+                std::wstring outDirW(outDirA.begin(), outDirA.end());
+                notifBar.NotifyInfo(nbuf, outDirW);
+
+                // Warn if frames were dropped
+                if (capturer.FramesDropped() > 0) {
+                    wchar_t wbuf[128];
+                    swprintf(wbuf, 128, L"\u26A0 %u frames dropped — reduce USB BW or exposure",
+                             capturer.FramesDropped());
+                    notifBar.NotifyWarn(wbuf);
+                }
             }
             summaryWasRecording = nowRecording;
             // Accumulate seeing score continuously (used for session avg)
@@ -2012,6 +2193,9 @@ static int RunApp(bool useEmulator) {
     }
 
     wsServer.Stop();
+
+    // Shut down Phase 50 AI before hardware teardown
+    aiChat.Destroy();
 
     if (capturer.IsRecording()) capturer.StopRecording();
     tracker.Reset();

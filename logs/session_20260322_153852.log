@@ -1,0 +1,44 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-22 15:38:52
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[15:38:52] [SYSTEM      ] Started -- HARDWARE
+[15:38:53] [CAMERA      ] Opened: ZWO ASI678MC
+[15:38:53] [SYSTEM      ] Mount: RC direct via COM3
+[15:38:53] [SYSTEM      ] Ready
+[15:38:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:39:04] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:39:08] [MOUNT       ] SkyMap GoTo: Moon
+[15:39:08] [PROFILE     ] Auto: Moon â†’ Moon
+[15:39:08] [PROFILE     ] Applied: Moon
+[15:39:08] [FOCUSER     ] GoTo 150000
+[15:39:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:39:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:39:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:39:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:39:27] [MOUNT       ] SkyMap GoTo: Uranus
+[15:39:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:39:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:39:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:39:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[15:39:48] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-22 15:39:48
+# ============================================================
+#   Target profile  : Moon
+#   Capture runs    : 0
+#   Frames recorded : 0
+#   Frames dropped  : 0  (0.0%)
+#   Recording time  : 0.0 min
+#   Data written    : 0.00 GB
+#   Avg seeing score: 1.0 / 10
+#   EAF position    : 150000  (30.0 C)
+#   Mount final pos : RA 04h 09m 49s  Dec +20° 50' 25"
+# ============================================================
+[15:39:48] [SYSTEM      ] Done
+
+[15:39:48] Session ended

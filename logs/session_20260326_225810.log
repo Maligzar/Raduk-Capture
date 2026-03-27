@@ -1,0 +1,495 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-26 22:58:10
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[22:58:10] [SYSTEM      ] Started -- HARDWARE
+[22:58:11] [CAMERA      ] Opened: ZWO ASI678MC
+[22:58:11] [SYSTEM      ] Mount: RC direct via COM3
+[22:58:11] [SYSTEM      ] Ready
+[22:58:16] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 5%
+[22:58:22] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 5%
+[22:58:23] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[22:58:23] [MOUNT       ] MountCtrl: jog stop axis=1
+[22:58:27] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[22:58:27] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[22:58:27] [MOUNT       ] MountCtrl: jog stop axis=0
+[22:58:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[22:58:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[22:58:38] [PROFILE     ] Applied: Moon
+[22:58:39] [FOCUSER     ] GoTo 179746
+[22:58:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[22:58:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[22:58:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[22:59:00] [SYSTEM      ] Seeing: 10.0/10  Sharpness: 100%
+[22:59:05] [SYSTEM      ] Seeing: 10.0/10  Sharpness: 100%
+[22:59:10] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[22:59:15] [SYSTEM      ] Seeing: 2.7/10  Sharpness: 20%
+[22:59:20] [SYSTEM      ] Seeing: 1.6/10  Sharpness: 6%
+[22:59:26] [SYSTEM      ] Seeing: 1.5/10  Sharpness: 5%
+[22:59:31] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[22:59:31] [MOUNT       ] MountCtrl: jog stop axis=0
+[22:59:31] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 5%
+[22:59:31] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[22:59:32] [MOUNT       ] MountCtrl: jog stop axis=0
+[22:59:33] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[22:59:33] [MOUNT       ] MountCtrl: jog stop axis=0
+[22:59:34] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[22:59:34] [MOUNT       ] MountCtrl: jog stop axis=0
+[22:59:34] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[22:59:34] [MOUNT       ] MountCtrl: jog stop axis=1
+[22:59:35] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[22:59:35] [MOUNT       ] MountCtrl: jog stop axis=1
+[22:59:36] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[22:59:36] [MOUNT       ] MountCtrl: jog stop axis=1
+[22:59:36] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 2%
+[22:59:38] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[22:59:38] [MOUNT       ] MountCtrl: jog stop axis=0
+[22:59:41] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[22:59:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[22:59:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[22:59:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:00:03] [SYSTEM      ] Seeing: 10.0/10  Sharpness: 100%
+[23:00:08] [SYSTEM      ] Seeing: 1.9/10  Sharpness: 11%
+[23:00:13] [SYSTEM      ] Seeing: 2.5/10  Sharpness: 18%
+[23:00:18] [SYSTEM      ] Seeing: 2.7/10  Sharpness: 17%
+[23:00:23] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 4%
+[23:00:28] [SYSTEM      ] Seeing: 1.5/10  Sharpness: 6%
+[23:00:34] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[23:00:39] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 3%
+[23:00:44] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[23:00:50] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[23:00:55] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[23:01:00] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 4%
+[23:01:05] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 4%
+[23:01:11] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 4%
+[23:01:15] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:01:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:01:16] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[23:01:17] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:01:17] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:01:18] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:01:18] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:01:21] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 6%
+[23:01:22] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[23:01:22] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:01:24] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:01:24] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:01:25] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:01:25] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:01:26] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:01:26] [SYSTEM      ] Seeing: 1.6/10  Sharpness: 7%
+[23:01:26] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:01:32] [SYSTEM      ] Seeing: 1.8/10  Sharpness: 9%
+[23:01:37] [SYSTEM      ] Seeing: 1.6/10  Sharpness: 7%
+[23:01:39] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Moon_20260326_230139_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[23:01:39] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[23:02:40] [CAPTURE     ] Recording stopped: 0 frames  1404 drops  0.0 MB  61.1s
+[23:02:40] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[23:02:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:02:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:02:50] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:02:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:02:51] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:02:51] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:02:51] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:02:52] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:02:52] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:02:56] [SYSTEM      ] Seeing: 2.3/10  Sharpness: 15%
+[23:03:02] [SYSTEM      ] Seeing: 3.4/10  Sharpness: 28%
+[23:03:07] [SYSTEM      ] Seeing: 2.5/10  Sharpness: 17%
+[23:03:13] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 4%
+[23:03:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:03:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:03:28] [SYSTEM      ] Seeing: 1.8/10  Sharpness: 9%
+[23:03:30] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:03:31] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:03:34] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 4%
+[23:03:36] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Moon_20260326_230336_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[23:03:36] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[23:04:38] [CAPTURE     ] Recording stopped: 0 frames  1980 drops  0.0 MB  62.3s
+[23:04:38] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[23:04:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:04:43] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:04:43] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:04:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:04:44] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:04:44] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:04:45] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:04:45] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:04:46] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:04:49] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:04:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:04:49] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:04:51] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[23:04:51] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:04:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:05] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:05:05] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:05:05] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:05:06] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:05:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:15] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:05:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:06:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:07:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:08:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:08:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:08:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:08:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:08:21] [SYSTEM      ] Seeing: 1.5/10  Sharpness: 10%
+[23:08:26] [SYSTEM      ] Seeing: 10.0/10  Sharpness: 100%
+[23:08:28] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Moon_20260326_230828_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[23:08:28] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[23:09:15] [CAPTURE     ] Recording stopped: 0 frames  1496 drops  0.0 MB  47.4s
+[23:09:15] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[23:09:15] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:09:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:09:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:09:27] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:09:27] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:09:27] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:09:27] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:09:31] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:09:31] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:09:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:09:31] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:09:31] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:09:32] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:09:32] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:09:34] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:09:34] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:09:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:09:40] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Moon_20260326_230940_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[23:09:40] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[23:10:38] [CAPTURE     ] Recording stopped: 0 frames  1816 drops  0.0 MB  57.4s
+[23:10:38] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[23:10:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:10:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:10:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:10:51] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:10:51] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:10:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:10:54] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[23:10:54] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:10:59] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:11:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:12:04] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:12:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:12:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:12:14] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:12:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:12:17] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:12:17] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:12:19] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:12:19] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:12:20] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 6%
+[23:12:21] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:12:21] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:12:25] [SYSTEM      ] Seeing: 5.2/10  Sharpness: 46%
+[23:12:30] [SYSTEM      ] Seeing: 3.7/10  Sharpness: 30%
+[23:12:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:12:41] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:12:44] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:12:45] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:12:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:12:46] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:12:46] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:12:47] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[23:12:48] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:12:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:12:56] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Moon_20260326_231256_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[23:12:56] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[23:12:58] [CAPTURE     ] Recording stopped: 0 frames  61 drops  0.0 MB  1.9s
+[23:12:58] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[23:12:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:13:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:13:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:13:11] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Moon_20260326_231311_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[23:13:11] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[23:13:13] [CAPTURE     ] Recording stopped: 0 frames  67 drops  0.0 MB  2.2s
+[23:13:13] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[23:13:14] [SYSTEM      ] Seeing: 8.7/10  Sharpness: 79%
+[23:13:19] [SYSTEM      ] Seeing: 1.9/10  Sharpness: 9%
+[23:13:22] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:13:22] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:13:23] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:13:23] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:13:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:13:25] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[23:13:25] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:13:25] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[23:13:25] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:13:29] [SYSTEM      ] Seeing: 2.6/10  Sharpness: 19%
+[23:13:34] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[23:13:40] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 4%
+[23:13:45] [SYSTEM      ] Seeing: 1.9/10  Sharpness: 9%
+[23:13:50] [SYSTEM      ] Seeing: 1.9/10  Sharpness: 10%
+[23:13:55] [SYSTEM      ] Seeing: 1.6/10  Sharpness: 6%
+[23:14:01] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 5%
+[23:14:05] [SYSTEM      ] Reticle ON
+[23:14:06] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 3%
+[23:14:11] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[23:14:16] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[23:14:22] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:14:27] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:14:32] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 3%
+[23:14:37] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:14:43] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:14:48] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:14:48] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:14:48] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:14:49] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:14:50] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:14:53] [SYSTEM      ] Seeing: 1.5/10  Sharpness: 6%
+[23:14:58] [SYSTEM      ] Seeing: 2.7/10  Sharpness: 18%
+[23:15:03] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 4%
+[23:15:09] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 3%
+[23:15:15] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:15:20] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[23:15:21] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Moon_20260326_231521_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[23:15:21] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[23:15:24] [CAPTURE     ] Recording stopped: 0 frames  84 drops  0.0 MB  2.6s
+[23:15:24] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[23:15:25] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[23:15:31] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[23:15:36] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[23:15:41] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[23:16:02] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:16:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:16:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:16:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:16:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:16:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:16:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:16:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:16:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:16:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:16:51] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:16:52] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:16:53] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:16:53] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:16:55] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 3%
+[23:17:00] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:17:06] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:17:12] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:17:17] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:17:22] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[23:17:27] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 1%
+[23:17:35] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[23:17:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:17:44] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:17:44] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:17:46] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:17:46] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:17:46] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:17:47] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:17:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:17:48] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[23:17:48] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:17:49] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[23:17:49] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:17:51] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:17:52] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:17:52] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[23:17:52] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:17:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:17:53] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[23:17:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:17:54] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[23:17:54] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:17:54] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[23:17:55] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:17:55] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[23:17:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:17:55] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[23:17:56] [MOUNT       ] MountCtrl: jog stop axis=1
+[23:17:56] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[23:17:56] [MOUNT       ] MountCtrl: jog stop axis=0
+[23:17:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:18:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:19:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:20:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:21:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:22:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:23:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:24:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:10] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:41] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:25:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:28] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:26:59] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:04] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:27:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:26] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:31] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:28:57] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:29:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[23:29:04] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-26 23:29:04
+# ============================================================
+#   Target profile  : Moon
+#   Capture runs    : 7
+#   Frames recorded : 0
+#   Frames dropped  : 6908  (100.0%)
+#   Recording time  : 3.9 min
+#   Data written    : 0.00 GB
+#   Avg seeing score: 1.4 / 10
+#   EAF position    : 0  (0.0 C)
+#   Mount final pos : RA 16h 42m 23s  Dec +13� 26' 31"
+# ============================================================
+[23:29:04] [SYSTEM      ] Done
+
+[23:29:05] Session ended

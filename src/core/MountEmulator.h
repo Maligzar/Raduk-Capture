@@ -98,6 +98,12 @@ public:
         printf("[MountEmulator] GoTo cancelled\n");
     }
 
+    // ── Safety — NexStarMount compatibility stubs ──────────────
+    // main.cpp casts to NexStarMount* for these methods; emulator provides no-ops.
+    static constexpr int WATCHDOG_TIMEOUT_MS = 8000;
+    void Heartbeat()     {} // no-op — no watchdog in emulator
+    void EmergencyStop() { CancelGoTo(); StopSlew(0); StopSlew(1); }
+
     // ── Tracking ───────────────────────────────────────────────
 
     bool SetTrackingMode(TrackingMode mode) override {

@@ -6,7 +6,11 @@
 // Enabled when RADUK_EMULATOR is defined in CMakeLists.txt.
 // ============================================================
 
-#include "EAF_focuser.h"
+#ifdef RADUK_EMULATOR
+#  include "EAF_focuser_stub.h"
+#else
+#  include "EAF_focuser.h"
+#endif
 #include <cstdio>
 #include <cmath>
 #include <algorithm>

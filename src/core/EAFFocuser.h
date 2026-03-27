@@ -1,10 +1,15 @@
 #pragma once
 // ============================================================
 // EAFFocuser.h — ZWO EAF SDK Wrapper for RadukCapture
-// Section 3.5 of Architecture Doc
+// In RADUK_EMULATOR builds this file only provides the stub types.
+// EAFEmulator.h provides the EAFFocuser class instead.
 // ============================================================
 
-#include "EAF_focuser.h"
+#ifdef RADUK_EMULATOR
+#  include "EAF_focuser_stub.h"
+// EAFEmulator.h defines raduk::core::EAFFocuser — do not redefine here.
+#else
+#  include "EAF_focuser.h"
 #include <vector>
 
 namespace raduk::core {
@@ -14,19 +19,14 @@ public:
     EAFFocuser() = default;
     ~EAFFocuser() { Close(); }
 
-    // Non-copyable
     EAFFocuser(const EAFFocuser&) = delete;
     EAFFocuser& operator=(const EAFFocuser&) = delete;
-
-    // ── Lifecycle ──────────────────────────────────────────────
 
     static int GetCount() { return EAFGetNum(); }
 
     bool Open(int index);
     void Close();
     bool IsOpen() const { return m_isOpen; }
-
-    // ── Motion ─────────────────────────────────────────────────
 
     bool MoveTo(int position);
     bool MoveRelative(int steps);
@@ -35,17 +35,10 @@ public:
     int  GetPosition() const;
     int  GetMaxPosition() const { return m_info.MaxStep; }
 
-    // ── Configuration ──────────────────────────────────────────
-
     void SetReverse(bool reversed);
     void SetBacklash(int steps);
 
-    // ── Temperature ────────────────────────────────────────────
-
     float GetTemperature() const;
-
-    // ── Info ───────────────────────────────────────────────────
-
     int FocuserId() const { return m_focuserId; }
 
 private:
@@ -55,3 +48,5 @@ private:
 };
 
 } // namespace raduk::core
+
+#endif // !RADUK_EMULATOR

@@ -27,7 +27,11 @@
 // ============================================================
 
 #include <string>
-#include "ASICamera2.h"
+#ifdef RADUK_EMULATOR
+#  include "ASICamera2Stub.h"
+#else
+#  include "ASICamera2.h"
+#endif
 
 namespace raduk::profiles {
 

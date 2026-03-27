@@ -4,7 +4,11 @@
 // Section 3.2 of Architecture Doc
 // ============================================================
 
-#include "ASICamera2.h"
+#ifdef RADUK_EMULATOR
+#  include "ASICamera2Stub.h"
+#else
+#  include "ASICamera2.h"
+#endif
 #include <cstdint>
 #include <atomic>
 

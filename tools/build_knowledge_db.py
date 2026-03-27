@@ -487,10 +487,30 @@ def load_imaging_notes(conn):
 # ── Wikipedia fetch loop ─────────────────────────────────────────────────────
 
 def build_wikipedia_narratives(conn, skip_existing=True):
-    log("Fetching Wikipedia narratives...")
+    log("Fetching Wikipedia narratives (priority objects only)...")
 
-    # Build list of objects to fetch
-    cur = conn.execute("SELECT name, common_name, type FROM objects ORDER BY type, name")
+    # Only fetch Wikipedia for objects that matter to an astrophotographer.
+    # Obscure NGC objects have no article or useless stubs — skip them.
+    # Priority list: all Messier, bright NGC, named stars, planets, constellations.
+    PRIORITY_TYPES = {'Planet', 'Star', 'Constellation', 'Satellite', 'Galaxy',
+                      'Emission Nebula', 'Planetary Nebula', 'Supernova Remnant',
+                      'Globular Cluster', 'Open Cluster', 'Nebula', 'Cluster+Nebula'}
+
+    # Only fetch NGC objects with magnitude brighter than 10
+    # (fainter ones are too obscure for useful Wikipedia articles)
+    MAX_NGC_MAG = 10.0
+
+    cur = conn.execute("""
+        SELECT name, common_name, type, magnitude
+        FROM objects
+        WHERE type IN ('Planet','Star','Constellation','Satellite')
+           OR (name LIKE 'M%' AND CAST(REPLACE(name,'M','') AS INTEGER) BETWEEN 1 AND 110)
+           OR (common_name IS NOT NULL AND common_name != '' AND magnitude < ?)
+           OR type IN ('Emission Nebula','Planetary Nebula','Supernova Remnant',
+                       'Globular Cluster','Galaxy')
+              AND magnitude < ?
+        ORDER BY magnitude ASC NULLS LAST, type, name
+    """, (MAX_NGC_MAG, MAX_NGC_MAG))
     all_objects = cur.fetchall()
 
     if skip_existing:
@@ -499,7 +519,8 @@ def build_wikipedia_narratives(conn, skip_existing=True):
     else:
         existing = set()
 
-    # Wikipedia title mapping for tricky names
+    log(f"  Priority objects to fetch: {len(all_objects)} (skipping {len(existing)} already done)")
+
     title_overrides = {
         "M1":  "Crab Nebula",     "M8":  "Lagoon Nebula",
         "M13": "Messier 13",      "M17": "Omega Nebula",
@@ -514,55 +535,35 @@ def build_wikipedia_narratives(conn, skip_existing=True):
         "M101":"Pinwheel Galaxy", "M104":"Sombrero Galaxy",
         "M110":"Messier 110",
     }
-    # Constellation title overrides
     for name, _ in CONSTELLATIONS_88:
         if name not in title_overrides:
             title_overrides[name] = f"{name} (constellation)"
 
-    fetched = 0
-    skipped = 0
-    errors  = 0
+    fetched = skipped = errors = 0
 
-    for name, common_name, obj_type in all_objects:
+    for name, common_name, obj_type, magnitude in all_objects:
         if name in existing:
             skipped += 1
             continue
 
-        # Determine Wikipedia title
         wiki_title = title_overrides.get(name) or common_name or name
-        # For NGC objects without override, use common name if available
         if name.startswith("NGC") and common_name:
             wiki_title = common_name
 
-        log(f"  [{fetched+skipped+1}/{len(all_objects)}] {name} → Wikipedia: {wiki_title}")
-
+        log(f"  [{fetched+skipped+1}/{len(all_objects)}] {name} → {wiki_title}")
         result = fetch_wikipedia(wiki_title)
-        if result:
-            upsert_narrative(conn,
-                name=name,
+
+        if result and result.get("summary"):
+            upsert_narrative(conn, name=name,
                 summary=result["summary"][:1000],
                 full_text=result["full"],
-                sources=[result["url"]],
-            )
+                sources=[result["url"]])
             fetched += 1
         else:
-            # Try object type + name as fallback
-            if not result and obj_type:
-                fallback = f"{name} {obj_type.lower()}"
-                result = fetch_wikipedia(fallback)
-                if result:
-                    upsert_narrative(conn, name=name,
-                        summary=result["summary"][:1000],
-                        full_text=result["full"],
-                        sources=[result["url"]])
-                    fetched += 1
-                else:
-                    errors += 1
-            else:
-                errors += 1
+            errors += 1
 
         conn.commit()
-        time.sleep(RATE_LIMIT_SEC)  # respectful rate limiting
+        time.sleep(RATE_LIMIT_SEC)
 
     log(f"  Wikipedia: {fetched} fetched, {skipped} skipped, {errors} not found")
     return fetched
@@ -696,7 +697,7 @@ def main():
     log(f"  Imaging notes: {note_count}")
     log(f"  DB:            {DB_PATH}")
     log(f"{'='*60}\n")
-    log("RadukScope Star Professor is ready.")
+    log("Leoben Star Professor is ready.")
     log("Ask it: 'What is M42?' or 'Tell me about Jupiter' or 'How do I image the Veil Nebula?'")
 
 if __name__ == "__main__":

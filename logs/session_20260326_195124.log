@@ -1,0 +1,1640 @@
+# ============================================================
+# RadukCapture Session Log
+# Started: 2026-03-26 19:51:24
+# Machine: StarMachine  Location: Anthem, AZ
+# Telescope: Celestron 8SE  Camera: ZWO ASI678MC
+# ============================================================
+
+[19:51:24] [SYSTEM      ] Started -- HARDWARE
+[19:51:24] [CAMERA      ] Opened: ZWO ASI678MC
+[19:51:25] [SYSTEM      ] Mount: RC direct via COM3
+[19:51:25] [SYSTEM      ] Ready
+[19:51:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:51:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:51:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:51:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:51:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:51:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:22] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:54] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:52:59] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:04] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:20] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:53:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:16] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:47] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:54:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:29] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:49] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:55:50] [PROFILE     ] Saved: Star
+[19:55:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:56:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[19:56:05] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 4%
+[19:56:10] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:56:10] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 9%
+[19:56:10] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:56:11] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:56:11] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:56:12] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:56:12] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:56:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:56:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:56:14] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:56:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:56:15] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:56:16] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:56:17] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:56:18] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:56:19] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:56:20] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:56:20] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:56:21] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:56:22] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:56:23] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:56:24] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:56:25] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:56:26] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:56:26] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:56:27] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:56:31] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:56:36] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:56:41] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:56:46] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:56:52] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:56:57] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 9%
+[19:57:02] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:57:05] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:57:06] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:57:07] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:57:07] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:57:08] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:09] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:57:10] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:57:11] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:57:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:12] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 9%
+[19:57:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:57:14] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:14] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:57:15] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:57:16] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:57:17] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:57:17] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:57:23] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:57:28] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:57:30] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:57:31] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:32] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:57:33] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:57:33] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:34] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:57:35] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:57:36] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:57:37] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:57:38] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:57:38] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:57:39] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:57:40] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:57:41] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:57:42] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:57:43] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:57:43] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:44] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:57:45] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:46] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:57:47] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:48] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:57:48] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:57:50] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:50] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:57:52] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:52] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:57:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:57:54] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 9%
+[19:57:56] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:57:57] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:57:57] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:57:59] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:57:59] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:58:00] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:58:01] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:58:02] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:58:03] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:58:04] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:58:04] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:58:05] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:06] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:58:07] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:08] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:58:09] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:58:10] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:58:11] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:58:14] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:58:14] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:58:17] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:58:19] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:19] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:58:19] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:58:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:21] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:58:23] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:24] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:58:24] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:58:25] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:26] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:58:27] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:28] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:58:29] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:30] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:58:30] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:58:31] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:58:32] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:58:34] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:35] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:58:35] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:58:36] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:37] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:58:38] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:39] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:58:40] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 9%
+[19:58:40] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:58:41] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:58:42] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:58:43] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:58:45] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:45] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:58:46] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:58:47] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:58:50] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:58:55] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:01] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 9%
+[19:59:04] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:59:05] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:59:06] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:06] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:59:08] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:59:08] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:59:10] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:59:10] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:59:11] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:11] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:59:12] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:59:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:59:14] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:59:15] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:59:16] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:59:16] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:17] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:59:18] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:59:19] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:59:20] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:59:21] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:21] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:59:22] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:59:24] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:59:24] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:59:26] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:59:26] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:26] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:59:28] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:59:30] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[19:59:31] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:59:31] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:59:32] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:33] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:59:33] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[19:59:35] [MOUNT       ] MountCtrl: jog stop axis=0
+[19:59:37] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:42] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:47] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:52] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:55] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[19:59:56] [MOUNT       ] MountCtrl: jog stop axis=1
+[19:59:57] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[19:59:58] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[19:59:59] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:00:00] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:00:01] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:00:03] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:08] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:13] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:18] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:23] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:28] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:33] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:39] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:44] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:49] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:51] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:00:51] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:00:52] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:00:52] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:00:53] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:00:53] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:00:55] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:00:56] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:00:57] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:00:57] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:00:57] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:00:58] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:00:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:00:59] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:01:00] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:01:00] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:01] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:01:01] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:02] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:01:03] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:03] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:01:04] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:05] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:01:05] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:01:05] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:06] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:01:06] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:07] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:01:08] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:09] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:01:09] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:10] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:01:10] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:01:11] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:12] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:01:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:01:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:14] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:01:15] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:15] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:01:15] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 9%
+[20:01:16] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:17] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:01:18] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:18] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:01:19] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:19] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:01:20] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:20] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:01:21] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:01:22] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:22] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:01:23] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:23] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:01:24] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:26] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:01:31] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:01:36] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 8%
+[20:01:39] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:01:40] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:41] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:01:42] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:01:42] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:43] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:01:44] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:45] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:01:46] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:46] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:01:47] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:01:48] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:48] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:01:49] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:50] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:01:51] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:51] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:01:52] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:01:52] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:54] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:01:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:55] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:01:56] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:01:57] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:01:57] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:01:58] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:01:58] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:01:59] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:00] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:01] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:01] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:02] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:02:02] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:03] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:02:04] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:04] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:02:05] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:07] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:02:07] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:02:08] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:08] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:02:09] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:11] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:02:12] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:12] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:02:15] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:17] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:02:17] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:18] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:02:20] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:21] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:02:22] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:22] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:02:22] [SYSTEM      ] Seeing: 1.8/10  Sharpness: 9%
+[20:02:23] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:23] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:02:24] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:25] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:02:26] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:26] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:02:26] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:28] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:02:28] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:02:28] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:28] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:02:29] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:30] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:02:30] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:31] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:02:31] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:33] [SYSTEM      ] Seeing: 2.1/10  Sharpness: 13%
+[20:02:38] [SYSTEM      ] Seeing: 2.1/10  Sharpness: 11%
+[20:02:42] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:02:42] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:43] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:02:43] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:44] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:02:44] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:02:44] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:02:48] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:48] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:49] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:49] [SYSTEM      ] Seeing: 1.8/10  Sharpness: 8%
+[20:02:49] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:49] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:50] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:50] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:51] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:51] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:51] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:53] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:02:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:54] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:02:54] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:02:54] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:55] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:02:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:57] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:57] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:58] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:58] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:02:59] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:02:59] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:03:04] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:03:09] [SYSTEM      ] Seeing: 1.8/10  Sharpness: 9%
+[20:03:11] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:03:11] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:13] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:03:13] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:13] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:03:13] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:14] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:03:15] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 9%
+[20:03:15] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:15] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:03:15] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:16] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:03:16] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:20] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:03:20] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:03:20] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:25] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:03:25] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:03:26] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:27] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:03:27] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:28] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:03:28] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:28] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:03:28] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:30] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:03:30] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:30] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:03:30] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:03:30] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:03:32] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:32] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:32] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:33] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:34] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:34] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:35] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:03:38] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:38] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:40] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:40] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:40] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:40] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:41] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:03:41] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:41] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:42] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:42] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:42] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:42] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:43] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:43] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:43] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:44] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:44] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:44] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:46] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:03:51] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:03:52] [PROFILE     ] Saved: Star
+[20:03:55] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:55] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:56] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:56] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:56] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 9%
+[20:03:56] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:56] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:57] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:03:57] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:03:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:01] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:04:07] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:04:07] [PROFILE     ] Saved: Jupiter
+[20:04:09] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:04:09] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:10] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:04:10] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:11] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:11] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:12] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:12] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:04:12] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:14] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:14] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:14] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:15] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:15] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:16] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:16] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:17] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:04:18] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:04:18] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:19] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:04:19] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:20] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:04:20] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:21] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:04:21] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:21] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:04:21] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:22] [SYSTEM      ] Seeing: 1.8/10  Sharpness: 8%
+[20:04:27] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 9%
+[20:04:33] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:04:38] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:04:40] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:04:40] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:41] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:04:41] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:42] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:42] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:04:43] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:43] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:04:43] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:04:43] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:45] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:04:45] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:45] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:04:45] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:46] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:04:46] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:47] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:04:47] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:48] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:04:48] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:48] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:04:48] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:04:48] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:50] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:50] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:52] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:04:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:53] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:04:53] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:04:54] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:54] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:04:55] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:55] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:04:55] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:04:56] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:04:57] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:57] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:04:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:04:58] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:04:58] [SYSTEM      ] Seeing: 1.8/10  Sharpness: 8%
+[20:04:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:00] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:05:01] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:01] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:05:02] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:03] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:05:04] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 8%
+[20:05:04] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:06] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:05:06] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:07] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:05:07] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:08] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:05:08] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:09] [SYSTEM      ] Seeing: 3.8/10  Sharpness: 33%
+[20:05:09] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:05:09] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:11] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:05:11] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:12] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:05:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:05:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:14] [SYSTEM      ] Seeing: 6.9/10  Sharpness: 66%
+[20:05:14] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:05:14] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:15] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:05:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:16] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:05:16] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:17] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:05:17] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:18] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:05:18] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:18] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:05:19] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:19] [SYSTEM      ] Seeing: 6.3/10  Sharpness: 51%
+[20:05:20] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:05:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:21] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:05:21] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:21] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:05:21] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:22] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:05:22] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:24] [SYSTEM      ] Seeing: 6.8/10  Sharpness: 65%
+[20:05:29] [SYSTEM      ] Seeing: 6.9/10  Sharpness: 66%
+[20:05:35] [SYSTEM      ] Seeing: 3.9/10  Sharpness: 31%
+[20:05:36] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:05:36] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:37] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:05:37] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:39] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:05:39] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:39] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:05:39] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:40] [SYSTEM      ] Seeing: 3.6/10  Sharpness: 31%
+[20:05:40] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:05:40] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:41] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:05:41] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:42] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:05:42] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:05:45] [SYSTEM      ] Seeing: 3.6/10  Sharpness: 29%
+[20:05:50] [SYSTEM      ] Seeing: 3.4/10  Sharpness: 27%
+[20:05:55] [SYSTEM      ] Seeing: 3.3/10  Sharpness: 26%
+[20:05:58] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:05:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:05:59] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:05:59] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:00] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:00] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:00] [SYSTEM      ] Seeing: 3.0/10  Sharpness: 22%
+[20:06:01] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:01] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:02] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:02] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:03] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:03] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:04] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:04] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:04] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:05] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:05] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:05] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:06] [SYSTEM      ] Seeing: 3.0/10  Sharpness: 21%
+[20:06:08] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:08] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:09] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:09] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:10] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:10] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:11] [SYSTEM      ] Seeing: 2.5/10  Sharpness: 14%
+[20:06:11] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:11] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:12] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:12] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:13] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:13] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:14] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:14] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:15] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:15] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:16] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:16] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:16] [SYSTEM      ] Seeing: 2.4/10  Sharpness: 15%
+[20:06:16] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:17] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:17] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:17] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:18] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:19] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:19] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:19] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:21] [SYSTEM      ] Seeing: 3.6/10  Sharpness: 29%
+[20:06:26] [SYSTEM      ] Seeing: 3.6/10  Sharpness: 29%
+[20:06:31] [SYSTEM      ] Seeing: 3.5/10  Sharpness: 28%
+[20:06:33] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:06:33] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:34] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:06:34] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:34] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:06:35] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:35] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:06:35] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:36] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:06:36] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:37] [SYSTEM      ] Seeing: 3.4/10  Sharpness: 22%
+[20:06:37] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:38] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:38] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:38] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:39] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:39] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:40] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:40] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:41] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:41] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:41] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:42] [SYSTEM      ] Seeing: 3.4/10  Sharpness: 31%
+[20:06:42] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:42] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:43] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:06:44] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:45] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:45] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:46] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:46] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:46] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:06:46] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:06:47] [SYSTEM      ] Seeing: 3.2/10  Sharpness: 22%
+[20:06:48] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:06:48] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:48] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:06:49] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:49] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:06:49] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:50] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:06:50] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:50] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:06:50] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:51] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:06:51] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:52] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:06:52] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:52] [SYSTEM      ] Seeing: 3.4/10  Sharpness: 25%
+[20:06:53] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:06:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:54] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:06:54] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:06:57] [SYSTEM      ] Seeing: 3.6/10  Sharpness: 29%
+[20:07:01] [PROFILE     ] Applied: Moon
+[20:07:01] [FOCUSER     ] GoTo 160000
+[20:07:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:12] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:07:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:07:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:13] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:07:14] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:14] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:07:14] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:17] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:07:18] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:18] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:07:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:18] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:19] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:07:19] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:19] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:07:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:20] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:07:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:21] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:07:21] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:21] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:07:22] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:23] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:36] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:41] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:42] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:07:43] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:44] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:07:45] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:49] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:07:50] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:07:50] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:07:51] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:07:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:51] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:07:51] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:07:52] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:07:52] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:07:52] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:07:53] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:07:53] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:07:54] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:07:54] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:07:54] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:07:55] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:07:56] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:07:56] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:07:56] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:07:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:07:57] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:07:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:58] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:07:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:07:59] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:07:59] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:00] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:08:00] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:22] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:35] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:08:35] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:35] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:08:35] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:37] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:08:37] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:37] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:08:37] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:38] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:38] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:08:38] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:39] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:08:39] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:39] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:08:40] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:43] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:08:55] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:08:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:56] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:08:56] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:56] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:08:57] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:57] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:08:57] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:08:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:09:03] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:09:09] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:09:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:09:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:09:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:09:14] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:09:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:09:14] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:09:14] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:09:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:09:15] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:09:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:09:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:09:20] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:09:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:09:21] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:09:21] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:09:22] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:09:22] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:09:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:09:29] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:09:35] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:09:40] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:09:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:09:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:09:55] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:10:00] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:10:04] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:10:04] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:10:04] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:10:04] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:10:05] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:10:05] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:10:05] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:10:06] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:10:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:10:06] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:10:06] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:10:06] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:10:07] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:10:07] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:10:07] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:10:08] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:10:08] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:10:08] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:10:08] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:10:11] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:10:16] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:10:22] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:10:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:10:32] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:10:37] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:10:42] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:10:48] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:10:53] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:10:58] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:11:03] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:11:08] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:11:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:11:19] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:11:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:11:24] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:11:24] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:11:27] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:11:27] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:11:29] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:11:34] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:11:36] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:11:36] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:11:37] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:11:37] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:11:38] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:11:38] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:11:39] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:11:39] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:11:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:11:41] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:11:41] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:42] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:11:42] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:43] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:43] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:43] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:44] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:44] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:44] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:45] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:11:45] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:45] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:45] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:46] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:46] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:47] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:11:48] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:11:49] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:11:49] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:11:49] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:11:49] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:11:50] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 2%
+[20:11:50] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:11:51] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:11:52] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:53] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:54] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:54] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:54] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:54] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:55] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:11:55] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:56] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:56] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:56] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:56] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:56] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:57] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:57] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:11:57] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:11:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:12:00] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:12:05] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:12:10] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:12:15] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:12:21] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:12:26] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:12:31] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:12:36] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:12:41] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:12:46] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:12:48] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:12:48] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:12:49] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:12:49] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:12:51] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:12:51] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:12:51] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:12:52] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:12:52] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:12:52] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:12:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:12:53] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:12:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:12:54] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:12:54] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:12:54] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:12:54] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:12:55] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:12:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:12:55] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:12:56] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:12:56] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:12:56] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:12:57] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:12:57] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:12:57] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 7%
+[20:12:57] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:12:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:13:02] [SYSTEM      ] Seeing: 1.5/10  Sharpness: 6%
+[20:13:07] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[20:13:12] [SYSTEM      ] Seeing: 2.4/10  Sharpness: 14%
+[20:13:17] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 4%
+[20:13:23] [SYSTEM      ] Seeing: 2.2/10  Sharpness: 12%
+[20:13:28] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:13:33] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 1%
+[20:13:38] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:13:38] [PROFILE     ] Saved: Moon
+[20:13:44] [PROFILE     ] Edited: Moon
+[20:13:51] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 4%
+[20:13:54] [PROFILE     ] Saved: Moon
+[20:13:56] [SYSTEM      ] Seeing: 1.5/10  Sharpness: 4%
+[20:13:57] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:13:57] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:13:59] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:13:59] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:14:00] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:14:00] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:14:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:14:03] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:14:03] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:14:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:14:08] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:14:08] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:14:10] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:14:10] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:14:11] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:14:16] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 1%
+[20:14:18] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_201418_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:14:18] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:14:41] [CAPTURE     ] Recording stopped: 488 frames  0 drops  3860.2 MB  22.8s
+[20:14:41] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[20:14:42] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:14:44] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:14:44] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:14:47] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:14:48] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:14:49] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:14:52] [SYSTEM      ] Seeing: 1.6/10  Sharpness: 4%
+[20:14:52] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:14:52] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:14:57] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:14:57] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:14:58] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:14:59] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:14:59] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:15:01] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:15:01] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:02] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:15:02] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:02] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:15:03] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:15:03] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:04] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:15:05] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:15:05] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:15:06] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:15:06] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:15:06] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:15:07] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:15:07] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:15:08] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 16%
+[20:15:13] [SYSTEM      ] Seeing: 3.0/10  Sharpness: 27%
+[20:15:18] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:15:23] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 36%
+[20:15:28] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 3%
+[20:15:33] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:15:38] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:15:43] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:15:43] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:15:44] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:15:44] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:15:44] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:15:45] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:15:45] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:15:46] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:15:46] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:15:46] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:15:46] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:15:47] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:15:48] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:49] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:15:49] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[20:15:49] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:49] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:15:49] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:50] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:50] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:15:50] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:51] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:15:51] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:51] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:15:51] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:52] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:15:52] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:15:54] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 3%
+[20:15:59] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 3%
+[20:16:04] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 2%
+[20:16:09] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[20:16:15] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 4%
+[20:16:20] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 5%
+[20:16:25] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 4%
+[20:16:30] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 4%
+[20:16:35] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:16:40] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[20:16:42] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_201642_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:16:42] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:17:06] [CAPTURE     ] Recording stopped: 440 frames  0 drops  3480.5 MB  24.2s
+[20:17:06] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[20:17:07] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:17:09] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:17:09] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:17:11] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:17:11] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:17:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:17:12] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:17:12] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:17:17] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:17:18] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:17:18] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:17:19] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:17:19] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:17:20] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:17:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:17:20] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:17:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:17:21] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:17:21] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:17:21] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:17:22] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:17:22] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[20:17:27] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 4%
+[20:17:27] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_201727_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:17:27] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:18:08] [CAPTURE     ] Recording stopped: 763 frames  0 drops  6035.4 MB  40.2s
+[20:18:08] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[20:18:08] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[20:18:10] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:10] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:10] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:10] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:11] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:11] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:11] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:12] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:12] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:13] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:18:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:14] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:14] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:14] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:15] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:15] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:18] [SYSTEM      ] Seeing: 1.5/10  Sharpness: 5%
+[20:18:24] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 3%
+[20:18:29] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[20:18:33] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:34] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:34] [SYSTEM      ] Seeing: 1.6/10  Sharpness: 7%
+[20:18:34] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:34] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:35] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:35] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:36] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:36] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:36] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:36] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:37] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:37] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:38] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:38] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:39] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:18:39] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:18:39] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:18:44] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:18:49] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 9%
+[20:18:55] [SYSTEM      ] Seeing: 1.6/10  Sharpness: 4%
+[20:19:00] [SYSTEM      ] Seeing: 1.6/10  Sharpness: 6%
+[20:19:05] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 5%
+[20:19:10] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:19:15] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:19:20] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[20:19:26] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[20:19:31] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 3%
+[20:19:36] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:19:41] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:19:46] [PROFILE     ] Saved: Moon
+[20:19:46] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:20:01] [PROFILE     ] Edited: Moon
+[20:20:02] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:20:07] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:20:07] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:20:08] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:20:10] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:20:10] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:20:11] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:20:11] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:20:11] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:20:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:20:13] [SYSTEM      ] Seeing: 1.3/10  Sharpness: 3%
+[20:20:13] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:20:13] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:20:15] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:20:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:20:16] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:20:16] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:20:18] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 4%
+[20:20:23] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:20:24] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_202024_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:20:24] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:21:02] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:21:03] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:21:05] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:21:05] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:21:06] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:21:06] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:21:06] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:21:06] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:21:08] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:21:08] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:21:08] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:21:08] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:21:09] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:21:09] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:21:10] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:21:10] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:21:10] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:21:11] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:21:17] [CAPTURE     ] Recording stopped: 1000 frames  0 drops  7910.2 MB  53.5s
+[20:21:18] [SYSTEM      ] Seeing: 1.7/10  Sharpness: 7%
+[20:21:22] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_202122_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:21:22] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:21:23] [CAPTURE     ] Recording stopped: 22 frames  0 drops  174.0 MB  1.2s
+[20:21:23] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[20:21:24] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:21:29] [SYSTEM      ] Seeing: 1.4/10  Sharpness: 4%
+[20:21:31] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_202131_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:21:31] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:22:04] [CAPTURE     ] Recording stopped: 626 frames  0 drops  4951.8 MB  32.8s
+[20:22:04] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[20:22:05] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:22:10] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:22:15] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:22:20] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:22:25] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 1%
+[20:22:25] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:22:26] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:22:26] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:22:26] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:22:27] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:22:27] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:22:29] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:22:29] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:22:30] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:22:35] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_202235_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:22:35] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:22:55] [CAPTURE     ] Recording stopped: 393 frames  0 drops  3108.7 MB  20.4s
+[20:22:55] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[20:22:56] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:23:01] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 0%
+[20:23:02] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:23:02] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:23:04] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:23:05] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:23:05] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:23:05] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:23:06] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:23:06] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:23:06] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:23:07] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:23:07] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:23:08] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:23:08] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:23:11] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:23:16] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 3%
+[20:23:21] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:23:27] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:23:32] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:23:37] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:23:42] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:23:45] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_202345_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:23:45] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:24:09] [CAPTURE     ] Recording stopped: 448 frames  0 drops  3543.8 MB  23.6s
+[20:24:09] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[20:24:09] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:24:14] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:24:15] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:24:16] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:24:18] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:24:18] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:24:19] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:24:19] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:24:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:24:21] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:24:21] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:24:22] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:24:22] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:24:23] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:24:23] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:24:24] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:24:30] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:24:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:24:40] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 1%
+[20:24:45] [SYSTEM      ] Seeing: 3.5/10  Sharpness: 17%
+[20:24:50] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:24:55] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:25:00] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_202500_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:25:00] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:25:51] [CAPTURE     ] Recording stopped: 1000 frames  0 drops  7910.2 MB  50.6s
+[20:25:51] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:25:56] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:26:01] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:26:06] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:26:09] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:26:10] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:11] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:26:11] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:26:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:16] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:26:16] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:16] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:26:17] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:26:17] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:18] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:26:18] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:20] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:26:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:20] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:26:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:21] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:26:21] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:22] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 1%
+[20:26:22] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:26:22] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:22] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:26:22] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:23] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:26:23] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:26:27] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:26:32] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:26:35] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_202635_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:26:35] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:27:15] [CAPTURE     ] Recording stopped: 837 frames  0 drops  6620.8 MB  39.3s
+[20:27:15] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[20:27:15] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:27:16] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:27:16] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:27:17] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:27:18] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:27:19] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:27:19] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:27:20] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:27:20] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:27:21] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:27:25] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:27:30] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:27:35] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 1%
+[20:27:41] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:27:46] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:27:51] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:27:56] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:28:01] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:28:06] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:28:12] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:28:17] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:28:22] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:28:27] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:28:29] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_202829_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:28:29] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:28:57] [CAPTURE     ] Recording stopped: 597 frames  0 drops  4722.4 MB  27.9s
+[20:28:57] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[20:28:57] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:28:58] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:28:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:28:59] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:28:59] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:28:59] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:29:00] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:01] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:29:01] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:02] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:29:06] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:29:06] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:07] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:29:07] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:07] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:29:08] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:29:08] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:09] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:29:09] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:11] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:29:11] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:29:11] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:29:12] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:29:12] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:29:13] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:29:13] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:29:14] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:29:14] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:29:14] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:29:15] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:29:15] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:29:15] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:29:17] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:29:18] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:29:18] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:19] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:29:19] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:20] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:29:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:20] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:29:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:21] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:29:21] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:22] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:29:22] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:29:23] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 1%
+[20:29:25] [CAPTURE     ] Recording started: D:\RadukCapture\captures\Jupiter_20260326_202925_Light_3840x2160_8bit_0001.ser  3840x2160  8-bit
+[20:29:25] [SYSTEM      ] USB capture mode — CAPTURE — EAF:10s  Mount:2s
+[20:30:20] [CAPTURE     ] Recording stopped: 1167 frames  0 drops  9231.2 MB  54.8s
+[20:30:20] [SYSTEM      ] USB polling restored — IDLE — EAF:0.5s  Mount:0.5s
+[20:30:20] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:30:25] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:30:30] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:30:35] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 2%
+[20:30:41] [SYSTEM      ] Seeing: 1.2/10  Sharpness: 2%
+[20:30:46] [SYSTEM      ] Seeing: 1.1/10  Sharpness: 0%
+[20:30:51] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:30:56] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:31:01] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:31:06] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:31:12] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:31:17] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:31:22] [SYSTEM      ] Seeing: 1.0/10  Sharpness: 0%
+[20:31:27] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:31:31] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:31:31] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:32] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:31:33] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:31:33] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:33] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:31:33] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:34] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:31:34] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:37] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:31:38] [MOUNT       ] Acquisition: Searching
+[20:31:38] [MOUNT       ] Auto-acquisition: Centering
+[20:31:43] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:31:44] [MOUNT       ] Emergency stop (MountCtrl)
+[20:31:45] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:31:45] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:46] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:31:46] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:47] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:31:47] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:48] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:31:48] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:31:48] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:48] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:31:49] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:49] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:31:50] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:51] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:31:51] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:52] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:31:52] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:52] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:31:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:53] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:31:53] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:31:53] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:54] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:31:54] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:55] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:31:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:31:58] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:31:59] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:32:00] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:01] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:32:02] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:03] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:32:03] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:32:03] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:04] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:32:05] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:06] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:32:07] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:07] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:32:08] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:08] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:32:09] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:32:11] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:12] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:32:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:13] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:32:14] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:32:14] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:32:15] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:32:16] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:32:18] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:32:19] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:32:20] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:20] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:32:21] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:22] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:32:23] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:24] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:32:24] [MOUNT       ] Acquisition: Cancelled
+[20:32:26] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:32:28] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:29] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:32:34] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:32:39] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:32:44] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 44%
+[20:32:50] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:32:55] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:32:58] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:32:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:32:59] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:00] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:00] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:33:01] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:33:02] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:02] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:33:03] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:04] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:04] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:05] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:05] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:33:05] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:06] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:33:07] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:07] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:33:08] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:09] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:33:09] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:10] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:33:10] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:33:10] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:11] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:33:12] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:13] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:33:13] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:14] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:15] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:15] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:33:16] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:16] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:18] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:33:18] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:19] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:33:19] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:20] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:33:24] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:33:25] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:26] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:33:26] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:33:26] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:27] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:28] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:29] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:30] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:31] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:33:31] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:33:31] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:32] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:33:33] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:34] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:33:35] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:36] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:33:36] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:33:37] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:38] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:33:38] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:39] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:40] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:41] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:41] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:33:42] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:42] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:33:43] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:44] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:33:45] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:46] [MOUNT       ] MountCtrl: jog axis=1 dir=1 start
+[20:33:46] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:33:46] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:48] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:33:49] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:49] [MOUNT       ] MountCtrl: jog axis=0 dir=0 start
+[20:33:50] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:51] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:33:51] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:33:52] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:52] [MOUNT       ] MountCtrl: jog axis=1 dir=0 start
+[20:33:53] [MOUNT       ] MountCtrl: jog stop axis=1
+[20:33:54] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:55] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:56] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:57] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:33:57] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:58] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:58] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:33:59] [MOUNT       ] MountCtrl: jog axis=0 dir=1 start
+[20:33:59] [MOUNT       ] MountCtrl: jog stop axis=0
+[20:34:02] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 45%
+[20:34:07] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:34:13] [SYSTEM      ] Seeing: 5.1/10  Sharpness: 46%
+[20:34:14] [SYSTEM      ] Shutdown
+
+# ============================================================
+# SESSION SUMMARY  2026-03-26 20:34:14
+# ============================================================
+#   Target profile  : Moon
+#   Capture runs    : 12
+#   Frames recorded : 7781
+#   Frames dropped  : 0  (0.0%)
+#   Recording time  : 6.5 min
+#   Data written    : 64.54 GB
+#   Avg seeing score: 1.7 / 10
+#   EAF position    : 177346  (30.0 C)
+#   Mount final pos : RA 14h 50m 04s  Dec +52� 28' 32"
+# ============================================================
+[20:34:14] [SYSTEM      ] Done
+
+[20:34:14] Session ended

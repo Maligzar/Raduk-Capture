@@ -96,6 +96,7 @@ add_executable(RadukCapture WIN32
 
 target_include_directories(RadukCapture PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/core
 )
 
 if(NOT RADUK_EMULATOR)

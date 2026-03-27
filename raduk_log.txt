@@ -1,17 +1,12 @@
-[STARTUP] Hardware build
-[CHECK] Scanning for hardware...
-[CHECK]   Camera: OK (1)
-[CHECK]   EAF:    OK (1)
-[CHECK]   Mount:  OK (COM3 available — direct mode)
+[STARTUP] Emulator build
 ==============================================
-  RADUKCAPTURE v0.9 -- Phase 4 Complete 
+  RADUKCAPTURE v0.9 -- Phase 4 Complete [EMULATOR]
 ==============================================
 
 [INIT] 8 profiles loaded
-[INIT] Camera: ZWO ASI678MC
-[INIT] EAF OK pos=149900
-[INIT] Mount: NexStar direct (COM3) — RC in control
-[SAFETY] Heartbeat watchdog armed (timeout=8000ms)
+[INIT] Camera: ZWO ASI678MC [EMU]
+[INIT] EAF emulated — pos=50000
+[INIT] Mount: emulated
 [INIT] Capture thread started
 [INIT] USB traffic manager ready
 [INIT] Frame analyzer started
@@ -33,12 +28,6 @@
   P4:  Remote commands: start/stop_capture, load_profile, move_eaf, goto_target
   P4:  Session summary written to log at shutdown
 
-[PROFILE] Auto-loading 'Jupiter' profile for GoTo target 'Jupiter'
-[PROFILE] Applying: Jupiter
-[GOTO] Slew to 'Jupiter' complete — starting acquisition in 3s
-[ACQ] Auto-start: Stage 1 SEARCHING (post-GoTo settle)
-[GOTO] Slew to 'Jupiter' complete — starting acquisition in 3s
-[ACQ] Auto-start: Stage 1 SEARCHING (post-GoTo settle)
 
 Shutting down...
 Goodbye.

@@ -15,7 +15,6 @@
 #include <chrono>
 #include <string>
 #include <functional>
-#include "ASICamera2.h"
 #include "../core/FrameSlot.h"
 #include "../core/FrameAnalyzer.h"
 

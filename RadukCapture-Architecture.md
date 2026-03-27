@@ -1180,12 +1180,10 @@ Jupiter_20260322_214512_Light_3840x2160_8bit_0002.ser  (890 MB)
 **Context pipeline**
 ```
 User types question
-  → AIContextBuilder::Build(sessionState, gotoPanel, capturesList)
+  → AIContextBuilder::Build(sessionState, catalogSnapshot, capturesList)
       → loads Help.md (cached after first load)
       → injects live session snapshot
-      → calls gotoPanel.RefreshPlannerData() — gets fresh PlannerEntry list
-          with minsLeft, window, peakAlt, altNow for every catalog object
-      → formats as "[TONIGHT'S PLANNER]" block (sorted by mins remaining)
+      → queries altitude-sorted catalog top 20
       → scans captures directory
       → queries ObjectKnowledgeDB (stub → empty)
   → AIAssistant::SendMessage(systemPrompt, conversationHistory, userMessage)
@@ -1194,12 +1192,6 @@ User types question
       → each chunk → PostMessage(WM_USER+50, ...) → appends to EDIT
   → User sees streaming response
 ```
-
-**Example AI interactions enabled by planner integration:**
-- *"What should I image next?"* → sees Saturn has 2h20m left, M42 has 5h20m, recommends Saturn first
-- *"Is it too late for M13?"* → checks minsLeft for M13, gives honest answer with window time
-- *"Give me an imaging sequence for the rest of the night"* → sorts by urgency, builds a plan
-- *"How long do I have on Jupiter?"* → reads Jupiter's window directly from planner context
 
 **Object Knowledge Database — future sub-phase 50a**
 - SQLite file: `D:\RadukCapture\data\object_knowledge.db`
@@ -1245,116 +1237,6 @@ ASCOM camera/focuser/mount support for non-ZWO hardware. WiX installer. Auto-upd
 RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Media Source on Elminster. ~5–10 Mbps H.264.
 - Deferred until home WiFi bandwidth confirmed sufficient for low-latency video
 - No timeline — revisit after all Tier 1 and Tier 2 phases complete
-
----
-
-#### Phase 51 — March Madness Bracket Agent 🏀
-
-*Post-final-phase fun project. The same local LLM (llama3.2:3b) that learns to predict seeing conditions, optimize imaging sequences, and model atmospheric behavior is applied to NCAA tournament bracket prediction. The underlying reasoning pattern is identical: correlate historical signal against outcomes, weigh competing variables, make probabilistic decisions under uncertainty.*
-
-**Why RadukScope AI is good prep for this:**
-
-The astrophotography agent reasons like:
-- "Seeing is 6.2/10 trending up — wait 20 minutes" → probabilistic timing under uncertainty
-- "Saturn has 2h left, M42 has 5h — image Saturn first" → urgency-weighted sequencing
-- "Buffer at 40% — reduce gain before overrun" → threshold-triggered adaptive response
-
-Bracket prediction uses the same patterns:
-- "Duke favored by 4 but trending down last 3 games — fade them" → signal weighting
-- "Gonzaga has the easiest path to Elite 8 — lock them in early" → path analysis
-- "Team X's 3-point defense collapses vs pace teams — trap pick" → matchup modeling
-
-Both domains: **context-aware probabilistic sequencing with historical calibration.**
-
-**Architecture — sub-phase of Phase 50 AI assistant**
-
-The bracket agent is a knowledge-base extension, not a separate application. It runs inside the same `AIChatPanel.h` floating window using the same llama3.2:3b model. A new knowledge database (`bracket_knowledge.db`) supplements `object_knowledge.db` in the context pipeline.
-
-**Data sources (all public, no API key):**
-- KenPom efficiency ratings (AdjEM, tempo, luck-adjusted record)
-- NCAA NET rankings
-- ESPN injury reports (RSS feed, Python scraper)
-- Historical seed performance (1985–present upset rates by seed matchup)
-- Coaching tournament win rates and upset history
-- Conference tournament results + strength of schedule
-
-**Files:**
-
-| File | Responsibility |
-|------|---------------|
-| `tools\build_bracket_db.py` | Annual scraper — pulls current season data each March, populates SQLite |
-| `data\bracket_knowledge.db` | SQLite: team stats, seed, region, injuries, coach record, historical matchups |
-| `core\BracketKnowledgeDB.h` | C++ reader — queries DB by team name, returns JSON context blob |
-| `core\AIContextBuilder.h` | Extended to inject bracket context when query contains tournament keywords |
-
-**Database schema:**
-```sql
-CREATE TABLE teams (
-    name            TEXT PRIMARY KEY,
-    seed            INTEGER,
-    region          TEXT,        -- East / West / South / Midwest
-    kenpom_rank     INTEGER,
-    net_rank         INTEGER,
-    adj_em          REAL,        -- KenPom adjusted efficiency margin
-    tempo           REAL,        -- possessions per 40 min
-    sos_rank        INTEGER,     -- strength of schedule
-    conf_tourney    TEXT,        -- won / lost / runner-up
-    injuries        TEXT,        -- free text, scraped from ESPN
-    coach           TEXT,
-    coach_tourney_w INTEGER,
-    coach_tourney_l INTEGER
-);
-
-CREATE TABLE historical_upsets (
-    year        INTEGER,
-    seed_winner INTEGER,
-    seed_loser  INTEGER,
-    winner      TEXT,
-    loser       TEXT,
-    round       TEXT
-);
-
-CREATE TABLE matchup_predictions (
-    year        INTEGER,
-    team_a      TEXT,
-    team_b      TEXT,
-    predicted_winner TEXT,
-    confidence  REAL,        -- 0.0–1.0
-    actual_winner    TEXT,   -- filled in after game
-    correct     INTEGER      -- 1/0, for calibration tracking
-);
-```
-
-**Context injection (auto-triggered when query contains bracket keywords):**
-```
-[BRACKET CONTEXT — March 2027]
-Tournament: NCAA March Madness  Round: Round of 64
-Your region picks so far: [East: Duke, West: Gonzaga, ...]
-
-Relevant matchup data:
-Michigan (5-seed):  KenPom #34  NET #41  AdjEM +12.4  Tempo 68.2  SOS #28  Coach: 14-8 tourney
-Colorado State (12-seed): KenPom #51  NET #58  AdjEM +9.1  Tempo 71.8  SOS #47  Coach: 3-4 tourney
-Historical 5 vs 12: 12-seeds win 35.4% (1985–2026, n=164)
-Injury note: Michigan PG day-to-day (ankle, ESPN 3/14)
-
-Your bracket history with this model:
-2026: 68% correct (42/63 games)  ESPN percentile: 74th
-```
-
-**Example interactions:**
-- *"Who wins the 5-12 game between Michigan and Colorado State?"*
-- *"Fill out my whole bracket — give me all 63 picks with confidence levels"*
-- *"Which 12-seeds should I pick as upsets this year?"*
-- *"How did your picks do last year?"* → reads `matchup_predictions` table
-- *"Build me an aggressive bracket — I need to win my pool"*
-- *"My family pool uses confidence points — optimize my bracket for that format"*
-
-**Calibration loop:**
-After each tournament game, results are written back to `matchup_predictions.actual_winner` and `correct`. Over multiple seasons the model accumulates a track record. You can ask "how calibrated are you on 5-12 matchups?" and it will know.
-
-**Effort: Easy** — knowledge DB + context injection already architected from Phase 50. The bracket agent is data + prompting, not new C++ code. Python scraper + SQLite schema + updated `AIContextBuilder.h` to detect tournament queries. Total new code: ~300 lines Python, ~100 lines C++.
-
-**Timeline:** Run `build_bracket_db.py` each March when bracket is announced. Model improves with each season's calibration data.
 
 ---
 
@@ -1425,8 +1307,18 @@ After each tournament game, results are written back to `matchup_predictions.act
 | 12b | Ollama Integration | 3 | Medium | 🔲 |
 | 20 | Distribution / ASCOM | 3 | Very Hard | 🔲 |
 | — | OBS Streaming | — | Hard | 🚫 Deferred |
-| 51 | March Madness Bracket Agent | 🏀 | Easy | 🚫 Post-final |
 
 ---
 
-*RadukCapture v1.0.18 — Built for the stars, from Anthem, Arizona*
+*RadukCapture v1.0.12 — Built for the stars, from Anthem, Arizona*
+### 6.3 Fault Tolerance & Auto-Recovery (Self-Healing)
+Planetary imaging requires high-bandwidth USB stability. To prevent session loss during I/O stalls (e.g., drive swaps, OS bus contention), RadukCapture implements a hardware-level auto-reset state machine.
+
+* **Detection:** The `CaptureThread` monitors consecutive `ASI_ERROR_TIMEOUT` returns.
+* **Threshold:** If 20 consecutive frames fail to arrive (approx. 500ms latency), the thread flags a "Pipeline Wedge."
+* **Recovery Sequence:**
+    1.  The thread invokes `ASICamera::RestartCapture()`.
+    2.  The SDK `StopVideoCapture` command is issued.
+    3.  A **100ms thread sleep** occurs to allow the USB controller to flush and the camera's 256MB DDR3 buffer to clear.
+    4.  `StartVideoCapture` is re-issued.
+* **Telemetry:** Each reset event increments `recoveryResets` in the `CaptureStats` struct, which is broadcast via WebSocket to the APEX dashboard for real-time health monitoring.

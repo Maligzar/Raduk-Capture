@@ -20,6 +20,7 @@
 
 #include <winsock2.h>    // must be first — before windows.h
 #include <windows.h>
+#include <shellapi.h>
 #include <shellscalingapi.h>  // SetProcessDpiAwarenessContext — must be after windows.h
 #include <cstdio>
 #include <algorithm>
@@ -106,6 +107,7 @@ static LONG WINAPI CrashHandler(EXCEPTION_POINTERS* ep) {
 
 // ── Hardware detection ─────────────────────────────────────────
 #ifndef RADUK_EMULATOR
+// ── Hardware detection ─────────────────────────────────────────
 struct HardwareStatus {
     bool cameraFound = false;
     bool eafFound    = false;
@@ -125,18 +127,15 @@ static HardwareStatus CheckHardware() {
     HANDLE hTest = CreateFileA("\\\\.\\COM3", GENERIC_READ | GENERIC_WRITE,
         0, nullptr, OPEN_EXISTING, 0, nullptr);
     if (hTest != INVALID_HANDLE_VALUE) {
-        // Port opened — no one else has it (NexStar direct mode)
         s.mountFound = true;
         CloseHandle(hTest);
-        Log("[CHECK]   Mount:  OK (COM3 available — direct mode)\n");
+        Log("[CHECK]   Mount:  OK (COM3 available)\n");
     } else {
         DWORD err = GetLastError();
         if (err == ERROR_ACCESS_DENIED || err == ERROR_SHARING_VIOLATION) {
-            // Port exists but is in use — CPWI is connected. This is correct.
             s.mountFound = true;
-            Log("[CHECK]   Mount:  OK (COM3 owned by CPWI — ASCOM mode)\n");
+            Log("[CHECK]   Mount:  OK (COM3 owned by CPWI)\n");
         } else {
-            // ERROR_FILE_NOT_FOUND or other — port genuinely absent
             s.mountFound = false;
             Log("[CHECK]   Mount:  NOT FOUND (COM3 error %lu)\n", err);
         }
@@ -144,18 +143,275 @@ static HardwareStatus CheckHardware() {
     return s;
 }
 
-static std::string BuildMissingMessage(const HardwareStatus& s) {
-    std::string msg = "The following devices were not detected:\n\n";
-    if (!s.cameraFound) msg += "  -  ZWO ASI678MC camera\n";
-    if (!s.eafFound)    msg += "  -  ZWO EAF focuser\n";
-    if (!s.mountFound)  msg += "  -  NexStar mount (COM3 not found — check USB cable)\n";
-    msg += "\nRadukCapture requires ALL devices for hardware mode.\n";
-    msg += "Mixing real and emulated devices is not supported.\n\n";
-    msg += "Launch in EMULATOR mode instead?\n";
-    msg += "(Simulated camera, EAF, and mount -- no hardware needed)";
-    return msg;
+// ── Startup Device Dialog ───────────────────────────────────────
+// Shown when hardware scan fails. Lets user choose emulator mode
+// or retry after plugging devices in.
+
+struct StartupDlgState {
+    HardwareStatus  hw;
+    bool            launchEmulator = false;
+    bool            launchHardware = false;
+    bool            quit           = false;
+    HWND            hDlg           = nullptr;
+    // Labels for each device
+    HWND lblCamera = nullptr, lblEAF = nullptr, lblMount = nullptr;
+    HWND lblHint   = nullptr;
+};
+
+static void UpdateStartupDeviceLabels(StartupDlgState& s) {
+    auto setLbl = [](HWND h, bool ok, const wchar_t* name) {
+        if (!h) return;
+        wchar_t buf[64];
+        swprintf(buf, 64, L"%s  %s", ok ? L"\u2705" : L"\u274C", name);
+        SetWindowTextW(h, buf);
+    };
+    setLbl(s.lblCamera, s.hw.cameraFound, L"ZWO ASI678MC Camera");
+    setLbl(s.lblEAF,    s.hw.eafFound,    L"ZWO EAF Focuser");
+    setLbl(s.lblMount,  s.hw.mountFound,  L"NexStar Mount (COM3)");
+    if (s.lblHint) {
+        if (s.hw.AllPresent())
+            SetWindowTextW(s.lblHint, L"All devices found — ready for hardware mode.");
+        else
+            SetWindowTextW(s.lblHint, L"One or more devices missing. Plug in and retry, or launch in emulator mode.");
+    }
+    // Enable [Launch Hardware] only when all present
+    HWND hHW = GetDlgItem(s.hDlg, 1003);
+    if (hHW) EnableWindow(hHW, s.hw.AllPresent() ? TRUE : FALSE);
 }
-#endif
+
+static LRESULT CALLBACK StartupDlgProc(HWND hDlg, UINT msg,
+                                        WPARAM wp, LPARAM lp) {
+    StartupDlgState* s = nullptr;
+    if (msg == WM_NCCREATE) {
+        s = reinterpret_cast<StartupDlgState*>(
+            reinterpret_cast<CREATESTRUCT*>(lp)->lpCreateParams);
+        SetWindowLongPtrW(hDlg, GWLP_USERDATA, (LONG_PTR)s);
+        s->hDlg = hDlg;
+    } else {
+        s = reinterpret_cast<StartupDlgState*>(
+            GetWindowLongPtrW(hDlg, GWLP_USERDATA));
+    }
+    if (!s) return DefWindowProcW(hDlg, msg, wp, lp);
+
+    switch (msg) {
+        case WM_COMMAND: {
+            int id = LOWORD(wp);
+            if (id == 1001) { // Retry
+                s->hw = CheckHardware();
+                UpdateStartupDeviceLabels(*s);
+            } else if (id == 1002) { // Start Emulators
+                // Always launch build_emu\Release\RadukCapture.exe — that's
+                // the only path that has CameraEmulator, EAFEmulator, MountEmulator.
+                // If it doesn't exist yet, run build_emulator.bat first.
+                wchar_t exePath[MAX_PATH] = {};
+                GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+                std::wstring dir(exePath);
+                auto slash = dir.rfind(L'\\');
+                std::wstring repoRoot;
+                if (slash != std::wstring::npos) {
+                    std::wstring exeDir = dir.substr(0, slash);
+                    // exe lives in build\Release\ — go up two levels
+                    auto s2 = exeDir.rfind(L'\\');
+                    if (s2 != std::wstring::npos) {
+                        auto s3 = exeDir.substr(0, s2).rfind(L'\\');
+                        repoRoot = (s3 != std::wstring::npos)
+                            ? exeDir.substr(0, s2) // build\Release -> build -> repo
+                            : exeDir.substr(0, s2);
+                        // Try one more level up
+                        auto s4 = repoRoot.rfind(L'\\');
+                        if (s4 != std::wstring::npos)
+                            repoRoot = repoRoot.substr(0, s4);
+                    }
+                }
+                std::wstring emuExe = repoRoot + L"\\build_emu\\Release\\RadukCapture.exe";
+                std::wstring buildBat = repoRoot + L"\\build_emulator.bat";
+
+                // Check if emulator exe exists; if not, build it
+                if (GetFileAttributesW(emuExe.c_str()) == INVALID_FILE_ATTRIBUTES) {
+                    // Show building message
+                    if (s->lblHint)
+                        SetWindowTextW(s->lblHint,
+                            L"Building emulator... this takes ~30 seconds.");
+                    // Run build_emulator.bat synchronously
+                    SHELLEXECUTEINFOW sei = {}; sei.cbSize = sizeof(sei);
+                    sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+                    sei.lpVerb = L"open";
+                    sei.lpFile = L"cmd.exe";
+                    std::wstring args = L"/c \"" + buildBat + L"\"";
+                    sei.lpParameters = args.c_str();
+                    sei.lpDirectory  = repoRoot.c_str();
+                    sei.nShow = SW_SHOW;
+                    if (ShellExecuteExW(&sei) && sei.hProcess) {
+                        WaitForSingleObject(sei.hProcess, 120000); // 2 min max
+                        CloseHandle(sei.hProcess);
+                    }
+                }
+
+                // Now launch the emulator exe
+                if (GetFileAttributesW(emuExe.c_str()) != INVALID_FILE_ATTRIBUTES) {
+                    STARTUPINFOW si = {}; si.cb = sizeof(si);
+                    PROCESS_INFORMATION pi = {};
+                    if (CreateProcessW(emuExe.c_str(), nullptr, nullptr, nullptr,
+                            FALSE, 0, nullptr, nullptr, &si, &pi)) {
+                        CloseHandle(pi.hProcess); CloseHandle(pi.hThread);
+                        s->quit = true; // exit hardware exe cleanly
+                    } else {
+                        if (s->lblHint)
+                            SetWindowTextW(s->lblHint,
+                                L"Failed to launch emulator exe. Check build_emu\\Release\\.");
+                        return 0; // stay in dialog
+                    }
+                } else {
+                    if (s->lblHint)
+                        SetWindowTextW(s->lblHint,
+                            L"Build failed. Check D:\\RadukCapture\\build_emulator.bat");
+                    return 0;
+                }
+                DestroyWindow(hDlg);
+            } else if (id == 1003) { // Launch Hardware
+                s->launchHardware = true;
+                DestroyWindow(hDlg);
+            } else if (id == 1004) { // Exit
+                s->quit = true;
+                DestroyWindow(hDlg);
+            }
+            return 0;
+        }
+        case WM_CLOSE:
+            s->quit = true;
+            DestroyWindow(hDlg);
+            return 0;
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+        case WM_CTLCOLORSTATIC: {
+            HDC hdc = (HDC)wp;
+            HWND hCtrl = (HWND)lp;
+            SetBkColor(hdc, RGB(10, 18, 30));
+            // Colour the device labels
+            if (hCtrl == s->lblCamera)
+                SetTextColor(hdc, s->hw.cameraFound ? RGB(60,220,90) : RGB(220,60,60));
+            else if (hCtrl == s->lblEAF)
+                SetTextColor(hdc, s->hw.eafFound    ? RGB(60,220,90) : RGB(220,60,60));
+            else if (hCtrl == s->lblMount)
+                SetTextColor(hdc, s->hw.mountFound  ? RGB(60,220,90) : RGB(220,60,60));
+            else
+                SetTextColor(hdc, RGB(180, 210, 230));
+            static HBRUSH bg = CreateSolidBrush(RGB(10, 18, 30));
+            return (LRESULT)bg;
+        }
+        case WM_CTLCOLORBTN: {
+            HDC hdc = (HDC)wp;
+            SetBkColor(hdc, RGB(20, 30, 45));
+            SetTextColor(hdc, RGB(200, 225, 245));
+            static HBRUSH btnBg = CreateSolidBrush(RGB(20, 30, 45));
+            return (LRESULT)btnBg;
+        }
+    }
+    return DefWindowProcW(hDlg, msg, wp, lp);
+}
+
+static bool ShowStartupDialog(HardwareStatus& hwOut) {
+    // Register window class
+    WNDCLASSEXW wc = {};
+    wc.cbSize        = sizeof(wc);
+    wc.lpfnWndProc   = StartupDlgProc;
+    wc.hInstance     = GetModuleHandle(nullptr);
+    wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
+    wc.hbrBackground = CreateSolidBrush(RGB(10, 18, 30));
+    wc.lpszClassName = L"RadukStartupDlg";
+    RegisterClassExW(&wc);
+
+    const int DW = 420, DH = 260;
+    int sx = GetSystemMetrics(SM_CXSCREEN);
+    int sy = GetSystemMetrics(SM_CYSCREEN);
+
+    StartupDlgState state;
+    state.hw = hwOut;
+
+    HWND hDlg = CreateWindowExW(
+        WS_EX_APPWINDOW,
+        L"RadukStartupDlg", L"RadukCapture — Device Check",
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+        (sx - DW) / 2, (sy - DH) / 2, DW, DH,
+        nullptr, nullptr, GetModuleHandle(nullptr), &state);
+    if (!hDlg) return false;
+
+    // Fonts
+    HFONT fTitle = CreateFontW(-15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    HFONT fBody  = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    HFONT fMono  = CreateFontW(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_MODERN, L"Consolas");
+
+    // Title
+    HWND hTitle = CreateWindowExW(0, L"STATIC",
+        L"RadukCapture  \u00B7  Device Check",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        16, 12, DW-32, 22, hDlg, nullptr, GetModuleHandle(nullptr), nullptr);
+    SendMessage(hTitle, WM_SETFONT, (WPARAM)fTitle, TRUE);
+
+    // Device status labels
+    state.lblCamera = CreateWindowExW(0, L"STATIC", L"",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        28, 46, DW-44, 18, hDlg, nullptr, GetModuleHandle(nullptr), nullptr);
+    state.lblEAF = CreateWindowExW(0, L"STATIC", L"",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        28, 68, DW-44, 18, hDlg, nullptr, GetModuleHandle(nullptr), nullptr);
+    state.lblMount = CreateWindowExW(0, L"STATIC", L"",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        28, 90, DW-44, 18, hDlg, nullptr, GetModuleHandle(nullptr), nullptr);
+    // Hint text
+    state.lblHint = CreateWindowExW(0, L"STATIC", L"",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        16, 120, DW-32, 36, hDlg, nullptr, GetModuleHandle(nullptr), nullptr);
+
+    SendMessage(state.lblCamera, WM_SETFONT, (WPARAM)fMono, TRUE);
+    SendMessage(state.lblEAF,    WM_SETFONT, (WPARAM)fMono, TRUE);
+    SendMessage(state.lblMount,  WM_SETFONT, (WPARAM)fMono, TRUE);
+    SendMessage(state.lblHint,   WM_SETFONT, (WPARAM)fBody, TRUE);
+
+    // Buttons
+    const int BH = 30, BY = DH - 70, BW = 120;
+    HWND hRetry = CreateWindowExW(0, L"BUTTON", L"\u21BA  Retry",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        16, BY, BW, BH, hDlg, (HMENU)1001, GetModuleHandle(nullptr), nullptr);
+    HWND hEmu = CreateWindowExW(0, L"BUTTON", L"\u25B6  Start Emulators",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        144, BY, 140, BH, hDlg, (HMENU)1002, GetModuleHandle(nullptr), nullptr);
+    HWND hHW = CreateWindowExW(0, L"BUTTON", L"\u2705  Launch Hardware",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        292, BY, 112, BH, hDlg, (HMENU)1003, GetModuleHandle(nullptr), nullptr);
+    HWND hExit = CreateWindowExW(0, L"BUTTON", L"\u2716  Exit",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        DW - 80, BY + 36, 64, 22, hDlg, (HMENU)1004, GetModuleHandle(nullptr), nullptr);
+
+    SendMessage(hRetry, WM_SETFONT, (WPARAM)fBody, TRUE);
+    SendMessage(hEmu,   WM_SETFONT, (WPARAM)fBody, TRUE);
+    SendMessage(hHW,    WM_SETFONT, (WPARAM)fBody, TRUE);
+    SendMessage(hExit,  WM_SETFONT, (WPARAM)fBody, TRUE);
+
+    // Populate initial device status
+    UpdateStartupDeviceLabels(state);
+    ShowWindow(hDlg, SW_SHOW);
+
+    // Run message loop until dialog is dismissed
+    MSG msg = {};
+    while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+
+    hwOut = state.hw;
+    if (state.launchEmulator) return true;  // true = use emulator
+    if (state.launchHardware) return false; // false = use hardware
+    return false; // default if quit
+}
+#endif // !RADUK_EMULATOR
 
 // ── Apply profile ──────────────────────────────────────────────
 static void ApplyProfile(const TargetProfile& p,
@@ -205,9 +461,9 @@ static int RunApp(bool useEmulator) {
     // ── Camera ─────────────────────────────────────────────────
     // DeviceFactory.h swaps ASICamera↔CameraEmulator at compile time.
     // Emulator build: Open() always succeeds, no SDK needed.
-    // Hardware build: must detect real camera first.
+    // Hardware build running as emulator (useEmulator=true): also skip SDK check.
 #ifndef RADUK_EMULATOR
-    {
+    if (!useEmulator) {
         auto cameras = ASICamera::Enumerate();
         if (cameras.empty()) {
             MessageBoxA(nullptr, "No cameras detected.", "RadukCapture", MB_ICONERROR);
@@ -217,25 +473,37 @@ static int RunApp(bool useEmulator) {
 #endif // RADUK_EMULATOR
     ASICamera cam;
     if (!cam.Open(0)) {
-        MessageBoxA(nullptr, "Failed to open camera.", "RadukCapture", MB_ICONERROR);
-        return 1;
+        if (!useEmulator)
+            MessageBoxA(nullptr, "Failed to open camera.", "RadukCapture", MB_ICONERROR);
+        if (!useEmulator) return 1;
+        Log("[INIT] Camera open skipped (emulator mode)\n");
+    } else {
+        Log("[INIT] Camera: %s\n", cam.Name().c_str());
+        slog.Camera("Opened: %s", cam.Name().c_str());
     }
-    Log("[INIT] Camera: %s\n", cam.Name().c_str());
-    slog.Camera("Opened: %s", cam.Name().c_str());
 
     int roiWidth = 3840, roiHeight = 2160;
     cam.SetROI(roiWidth, roiHeight, 1, ASI_IMG_RAW8);
+    // Read back actual ROI — emulator caps to 1280x960
+    {
+        int aW=roiWidth,aH=roiHeight,aB=1; ASI_IMG_TYPE aT=ASI_IMG_RAW8;
+        cam.GetROI(aW,aH,aB,aT); roiWidth=aW; roiHeight=aH;
+    }
     cam.SetGain(100); cam.SetExposure(8.0); cam.SetGamma(50);
     cam.SetWhiteBalance(52, 47); cam.SetUSBBandwidth(80); cam.SetHighSpeedMode(true);
 
     // ── EAF ────────────────────────────────────────────────────
     EAFFocuser focuser;
-    raduk::core::AutofocusRoutine autofocus;  // Phase 9 — wired to focuser below
+    raduk::core::AutofocusRoutine autofocus;
 #ifdef RADUK_EMULATOR
-    focuser.Open(0); // EAFEmulator always succeeds
+    focuser.Open(0);
     Log("[INIT] EAF emulated — pos=%d\n", focuser.GetPosition());
 #else
-    if (EAFFocuser::GetCount() > 0) {
+    if (useEmulator) {
+        // Runtime emulator mode in hardware build — EAFEmulator not available,
+        // just skip; focuser stays closed and all focuser calls are guarded by IsOpen()
+        Log("[INIT] EAF: skipped (emulator mode)\n");
+    } else if (EAFFocuser::GetCount() > 0) {
         if (focuser.Open(0)) Log("[INIT] EAF OK pos=%d\n", focuser.GetPosition());
         else Log("WARNING: EAF open failed.\n");
     }
@@ -248,14 +516,19 @@ static int RunApp(bool useEmulator) {
 
 #ifdef RADUK_EMULATOR
     {
-        auto* em = new MountEmulator();
+        auto* em = new raduk::core::NexStarMount();
         em->Connect("EMU");
         mountPtr.reset(em);
         startInRCControl = true;
         Log("[INIT] Mount: emulated\n");
     }
 #else
-    {
+    if (useEmulator) {
+        // Runtime emulator mode — use a null mount (no mount emulator in hardware build)
+        // All mount calls are guarded by mount->IsConnected()
+        Log("[INIT] Mount: skipped (emulator mode)\n");
+        startInRCControl = false;
+    } else {
         // Try ASCOM first (CPWI running)
         std::string ascomProgId = ASCOMMount::FindCPWIDriver();
         if (!ascomProgId.empty()) {
@@ -289,7 +562,7 @@ static int RunApp(bool useEmulator) {
                 Log("[INIT] Mount: not connected (neither CPWI nor COM3 available)\n");
             }
         }
-    }
+    } // end !useEmulator hardware path
 #endif // RADUK_EMULATOR
 
     IMount* mount = mountPtr.get(); // may be nullptr
@@ -540,6 +813,23 @@ static int RunApp(bool useEmulator) {
     mountCtrl.SetEmergencyStopCallback([&]() {
         Log("[SAFETY] MountCtrl: STOP pressed\n");
         slog.Mount("Emergency stop (MountCtrl)");
+    });
+
+    mountCtrl.SetAlignCallback([&](double ra_h, double dec_deg,
+                                    const std::string& name) {
+        Log("[ALIGN] Syncing to %s (RA=%.4fh Dec=%.4f°)\n",
+            name.c_str(), ra_h, dec_deg);
+        slog.Mount("Align sync: %s RA=%.4fh Dec=%.4f°",
+                   name.c_str(), ra_h, dec_deg);
+        // Tell mount where it's actually pointing
+        if (mount && mount->IsConnected())
+            mount->SyncRADec(ra_h, dec_deg);
+        // Update sky map crosshair to true position
+        skyMap.SetMountPosition(ra_h, dec_deg, true);
+        // Flash confirmation in notification bar
+        notifBar.NotifyInfo(
+            std::wstring(L"\u2605 Aligned to ") +
+            std::wstring(name.begin(), name.end()));
     });
     mountCtrl.Create(window.Handle());
     mountCtrl.Show();  // visible by default - safety first
@@ -958,6 +1248,13 @@ static int RunApp(bool useEmulator) {
         // Apply new ROI size then start position
         cam.SetROI(newW, newH, 1, ASI_IMG_RAW8);
         cam.SetStartPos(startX, startY);
+        // Read back actual ROI — emulator may cap dimensions
+        {
+            int actualW = newW, actualH = newH, actualBin = 1;
+            ASI_IMG_TYPE actualType = ASI_IMG_RAW8;
+            cam.GetROI(actualW, actualH, actualBin, actualType);
+            newW = actualW; newH = actualH;
+        }
         roiWidth  = newW;
         roiHeight = newH;
 
@@ -1178,6 +1475,11 @@ static int RunApp(bool useEmulator) {
                 capture.Stop();
                 cam.SetROI(newW, newH, 1, ASI_IMG_RAW8);
                 cam.SetStartPos(startX, startY);
+                // Read back actual ROI — emulator may cap dimensions
+                {
+                    int aW=newW,aH=newH,aB=1; ASI_IMG_TYPE aT=ASI_IMG_RAW8;
+                    cam.GetROI(aW,aH,aB,aT); newW=aW; newH=aH;
+                }
                 roiWidth = newW; roiHeight = newH;
                 int newBytes = ASICamera::FrameSize(newW, newH, ASI_IMG_RAW8);
                 ring.Allocate(DEFAULT_RING_SIZE, newBytes);
@@ -1668,8 +1970,7 @@ static int RunApp(bool useEmulator) {
 
     window.Run([&]() {
         // ── SAFETY: Feed mount watchdog every frame ────────────
-        // Must be called continuously. If this stops (freeze/crash),
-        // the watchdog fires EmergencyStop() after WATCHDOG_TIMEOUT_MS.
+        // Heartbeat() is a no-op in emulator mode; real watchdog in hardware mode.
         if (mount && mount->IsConnected())
             static_cast<raduk::core::NexStarMount*>(mount)->Heartbeat();
 
@@ -2229,7 +2530,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // reticle to not bisect the image correctly.
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
-    HANDLE hMutex = CreateMutexA(nullptr, TRUE, "RadukCapture_SingleInstance");
+#ifdef RADUK_EMULATOR
+    const char* MUTEX_NAME = "RadukCapture_Emulator_SingleInstance";
+#else
+    const char* MUTEX_NAME = "RadukCapture_SingleInstance";
+#endif
+    HANDLE hMutex = CreateMutexA(nullptr, TRUE, MUTEX_NAME);
     if (hMutex && GetLastError() == ERROR_ALREADY_EXISTS) {
         MessageBoxA(nullptr,
             "RadukCapture is already running.\n\nClose the existing instance first.",
@@ -2248,18 +2554,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 #else
     Log("[STARTUP] Hardware build\n");
     HardwareStatus hw = CheckHardware();
-    bool useEmulator = false; // set to true if user accepts emulator dialog
+    bool useEmulator = false;
     if (!hw.AllPresent()) {
-        std::string msg = BuildMissingMessage(hw);
-        int choice = MessageBoxA(nullptr, msg.c_str(),
-            "RadukCapture -- Hardware Not Found",
-            MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
-        if (choice != IDYES) {
+        // Release mutex before showing dialog — if user picks Start Emulators,
+        // the emulator exe needs to acquire its own mutex without us holding it.
+        if (hMutex) { CloseHandle(hMutex); hMutex = nullptr; }
+        bool wantsEmulator = ShowStartupDialog(hw);
+        if (wantsEmulator || !hw.AllPresent()) {
+            // Either emulator was launched (wantsEmulator=true and the exe was
+            // spawned) or user exited the dialog — either way, this process exits.
             if (hMutex) CloseHandle(hMutex);
             if (g_log) fclose(g_log);
             return 0;
         }
-        useEmulator = true;
+        useEmulator = wantsEmulator;
     }
     int result = RunApp(useEmulator);
 #endif

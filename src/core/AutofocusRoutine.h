@@ -45,7 +45,7 @@
 #include <algorithm>
 #include <chrono>
 
-#include "EAFFocuser.h"
+#include "DeviceFactory.h"
 
 namespace raduk::core {
 

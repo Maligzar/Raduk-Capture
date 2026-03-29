@@ -2067,20 +2067,9 @@ static int RunApp(bool useEmulator) {
                 else
                     tracker.SubmitCentroidLost();
 
-                // Auto-advance stages — no button press needed after a GoTo.
-                // When stable: automatically move Searching → Centering.
-                // When dwell met: automatically call doROILock (ROI crop + hand-off).
-                if (transition) {
-                    if (stage == raduk::core::AcquisitionStage::Searching) {
-                        Log("[ACQ] Centroid stable — auto-advancing to Stage 2: CENTERING\n");
-                        slog.Mount("Auto-acquisition: Centering");
-                        tracker.StartCentering();
-                    } else if (stage == raduk::core::AcquisitionStage::Centering) {
-                        Log("[ACQ] Dwell met — auto-advancing to Stage 3: LOCKED\n");
-                        slog.Mount("Auto-acquisition: Locked");
-                        doROILock();
-                    }
-                }
+                // Stages advance only on explicit user button press ([LOCK] and [ROI]).
+                // Auto-advance removed — user must confirm each stage transition.
+                // toolbar.UpdateStates() below lights up the buttons when ready.
             }
 
             // Update toolbar button states every frame

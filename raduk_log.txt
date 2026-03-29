@@ -28,6 +28,9 @@
   P4:  Remote commands: start/stop_capture, load_profile, move_eaf, goto_target
   P4:  Session summary written to log at shutdown
 
+[SKYMAP] GoTo: Moon (9.6247h, 15.8417°)
+[PROFILE] Auto-loading 'Moon' profile for GoTo target 'Moon'
+[PROFILE] Applying: Moon
 
 Shutting down...
 Goodbye.

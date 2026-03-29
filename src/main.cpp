@@ -821,15 +821,9 @@ static int RunApp(bool useEmulator) {
             name.c_str(), ra_h, dec_deg);
         slog.Mount("Align sync: %s RA=%.4fh Dec=%.4f°",
                    name.c_str(), ra_h, dec_deg);
-        // Tell mount where it's actually pointing
         if (mount && mount->IsConnected())
             mount->SyncRADec(ra_h, dec_deg);
-        // Update sky map crosshair to true position
         skyMap.SetMountPosition(ra_h, dec_deg, true);
-        // Flash confirmation in notification bar
-        notifBar.NotifyInfo(
-            std::wstring(L"\u2605 Aligned to ") +
-            std::wstring(name.begin(), name.end()));
     });
     mountCtrl.Create(window.Handle());
     mountCtrl.Show();  // visible by default - safety first
@@ -869,6 +863,21 @@ static int RunApp(bool useEmulator) {
         notifBar.SnapToMainWindow();
     });
     Log("[INIT] Notification bar ready\n");
+
+    // Re-register align callback now that notifBar exists — adds notification flash
+    mountCtrl.SetAlignCallback([&](double ra_h, double dec_deg,
+                                    const std::string& name) {
+        Log("[ALIGN] Syncing to %s (RA=%.4fh Dec=%.4f°)\n",
+            name.c_str(), ra_h, dec_deg);
+        slog.Mount("Align sync: %s RA=%.4fh Dec=%.4f°",
+                   name.c_str(), ra_h, dec_deg);
+        if (mount && mount->IsConnected())
+            mount->SyncRADec(ra_h, dec_deg);
+        skyMap.SetMountPosition(ra_h, dec_deg, true);
+        notifBar.NotifyInfo(
+            std::wstring(L"\u2605 Aligned to ") +
+            std::wstring(name.begin(), name.end()));
+    });
 
     // RC is always in control - no CPWI. Set initial state before callbacks wired.
     if (startInRCControl) {

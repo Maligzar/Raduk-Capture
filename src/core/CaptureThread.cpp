@@ -1,87 +1,159 @@
+// ============================================================
+// CaptureThread.cpp — High-priority capture loop for RadukCapture
+// Section 6.2 of Architecture Doc
+// ============================================================
+
 #include "CaptureThread.h"
 #include <cstdio>
-#include <windows.h>
 
 namespace raduk::core {
 
-bool CaptureThread::Start(ASICamera& camera, RingBuffer& ringBuffer, double exposureMs, int cpuCore) {
-    if (m_running.load()) return false;
-    if (!camera.IsOpen()) return false;
-    if (!ringBuffer.IsAllocated()) return false;
+bool CaptureThread::Start(ASICamera& camera, RingBuffer& ringBuffer,
+                           double exposureMs, int cpuCore) {
+    if (m_running.load()) {
+        printf("[CaptureThread] Already running\n");
+        return false;
+    }
+
+    if (!camera.IsOpen()) {
+        printf("[CaptureThread] Camera not open\n");
+        return false;
+    }
+
+    if (!ringBuffer.IsAllocated()) {
+        printf("[CaptureThread] Ring buffer not allocated\n");
+        return false;
+    }
 
     m_camera = &camera;
     m_ringBuffer = &ringBuffer;
     m_exposureMs.store(exposureMs, std::memory_order_relaxed);
     m_cpuCore = cpuCore;
 
-    // Reset Stats
-    m_stats.framesCaptured = 0; m_stats.timeouts = 0; m_stats.errors = 0;
-    m_stats.recoveryResets = 0; m_stats.droppedFrames = 0; m_stats.bufferOverruns = 0;
-    m_stats.fps = 0.0; m_consecutiveTimeouts = 0;
+    // Reset stats
+    m_stats.framesCaptured.store(0, std::memory_order_relaxed);
+    m_stats.timeouts.store(0, std::memory_order_relaxed);
+    m_stats.errors.store(0, std::memory_order_relaxed);
+    m_stats.droppedFrames.store(0, std::memory_order_relaxed);
+    m_stats.bufferOverruns.store(0, std::memory_order_relaxed);
+    m_stats.fps.store(0.0, std::memory_order_relaxed);
+    m_stats.lastFrameTimestamp.store(0, std::memory_order_relaxed);
+    m_fpsStartTime = 0;
+    m_fpsFrameCount = 0;
 
-    if (!m_camera->StartVideoCapture()) return false;
+    // Start video capture on the camera
+    if (!m_camera->StartVideoCapture()) {
+        printf("[CaptureThread] Failed to start video capture\n");
+        return false;
+    }
 
+    // Launch the thread
     m_running.store(true, std::memory_order_release);
     m_thread = std::thread(&CaptureThread::Run, this);
+
+    printf("[CaptureThread] Started (exposure=%.2fms, core=%d)\n",
+           exposureMs, cpuCore);
     return true;
 }
 
 void CaptureThread::Stop() {
-    if (!m_running.load()) return;
+    if (!m_running.load(std::memory_order_relaxed)) return;
+
     m_running.store(false, std::memory_order_release);
-    if (m_thread.joinable()) m_thread.join();
-    if (m_camera) m_camera->StopVideoCapture();
+
+    if (m_thread.joinable()) {
+        m_thread.join();
+    }
+
+    if (m_camera && m_camera->IsCapturing()) {
+        m_camera->StopVideoCapture();
+    }
+
+    printf("[CaptureThread] Stopped — %llu frames captured, %llu timeouts, "
+           "%d SDK drops, %llu overruns\n",
+           m_stats.framesCaptured.load(),
+           m_stats.timeouts.load(),
+           m_stats.droppedFrames.load(),
+           m_stats.bufferOverruns.load());
 }
 
 void CaptureThread::Run() {
-    if (m_cpuCore >= 0) SetThreadAffinityMask(GetCurrentThread(), (1ULL << m_cpuCore));
+    // Pin to dedicated CPU core for consistent latency
+    if (m_cpuCore >= 0) {
+        SetThreadAffinityMask(GetCurrentThread(), (1ULL << m_cpuCore));
+    }
+
+    // Elevate to time-critical priority — capture must never be preempted
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
-    int roiW, roiH, roiB; ASI_IMG_TYPE roiT;
-    m_camera->GetROI(roiW, roiH, roiB, roiT);
-    int frameSize = ASICamera::FrameSize(roiW, roiH, roiT);
-    uint8_t bitDepth = (roiT == ASI_IMG_RAW16) ? 16 : 8;
+    // Get current ROI info for frame metadata
+    int roiWidth = 0, roiHeight = 0, roiBin = 0;
+    ASI_IMG_TYPE roiType = ASI_IMG_RAW8;
+    m_camera->GetROI(roiWidth, roiHeight, roiBin, roiType);
 
+    int frameSizeBytes = ASICamera::FrameSize(roiWidth, roiHeight, roiType);
+    uint8_t bitDepth = (roiType == ASI_IMG_RAW16) ? 16 : 8;
+
+    // Initialize FPS counter
     m_fpsStartTime = Timestamp::Now();
+    m_fpsFrameCount = 0;
+
+    printf("[CaptureThread] Capture loop running — %dx%d %s (%d bytes/frame)\n",
+           roiWidth, roiHeight,
+           (roiType == ASI_IMG_RAW16) ? "RAW16" : "RAW8",
+           frameSizeBytes);
 
     while (m_running.load(std::memory_order_relaxed)) {
+        // Calculate timeout: 2x exposure + 500ms safety margin
         double expMs = m_exposureMs.load(std::memory_order_relaxed);
         int timeoutMs = static_cast<int>(expMs * 2.0) + 500;
 
+        // Acquire a slot from the ring buffer
         FrameSlot* slot = m_ringBuffer->AcquireWriteSlot();
-        if (!slot) { m_stats.bufferOverruns++; continue; }
+        if (!slot) {
+            m_stats.bufferOverruns.fetch_add(1, std::memory_order_relaxed);
+            continue;
+        }
 
-        if (m_camera->GetVideoFrame(slot->data, static_cast<int>(slot->bufferCapacity), timeoutMs)) {
-            m_consecutiveTimeouts = 0; // Reset counter on success
-            slot->dataSize = frameSize;
+        // Pull a frame from the SDK
+        bool gotFrame = m_camera->GetVideoFrame(slot->data,
+                                                 static_cast<int>(slot->bufferCapacity),
+                                                 timeoutMs);
+
+        if (gotFrame) {
+            // Fill metadata
+            slot->dataSize = frameSizeBytes;
             slot->timestamp = Timestamp::Now();
-            slot->frameNumber = m_stats.framesCaptured.load();
-            slot->width = roiW; slot->height = roiH;
-            slot->bitDepth = bitDepth; slot->imgType = roiT;
+            slot->frameNumber = m_stats.framesCaptured.load(std::memory_order_relaxed);
+            slot->width = roiWidth;
+            slot->height = roiHeight;
+            slot->bitDepth = bitDepth;
+            slot->imgType = roiType;
 
+            // Commit the frame to the ring buffer
             m_ringBuffer->CommitWrite(slot);
-            m_stats.framesCaptured++;
-            m_stats.lastFrameTimestamp = slot->timestamp;
+            m_stats.framesCaptured.fetch_add(1, std::memory_order_relaxed);
+            m_stats.lastFrameTimestamp.store(slot->timestamp, std::memory_order_relaxed);
 
+            // Update FPS measurement
             m_fpsFrameCount++;
-            double elapsed = Timestamp::ElapsedSec(m_fpsStartTime, slot->timestamp);
+            uint64_t now = slot->timestamp;
+            double elapsed = Timestamp::ElapsedSec(m_fpsStartTime, now);
             if (elapsed >= FPS_UPDATE_INTERVAL_SEC) {
-                m_stats.fps = static_cast<double>(m_fpsFrameCount) / elapsed;
-                m_fpsStartTime = slot->timestamp; m_fpsFrameCount = 0;
+                double measuredFps = static_cast<double>(m_fpsFrameCount) / elapsed;
+                m_stats.fps.store(measuredFps, std::memory_order_relaxed);
+                m_fpsStartTime = now;
+                m_fpsFrameCount = 0;
             }
         } else {
+            // Frame not received — release the slot
             m_ringBuffer->ReleaseWrite(slot);
-            m_stats.timeouts++;
-            
-            // --- AUTO-RECOVERY LOGIC ---
-            m_consecutiveTimeouts++;
-            if (m_consecutiveTimeouts >= m_maxTimeoutsBeforeReset) {
-                printf("[CaptureThread] Pipeline wedged! Attempting auto-restart...\n");
-                if (m_camera->RestartCapture()) m_stats.recoveryResets++;
-                m_consecutiveTimeouts = 0;
-            }
+            m_stats.timeouts.fetch_add(1, std::memory_order_relaxed);
         }
-        m_stats.droppedFrames = m_camera->GetDroppedFrames();
+
+        // Check for SDK-reported dropped frames
+        int drops = m_camera->GetDroppedFrames();
+        m_stats.droppedFrames.store(drops, std::memory_order_relaxed);
     }
 }
 

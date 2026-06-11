@@ -152,7 +152,9 @@ inline bool PlanetRADec(const PlanetElements& p, double jd,
              - yh * (sinO * sinw - cosO * cosw * cosi);
     double z = xh * (sinw * sini) + yh * (cosw * sini);
 
-    // Earth heliocentric (simplified — use Sun's ecliptic longitude)
+    // Sun's geocentric ecliptic longitude (Ler) and distance (re).
+    // (Xe, Ye) is therefore the GEOCENTRIC SUN vector, and Earth's
+    // heliocentric position is its negative.
     double Le = NormDeg(280.46646 + 36000.76983 * T);
     double Me = Rad(NormDeg(357.52911 + 35999.05029 * T));
     double re = 1.000140 - 0.016708 * cos(Me) - 0.000141 * cos(2*Me);
@@ -160,9 +162,12 @@ inline bool PlanetRADec(const PlanetElements& p, double jd,
     double Xe = re * cos(Ler);
     double Ye = re * sin(Ler);
 
-    // Geocentric ecliptic
-    double gx = x - Xe;
-    double gy = y - Ye;
+    // Geocentric ecliptic = helio_planet − helio_Earth = helio_planet + geo_Sun.
+    // (The previous `x - Xe` subtracted the geocentric Sun — i.e. placed Earth
+    // on the wrong side of the Sun — making planet RA/Dec wrong by up to tens
+    // of degrees for the inner planets.)
+    double gx = x + Xe;
+    double gy = y + Ye;
     double gz = z;
 
     // Obliquity of ecliptic

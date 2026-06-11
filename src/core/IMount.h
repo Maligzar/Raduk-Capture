@@ -59,11 +59,20 @@ public:
 
     // ── Guide pulses (Phase 5 centroid tracking) ───────────────
     // Send a correction pulse in the given direction for durationMs milliseconds.
-    // Non-blocking — returns immediately; check IsPulseGuiding() before sending next.
-    // ASCOMMount: maps to ITelescope.PulseGuide()
-    // NexStarMount / Emulator: no-op or serial P command
+    // ASCOMMount: maps to ITelescope.PulseGuide() (returns immediately;
+    //             check IsPulseGuiding() before sending the next pulse).
+    // NexStarMount: software-timed slew — BLOCKS the calling thread for
+    //               durationMs. Only call from the correction thread.
+    // Emulator: instantaneous position nudge.
     virtual bool PulseGuide(GuideDirection dir, int durationMs) = 0;
     virtual bool IsPulseGuiding() = 0;
+
+    // ── SAFETY: watchdog heartbeat ─────────────────────────────
+    // Called by the main render loop every frame. NexStarMount uses it to
+    // feed its runaway-mount watchdog; other backends ignore it. Virtual so
+    // callers never need to downcast (a static_cast to NexStarMount here
+    // previously corrupted ASCOMMount instances on the CPWI path).
+    virtual void Heartbeat() {}
 
     // ── Info ───────────────────────────────────────────────────
     virtual bool GetVersion(int& major, int& minor) = 0;

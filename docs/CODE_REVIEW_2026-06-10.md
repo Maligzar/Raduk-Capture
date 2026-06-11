@@ -11,6 +11,12 @@ Severity: **CRITICAL** = will corrupt memory, runaway the mount, or make the
 feature non-functional on hardware. **HIGH** = likely live failure or safety gap.
 **MEDIUM** = wrong results / robustness gap. **LOW** = minor or latent.
 
+> **Fix status (this branch):** T1, T2, T4, T5, T7 (also closes most of T6),
+> T8, T9, T10, T11, T12, T14, T15, T16 are FIXED in the commits on this PR.
+> T3 (guide calibration) is deliberately deferred to its own change — it is a
+> new routine, not a patch. Parts 2-4 findings are not yet addressed except
+> where noted.
+
 ---
 
 ## Part 1 — Object tracking chain

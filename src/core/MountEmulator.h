@@ -99,9 +99,8 @@ public:
     }
 
     // ── Safety — NexStarMount compatibility stubs ──────────────
-    // main.cpp casts to NexStarMount* for these methods; emulator provides no-ops.
     static constexpr int WATCHDOG_TIMEOUT_MS = 8000;
-    void Heartbeat()     {} // no-op — no watchdog in emulator
+    void Heartbeat() override {} // no-op — no watchdog in emulator
     void EmergencyStop() { CancelGoTo(); StopSlew(0); StopSlew(1); }
 
     // ── Tracking ───────────────────────────────────────────────

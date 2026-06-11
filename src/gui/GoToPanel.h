@@ -277,6 +277,12 @@ public:
         }
     }
 
+    // Slew-completion detection must run even while the panel is hidden —
+    // the sky-map-click GoTo flow relies on m_onGoToComplete to arm the
+    // post-slew acquisition sequence, and the panel is hidden by default.
+    // main.cpp calls this every readout tick when the panel is not visible.
+    void TickSlewStatus() { UpdateSlewStatus(); }
+
     // Call every ~2s to refresh planet positions and list altitude
     void Tick() {
         m_catalog.UpdatePlanets();
@@ -1253,15 +1259,20 @@ private:
     }
 
     void UpdateSlewStatus() {
-        if (!m_mount || !m_mount->IsConnected()) return;
+        // Only poll the mount while a GoTo is actually in flight —
+        // m_lastSlewing is seeded by DoGoTo. IsSlewing() is a serial
+        // round-trip on the NexStar path, so don't call it idly, and
+        // call it only ONCE per tick (it was previously called twice,
+        // racing against the slew ending between the two calls).
+        if (!m_lastSlewing) return;
+        if (!m_mount || !m_mount->IsConnected()) { m_lastSlewing = false; return; }
         if (m_mount->IsSlewing()) {
             SetWindowTextW(m_lblStatus, L"SLEWING...");
-        } else if (m_lastSlewing) {
-            // Just finished slewing
+        } else {
+            m_lastSlewing = false;
             SetWindowTextW(m_lblStatus, L"SLEW COMPLETE — consider plate solving");
             if (m_onGoToComplete) m_onGoToComplete(m_currentTarget);
         }
-        m_lastSlewing = m_mount->IsSlewing();
     }
 
     void DoGoTo(double ra_h, double dec_deg, const std::string& name) {

@@ -24,8 +24,11 @@
 #include <shellscalingapi.h>  // SetProcessDpiAwarenessContext — must be after windows.h
 #include <cstdio>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "core/DeviceFactory.h"
@@ -489,6 +492,13 @@ static int RunApp(bool useEmulator) {
         int aW=roiWidth,aH=roiHeight,aB=1; ASI_IMG_TYPE aT=ASI_IMG_RAW8;
         cam.GetROI(aW,aH,aB,aT); roiWidth=aW; roiHeight=aH;
     }
+    // Sensor-absolute origin of the current ROI. Centroids and rubber-band
+    // selections are ROI-relative, so every crop must add this offset —
+    // without it, a second acquisition cycle (ROI still cropped from the
+    // first) placed the new crop at the wrong sensor position.
+    // The ASI SDK centres a ROI when no start position is set; seed to match.
+    int roiStartX = ((cam.MaxWidth()  - roiWidth)  / 2 / 8) * 8;
+    int roiStartY = ((cam.MaxHeight() - roiHeight) / 2 / 2) * 2;
     cam.SetGain(100); cam.SetExposure(8.0); cam.SetGamma(50);
     cam.SetWhiteBalance(52, 47); cam.SetUSBBandwidth(80); cam.SetHighSpeedMode(true);
 
@@ -800,16 +810,44 @@ static int RunApp(bool useEmulator) {
     // Lets you stop the mount even when RadukCapture is not focused.
     raduk::gui::MountController mountCtrl;
     mountCtrl.SetMount(mount);
-    mountCtrl.SetJogCallback([&](int axis, int dir, bool start) {
-        if (!mount || !mount->IsConnected()) return;
+
+    // Suspend tracker corrections around manual jogs (resume after a 500ms
+    // settle). The generation counter prevents a stale resume timer from
+    // re-enabling corrections in the middle of a newer jog: every start OR
+    // stop bumps the generation, and a timer only resumes if no newer jog
+    // event happened while it slept.
+    auto jogGeneration = std::make_shared<std::atomic<int>>(0);
+    auto suspendTrackerForJog = [&tracker, jogGeneration](bool start) {
         if (start) {
-            mount->SlewFixed(axis, dir, 9);
-            slog.Mount("MountCtrl: jog axis=%d dir=%d start", axis, dir);
+            jogGeneration->fetch_add(1);
+            if (tracker.IsRunning()) tracker.SuspendCorrections();
         } else {
+            int gen = jogGeneration->fetch_add(1) + 1;
+            std::thread([&tracker, jogGeneration, gen]() {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                if (jogGeneration->load() == gen) tracker.ResumeCorrections();
+            }).detach();
+        }
+    };
+
+    mountCtrl.SetJogCallback([&](int axis, int dir, bool start, int rate) {
+        if (!mount) return;
+        if (start) {
+            if (!mount->IsConnected()) return;
+            mount->SlewFixed(axis, dir, rate);
+            suspendTrackerForJog(true);
+            slog.Mount("MountCtrl: jog axis=%d dir=%d rate=%d start", axis, dir, rate);
+        } else {
+            // Stop is sent even if IsConnected() flickered — never strand a
+            // moving mount because a status flag dropped mid-jog.
             mount->StopSlew(axis);
+            suspendTrackerForJog(false);
             slog.Mount("MountCtrl: jog stop axis=%d", axis);
         }
     });
+    // Panel D-pad jogs (ControlPanel drives the mount itself) — still need
+    // the tracker suspend/resume bracket.
+    controls.SetJogActivityCallback(suspendTrackerForJog);
     mountCtrl.SetEmergencyStopCallback([&]() {
         Log("[SAFETY] MountCtrl: STOP pressed\n");
         slog.Mount("Emergency stop (MountCtrl)");
@@ -1240,10 +1278,18 @@ static int RunApp(bool useEmulator) {
         preview.HandleMouseUp(x, y);
     });
 
-    // ROI change — stop capture, apply new ROI, restart everything
+    // ROI change — stop capture, apply new ROI, restart everything.
+    // startX/startY arrive ROI-RELATIVE (PreviewRenderer computes them within
+    // the currently displayed frame) — convert to sensor-absolute here.
     preview.SetROIChangeCallback([&](int newW, int newH, int startX, int startY) {
-        Log("[ROI] Applying %dx%d at (%d,%d)\n", newW, newH, startX, startY);
-        slog.System("ROI: %dx%d  origin:(%d,%d)", newW, newH, startX, startY);
+        int absX = roiStartX + startX;
+        int absY = roiStartY + startY;
+        absX = std::max(0, std::min(absX, cam.MaxWidth()  - newW));
+        absY = std::max(0, std::min(absY, cam.MaxHeight() - newH));
+        absX = (absX / 8) * 8;  // ASI start-pos alignment
+        absY = (absY / 2) * 2;
+        Log("[ROI] Applying %dx%d at sensor (%d,%d)\n", newW, newH, absX, absY);
+        slog.System("ROI: %dx%d  origin:(%d,%d)", newW, newH, absX, absY);
 
         bool wasRecording = capturer.IsRecording();
         if (wasRecording) {
@@ -1256,7 +1302,9 @@ static int RunApp(bool useEmulator) {
 
         // Apply new ROI size then start position
         cam.SetROI(newW, newH, 1, ASI_IMG_RAW8);
-        cam.SetStartPos(startX, startY);
+        cam.SetStartPos(absX, absY);
+        roiStartX = absX;
+        roiStartY = absY;
         // Read back actual ROI — emulator may cap dimensions
         {
             int actualW = newW, actualH = newH, actualBin = 1;
@@ -1283,7 +1331,7 @@ static int RunApp(bool useEmulator) {
                                   newW, newH, 8);
 
         Log("[ROI] Applied — %dx%d@(%d,%d)  %d bytes/frame\n",
-            newW, newH, startX, startY, newFrameBytes);
+            newW, newH, absX, absY, newFrameBytes);
 
         // Resume recording if it was active (new file at new ROI)
         if (wasRecording) {
@@ -1470,13 +1518,16 @@ static int RunApp(bool useEmulator) {
             float cy = tracker.LastCentroidY();
             if (tracker.LastCentroidValid() && cx > 0 && cy > 0) {
                 int newW = 1280, newH = 960;
-                int startX = (int)(cx - newW * 0.5f);
-                int startY = (int)(cy - newH * 0.5f);
-                startX = std::max(0, std::min(startX, 3840 - newW));
-                startY = std::max(0, std::min(startY, 2160 - newH));
+                // Centroid is ROI-relative — convert to sensor-absolute via
+                // the tracked ROI origin, and clamp against the real sensor
+                // size (was hardcoded 3840x2160).
+                int startX = roiStartX + (int)(cx - newW * 0.5f);
+                int startY = roiStartY + (int)(cy - newH * 0.5f);
+                startX = std::max(0, std::min(startX, cam.MaxWidth()  - newW));
+                startY = std::max(0, std::min(startY, cam.MaxHeight() - newH));
                 startX = (startX / 8) * 8;
                 startY = (startY / 2) * 2;
-                Log("[ACQ] ROI crop -> %dx%d @ (%d,%d)\n", newW, newH, startX, startY);
+                Log("[ACQ] ROI crop -> %dx%d @ sensor (%d,%d)\n", newW, newH, startX, startY);
                 slog.System("ROI: %dx%d centred on planet", newW, newH);
 
                 bool wasRecording = capturer.IsRecording();
@@ -1484,6 +1535,8 @@ static int RunApp(bool useEmulator) {
                 capture.Stop();
                 cam.SetROI(newW, newH, 1, ASI_IMG_RAW8);
                 cam.SetStartPos(startX, startY);
+                roiStartX = startX;
+                roiStartY = startY;
                 // Read back actual ROI — emulator may cap dimensions
                 {
                     int aW=newW,aH=newH,aB=1; ASI_IMG_TYPE aT=ASI_IMG_RAW8;
@@ -1556,7 +1609,11 @@ static int RunApp(bool useEmulator) {
         }
     });
 
-    window.SetEmergencyStopHandler([&]() {
+    // Shared by ESC and the MountController STOP button. Both must halt the
+    // centroid-tracker correction thread, not just the active slews —
+    // otherwise the guide loop restarts the mount within 250-500ms of the
+    // user pressing STOP.
+    auto doEmergencyStop = [&]() {
         if (capturer.IsRecording()) {
             capturer.StopRecording();
             usbMgr.SetCapturing(false);
@@ -1564,8 +1621,18 @@ static int RunApp(bool useEmulator) {
         autofocus.Abort();                // Phase 9: stop any running AF scan
         controls.SetAutofocusRunning(false);
         tracker.Reset();  // stops all stages, joins correction thread
+        controls.SetSkyMapLocked(false);
         controls.EmergencyStop();
         slog.Safety("EMERGENCY STOP");
+    };
+    window.SetEmergencyStopHandler(doEmergencyStop);
+
+    // Re-register: the early wiring (before tracker callbacks existed) only
+    // logged. MountController::EmergencyStop has already stopped both axes
+    // by the time this fires; this adds the tracker/AF/recording shutdown.
+    mountCtrl.SetEmergencyStopCallback([&]() {
+        Log("[SAFETY] MountCtrl: STOP pressed\n");
+        doEmergencyStop();
     });
     window.SetReticleToggleHandler([&]()    { doReticle();          });
     window.SetClipToggleHandler([&]()       { preview.ToggleClip(); });
@@ -1788,18 +1855,15 @@ static int RunApp(bool useEmulator) {
         }
     });
     window.SetJogHandler([&](int axis, int dir, bool pressed) {
-        if (!mount || !mount->IsConnected()) return;
+        if (!mount) return;
         if (pressed) {
+            if (!mount->IsConnected()) return;
             mount->SlewFixed(axis, dir, controls.JogRate());
-            if (tracker.IsRunning()) tracker.SuspendCorrections();
+            suspendTrackerForJog(true);
         } else {
+            // Stop unconditionally — see MountController jog callback.
             mount->StopSlew(axis);
-            if (tracker.IsRunning()) {
-                std::thread([&tracker = tracker]() {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                    tracker.ResumeCorrections();
-                }).detach();
-            }
+            suspendTrackerForJog(false);
         }
     });
 
@@ -1979,9 +2043,11 @@ static int RunApp(bool useEmulator) {
 
     window.Run([&]() {
         // ── SAFETY: Feed mount watchdog every frame ────────────
-        // Heartbeat() is a no-op in emulator mode; real watchdog in hardware mode.
+        // Virtual on IMount: NexStarMount feeds its watchdog, the ASCOM and
+        // emulator backends no-op. (Previously a static_cast to NexStarMount
+        // here corrupted ASCOMMount instances on the CPWI path.)
         if (mount && mount->IsConnected())
-            static_cast<raduk::core::NexStarMount*>(mount)->Heartbeat();
+            mount->Heartbeat();
 
         FrameSlot* frame = ring.GetLatestFrame();
         const auto& stats = capture.Stats();
@@ -2029,8 +2095,11 @@ static int RunApp(bool useEmulator) {
         preview.SetSkyMapVisible(skyMap.IsVisible());
 
         // Grab latest analysis result — push to ControlPanel for GDI histogram
-        if (analyzer.HasResult())
+        bool freshAnalysis = false;
+        if (analyzer.HasResult()) {
             lastAnalysis = analyzer.GetResult();
+            freshAnalysis = true;
+        }
 
         if (lastAnalysis.valid)
             controls.UpdateAnalysis(lastAnalysis);
@@ -2057,13 +2126,18 @@ static int RunApp(bool useEmulator) {
         // Stage 3 (Locked):    corrections only
         {
             auto stage = tracker.Stage();
-            if (stage != raduk::core::AcquisitionStage::Off) {
-                bool transition = false;
+            // Submit ONLY on a fresh analyzer result. Re-submitting the stale
+            // lastAnalysis every render tick (the previous behavior) refreshed
+            // the tracker's centroid-loss timestamp with old data — so if the
+            // camera stalled, the 2s loss cutoff never fired and corrections
+            // continued against a frozen centroid. It also made the stable/
+            // dwell counters count render ticks (~60Hz) instead of analyses.
+            if (stage != raduk::core::AcquisitionStage::Off && freshAnalysis) {
                 if (lastAnalysis.valid && lastAnalysis.centroidValid)
-                    transition = tracker.SubmitCentroid(lastAnalysis.centroidX,
-                                                        lastAnalysis.centroidY,
-                                                        lastAnalysis.width,
-                                                        lastAnalysis.height);
+                    tracker.SubmitCentroid(lastAnalysis.centroidX,
+                                           lastAnalysis.centroidY,
+                                           lastAnalysis.width,
+                                           lastAnalysis.height);
                 else
                     tracker.SubmitCentroidLost();
 
@@ -2228,9 +2302,14 @@ static int RunApp(bool useEmulator) {
                 }
             }
 
-            // GoTo panel — refresh planet positions and slew status
+            // GoTo panel — refresh planet positions and slew status.
+            // Slew-completion detection must run even while the panel is
+            // hidden: the sky-map-click GoTo flow (panel hidden by default)
+            // relies on it to fire GoToComplete and arm auto-acquisition.
             if (gotoPanel.IsVisible())
                 gotoPanel.Tick();
+            else
+                gotoPanel.TickSlewStatus();
 
             // Sky map — update mount crosshair and redraw
             if (skyMap.IsVisible())

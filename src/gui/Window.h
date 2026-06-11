@@ -130,6 +130,7 @@ private:
     int                     m_clientHeight = 0;
     float                   m_dpiScale     = 1.0f;
     bool                    m_fullscreen   = false;
+    bool                    m_arrowJogHeld[2][2] = {}; // [axis][dir] keyboard jogs in progress
     WINDOWPLACEMENT         m_savedPlacement{};
 
     ID2D1Factory*           m_d2dFactory   = nullptr;

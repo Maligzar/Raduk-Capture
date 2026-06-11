@@ -38,7 +38,8 @@ public:
     // ── Setup ─────────────────────────────────────────────────
     void SetMount(raduk::core::IMount* m) { m_mount = m; }
 
-    void SetJogCallback(std::function<void(int axis, int dir, bool start)> cb) {
+    // rate is the panel's selected jog rate (5/7/8/9) at press time.
+    void SetJogCallback(std::function<void(int axis, int dir, bool start, int rate)> cb) {
         m_onJog = cb;
     }
     void SetEmergencyStopCallback(std::function<void()> cb) {
@@ -332,11 +333,15 @@ private:
             double xecl = r*(cos(O)*cos(v+w-O) - sin(O)*sin(v+w-O)*cos(ii));
             double yecl = r*(sin(O)*cos(v+w-O) + cos(O)*sin(v+w-O)*cos(ii));
             double zecl = r*sin(v+w-O)*sin(ii);
-            // Convert to geocentric (subtract Sun's position)
+            // Convert to geocentric: helio_planet − helio_Earth, and Earth's
+            // heliocentric position is the NEGATIVE of the geocentric Sun
+            // vector — so geocentric = helio_planet + geo_Sun. (The previous
+            // code added Earth's heliocentric position instead, putting Earth
+            // on the wrong side of the Sun: tens of degrees of sky error.)
             double sR   = 1.000001018*(1 - 0.01671022*0.01671022)
                          /(1 + 0.01671022*cos(M0));
-            double sX   = -sR*cos(sunLon*D2R);
-            double sY   = -sR*sin(sunLon*D2R);
+            double sX   = sR*cos(sunLon*D2R);   // geocentric Sun
+            double sY   = sR*sin(sunLon*D2R);
             double gx   = xecl + sX, gy = yecl + sY, gz = zecl;
             // Equatorial
             double eR = e0*D2R;
@@ -596,21 +601,35 @@ private:
             }
         };
 
+        // Stop is sent unconditionally (no IsConnected gate): a transient
+        // connection-flag drop mid-jog must never strand a moving mount.
+        auto stopActiveJog = [self]() {
+            if (self->m_activeJogAxis < 0) return;
+            int axis = self->m_activeJogAxis;
+            int dir  = self->m_activeJogDir;
+            self->m_activeJogAxis = -1;
+            if (self->m_onJog) self->m_onJog(axis, dir, false, self->m_jogRate);
+        };
+
         if (msg == WM_LBUTTONDOWN) {
             int axis, dir; getAxisDir(id, axis, dir);
             if (axis >= 0 && self->m_mount && self->m_mount->IsConnected()) {
+                self->m_activeJogAxis = axis;
+                self->m_activeJogDir  = dir;
                 SetCapture(hwnd);
-                if (self->m_onJog) self->m_onJog(axis, dir, true);
+                if (self->m_onJog) self->m_onJog(axis, dir, true, self->m_jogRate);
             }
             return 0;
         }
         if (msg == WM_LBUTTONUP) {
+            stopActiveJog();
             ReleaseCapture();
-            int axis, dir; getAxisDir(id, axis, dir);
-            if (axis >= 0 && self->m_mount && self->m_mount->IsConnected()) {
-                if (self->m_onJog) self->m_onJog(axis, dir, false);
-            }
             return 0;
+        }
+        if (msg == WM_CAPTURECHANGED) {
+            // Failsafe: capture stolen mid-press (Alt-Tab, popup, system
+            // menu) means WM_LBUTTONUP never arrives — stop the jog now.
+            stopActiveJog();
         }
         return DefSubclassProc(hwnd, msg, wParam, lParam);
     }
@@ -761,6 +780,8 @@ private:
     HWND m_hwnd    = nullptr;
     raduk::core::IMount* m_mount = nullptr;
     int  m_jogRate = 9;
+    int  m_activeJogAxis = -1;  // axis of in-progress button jog, -1 = none
+    int  m_activeJogDir  = 0;
 
     HWND m_lblRA    = nullptr;
     HWND m_lblDec   = nullptr;
@@ -776,7 +797,7 @@ private:
     HWND m_btnRate5 = nullptr;
     HWND m_btnAlign = nullptr;
 
-    std::function<void(int, int, bool)>                      m_onJog;
+    std::function<void(int, int, bool, int)>                 m_onJog;
     std::function<void()>                                    m_onEmergencyStop;
     std::function<void(double, double, const std::string&)>  m_onAlign;
 };

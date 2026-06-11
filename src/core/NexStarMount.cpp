@@ -306,29 +306,40 @@ double NexStarMount::DecodePosition(const char* hex) {
 }
 
 // ── Guide pulses (Phase 5 fallback path) ──────────────────────
-// Uses NexStar 'P' command to send pulses to motor controllers.
-// ASCOM/CPWI path (ASCOMMount) is preferred for Phase 5 tracking.
+// The NexStar 'P' passthrough has no portable timed-pulse form: the AUX
+// guide command (msgId 0x26) only exists on newer MC firmware, and the
+// previous implementation here sent MC_MOVE_POS/NEG with msgLen=1, which
+// never forwarded the duration bytes at all (pulses were no-ops at best).
+// Pulses are therefore software-timed: start a fixed-rate slew at the
+// slowest rate, hold for durationMs, then stop. BLOCKS the calling thread
+// for the duration — only the centroid-tracker correction thread calls this.
 
 bool NexStarMount::PulseGuide(GuideDirection dir, int durationMs) {
     if (!m_connected) return false;
 
-    // Guide pulses are fire-and-forget — don't wait for HC acknowledgement.
-    // Waiting blocks the correction thread for up to 500ms per pulse,
-    // which combined with the poll thread competing for the serial mutex
-    // causes buffer overruns and corrupted subsequent commands.
-    // The HC executes the pulse immediately on receipt — no ack needed.
-    int axis  = (dir == GuideDirection::East || dir == GuideDirection::West) ? 16 : 17;
-    int motor = (dir == GuideDirection::East || dir == GuideDirection::North) ? 36 : 37;
-    int hi    = (durationMs >> 8) & 0xFF;
-    int lo    = durationMs & 0xFF;
+    // Rate 1 ≈ 0.5x sidereal (~7.5 arcsec/s) on NexStar hand controllers.
+    // CentroidTracker's MS_PER_ARCSEC pulse sizing assumes roughly this rate.
+    constexpr int GUIDE_RATE = 1;
+    constexpr int MAX_PULSE_MS = 1000; // hard safety cap
 
-    char cmd[8];
-    cmd[0] = 'P'; cmd[1] = 1; cmd[2] = (char)axis; cmd[3] = (char)motor;
-    cmd[4] = (char)hi; cmd[5] = (char)lo; cmd[6] = 0; cmd[7] = 0;
+    if (durationMs < 10) return true;          // below mechanical resolution
+    if (durationMs > MAX_PULSE_MS) durationMs = MAX_PULSE_MS;
 
-    bool ok = SendCommandNoWait(cmd, 8);
-    if (!ok) printf("[NexStarMount] PulseGuide send failed\n");
-    return ok;
+    int axis      = (dir == GuideDirection::East || dir == GuideDirection::West) ? 0 : 1;
+    int direction = (dir == GuideDirection::East || dir == GuideDirection::North) ? 0 : 1;
+
+    if (!SlewFixed(axis, direction, GUIDE_RATE)) return false;
+    std::this_thread::sleep_for(std::chrono::milliseconds(durationMs));
+
+    // The stop MUST reach the mount — a started-but-unstopped pulse is a
+    // runaway. Retry the stop, and escalate to EmergencyStop if it won't send.
+    for (int attempt = 0; attempt < 3; attempt++) {
+        if (SlewFixed(axis, 0, 0)) return true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    printf("[NexStarMount] PulseGuide: stop failed to send — EMERGENCY STOP\n");
+    EmergencyStop();
+    return false;
 }
 
 // ── Background poll thread ─────────────────────────────────────

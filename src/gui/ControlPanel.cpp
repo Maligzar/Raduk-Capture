@@ -807,6 +807,11 @@ LRESULT CALLBACK ControlPanel::JogButtonProc(HWND hwnd, UINT msg,
             self->OnJogStop();
             DefSubclassProc(hwnd, msg, wParam, lParam);
             return 0;
+        case WM_CAPTURECHANGED:
+            // Failsafe: capture stolen mid-press (Alt-Tab, popup) means
+            // WM_LBUTTONUP never arrives — stop the jog before it runs away.
+            if (self->m_jogHeld) self->OnJogStop();
+            break;
         case WM_MOUSELEAVE:
             if (self->m_jogHeld) self->OnJogStop();
             break;
@@ -858,15 +863,22 @@ void ControlPanel::OnJogStart(HWND btn) {
     bool ok = m_mount->SlewFixed(axis, dir, m_jogRate);
     printf("[ControlPanel] SlewFixed returned: %s\n", ok ? "OK" : "FAILED");
     m_activeJogAxis = axis; m_jogHeld = true;
+    if (m_onJogActivity) m_onJogActivity(true);
     SetCapture(btn);
 }
 
 void ControlPanel::OnJogStop() {
     if (!m_jogHeld) return;
-    ReleaseCapture();
-    if (m_mount && m_mount->IsConnected() && m_activeJogAxis >= 0)
-        m_mount->StopSlew(m_activeJogAxis);
+    // Clear state BEFORE ReleaseCapture: ReleaseCapture synchronously sends
+    // WM_CAPTURECHANGED, which re-enters here via the failsafe path.
+    int axis = m_activeJogAxis;
     m_activeJogAxis = -1; m_jogHeld = false;
+    // Stop unconditionally — a transient IsConnected() flicker mid-jog must
+    // never strand a moving mount.
+    if (m_mount && axis >= 0)
+        m_mount->StopSlew(axis);
+    if (m_onJogActivity) m_onJogActivity(false);
+    ReleaseCapture();
 }
 
 // ── WM_COMMAND ─────────────────────────────────────────────────

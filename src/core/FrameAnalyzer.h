@@ -165,12 +165,16 @@ private:
             uint64_t sumR = 0, sumG = 0, sumB = 0, sumL = 0;
             uint32_t cntR = 0, cntG = 0, cntB = 0;
 
+            // ASI RAW16 data is left-aligned in the 16-bit word (full 0-65535
+            // range), so reducing to 8 bits needs >> 8. The previous >> 4 left
+            // 0-4095, which the uint8_t cast then wrapped (4096 -> 0, ...),
+            // garbling histograms and the centroid threshold in 16-bit mode.
             auto getP = [&](uint32_t py, uint32_t px) -> uint8_t {
                 if (bd == 8)
                     return buf[py * w + px];
                 else
                     return (uint8_t)(reinterpret_cast<const uint16_t*>(
-                        buf.data())[py * w + px] >> 4);
+                        buf.data())[py * w + px] >> 8);
             };
 
             // Walk in 4-pixel superpixel steps (every other superpixel for speed)
@@ -224,8 +228,8 @@ private:
                 auto getPixel = [&](uint32_t px, uint32_t py) -> float {
                     if (bd == 8)
                         return (float)buf[py * w + px];
-                    else
-                        return (float)(reinterpret_cast<const uint16_t*>(buf.data())[py * w + px] >> 4);
+                    else // RAW16 is left-aligned: scale to 8-bit range
+                        return (float)(reinterpret_cast<const uint16_t*>(buf.data())[py * w + px] >> 8);
                 };
 
                 for (uint32_t py = y0 + 1; py < y1 - 1; py += 2) {
@@ -265,12 +269,13 @@ private:
             }
 
             // ── Centroid: brightness-weighted centre of mass ────────
-            // Search the central 50% of the frame for the brightest
-            // region. Threshold at mean+2σ so we track the planet disk,
-            // not background noise or stars.
+            // Search the FULL frame: Stage 1 (Searching) must find the
+            // planet wherever the GoTo pointing error left it — a central
+            // 50% window misses anything in the outer region. Threshold
+            // isolates the bright planet disk from background and stars.
             {
-                uint32_t x0 = w / 4, x1 = w * 3 / 4;
-                uint32_t y0 = h / 4, y1 = h * 3 / 4;
+                uint32_t x0 = 0, x1 = w;
+                uint32_t y0 = 0, y1 = h;
 
                 // First pass: find mean and max in search region
                 uint64_t rsum = 0; uint32_t rcount = 0;
@@ -280,7 +285,7 @@ private:
                         uint8_t v = (bd == 8)
                             ? buf[py * w + px]
                             : (uint8_t)(reinterpret_cast<const uint16_t*>
-                                (buf.data())[py * w + px] >> 4);
+                                (buf.data())[py * w + px] >> 8);
                         rsum += v; rcount++;
                         if (v > rmax) rmax = v;
                     }
@@ -298,7 +303,7 @@ private:
                             float v = (bd == 8)
                                 ? (float)buf[py * w + px]
                                 : (float)(reinterpret_cast<const uint16_t*>
-                                    (buf.data())[py * w + px] >> 4);
+                                    (buf.data())[py * w + px] >> 8);
                             if (v >= threshold) {
                                 wx += (double)px * v;
                                 wy += (double)py * v;

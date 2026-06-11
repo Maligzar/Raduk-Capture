@@ -96,7 +96,7 @@ public:
     // The watchdog thread checks this timestamp every 500ms.
     // If more than WATCHDOG_TIMEOUT_MS passes without a heartbeat,
     // the mount is emergency-stopped on both axes.
-    void Heartbeat() {
+    void Heartbeat() override {
         m_lastHeartbeat.store(
             std::chrono::steady_clock::now().time_since_epoch().count());
     }

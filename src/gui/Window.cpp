@@ -398,16 +398,16 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                     if (firstPress && m_onFullscreenToggle) m_onFullscreenToggle();
                     return 0;
                 case VK_UP:
-                    if (m_onJog) m_onJog(1, 0, true);
+                    if (m_onJog) { m_arrowJogHeld[1][0] = true; m_onJog(1, 0, true); }
                     return 0;
                 case VK_DOWN:
-                    if (m_onJog) m_onJog(1, 1, true);
+                    if (m_onJog) { m_arrowJogHeld[1][1] = true; m_onJog(1, 1, true); }
                     return 0;
                 case VK_RIGHT:
-                    if (m_onJog) m_onJog(0, 0, true);
+                    if (m_onJog) { m_arrowJogHeld[0][0] = true; m_onJog(0, 0, true); }
                     return 0;
                 case VK_LEFT:
-                    if (m_onJog) m_onJog(0, 1, true);
+                    if (m_onJog) { m_arrowJogHeld[0][1] = true; m_onJog(0, 1, true); }
                     return 0;
             }
             break;
@@ -415,11 +415,23 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
 
         case WM_KEYUP:
             switch (wParam) {
-                case VK_UP:    if (m_onJog) m_onJog(1, 0, false); return 0;
-                case VK_DOWN:  if (m_onJog) m_onJog(1, 1, false); return 0;
-                case VK_RIGHT: if (m_onJog) m_onJog(0, 0, false); return 0;
-                case VK_LEFT:  if (m_onJog) m_onJog(0, 1, false); return 0;
+                case VK_UP:    if (m_onJog) { m_arrowJogHeld[1][0] = false; m_onJog(1, 0, false); } return 0;
+                case VK_DOWN:  if (m_onJog) { m_arrowJogHeld[1][1] = false; m_onJog(1, 1, false); } return 0;
+                case VK_RIGHT: if (m_onJog) { m_arrowJogHeld[0][0] = false; m_onJog(0, 0, false); } return 0;
+                case VK_LEFT:  if (m_onJog) { m_arrowJogHeld[0][1] = false; m_onJog(0, 1, false); } return 0;
             }
+            break;
+
+        case WM_KILLFOCUS:
+            // Failsafe: if focus is lost while an arrow-key jog is held,
+            // WM_KEYUP never arrives — stop any jogs in progress so the
+            // mount can't run away behind another window.
+            for (int axis = 0; axis < 2; axis++)
+                for (int dir = 0; dir < 2; dir++)
+                    if (m_arrowJogHeld[axis][dir]) {
+                        m_arrowJogHeld[axis][dir] = false;
+                        if (m_onJog) m_onJog(axis, dir, false);
+                    }
             break;
 
         case WM_CHAR:

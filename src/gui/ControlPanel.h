@@ -118,6 +118,10 @@ public:
     void SetAutofocusCallback(std::function<void(bool)> cb) { m_onAutofocus = cb; }
     // Mount controller button — clicked to show/reposition the floating panel
     void SetMountCtrlCallback(std::function<void()> cb) { m_onMountCtrl = cb; }
+    // Jog activity — cb(true) on jog start, cb(false) on jog stop.
+    // main.cpp suspends centroid-tracker corrections during manual jogs
+    // (otherwise the guide loop fights the user).
+    void SetJogActivityCallback(std::function<void(bool)> cb) { m_onJogActivity = cb; }
 
     // Phase 12 — Auto-Exposure
     // cb(true) = enable AE advisory; cb(false) = disable
@@ -628,6 +632,7 @@ private:
     std::function<void()>                   m_onSolveSync;
     std::function<void(bool)>               m_onAutofocus;  // Phase 9
     std::function<void()>                   m_onMountCtrl;  // floating mount controller toggle
+    std::function<void(bool)>               m_onJogActivity; // jog start/stop notification
     std::function<void(bool,bool)>          m_onAEToggle;
     std::function<void()>                   m_onRGBAlign;
     std::function<void()>                   m_onFXCycle;

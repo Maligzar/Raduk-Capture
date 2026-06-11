@@ -154,7 +154,10 @@ public:
     void SuspendCorrections() { m_suspended.store(true);  }
     void ResumeCorrections()  { m_suspended.store(false); }
 
-    // ── Feed from main thread each frame ─────────────────────
+    // ── Feed from main thread, ONCE PER NEW ANALYSIS RESULT ───
+    // Do not re-submit a stale result: every call refreshes the
+    // centroid-loss timeout, so re-submitting defeats the 2s safety
+    // cutoff and inflates the stable/dwell counters.
     // Returns true when a stage-transition threshold is first met.
     // Stage 1: returns true at exactly STABLE_FRAMES consecutive.
     // Stage 2: returns true at exactly DWELL_FRAMES consecutive in-threshold.
@@ -173,8 +176,11 @@ public:
         auto stage = m_stage.load();
 
         if (stage == AcquisitionStage::Searching) {
-            if (m_stableCount < STABLE_FRAMES) m_stableCount++;
-            return (m_stableCount == STABLE_FRAMES);
+            if (m_stableCount < STABLE_FRAMES) {
+                m_stableCount++;
+                return (m_stableCount == STABLE_FRAMES); // true exactly once
+            }
+            return false;
         }
 
         if (stage == AcquisitionStage::Centering) {
@@ -182,8 +188,13 @@ public:
             float dyPx = cy - fh * 0.5f;
             float distPx = std::sqrt(dxPx*dxPx + dyPx*dyPx);
             if (distPx <= CENTRE_THRESHOLD_PX) {
-                if (m_dwellCount < DWELL_FRAMES) m_dwellCount++;
-                return (m_dwellCount == DWELL_FRAMES);
+                if (m_dwellCount < DWELL_FRAMES) {
+                    m_dwellCount++;
+                    if (m_dwellCount == DWELL_FRAMES) {
+                        m_dwellPending.store(true); // Tick() fires m_onDwell
+                        return true;                // true exactly once
+                    }
+                }
             } else {
                 m_dwellCount = 0;
             }

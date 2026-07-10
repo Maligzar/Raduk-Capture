@@ -5,6 +5,8 @@
 
 #include "CaptureThread.h"
 #include <cstdio>
+#include <thread>
+#include <chrono>
 
 namespace raduk::core {
 
@@ -111,7 +113,10 @@ void CaptureThread::Run() {
         // Acquire a slot from the ring buffer
         FrameSlot* slot = m_ringBuffer->AcquireWriteSlot();
         if (!slot) {
+            // Every slot busy (readers mid-frame). Brief yield instead of a
+            // TIME_CRITICAL busy-spin; the SDK buffers the frame meanwhile.
             m_stats.bufferOverruns.fetch_add(1, std::memory_order_relaxed);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
 

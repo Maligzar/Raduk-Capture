@@ -92,44 +92,59 @@ public:
 
     // ── Producer (capture thread) ──────────────────────────────
 
-    // Acquire the next slot for writing. Returns nullptr if ring is full
-    // (all slots are READY and no consumer has freed them).
-    // In practice, for preview-only mode we overwrite the oldest frame.
+    // Acquire the next slot for writing, overwriting the oldest unread
+    // frame when the ring has wrapped. Returns nullptr only if every slot
+    // is actively in use (consumer READING / a stuck WRITING) — drop the
+    // frame in that case.
+    //
+    // Phase 56 (review C1): every slot claim is a CAS. The previous code
+    // did an unconditional state.store(WRITING) after a failed CAS, racing
+    // the consumer's READY→READING transition — the consumer could acquire
+    // the slot between our load and store and get its frame stomped
+    // mid-read (torn preview frames AND torn SER writes). The skip path
+    // also desynced m_writePos from the slot actually written.
     FrameSlot* AcquireWriteSlot() {
         uint64_t pos = m_writePos.load(std::memory_order_relaxed);
-        int idx = static_cast<int>(pos % m_numSlots);
-        FrameSlot* slot = &m_slots[idx];
+        for (int k = 0; k < m_numSlots; k++) {
+            int idx = static_cast<int>((pos + k) % m_numSlots);
+            FrameSlot* slot = &m_slots[idx];
 
-        FrameState expected = FrameState::FREE;
-        if (slot->state.compare_exchange_strong(expected, FrameState::WRITING,
-                std::memory_order_acquire, std::memory_order_relaxed)) {
-            return slot;
+            FrameState expected = FrameState::FREE;
+            if (slot->state.compare_exchange_strong(expected, FrameState::WRITING,
+                    std::memory_order_acquire, std::memory_order_relaxed)) {
+                m_acquiredOffset = k;
+                if (k > 0) m_overruns.fetch_add(1, std::memory_order_relaxed);
+                return slot;
+            }
+            // Overwrite an unread (READY) frame — CAS so a consumer that
+            // just claimed it for READING wins and we move on.
+            expected = FrameState::READY;
+            if (slot->state.compare_exchange_strong(expected, FrameState::WRITING,
+                    std::memory_order_acquire, std::memory_order_relaxed)) {
+                m_acquiredOffset = k;
+                m_overruns.fetch_add(1, std::memory_order_relaxed);
+                return slot;
+            }
+            // READING or WRITING — never stomp; try the next slot.
         }
-
-        // Slot not free — force overwrite (oldest frame dropped).
-        // Skip READING slots — the GUI is actively using them, don't stomp.
-        // Try the next slot instead to give the reader a chance to finish.
-        FrameState cur = slot->state.load(std::memory_order_relaxed);
-        if (cur == FrameState::READING) {
-            // Try next slot
-            int nextIdx = static_cast<int>((pos + 1) % m_numSlots);
-            slot = &m_slots[nextIdx];
-        }
-        slot->state.store(FrameState::WRITING, std::memory_order_release);
-        m_overruns.fetch_add(1, std::memory_order_relaxed);
-        return slot;
+        return nullptr; // every slot busy — caller drops this frame
     }
 
     // Mark the slot as READY (frame data is complete) and advance write position.
     void CommitWrite(FrameSlot* slot) {
         slot->state.store(FrameState::READY, std::memory_order_release);
-        m_writePos.fetch_add(1, std::memory_order_release);
+        // Advance so (m_writePos − 1) % numSlots is the slot just written —
+        // keeps GetLatestFrame's newest-first scan anchored even when
+        // AcquireWriteSlot skipped over busy slots.
+        m_writePos.fetch_add(m_acquiredOffset + 1, std::memory_order_release);
+        m_acquiredOffset = 0;
         m_totalFrames.fetch_add(1, std::memory_order_relaxed);
     }
 
     // Release the slot back to FREE without committing (e.g. on SDK error).
     void ReleaseWrite(FrameSlot* slot) {
         slot->state.store(FrameState::FREE, std::memory_order_release);
+        m_acquiredOffset = 0;
     }
 
     // ── Consumer (GUI / analyzer) ──────────────────────────────
@@ -176,6 +191,9 @@ private:
     std::atomic<uint64_t>   m_writePos{0};
     std::atomic<uint64_t>   m_totalFrames{0};
     std::atomic<uint64_t>   m_overruns{0};
+    // Producer-thread-only: slots skipped by the last AcquireWriteSlot,
+    // consumed by CommitWrite to keep m_writePos anchored (SPSC — no atomics)
+    int                     m_acquiredOffset = 0;
 };
 
 } // namespace raduk::core

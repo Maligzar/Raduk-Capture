@@ -2311,6 +2311,11 @@ static int RunApp(bool useEmulator) {
         preview.EndFrame();
         ring.ReleaseRead(frame);
 
+        // Phase 56 (review G2): rubber-band auto-ROI is applied only here,
+        // after the frame is back in the ring — the callback reallocates
+        // the ring, which was a use-after-free when fired mid-render.
+        preview.FireDeferredROIApply();
+
         // ── Readouts every 500ms, EAF/Mount gated by USB manager ──
         auto now = std::chrono::steady_clock::now();
         if (std::chrono::duration_cast<std::chrono::milliseconds>(

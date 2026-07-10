@@ -113,10 +113,23 @@ bool PreviewRenderer::SetFrameSize(int width, int height) {
         width, height,
         m_debayerMode == DebayerMode::Color ? "COLOR" : "RAW");
 
-    // Phase 25: reset stack buffers on size change — stale data would corrupt average
-    if (m_fxAccum) {
-        memset(m_fxAccum, 0, (size_t)width * height * 3 * sizeof(uint32_t));
+    // Phase 25 / Phase 56 (review G1): the stack buffers were allocated for
+    // the OLD frame size — memset with the new size overflowed the heap when
+    // the ROI grew. Reallocate them at the new dimensions instead.
+    if (m_fxAccum || m_fxFrames[0]) {
+        for (int i = 0; i < FX_STACK_MAX; i++) {
+            delete[] m_fxFrames[i];
+            m_fxFrames[i] = nullptr;
+        }
+        delete[] m_fxAccum;
+        m_fxAccum  = nullptr;
         m_fxHead = m_fxFilled = 0;
+        if (m_fxN > 0) { // stack mode still active — rebuild at new size
+            size_t frameBytes = (size_t)width * height * 3;
+            for (int i = 0; i < m_fxN; i++)
+                m_fxFrames[i] = new (std::nothrow) uint8_t[frameBytes]();
+            m_fxAccum = new (std::nothrow) uint32_t[(size_t)width * height * 3]();
+        }
     }
     return true;
 }
@@ -305,14 +318,19 @@ void PreviewRenderer::DrawRubberBand() {
     if (!m_renderTarget || !m_hasLastRect) return;
     if (m_dragState == DragState::Idle) return;
 
-    // Auto-apply after 2 seconds in Confirming state
+    // Auto-apply after 2 seconds in Confirming state.
+    // Phase 56 (review G2): do NOT invoke the ROI callback from inside the
+    // render pass — it reallocates the frame ring while the render loop
+    // still holds a FrameSlot* from GetLatestFrame(), so the subsequent
+    // ReleaseRead() touched freed memory. Flag it instead; the main loop
+    // fires it via FireDeferredROIApply() after releasing the frame.
     if (m_dragState == DragState::Confirming) {
         auto elapsed = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - m_confirmTime).count();
         if (elapsed >= 2.0 && m_onROIChange && m_pendingROIW > 0) {
             m_dragState = DragState::Idle;
             m_showResetPopup = false;
-            m_onROIChange(m_pendingROIW, m_pendingROIH, m_pendingROIX, m_pendingROIY);
+            m_roiAutoApplyPending = true;
             return;
         }
     }

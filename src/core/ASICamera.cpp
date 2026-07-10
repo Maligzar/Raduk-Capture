@@ -121,7 +121,14 @@ bool ASICamera::RestartCapture() {
 }
 
 bool ASICamera::GetVideoFrame(uint8_t* buffer, int bufferSize, int timeoutMs) {
-    return ASIGetVideoData(m_cameraId, buffer, bufferSize, timeoutMs) == ASI_SUCCESS;
+    ASI_ERROR_CODE err;
+    return GetVideoFrameEx(buffer, bufferSize, timeoutMs, err);
+}
+
+bool ASICamera::GetVideoFrameEx(uint8_t* buffer, int bufferSize, int timeoutMs,
+                                 ASI_ERROR_CODE& err) {
+    err = ASIGetVideoData(m_cameraId, buffer, bufferSize, timeoutMs);
+    return err == ASI_SUCCESS;
 }
 
 int ASICamera::GetDroppedFrames() const {
@@ -139,6 +146,8 @@ int ASICamera::FrameSize(int width, int height, ASI_IMG_TYPE imgType) {
 const char* ASICamera::ErrorString(ASI_ERROR_CODE err) {
     switch (err) {
         case ASI_SUCCESS: return "SUCCESS"; case ASI_ERROR_TIMEOUT: return "TIMEOUT";
+        case ASI_ERROR_CAMERA_REMOVED: return "CAMERA_REMOVED";
+        case ASI_ERROR_CAMERA_CLOSED:  return "CAMERA_CLOSED";
         default: return "SDK_ERROR";
     }
 }

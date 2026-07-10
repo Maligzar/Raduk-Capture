@@ -11,6 +11,11 @@
 #else
 #  include "ASICamera2.h"
 #endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <cstdlib>
 #include <vector>
 #include <string>
 #include <cstdint>
@@ -225,6 +230,16 @@ public:
         }
 
         m_genThread = std::thread(&ASICamera::GenerateFrames, this);
+        m_captureStart = std::chrono::steady_clock::now();
+        {
+            char envBuf[32] = {};
+            m_removeAfterS = 0.0f;
+            if (GetEnvironmentVariableA("RADUK_EMU_REMOVE_AFTER_S", envBuf, 32))
+                m_removeAfterS = (float)atof(envBuf);
+            if (m_removeAfterS > 0)
+                printf("[CameraEmulator] USB-drop injection armed at t+%.0fs\n",
+                       m_removeAfterS);
+        }
         printf("[CameraEmulator] Video capture started (%dx%d)\n", m_roiW, m_roiH);
         return true;
     }
@@ -235,6 +250,24 @@ public:
         if (m_genThread.joinable()) m_genThread.join();
         printf("[CameraEmulator] Video capture stopped — %llu frames generated\n",
                m_frameCounter.load());
+    }
+
+    // Phase 58: error-code variant, matching ASICamera. Supports USB-drop
+    // injection for testing the recovery path: set RADUK_EMU_REMOVE_AFTER_S=N
+    // and the "camera" disappears N seconds into capture (CAMERA_REMOVED,
+    // immediate return like the SDK) for 10 seconds, then replugs.
+    bool GetVideoFrameEx(uint8_t* buffer, int bufferSize, int timeoutMs,
+                         ASI_ERROR_CODE& err) {
+        if (InRemovedWindow()) { err = ASI_ERROR_CAMERA_REMOVED; return false; }
+        bool ok = GetVideoFrame(buffer, bufferSize, timeoutMs);
+        err = ok ? ASI_SUCCESS : ASI_ERROR_TIMEOUT;
+        return ok;
+    }
+
+    bool RestartCapture() {
+        // Emulated §6.3 recovery: succeeds unless the camera is currently
+        // "unplugged" by the injection window.
+        return m_isCapturing && !InRemovedWindow();
     }
 
     bool GetVideoFrame(uint8_t* buffer, int bufferSize, int timeoutMs) {
@@ -506,6 +539,17 @@ private:
     std::function<bool(float&, float&)> m_errProvider;
     float                       m_camRotDeg = 0.0f;
     float                       m_jitterAs  = 0.0f;
+
+    // Phase 58: USB-drop injection window (RADUK_EMU_REMOVE_AFTER_S)
+    std::chrono::steady_clock::time_point m_captureStart{};
+    float                       m_removeAfterS = 0.0f;
+
+    bool InRemovedWindow() const {
+        if (m_removeAfterS <= 0.0f || !m_isCapturing) return false;
+        float t = std::chrono::duration<float>(
+            std::chrono::steady_clock::now() - m_captureStart).count();
+        return t >= m_removeAfterS && t < m_removeAfterS + 10.0f;
+    }
 };
 
 } // namespace raduk::core

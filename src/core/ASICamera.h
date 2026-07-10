@@ -53,6 +53,11 @@ public:
     
     bool IsCapturing() const { return m_isCapturing; }
     bool GetVideoFrame(uint8_t* buffer, int bufferSize, int timeoutMs);
+    // Phase 58 (review C4): error-code-preserving variant — the capture loop
+    // must distinguish TIMEOUT (wait/retry) from CAMERA_REMOVED (returns
+    // immediately; retrying flat-out busy-spins a TIME_CRITICAL thread).
+    bool GetVideoFrameEx(uint8_t* buffer, int bufferSize, int timeoutMs,
+                         ASI_ERROR_CODE& err);
     int GetDroppedFrames() const;
 
     const ASI_CAMERA_INFO& Info() const { return m_info; }

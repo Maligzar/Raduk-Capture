@@ -2391,6 +2391,24 @@ static int RunApp(bool useEmulator) {
                 cam.IsOpen() ? cam.Temperature() : 0.0f,
                 roiWidth, roiHeight, 8);
 
+            // Phase 58: surface camera faults (USB drop / wedge) once per
+            // transition — CaptureThread keeps retrying recovery itself.
+            {
+                static bool lastCamFault = false;
+                bool camFault = stats.cameraFault.load();
+                if (camFault != lastCamFault) {
+                    lastCamFault = camFault;
+                    if (camFault) {
+                        Log("[CAMERA] FAULT — no frames (USB drop?); auto-recovery running\n");
+                        slog.Camera("FAULT: frames stopped — auto-recovery running");
+                    } else {
+                        Log("[CAMERA] Recovered — frames flowing again\n");
+                        slog.Camera("Recovered after fault (%u restarts)",
+                                    stats.restarts.load());
+                    }
+                }
+            }
+
             // EAF — only poll if USB manager allows (never blocks for long)
             if (focuser.IsOpen() && usbMgr.ShouldPollFocuser())
                 statusBar.SetFocuserStats(focuser.GetPosition(),

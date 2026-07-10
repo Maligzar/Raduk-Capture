@@ -577,6 +577,37 @@ static int RunApp(bool useEmulator) {
 
     IMount* mount = mountPtr.get(); // may be nullptr
 
+#ifdef RADUK_EMULATOR
+    // ── Phase 52: close the tracking loop in emulation ─────────
+    // The synthetic planet's frame position follows the emulated mount's
+    // pointing error, so guide pulses visibly re-centre it — and a wrong-sign
+    // correction visibly runs away instead of passing silently.
+    // Env knobs for adversarial runs:
+    //   RADUK_EMU_ROTATION_DEG — camera orientation (default 0; set e.g. 137
+    //                            to prove calibration measures the transform)
+    //   RADUK_EMU_JITTER_AS    — seeing wander amplitude, arcsec (default 0.5)
+    //   RADUK_EMU_DRIFT_AS     — RA tracking-error rate, arcsec/s (default 0.3)
+    if (mount) {
+        auto* emuMount = static_cast<raduk::core::MountEmulator*>(mount);
+        cam.SetPointingErrorProvider([emuMount](float& eRA, float& eDec) {
+            return emuMount->GetPointingErrorArcsec(eRA, eDec);
+        });
+        float rotDeg = 0.0f, jitAs = 0.5f, driftAs = 0.3f;
+        char envBuf[32];
+        if (GetEnvironmentVariableA("RADUK_EMU_ROTATION_DEG", envBuf, 32))
+            rotDeg = (float)atof(envBuf);
+        if (GetEnvironmentVariableA("RADUK_EMU_JITTER_AS", envBuf, 32))
+            jitAs = (float)atof(envBuf);
+        if (GetEnvironmentVariableA("RADUK_EMU_DRIFT_AS", envBuf, 32))
+            driftAs = (float)atof(envBuf);
+        cam.SetCameraRotationDeg(rotDeg);
+        cam.SetSeeingJitterArcsec(jitAs);
+        emuMount->SetTrackingErrorRate(driftAs, driftAs * 0.4f);
+        Log("[INIT] Closed-loop emulation: rot=%.1f deg jitter=%.2f\" drift=%.2f\"/s\n",
+            rotDeg, jitAs, driftAs);
+    }
+#endif // RADUK_EMULATOR
+
     // ── Preview ring + capture thread ──────────────────────────
     int frameSizeBytes = ASICamera::FrameSize(roiWidth, roiHeight, ASI_IMG_RAW8);
     RingBuffer ring;

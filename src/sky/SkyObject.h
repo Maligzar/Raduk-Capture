@@ -68,6 +68,27 @@ inline double NormDeg(double d) {
 inline double Rad(double d) { return d * M_PI / 180.0; }
 inline double Deg(double r) { return r * 180.0 / M_PI; }
 
+// ── Equinox conversion: of-date → J2000 (Phase 54 / review S5) ────
+// The ephemeris formulas below produce equinox-of-date coordinates, but
+// everything else in the app (Messier catalog, ASTAP plate solves, sync
+// targets) is J2000 — by 2026 the difference is ~22', nearly 3x the
+// solver FOV. Low-precision annual-rate precession is plenty here
+// (error ~arcsec/decade): m = 46.124"/yr, n = 20.043"/yr.
+inline void PrecessDateToJ2000(double jd, double& ra_h, double& dec_deg) {
+    double Tyr  = (jd - 2451545.0) / 365.25;   // Julian years since J2000
+    double raR  = Rad(ra_h * 15.0);
+    double decC = dec_deg;
+    if (decC >  89.0) decC =  89.0;            // tan() guard — planets/Moon
+    if (decC < -89.0) decC = -89.0;            // never get near the pole
+    double decR = Rad(decC);
+    double dRA  = (46.124 + 20.043 * sin(raR) * tan(decR)) * Tyr; // arcsec
+    double dDec = (20.043 * cos(raR)) * Tyr;                       // arcsec
+    ra_h    = ra_h - dRA / 3600.0 / 15.0;
+    if (ra_h < 0)   ra_h += 24.0;
+    if (ra_h >= 24) ra_h -= 24.0;
+    dec_deg = dec_deg - dDec / 3600.0;
+}
+
 // ── Simplified planet ephemeris ────────────────────────────────
 // Based on Jean Meeus "Astronomical Algorithms" Ch.33
 // Accuracy: ~1 arcmin for 2000-2050 — sufficient for GoTo pointing
@@ -180,6 +201,7 @@ inline bool PlanetRADec(const PlanetElements& p, double jd,
 
     ra_h    = NormDeg(Deg(ra)) / 15.0; // hours
     dec_deg = Deg(dec);
+    PrecessDateToJ2000(jd, ra_h, dec_deg); // of-date → J2000 (app standard)
     return true;
 }
 
@@ -195,6 +217,7 @@ inline void SunRADec(double jd, double& ra_h, double& dec_deg) {
     double eps    = Rad(23.439291 - 0.013004 * T);
     ra_h    = NormDeg(Deg(atan2(cos(eps)*sin(sunLon), cos(sunLon)))) / 15.0;
     dec_deg = Deg(asin(sin(eps) * sin(sunLon)));
+    PrecessDateToJ2000(jd, ra_h, dec_deg); // of-date → J2000 (app standard)
 }
 
 // ── Moon position (Meeus Ch.47, simplified ~0.1°) ─────────────────
@@ -240,6 +263,7 @@ inline void MoonRADec(double jd, double& ra_h, double& dec_deg,
     ra_h    = NormDeg(Deg(atan2(sin(lonR)*cos(eps) - tan(latR)*sin(eps),
                                 cos(lonR)))) / 15.0;
     dec_deg = Deg(asin(sin(latR)*cos(eps) + cos(latR)*sin(eps)*sin(lonR)));
+    PrecessDateToJ2000(jd, ra_h, dec_deg); // of-date → J2000 (app standard)
 
     // Phase: elongation of Moon from Sun
     double sunRA, sunDec;

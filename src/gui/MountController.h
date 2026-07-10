@@ -256,6 +256,21 @@ private:
         // Helper: reduce angle to 0-360
         auto rev = [](double a) { return a - 360.0 * floor(a / 360.0); };
 
+        // Of-date → J2000 (low-precision annual rates; Phase 54 / review S5).
+        // These positions feed SyncRADec via the ALIGN popup, and the rest of
+        // the app (catalog, plate solves) is J2000 — syncing of-date coords
+        // would poison the alignment by ~22' in 2026.
+        double jyr = (jd - 2451545.0) / 365.25;
+        auto toJ2000 = [&](double& ra_h, double& dec_deg) {
+            double raR  = ra_h * 15.0 * D2R;
+            double dcl  = dec_deg > 89.0 ? 89.0 : (dec_deg < -89.0 ? -89.0 : dec_deg);
+            double decR = dcl * D2R;
+            ra_h    -= (46.124 + 20.043 * sin(raR) * tan(decR)) * jyr / 3600.0 / 15.0;
+            dec_deg -= (20.043 * cos(raR)) * jyr / 3600.0;
+            if (ra_h < 0)   ra_h += 24.0;
+            if (ra_h >= 24) ra_h -= 24.0;
+        };
+
         // Sun's ecliptic longitude (needed for geocentric planets)
         double L0  = rev(280.46646 + 36000.76983 * T);
         double M0  = rev(357.52911 + 35999.05029 * T) * D2R;
@@ -294,6 +309,7 @@ private:
                 +  0.173237*sin((2*D-F)*D2R);
             AlignObject o; o.isPlanet=true; o.alt=0;
             ecl2eq(rev(lon), lat, o.ra_h, o.dec_deg);
+            toJ2000(o.ra_h, o.dec_deg);
             snprintf(o.name, 32, "Moon");
             objs.push_back(o);
         }
@@ -349,6 +365,7 @@ private:
             double Dec= asin((gy*sin(eR)+gz*cos(eR))/sqrt(gx*gx+gy*gy+gz*gz))*R2D;
             AlignObject o; o.isPlanet=true; o.alt=0;
             o.ra_h   = RA/15.0; o.dec_deg = Dec;
+            toJ2000(o.ra_h, o.dec_deg);
             snprintf(o.name, 32, "%s", pe.name);
             objs.push_back(o);
         }

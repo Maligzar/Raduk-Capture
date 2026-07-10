@@ -24,6 +24,7 @@
 #endif
 #include <windows.h>
 #include <string>
+#include <vector>
 #include <cstdio>
 #include <fstream>
 #include <functional>
@@ -65,7 +66,9 @@ public:
     // Set search radius hint (degrees) — speeds up solving
     void SetSearchRadius(float deg) { m_searchRadius = deg; }
 
-    // Set RA/Dec hint for faster solve (degrees)
+    // Set RA/Dec hint for faster solve.
+    // ra_h is in HOURS (ASTAP's -ra argument expects hours, 0-24);
+    // dec_deg in degrees (passed to ASTAP as SPD = 90 + dec).
     void SetHint(double ra_h, double dec_deg) {
         m_hintRA  = ra_h;
         m_hintDec = dec_deg;
@@ -106,8 +109,14 @@ public:
 private:
     // Synchronous solve — runs on worker thread
     SolveResult SolveSync(const uint8_t* frame, uint32_t w, uint32_t h) {
-        // Write frame as BMP to temp file
-        std::wstring bmpPath = TempPath(L"rc_solve.bmp");
+        // Unique temp names per solve: a previous timed-out ASTAP process
+        // must not be able to overwrite (or have its stale output read by)
+        // this run.
+        wchar_t stem[64];
+        swprintf(stem, 64, L"rc_solve_%lu_%llu",
+                 GetCurrentProcessId(),
+                 (unsigned long long)GetTickCount64());
+        std::wstring bmpPath = TempPath((std::wstring(stem) + L".bmp").c_str());
         if (!WriteBMP(frame, w, h, bmpPath)) {
             return {false, 0, 0, 0, 0, 0, "Failed to write temp BMP"};
         }
@@ -119,7 +128,7 @@ private:
         // -ra / -spd = RA hint / South Polar Distance hint (90-dec)
         // -z = downsample factor (2 = 2x, speeds up solve on large frames)
         // -o = output path (writes .ini with solution)
-        std::wstring outPath = TempPath(L"rc_solve");
+        std::wstring outPath = TempPath(stem);
 
         wchar_t cmd[1024];
         std::wstring base = L"\"" + m_astapPath + L"\"";
@@ -152,24 +161,35 @@ private:
             return {false, 0, 0, 0, 0, 0, "Failed to launch ASTAP process"};
         }
 
-        // Wait for completion (timeout 30 seconds)
+        // Wait for completion (timeout 30 seconds). On timeout the process
+        // MUST be killed: an orphaned astap.exe kept solving in the
+        // background and could write output a later solve would read.
         DWORD waitResult = WaitForSingleObject(pi.hProcess, 30000);
+        if (waitResult == WAIT_TIMEOUT) {
+            TerminateProcess(pi.hProcess, 1);
+            WaitForSingleObject(pi.hProcess, 2000);
+        }
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
         DeleteFileW(bmpPath.c_str());
 
+        std::wstring iniPath = outPath + L".ini";
+        std::wstring wcsPath = outPath + L".wcs";
         if (waitResult == WAIT_TIMEOUT) {
-            return {false, 0, 0, 0, 0, 0, "ASTAP timed out after 30s"};
+            DeleteFileW(iniPath.c_str());
+            DeleteFileW(wcsPath.c_str());
+            return {false, 0, 0, 0, 0, 0, "ASTAP timed out after 30s (killed)"};
         }
 
         // Parse ASTAP output .ini file
-        std::wstring iniPath = outPath + L".ini";
-        SolveResult result = ParseASTAPOutput(iniPath);
+        SolveResult result = ParseASTAPOutput(iniPath, w, h);
         DeleteFileW(iniPath.c_str());
+        DeleteFileW(wcsPath.c_str());
         return result;
     }
 
-    SolveResult ParseASTAPOutput(const std::wstring& iniPath) {
+    SolveResult ParseASTAPOutput(const std::wstring& iniPath,
+                                 uint32_t imgW, uint32_t imgH) {
         // Convert to narrow string for ifstream
         char narrow[MAX_PATH];
         WideCharToMultiByte(CP_ACP, 0, iniPath.c_str(), -1,
@@ -179,39 +199,62 @@ private:
         if (!f.is_open())
             return {false, 0, 0, 0, 0, 0, "No ASTAP output — solve failed or no catalog"};
 
+        // ASTAP's .ini actually contains FITS-style keys:
+        //   PLTSOLVD=T/F        solve success flag
+        //   CRVAL1=<deg>        solution centre RA, degrees
+        //   CRVAL2=<deg>        solution centre Dec, degrees
+        //   CDELT1/CDELT2=<deg> degrees per pixel
+        //   CROTA2=<deg>        rotation E of N
+        //   ERROR=/WARNING=     diagnostics
+        // (The previous parser looked for SOLVEAD=/SOLVEDEC=/FOVX= — keys
+        // ASTAP never writes — so every solve reported failure.)
         SolveResult result;
+        bool plateSolved = false;
+        double crval1 = 0, crval2 = 0, cdelt1 = 0, cdelt2 = 0, crota2 = 0;
+        std::string errorText, warningText;
+
         std::string line;
         while (std::getline(f, line)) {
-            // ASTAP writes: SOLVEAD=hh.hhh, SOLVEDEC=dd.ddd, etc.
-            auto parseVal = [&](const char* key) -> double {
-                auto pos = line.find(key);
-                if (pos == std::string::npos) return 0.0;
-                pos += strlen(key) + 1;
-                try { return std::stod(line.substr(pos)); } catch (...) { return 0.0; }
+            auto eq = line.find('=');
+            if (eq == std::string::npos) continue;
+            auto trim = [](std::string v) {
+                size_t a = v.find_first_not_of(" \t\r\n");
+                size_t b = v.find_last_not_of(" \t\r\n");
+                return (a == std::string::npos) ? std::string()
+                                                : v.substr(a, b - a + 1);
+            };
+            std::string key = trim(line.substr(0, eq));
+            std::string val = trim(line.substr(eq + 1));
+            auto num = [&]() -> double {
+                try { return std::stod(val); } catch (...) { return 0.0; }
             };
 
-            if (line.find("SOLVEAD=") != std::string::npos) {
-                result.ra = parseVal("SOLVEAD") / 15.0; // degrees to hours
-                result.solved = true;
-            }
-            if (line.find("SOLVEDEC=") != std::string::npos)
-                result.dec = parseVal("SOLVEDEC");
-            if (line.find("FOVX=") != std::string::npos)
-                result.fovW = parseVal("FOVX");
-            if (line.find("FOVY=") != std::string::npos)
-                result.fovH = parseVal("FOVY");
-            if (line.find("ANGLE=") != std::string::npos)
-                result.rotation = parseVal("ANGLE");
+            if      (key == "PLTSOLVD") plateSolved = (!val.empty() && (val[0]=='T' || val[0]=='t'));
+            else if (key == "CRVAL1")   crval1 = num();
+            else if (key == "CRVAL2")   crval2 = num();
+            else if (key == "CDELT1")   cdelt1 = num();
+            else if (key == "CDELT2")   cdelt2 = num();
+            else if (key == "CROTA2")   crota2 = num();
+            else if (key == "ERROR")    errorText   = val;
+            else if (key == "WARNING")  warningText = val;
         }
 
-        if (!result.solved)
-            result.error = "ASTAP could not find a solution";
-
-        if (result.solved)
-            printf("[ASTAP] Solved: RA=%.4fh Dec=%.4f° FoV=%.3f°x%.3f°\n",
-                   result.ra, result.dec, result.fovW, result.fovH);
-        else
+        if (plateSolved) {
+            result.solved   = true;
+            result.ra       = crval1 / 15.0; // degrees → hours
+            result.dec      = crval2;
+            result.fovW     = std::abs(cdelt1) * imgW;
+            result.fovH     = std::abs(cdelt2) * imgH;
+            result.rotation = crota2;
+            printf("[ASTAP] Solved: RA=%.4fh Dec=%.4f° FoV=%.3f°x%.3f° rot=%.1f°%s%s\n",
+                   result.ra, result.dec, result.fovW, result.fovH, result.rotation,
+                   warningText.empty() ? "" : " warn: ",
+                   warningText.c_str());
+        } else {
+            result.error = errorText.empty()
+                         ? "ASTAP could not find a solution" : errorText;
             printf("[ASTAP] Solve failed: %s\n", result.error.c_str());
+        }
 
         return result;
     }

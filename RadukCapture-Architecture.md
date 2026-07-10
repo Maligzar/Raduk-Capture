@@ -687,14 +687,14 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 
 | Phase | Feature | Priority |
 |-------|---------|---------|
-| Phase 52 | Closed-Loop Tracking Emulation | Tier 0 — Next (tracking blocker) |
-| Phase 51 | Guide Calibration & Axis Transform | Tier 0 (tracking blocker) |
-| Phase 53 | Correction-Loop Dynamics | Tier 0 (tracking blocker) |
-| Phase 54 | Auto-Sync Repair (ASTAP + J2000) | Tier 0 (tracking blocker) |
-| Phase 55 | Rig Configuration | Tier 0 |
-| Phase 56 | Frame-Path Memory Safety | Tier 0 |
-| Phase 57 | Mount-Safety & Remote-Control Hardening | Tier 0 |
-| Phase 58 | Camera Fault Recovery | Tier 0 |
+| Phase 52 | Closed-Loop Tracking Emulation | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 51 | Guide Calibration & Axis Transform | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 53 | Correction-Loop Dynamics | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 54 | Auto-Sync Repair (ASTAP + J2000) | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 55 | Rig Configuration | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 56 | Frame-Path Memory Safety | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 57 | Mount-Safety & Remote-Control Hardening | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 58 | Camera Fault Recovery | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
 | Phase 26 | Night Vision Mode | Tier 1 |
 | Phase 49 | Help System | Tier 1 |
 
@@ -854,6 +854,17 @@ live tracking; 55–58 close the remaining review findings that sit in or beside
 the tracking path. Recommended order: **52 → 51 → 53 → 54 → 55 → 56 → 57 → 58**
 — the emulation harness comes first because every later phase needs a rig where
 tracking bugs are visible before a live night.
+
+> **Implementation status (2026-07-10):** all eight phases are implemented on
+> PR #2 (one commit per phase). The code has NOT yet been compiled or run —
+> the implementation session had no Windows/MSVC build environment — so the
+> acceptance tests below are still owed:
+> 1. Emulator build: GoTo Jupiter → CENTROID → LOCK (calibration runs) →
+>    planet visibly re-centres; repeat with `RADUK_EMU_ROTATION_DEG=137` to
+>    prove the measured transform, and `RADUK_EMU_REMOVE_AFTER_S=30` to
+>    exercise fault recovery.
+> 2. `RADUK_WS_LAN` note: the APEX dashboard now needs this env var set on
+>    StarMachine to connect from Elminster.
 
 #### Phase 51 — Guide Calibration & Axis Transform (review T3) — CRITICAL
 The correction loop currently *assumes* +X→East / +Y→North, a fixed 0.203″/px

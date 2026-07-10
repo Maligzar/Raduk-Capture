@@ -23,6 +23,7 @@
 #include <shellapi.h>
 #include <shellscalingapi.h>  // SetProcessDpiAwarenessContext — must be after windows.h
 #include <cstdio>
+#include <cstdlib>
 #include <algorithm>
 #include <atomic>
 #include <chrono>

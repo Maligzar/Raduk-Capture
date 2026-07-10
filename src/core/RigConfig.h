@@ -24,6 +24,7 @@
 #include <windows.h>
 #include <string>
 #include <cstdio>
+#include <cstdlib>
 
 namespace raduk::core {
 

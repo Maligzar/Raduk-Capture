@@ -38,6 +38,7 @@
 #include "core/USBTrafficManager.h"
 #include "core/FrameAnalyzer.h"
 #include "core/CentroidTracker.h"
+#include "core/RigConfig.h"
 #include "core/Timestamp.h"
 #include "core/SessionLog.h"
 #include "net/WebSocketServer.h"
@@ -711,7 +712,8 @@ static int RunApp(bool useEmulator) {
     // ── GoTo Panel (Phase 6) ───────────────────────────────────
     raduk::gui::GoToPanel gotoPanel;
     gotoPanel.SetMount(mount);
-    gotoPanel.SetLocation(33.86, -112.09); // Anthem, AZ
+    gotoPanel.SetLocation(raduk::core::RigConfig::Get().siteLatDeg,
+                          raduk::core::RigConfig::Get().siteLonDeg);
 
     gotoPanel.Create(window.Handle(), 0, 0, 500, 750);
 

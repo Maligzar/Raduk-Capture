@@ -8,6 +8,7 @@
 #include "PreviewRenderer.h"
 #include "Theme.h"
 #include "core/ADCAssistant.h"
+#include "core/RigConfig.h"
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -558,7 +559,8 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                     auto adc = raduk::core::ADCAssistant::Compute(m_mountAltDeg);
                     dispArcsec = adc.separationArcsec;
                 }
-                constexpr float PLATE_SCALE = 0.203f; // arcsec/px
+                const float PLATE_SCALE =
+                    raduk::core::RigConfig::Get().plateScaleArcsecPx; // arcsec/px
                 int autoShift = (dispArcsec > 0.0f)
                     ? (int)roundf(dispArcsec / PLATE_SCALE) : 0;
                 int shift = autoShift + m_rgbAlignManual;

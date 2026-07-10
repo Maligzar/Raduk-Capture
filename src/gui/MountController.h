@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <atomic>
 #include "core/IMount.h"
+#include "core/RigConfig.h"
 
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -223,13 +224,13 @@ private:
         return (float)(asin(sinAlt) / DEG);
     }
 
-    // Approximate LST for Anthem AZ (lon = -112.09°)
+    // Approximate LST for the configured site (RigConfig, Phase 55)
     static double ApproxLST() {
         time_t t  = time(nullptr);
         double jd = (t / 86400.0) + 2440587.5;
         double d  = jd - 2451545.0;
         double gmst = 18.697374558 + 24.06570982441908 * d;
-        double lst  = fmod(gmst - 112.09 / 15.0, 24.0);
+        double lst  = fmod(gmst + raduk::core::RigConfig::Get().siteLonDeg / 15.0, 24.0);
         if (lst < 0) lst += 24.0;
         return lst;
     }
@@ -387,7 +388,7 @@ private:
         }
 
         double lst = ApproxLST();
-        const double LAT = 33.86;
+        const double LAT = raduk::core::RigConfig::Get().siteLatDeg;
 
         // Current Julian Date
         time_t t = time(nullptr);

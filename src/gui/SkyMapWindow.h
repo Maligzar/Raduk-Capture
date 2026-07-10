@@ -45,6 +45,7 @@
 
 #include "../sky/SkyObject.h"
 #include "../core/IMount.h"
+#include "../core/RigConfig.h"
 
 namespace raduk::gui {
 
@@ -52,9 +53,11 @@ namespace raduk::gui {
 #define M_PI 3.14159265358979323846
 #endif
 
-// ── Observer constants — Anthem, AZ ────────────────────────────
-static constexpr double OBS_LAT =  33.8653;   // degrees N
-static constexpr double OBS_LON = -112.1235;  // degrees E (negative = W)
+// ── Observer site — from RigConfig (Phase 55) ──────────────────
+// (RigConfig::Get() is a function-local static, so this is safe at
+// any static-initialization order.)
+static const double OBS_LAT = raduk::core::RigConfig::Get().siteLatDeg;  // degrees N
+static const double OBS_LON = raduk::core::RigConfig::Get().siteLonDeg;  // degrees E (negative = W)
 
 class SkyMapWindow {
 public:

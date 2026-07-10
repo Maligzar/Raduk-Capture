@@ -51,6 +51,7 @@
 // ============================================================
 
 #include "IMount.h"
+#include "RigConfig.h"
 #include <windows.h>
 #include <thread>
 #include <atomic>
@@ -103,6 +104,8 @@ struct GuideCalibration {
 
 class CentroidTracker {
 public:
+    // Nominal plate scale — display/seed only; corrections use the measured
+    // Phase 51 calibration. Kept in sync with RigConfig at construction.
     static constexpr float PLATE_SCALE_ARCSEC_PX = 0.203f;
 
     // Stage 2 — Centering
@@ -147,7 +150,8 @@ public:
     static constexpr float CAL_MIN_SIN_ANGLE   = 0.25f; // axes must be >~15 deg apart
     static constexpr int   CAL_STALE_MIN       = 15;    // alt-az field rotation ages it out
     // Nominal on-sky guide rate behind PulseGuide (NexStar rate 1 ≈ 0.5x
-    // sidereal). Only feeds the cosmetic arcsec/px estimate.
+    // sidereal). Only feeds the cosmetic arcsec/px estimate. Overridden by
+    // RigConfig (Phase 55) at calibration time.
     static constexpr float GUIDE_RATE_AS_PER_S = 7.5f;
 
     CentroidTracker() = default;
@@ -527,7 +531,8 @@ private:
         cal.eyPerMs = ey / (float)CAL_PULSE_MS;
         cal.nxPerMs = nx / (float)CAL_PULSE_MS;
         cal.nyPerMs = ny / (float)CAL_PULSE_MS;
-        cal.arcsecPerPx = (GUIDE_RATE_AS_PER_S * CAL_PULSE_MS / 1000.0f) / eMag;
+        cal.arcsecPerPx = (RigConfig::Get().guideRateArcsecPerSec
+                           * CAL_PULSE_MS / 1000.0f) / eMag;
         cal.when    = std::chrono::steady_clock::now();
         {
             double alt = 0, az = 0;

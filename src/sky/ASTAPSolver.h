@@ -30,6 +30,7 @@
 #include <functional>
 #include <thread>
 #include <atomic>
+#include "../core/RigConfig.h"
 
 namespace raduk::sky {
 
@@ -130,11 +131,20 @@ private:
         // -o = output path (writes .ini with solution)
         std::wstring outPath = TempPath(stem);
 
+        // FOV hint from the rig's nominal plate scale and the actual frame
+        // height (ASTAP's -fov is the image HEIGHT in degrees). Previously
+        // hardcoded 0.13 — wrong the moment a ROI crop or Barlow changed
+        // the geometry.
+        double fovDeg = raduk::core::RigConfig::Get().plateScaleArcsecPx
+                      * (double)h / 3600.0;
+        wchar_t fovArg[32];
+        swprintf(fovArg, 32, L" -fov %.3f", fovDeg);
+
         wchar_t cmd[1024];
         std::wstring base = L"\"" + m_astapPath + L"\"";
         base += L" -f \"" + bmpPath + L"\"";
         base += L" -o \"" + outPath + L"\"";
-        base += L" -fov 0.13";  // 8SE 2032mm + ASI678MC 2um pixels, 3840px wide
+        base += fovArg;
         base += L" -z 2";       // downsample 2x for speed
         base += L" -r " + std::to_wstring((int)m_searchRadius);
 

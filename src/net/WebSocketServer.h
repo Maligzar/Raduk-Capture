@@ -134,7 +134,19 @@ public:
         m_onCommand = cb;
     }
 
-    bool Start(uint16_t port = 8765) {
+    // Phase 57 (review S1) — hardening limits. The command set drives the
+    // mount and focuser, so the attack surface matters:
+    //   MAX_WS_PAYLOAD  clamps the 64-bit wire length before any arithmetic
+    //                   (a hostile frame could integer-wrap totalLen or
+    //                   terminate the app via a huge resize).
+    //   MAX_RECV_BUF    caps per-client receive-buffer growth (memory DoS
+    //                   from a header that promises data that never comes).
+    static constexpr uint64_t MAX_WS_PAYLOAD = 1  * 1024 * 1024;
+    static constexpr size_t   MAX_RECV_BUF   = 2  * 1024 * 1024;
+
+    // Binds 127.0.0.1 by default — the command set has NO authentication.
+    // Set bindAny=true only on a trusted LAN (APEX dashboard on Elminster).
+    bool Start(uint16_t port = 8765, bool bindAny = false) {
         if (m_running.load()) return true;
 
         WSADATA wd;
@@ -156,7 +168,7 @@ public:
 
         sockaddr_in addr{};
         addr.sin_family      = AF_INET;
-        addr.sin_addr.s_addr = INADDR_ANY;
+        addr.sin_addr.s_addr = bindAny ? INADDR_ANY : htonl(INADDR_LOOPBACK);
         addr.sin_port        = htons(port);
 
         if (bind(m_listenSock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
@@ -168,7 +180,8 @@ public:
         m_port    = port;
         m_running.store(true);
         m_thread  = std::thread(&WebSocketServer::Run, this);
-        printf("[WSServer] Listening on :%d\n", port);
+        printf("[WSServer] Listening on %s:%d\n",
+               bindAny ? "0.0.0.0" : "127.0.0.1", port);
         return true;
     }
 
@@ -270,6 +283,14 @@ private:
                     int n = recv(c.sock, buf, sizeof(buf)-1, 0);
                     if (n <= 0) { c.closed = true; continue; }
                     buf[n] = 0;
+                    // Phase 57 (S1): cap buffered bytes per client — a header
+                    // promising data that never arrives must not grow this
+                    // buffer forever.
+                    if (c.recvBuf.size() + (size_t)n > MAX_RECV_BUF) {
+                        printf("[WSServer] Client exceeded recv cap — dropping\n");
+                        c.closed = true;
+                        continue;
+                    }
                     c.recvBuf.append(buf, n);
 
                     if (!c.upgraded) {
@@ -342,8 +363,18 @@ private:
                 hdrLen = 10;
             }
 
+            // Phase 57 (S1): clamp the attacker-controlled 64-bit length
+            // BEFORE any arithmetic — unclamped it could integer-wrap
+            // totalLen or terminate the app via a multi-GB resize().
+            if (payLen > MAX_WS_PAYLOAD) {
+                printf("[WSServer] Oversized frame (%llu bytes) — dropping client\n",
+                       (unsigned long long)payLen);
+                c.closed = true;
+                return;
+            }
+
             size_t maskLen = masked ? 4 : 0;
-            size_t totalLen = hdrLen + maskLen + payLen;
+            size_t totalLen = hdrLen + maskLen + (size_t)payLen;
             if (c.recvBuf.size() < totalLen) break;
 
             if (opcode == 0x8) { // Close

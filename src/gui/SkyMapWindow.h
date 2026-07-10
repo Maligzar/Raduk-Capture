@@ -626,7 +626,7 @@ private:
         }
 
         // ── Click-to-confirm popup ─────────────────────────────
-        if (m_confirmIdx >= 0 && m_confirmIdx < (int)m_objects.size())
+        if (m_confirmActive)
             DrawConfirmPopup();
 
         HRESULT hr = m_rt->EndDraw();
@@ -659,8 +659,12 @@ private:
     }
 
     void DrawConfirmPopup() {
-        if (!m_rt || m_confirmIdx < 0 || m_confirmIdx >= (int)m_objects.size()) return;
-        const auto& obj = m_objects[m_confirmIdx];
+        if (!m_rt || !m_confirmActive) return;
+        // Phase 57 (review G5): draw from the SNAPSHOT taken at click time —
+        // m_objects is rebuilt by the 30s timer / zoom / pan while the popup
+        // is open, so an index could point at a different (or out-of-range)
+        // object by the time the user confirms the slew.
+        const auto& obj = m_confirmObj;
         bool belowHorizon = obj.altDeg < 15.0f;
 
         // Popup dims
@@ -914,7 +918,7 @@ private:
                 float mx = (float)LOWORD(lParam);
                 float my = (float)HIWORD(lParam);
                 // Dismiss any confirm popup first
-                self->m_confirmIdx = -1;
+                self->m_confirmActive = false;
                 // Check if right-click landed on an object
                 int idx = self->HitTest(mx, my);
                 if (idx >= 0 && self->m_onInfo) {
@@ -970,24 +974,26 @@ private:
                 float my = (float)HIWORD(lParam);
 
                 // If popup is showing, check button hits first
-                if (self->m_confirmIdx >= 0) {
+                if (self->m_confirmActive) {
                     auto hit = [](float x, float y, const D2D1_RECT_F& r) {
                         return x >= r.left && x <= r.right
                             && y >= r.top  && y <= r.bottom;
                     };
                     if (hit(mx, my, self->m_btnSlewRect)) {
-                        // ✓ SLEW confirmed
-                        const auto& obj = self->m_objects[self->m_confirmIdx];
+                        // ✓ SLEW confirmed — slew to the object SNAPSHOTTED at
+                        // click time (review G5: the live list may have been
+                        // rebuilt under the popup)
+                        const auto obj = self->m_confirmObj;
                         printf("[SkyMap] GoTo confirmed: %s  RA=%.4fh Dec=%.4f°\n",
                                obj.name.c_str(), obj.ra, obj.dec);
                         if (self->m_onGoTo)
                             self->m_onGoTo(obj.ra, obj.dec, obj.name);
-                        self->m_confirmIdx = -1;
+                        self->m_confirmActive = false;
                         self->Redraw();
                         return 0;
                     }
                     // ✗ CANCEL or click outside — dismiss popup
-                    self->m_confirmIdx = -1;
+                    self->m_confirmActive = false;
                     self->Redraw();
                     return 0;
                 }
@@ -995,7 +1001,8 @@ private:
                 // No popup — first click: show confirmation
                 int idx = self->HitTest(mx, my);
                 if (idx >= 0) {
-                    self->m_confirmIdx = idx;
+                    self->m_confirmObj    = self->m_objects[idx];
+                    self->m_confirmActive = true;
                     self->m_confirmPx  = mx;
                     self->m_confirmPy  = my;
                     self->Redraw();
@@ -1055,7 +1062,8 @@ private:
     int m_hoverIdx    = -1;
 
     // Click-to-confirm popup state (Phase 6.5.1)
-    int         m_confirmIdx  = -1;   // index into m_objects, -1 = no popup
+    bool        m_confirmActive = false; // popup visible
+    MapObject   m_confirmObj;         // snapshot at click time (review G5)
     float       m_confirmPx   = 0;    // popup anchor screen coords
     float       m_confirmPy   = 0;
     D2D1_RECT_F m_btnSlewRect   = {};

@@ -640,8 +640,18 @@ static int RunApp(bool useEmulator) {
     std::vector<SessionEvent> pendingEvents; // accumulates between broadcasts
     std::mutex eventsMutex;
 
-    wsServer.Start(8765);
-    Log("[INIT] WebSocket server started on :8765\n");
+    // Phase 57 (review S1): loopback-only by default — the WS command set
+    // slews the mount with no authentication. Set RADUK_WS_LAN=1 to expose
+    // it on the LAN for the APEX dashboard on Elminster (trusted WiFi only).
+    {
+        char wsEnv[8] = {};
+        bool wsLan = GetEnvironmentVariableA("RADUK_WS_LAN", wsEnv, 8) > 0
+                     && wsEnv[0] == '1';
+        wsServer.Start(8765, wsLan);
+        Log("[INIT] WebSocket server on %s:8765%s\n",
+            wsLan ? "0.0.0.0" : "127.0.0.1",
+            wsLan ? " (LAN exposed — RADUK_WS_LAN=1)" : "");
+    }
 
     // ── Capture manager ────────────────────────────────────────
     CaptureManager capturer;
@@ -2029,7 +2039,10 @@ static int RunApp(bool useEmulator) {
                     }).detach();
                     Log("[WS] Remote jog %s\n", rc.arg.c_str());
                 }
-                // Case-insensitive name match
+            } else if (rc.cmd == "load_profile") {
+                // Phase 57 (review G3): this block previously sat INSIDE the
+                // jog handler — load_profile did nothing, and every jog also
+                // tried to load a profile named "N"/"S"/"E"/"W".
                 int idx = -1;
                 for (int i = 0; i < (int)profiles.Profiles().size(); i++) {
                     if (_stricmp(profiles.Profiles()[i].name.c_str(), rc.arg.c_str()) == 0) {

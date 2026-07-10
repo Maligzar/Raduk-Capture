@@ -60,6 +60,7 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <deque>
 #include <algorithm>
 
 namespace raduk::core {
@@ -105,16 +106,31 @@ public:
     static constexpr float PLATE_SCALE_ARCSEC_PX = 0.203f;
 
     // Stage 2 — Centering
+    // Deadband must stay below CENTRE_THRESHOLD_PX on the real rig
+    // (10px ≈ 2" at 0.203"/px) or dwell could never be reached.
     static constexpr float S2_AGGRESSIVENESS  = 0.20f;
     static constexpr int   S2_MAX_PULSE_MS    = 200;
-    static constexpr float S2_DEADBAND_ARCSEC = 1.0f;
-    static constexpr int   S2_RATE_MS         = 500;  // 2Hz
+    static constexpr float S2_DEADBAND_ARCSEC = 2.0f;
+    static constexpr int   S2_RATE_MS         = 500;
 
     // Stage 3 — Locked
     static constexpr float S3_AGGRESSIVENESS  = 0.50f;
     static constexpr int   S3_MAX_PULSE_MS    = 500;
-    static constexpr float S3_DEADBAND_ARCSEC = 2.0f;
-    static constexpr int   S3_RATE_MS         = 250;  // 4Hz
+    static constexpr float S3_DEADBAND_ARCSEC = 2.5f;
+    static constexpr int   S3_RATE_MS         = 250;
+
+    // Phase 53 — correction dynamics.
+    // Corrections act on the centroid AVERAGED over AVG_WINDOW_MS, not the
+    // latest sample: raw planetary centroids jitter 2-5" with seeing, and a
+    // proportional loop fed raw samples chases that noise. The deadbands
+    // above apply to the averaged position.
+    // Note on cadence: S2/S3_RATE_MS set the loop wake-up rate, but on the
+    // NexStar backend PulseGuide blocks for the pulse duration, so a Locked
+    // cycle that fires both axes takes up to ~S3_RATE_MS + 2×(maxPulse+50)ms
+    // (~1.35s worst case) — the effective correction rate is ~1-4Hz, not a
+    // fixed 4Hz.
+    static constexpr int   AVG_WINDOW_MS   = 1000;
+    static constexpr int   AVG_MIN_SAMPLES = 2;
 
     // Transition thresholds
     static constexpr int   STABLE_FRAMES       = 5;
@@ -268,13 +284,20 @@ public:
     bool SubmitCentroid(float cx, float cy, uint32_t fw, uint32_t fh) {
         {
             std::lock_guard<std::mutex> lk(m_mutex);
+            auto now = std::chrono::steady_clock::now();
             m_centroidX        = cx;
             m_centroidY        = cy;
             m_frameW           = fw;
             m_frameH           = fh;
             m_centroidValid    = true;
             m_centroidEverSeen = true;
-            m_lastCentroidTime = std::chrono::steady_clock::now();
+            m_lastCentroidTime = now;
+            // Phase 53: rolling window for the averaged correction input
+            m_samples.push_back({cx, cy, now});
+            while (!m_samples.empty() &&
+                   std::chrono::duration_cast<std::chrono::milliseconds>(
+                       now - m_samples.front().t).count() > AVG_WINDOW_MS)
+                m_samples.pop_front();
         }
 
         auto stage = m_stage.load();
@@ -345,7 +368,9 @@ public:
 
 private:
     struct Snapshot {
-        float    cx = 0, cy = 0;
+        float    cx = 0, cy = 0;       // latest sample
+        float    avgX = 0, avgY = 0;   // Phase 53: window average
+        int      nAvg = 0;
         uint32_t fw = 0, fh = 0;
         bool     valid = false, everSeen = false;
         std::chrono::steady_clock::time_point lastTime;
@@ -354,9 +379,21 @@ private:
 
     Snapshot GetSnapshot() {
         std::lock_guard<std::mutex> lk(m_mutex);
-        return { m_centroidX, m_centroidY, m_frameW, m_frameH,
-                 m_centroidValid, m_centroidEverSeen,
-                 m_lastCentroidTime, m_mount };
+        Snapshot s;
+        s.cx = m_centroidX;   s.cy = m_centroidY;
+        s.fw = m_frameW;      s.fh = m_frameH;
+        s.valid = m_centroidValid;
+        s.everSeen = m_centroidEverSeen;
+        s.lastTime = m_lastCentroidTime;
+        s.mount = m_mount;
+        if (!m_samples.empty()) {
+            double sx = 0, sy = 0;
+            for (const auto& p : m_samples) { sx += p.x; sy += p.y; }
+            s.avgX = (float)(sx / m_samples.size());
+            s.avgY = (float)(sy / m_samples.size());
+            s.nAvg = (int)m_samples.size();
+        }
+        return s;
     }
 
     void _ResetCounters() {
@@ -367,6 +404,7 @@ private:
         std::lock_guard<std::mutex> lk(m_mutex);
         m_centroidValid    = false;
         m_centroidEverSeen = false;
+        m_samples.clear();
     }
 
     void _StartThread() {
@@ -562,6 +600,15 @@ private:
             if (wasLost) { wasLost = false; printf("[CentroidTracker] Reacquired\n"); }
             if (s.fw == 0 || s.fh == 0) continue;
 
+            // Phase 53: correct on the window-averaged centroid, not the
+            // raw sample — and only once enough analyses have accumulated.
+            if (s.nAvg < AVG_MIN_SAMPLES) continue;
+
+            // ASCOM PulseGuide is asynchronous: don't stack a new correction
+            // on top of one still executing. (NexStar pulses block in
+            // PulseGuide itself; its IsPulseGuiding is always false.)
+            if (s.mount->IsPulseGuiding()) continue;
+
             GuideCalibration cal;
             {
                 std::lock_guard<std::mutex> lk(m_mutex);
@@ -578,8 +625,8 @@ private:
                 if (s.mount->GetAltAz(alt, az)) lastAltDeg = (float)alt;
             }
 
-            float dxPx = s.cx - s.fw * 0.5f;
-            float dyPx = s.cy - s.fh * 0.5f;
+            float dxPx = s.avgX - s.fw * 0.5f;
+            float dyPx = s.avgY - s.fh * 0.5f;
             m_driftRA.store(dxPx * cal.arcsecPerPx);
             m_driftDec.store(dyPx * cal.arcsecPerPx);
 
@@ -612,6 +659,7 @@ private:
             float tE = ( cal.nyPerMs * ddx - cal.nxPerMs * ddy) / det;
             float tN = (-eyMs        * ddx + exMs        * ddy) / det;
 
+            bool pulsed = false;
             auto sendPulse = [&](float tMs, GuideDirection pos, GuideDirection neg,
                                  const char* axis) {
                 if (!m_threadRunning.load() || m_suspended.load()) return;
@@ -621,11 +669,19 @@ private:
                 GuideDirection dir = (tMs > 0) ? pos : neg;
                 printf("[CentroidTracker] %s pulse %dms (err %.1f\")\n", axis, ms, errAs);
                 s.mount->PulseGuide(dir, ms);
+                pulsed = true;
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
             };
 
             sendPulse(tE, GuideDirection::East,  GuideDirection::West,  "E/W");
             sendPulse(tN, GuideDirection::North, GuideDirection::South, "N/S");
+
+            // The averaging window now contains pre-move samples; clear it so
+            // the next correction is computed purely from post-move analyses.
+            if (pulsed) {
+                std::lock_guard<std::mutex> lk(m_mutex);
+                m_samples.clear();
+            }
         }
 
         printf("[CentroidTracker] Correction thread stopped\n");
@@ -644,6 +700,10 @@ private:
     bool       m_centroidValid    = false;
     bool       m_centroidEverSeen = false;
     std::chrono::steady_clock::time_point m_lastCentroidTime;
+
+    // Phase 53: rolling centroid window for averaged corrections
+    struct CentroidSample { float x, y; std::chrono::steady_clock::time_point t; };
+    std::deque<CentroidSample> m_samples;
 
     // ── Main-thread counters (no mutex — main thread only) ────
     int m_stableCount = 0;

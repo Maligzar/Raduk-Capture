@@ -1617,6 +1617,18 @@ static int RunApp(bool useEmulator) {
         slog.Mount("Acquisition: Planet centred — ROI ready");
     });
 
+    // Phase 51: calibration result — success auto-advances to Centering
+    // inside the tracker; failure drops back to Searching.
+    tracker.SetCalibrationCallback([&](bool ok, const std::string& msg) {
+        if (ok) {
+            Log("[ACQ] Calibration OK: %s — Stage 2: CENTERING\n", msg.c_str());
+            slog.Mount("Calibration OK: %s", msg.c_str());
+        } else {
+            Log("[ACQ] Calibration FAILED: %s — back to SEARCHING\n", msg.c_str());
+            slog.Mount("Calibration failed: %s", msg.c_str());
+        }
+    });
+
     // Phase 6.6: auto-solve callback — fires from worker thread after Stage 3 lock
     // Updates session log and the sidebar status flash (thread-safe string write)
     gotoPanel.SetAutoSolveCallback([&](bool success, const std::string& obj,
@@ -1813,9 +1825,11 @@ static int RunApp(bool useEmulator) {
     });
     toolbar.SetLockCallback([&]() {
         if (tracker.Stage() == raduk::core::AcquisitionStage::Searching && tracker.IsStable()) {
-            Log("[ACQ] Stage 2: CENTERING\n");
-            slog.Mount("Acquisition: Centering");
-            tracker.StartCentering();
+            // Phase 51: LOCK measures the pulse→pixel transform first
+            // (or reuses a fresh calibration), then advances to Centering.
+            Log("[ACQ] LOCK: calibrating guide axes\n");
+            slog.Mount("Acquisition: Calibrating");
+            tracker.StartCalibration();
         }
     });
     toolbar.SetROICallback([&]()   { doROILock(); });
@@ -1986,8 +2000,8 @@ static int RunApp(bool useEmulator) {
                 }
             } else if (rc.cmd == "centroid_lock") {
                 if (tracker.Stage() == raduk::core::AcquisitionStage::Searching && tracker.IsStable()) {
-                    tracker.StartCentering();
-                    Log("[WS] Remote centroid_lock\n");
+                    tracker.StartCalibration();
+                    Log("[WS] Remote centroid_lock (calibrates first)\n");
                 }
             } else if (rc.cmd == "centroid_roi") {
                 doROILock();

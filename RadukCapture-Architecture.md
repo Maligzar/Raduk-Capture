@@ -683,19 +683,35 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 | v1.0.11: Phase 24 Pixel Value Readout + Notes/Profile link | X key; hover tooltip R/G/B DN + coords; click to lock; notes saved/loaded with profile |
 | v1.0.12: Phase 25 Image Boost / Frame Stack FX | B key cycles Normal/Boost2x/Boost4x/Stack3/Stack5/Stack10; display-only; auto-reset on record |
 
+### ✅ Tier 0 — Object-Tracking Reliability — VALIDATED (emulator) 2026-07-11
+
+The closed tracking loop ran end-to-end in the emulator for the first time
+(build v1.1.2): GoTo leaves the planet off-center, LOCK runs the measured
+guide calibration, and the correction loop walks the planet to center and holds
+it against injected drift. Preview frame-hold and the versioned banner landed
+alongside during validation.
+
+| Phase | Feature | Status |
+|-------|---------|--------|
+| Phase 52 | Closed-Loop Tracking Emulation | ✅ validated (emulator) 2026-07-11 |
+| Phase 51 | Guide Calibration & Axis Transform | ✅ validated (emulator) 2026-07-11 |
+| Phase 53 | Correction-Loop Dynamics | ✅ validated (emulator) 2026-07-11 |
+| Phase 54 | Auto-Sync Repair (ASTAP + J2000) | ✅ implemented; needs a real ASTAP install to fully verify |
+| Phase 55 | Rig Configuration | ✅ validated (emulator) 2026-07-11 |
+| Phase 56 | Frame-Path Memory Safety | ✅ validated (emulator) 2026-07-11 |
+| Phase 57 | Mount-Safety & Remote-Control Hardening | ✅ validated (emulator) 2026-07-11 |
+| Phase 58 | Camera Fault Recovery | ✅ validated (emulator, USB-drop injection) 2026-07-11 |
+| Phase 59 | Capture & Assist Reliability | ✅ validated (emulator) 2026-07-11 |
+
+> **Still owed: on-sky validation.** The emulator cannot exercise the real
+> alt-az field rotation, atmospheric seeing, mount backlash, or CPWI/ASCOM
+> PulseGuide path. First-hardware-light remains the true test of the guide
+> calibration (Phase 51) and correction dynamics (Phase 53).
+
 ### 🔲 Next Up
 
 | Phase | Feature | Priority |
 |-------|---------|---------|
-| Phase 52 | Closed-Loop Tracking Emulation | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
-| Phase 51 | Guide Calibration & Axis Transform | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
-| Phase 53 | Correction-Loop Dynamics | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
-| Phase 54 | Auto-Sync Repair (ASTAP + J2000) | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
-| Phase 55 | Rig Configuration | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
-| Phase 56 | Frame-Path Memory Safety | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
-| Phase 57 | Mount-Safety & Remote-Control Hardening | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
-| Phase 58 | Camera Fault Recovery | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
-| Phase 59 | Capture & Assist Reliability | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
 | Phase 26 | Night Vision Mode | Tier 1 |
 | Phase 49 | Help System | Tier 1 |
 
@@ -976,7 +992,7 @@ shutdown-safety issues that would surface on a real session night:
   exposure now cuts gain too
 - Autofocus scan thread is joinable (was detached — could outlive shutdown
   and invoke destroyed callbacks)
-- **Status: 🛠 implemented 2026-07-10 (PR #2), validation pending**
+- **Status: ✅ validated in emulator 2026-07-11 (build v1.1.2); on-sky test still owed**
 
 #### Phase 58 — Camera Fault Recovery (review C4)
 Architecture §6.3 describes the "Pipeline Wedge" auto-reset, but
@@ -1401,15 +1417,15 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 | # | Phase | Tier | Effort | Status |
 |---|-------|------|--------|--------|
-| 52 | Closed-Loop Tracking Emulation | 0 | Medium | 🛠 implemented, validation pending |
-| 51 | Guide Calibration & Axis Transform | 0 | Hard | 🛠 implemented, validation pending |
-| 53 | Correction-Loop Dynamics | 0 | Medium | 🛠 implemented, validation pending |
-| 54 | Auto-Sync Repair (ASTAP + J2000) | 0 | Easy-Med | 🛠 implemented, validation pending |
-| 55 | Rig Configuration | 0 | Easy-Med | 🛠 implemented, validation pending |
-| 56 | Frame-Path Memory Safety | 0 | Medium | 🛠 implemented, validation pending |
-| 57 | Mount-Safety & Remote Hardening | 0 | Medium | 🛠 implemented, validation pending |
-| 58 | Camera Fault Recovery | 0 | Medium | 🛠 implemented, validation pending |
-| 59 | Capture & Assist Reliability | 0 | Medium | 🛠 implemented, validation pending |
+| 52 | Closed-Loop Tracking Emulation | 0 | Medium | ✅ validated (emu) 2026-07-11 |
+| 51 | Guide Calibration & Axis Transform | 0 | Hard | ✅ validated (emu) 2026-07-11 |
+| 53 | Correction-Loop Dynamics | 0 | Medium | ✅ validated (emu) 2026-07-11 |
+| 54 | Auto-Sync Repair (ASTAP + J2000) | 0 | Easy-Med | ✅ validated (emu) 2026-07-11 |
+| 55 | Rig Configuration | 0 | Easy-Med | ✅ validated (emu) 2026-07-11 |
+| 56 | Frame-Path Memory Safety | 0 | Medium | ✅ validated (emu) 2026-07-11 |
+| 57 | Mount-Safety & Remote Hardening | 0 | Medium | ✅ validated (emu) 2026-07-11 |
+| 58 | Camera Fault Recovery | 0 | Medium | ✅ validated (emu) 2026-07-11 |
+| 59 | Capture & Assist Reliability | 0 | Medium | ✅ validated (emu) 2026-07-11 |
 | 12 | Auto-Exposure Assistant | 1 | Medium | ✅ v1.0.5 |
 | 21 | Clipping Warning Overlay | 1 | Easy | ✅ v1.0.6 |
 | 22 | Snapshot PNG/FITS | 1 | Easy | ✅ v1.0.7 |

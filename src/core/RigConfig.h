@@ -21,6 +21,9 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifndef NOMINMAX
+#define NOMINMAX  // keep windows.h min/max macros away from std::min/max
+#endif
 #include <windows.h>
 #include <string>
 #include <cstdio>

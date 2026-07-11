@@ -6,7 +6,7 @@
 
 ## 1. PROJECT OVERVIEW
 
-**RadukCapture** is a high-performance planetary imaging capture application built in C++ for Windows, designed as a purpose-built replacement for FireCapture. It runs on StarMachine, talks directly to the ZWO ASI678MC, ZWO EAF focuser, and the Celestron 8SE mount via the NexStar serial protocol (no CPWI, no ASCOM), and integrates with the APEX Astrophotography Command Center dashboard running on Elminster.
+**RadukCapture** is a high-performance planetary imaging capture application built in C++ for Windows, it runs on a Windows PC, talks directly to the ZWO ASI678MC, ZWO EAF focuser, and the Celestron 8SE mount via the NexStar serial protocol (no CPWI, no ASCOM), and integrates with the APEX Astrophotography Command Center dashboard.
 
 Mount control is entirely NexStar direct over COM3 — no third-party software required. The full GoTo + sky map pipeline is operational. Profile management includes a full modal EDIT dialog. The control panel is a `WS_CHILD` window, scrollable, with all sections collapsible via colored circle headers matching the SharpCap Pro aesthetic.
 
@@ -46,12 +46,14 @@ Main Window  (WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, dark bg brush RGB(7,13,22))
 
 ### Why Build This
 
-- **FireCapture** is Java-based, closed source, and has not seen major feature updates
-- Direct C++ integration with the ASI SDK eliminates the overhead of Java ↔ native bridging
-- Full control over the capture pipeline enables APEX-specific features: weather-aware auto-exposure, integrated session logging, quality scoring that feeds directly into observation history
-- The ASI678MC at 4K/47fps generates ~1.5 GB/s of raw data — native C++ is the right tool for zero-copy buffer management at this throughput
-- StarMachine's i9 CPU and discrete GPU enable real-time quality analysis and GPU-accelerated debayer that FireCapture cannot match
-- Designed for future distribution — ASCOM compatibility and hardware abstraction layers allow other users with different equipment to use RadukCapture
+RadukCapture exists because the astronomy stack — capture, mount control, plate solving, weather-aware scoring, and eventually AI-assisted operation — should be one coherent system, not five separate concerns reconciled by hand every session.
+
+Unified state across the session. Pixels, mount position, plate solves, and quality scores live in one process, so a capture decision — start recording, hold for better seeing, correct pointing — is made from a single live picture of the system, not reassembled from logs afterward.
+Direct hardware integration. Native ASI SDK access and direct NexStar serial control give the pipeline the low-latency, zero-copy path the ASI678MC's ~1.5 GB/s raw stream and the centroid-tracking loop actually require.
+Instrument-specific tuning. Exposure logic, quality gating, and gust-aware scoring are built around this telescope (8SE, 2032mm f/10, single-arm mount) and this site (Bortle 4, Anthem AZ, 0.203"/px plate scale) — not generalized for an average setup.
+A foundation for capabilities that don't exist yet. Pointing-model learning from repeated plate solves, hybrid SGP4/JPL Horizons satellite tracking, and an AI assistant with growing autonomy over the capture loop all require the application's internals to be exposed and addressable from the start, not bolted on later.
+Full ownership of the data. Session logs, quality metrics, and pointing corrections are captured in a schema designed for how the data will actually be used — archival, AI context building, dashboard scoring — rather than adapted from someone else's log format.
+A long-term personal instrument. This is infrastructure meant to be extended indefinitely as equipment, targets, and ambitions change, the same way an amateur astronomer extends their own optics or mount over decades.
 
 ### Two-Machine Setup
 
@@ -59,8 +61,8 @@ RadukCapture is designed around a two-desktop configuration:
 
 | Machine | Role | Location |
 |---------|------|----------|
-| **StarMachine** | Imaging PC — runs RadukCapture, connected to all hardware | Outside with telescope |
-| **Elminster** | Monitoring/streaming desktop — runs APEX dashboard, OBS Studio | Inside the house |
+| Imaging PC — runs RadukCapture, connected to all hardware | Outside with telescope |
+| Monitoring/streaming desktop — runs APEX dashboard, OBS Studio | Inside the house |
 
 Both machines are on the same home network (LAN via CAT5 or WiFi). They communicate via:
 - **WebSocket** (Phase 4): real-time telemetry — FPS, seeing score, mount position, session events. Tiny payloads, works on WiFi.
@@ -91,8 +93,8 @@ Export stacked TIFF ────────────────────
 
 | Component | Spec |
 |-----------|------|
-| Imaging Machine | StarMachine — Windows, Intel i9, discrete GPU |
-| Monitoring Machine | Elminster — Windows desktop, high-powered GPU, inside |
+| Imaging Machine | Windows, Intel i9, discrete GPU |
+| Monitoring Machine | Windows desktop, high-powered GPU, inside |
 | Camera | ZWO ASI678MC |
 | Sensor | Sony IMX678 — 3840x2160, 1/1.8", 2um pixels |
 | Interface | USB 3.0 |

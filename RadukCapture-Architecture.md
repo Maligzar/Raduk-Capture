@@ -695,6 +695,7 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 | Phase 56 | Frame-Path Memory Safety | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
 | Phase 57 | Mount-Safety & Remote-Control Hardening | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
 | Phase 58 | Camera Fault Recovery | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 59 | Capture & Assist Reliability | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
 | Phase 26 | Night Vision Mode | Tier 1 |
 | Phase 49 | Help System | Tier 1 |
 
@@ -957,6 +958,25 @@ Every remaining path that can move the mount against the user's intent:
   drain fire-and-forget `#` acks so poll parsing stops corrupting; align the
   watchdog header comment (3 s) with the constant (8 s)
 - **Effort: Medium**
+
+#### Phase 59 — Capture & Assist Reliability (review C2 + C3 + S3 + S4 + G4-scoped)
+The remaining HIGH findings beside the tracking chain — all capture-quality or
+shutdown-safety issues that would surface on a real session night:
+- SER trailer timestamps derived from each frame's CAPTURE time via a
+  QPC↔wall-clock correlation taken at file open (they recorded disk-write
+  time, up to ~10s late with a full write-buffer backlog — useless for
+  WinJUPOS derotation); QPC math made overflow-safe past 21 days uptime
+- CaptureManager reallocates the write buffer when per-slot capacity no
+  longer fits the frame (ROI grew → every push failed → zero-frame SER),
+  and a failed multi-GB allocation now aborts the start with a visible error
+- Autofocus parabola fit rejects upward-opening fits (noisy data previously
+  drove the focuser to maximum defocus and reported success)
+- Auto-exposure HCG floor is advisory: it no longer snaps gain UP on
+  already-bright low-gain profiles, and a clip emergency stuck at minimum
+  exposure now cuts gain too
+- Autofocus scan thread is joinable (was detached — could outlive shutdown
+  and invoke destroyed callbacks)
+- **Status: 🛠 implemented 2026-07-10 (PR #2), validation pending**
 
 #### Phase 58 — Camera Fault Recovery (review C4)
 Architecture §6.3 describes the "Pipeline Wedge" auto-reset, but
@@ -1381,14 +1401,15 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 | # | Phase | Tier | Effort | Status |
 |---|-------|------|--------|--------|
-| 52 | Closed-Loop Tracking Emulation | 0 | Medium | 🔲 Next — tracking blocker |
-| 51 | Guide Calibration & Axis Transform | 0 | Hard | 🔲 Tracking blocker |
-| 53 | Correction-Loop Dynamics | 0 | Medium | 🔲 Tracking blocker |
-| 54 | Auto-Sync Repair (ASTAP + J2000) | 0 | Easy-Med | 🔲 Tracking blocker |
-| 55 | Rig Configuration | 0 | Easy-Med | 🔲 |
-| 56 | Frame-Path Memory Safety | 0 | Medium | 🔲 |
-| 57 | Mount-Safety & Remote Hardening | 0 | Medium | 🔲 |
-| 58 | Camera Fault Recovery | 0 | Medium | 🔲 |
+| 52 | Closed-Loop Tracking Emulation | 0 | Medium | 🛠 implemented, validation pending |
+| 51 | Guide Calibration & Axis Transform | 0 | Hard | 🛠 implemented, validation pending |
+| 53 | Correction-Loop Dynamics | 0 | Medium | 🛠 implemented, validation pending |
+| 54 | Auto-Sync Repair (ASTAP + J2000) | 0 | Easy-Med | 🛠 implemented, validation pending |
+| 55 | Rig Configuration | 0 | Easy-Med | 🛠 implemented, validation pending |
+| 56 | Frame-Path Memory Safety | 0 | Medium | 🛠 implemented, validation pending |
+| 57 | Mount-Safety & Remote Hardening | 0 | Medium | 🛠 implemented, validation pending |
+| 58 | Camera Fault Recovery | 0 | Medium | 🛠 implemented, validation pending |
+| 59 | Capture & Assist Reliability | 0 | Medium | 🛠 implemented, validation pending |
 | 12 | Auto-Exposure Assistant | 1 | Medium | ✅ v1.0.5 |
 | 21 | Clipping Warning Overlay | 1 | Easy | ✅ v1.0.6 |
 | 22 | Snapshot PNG/FITS | 1 | Easy | ✅ v1.0.7 |

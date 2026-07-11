@@ -107,7 +107,14 @@ struct AFResult {
 class AutofocusRoutine {
 public:
     AutofocusRoutine() = default;
-    ~AutofocusRoutine() { Abort(); }
+    // Phase 59 (review G4, scoped): the scan thread was detached, so at
+    // shutdown it could outlive RunApp() locals and invoke a destroyed
+    // std::function / ControlPanel. The thread is now joinable and the
+    // destructor waits for it (Abort makes the wait short).
+    ~AutofocusRoutine() {
+        Abort();
+        if (m_thread.joinable()) m_thread.join();
+    }
 
     AutofocusRoutine(const AutofocusRoutine&) = delete;
     AutofocusRoutine& operator=(const AutofocusRoutine&) = delete;
@@ -141,18 +148,19 @@ public:
         m_samplesNeeded.store(0);
         SetStatus("Autofocus starting...");
 
+        // Reap the previous (finished) scan thread before starting a new one
+        if (m_thread.joinable()) m_thread.join();
         m_thread = std::thread(&AutofocusRoutine::ScanThread, this);
-        m_thread.detach();
         return true;
     }
 
-    // Abort the running scan — returns immediately.
-    // Focuser is stopped and state returns to Idle.
+    // Abort the running scan — returns immediately (does not join).
+    // Focuser is stopped; the thread sees the flag and exits, and is
+    // reaped by the next Start() or the destructor.
     void Abort() {
         m_abortFlag.store(true);
         if (m_focuser && m_focuser->IsOpen())
             m_focuser->Stop();
-        // Thread is detached — it will see the abort flag and exit cleanly
     }
 
     // ── Sharpness feed (called from render loop, main thread) ─
@@ -405,6 +413,15 @@ private:
         double b = det3(Mb) / D;
 
         if (fabs(a) < 1e-10) return -1;  // degenerate parabola
+        // Phase 59 (review S3): sharpness peaks at focus, so a valid fit
+        // opens DOWNWARD (a < 0). With noisy data a > 0 makes the vertex
+        // the sharpness MINIMUM — the routine then slews to maximum
+        // defocus and reports success.
+        if (a > 0) {
+            printf("[AF] Parabola opens upward (a=%.4g) — data too noisy, "
+                   "no focus minimum found\n", a);
+            return -1;
+        }
 
         // Vertex at x_norm = -b / (2a)
         double xNorm = -b / (2.0 * a);

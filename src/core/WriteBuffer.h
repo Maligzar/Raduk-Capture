@@ -92,6 +92,12 @@ public:
 
     bool IsAllocated() const { return m_allocated; }
 
+    // Per-slot capacity in bytes (0 when unallocated) — lets the caller
+    // detect that a frame-size change requires reallocation (review C3).
+    size_t SlotCapacity() const {
+        return (m_allocated && m_numSlots > 0) ? m_slots[0].bufferCapacity : 0;
+    }
+
     // ── Producer (capture thread, via CaptureManager) ──────────
 
     // Try to push a frame. Returns false if buffer is full (overrun).

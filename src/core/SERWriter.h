@@ -19,6 +19,7 @@
 #include <vector>
 #include <ctime>
 #include <windows.h>
+#include "Timestamp.h"
 
 namespace raduk::core {
 
@@ -89,6 +90,14 @@ public:
         m_framesWritten = 0;
         m_bytesWritten  = 0;
 
+        // Phase 59 (review C2): correlate the QPC clock (FrameSlot capture
+        // stamps) with wall time ONCE, here. Each trailer entry is then
+        // derived from the frame's capture QPC — not from when the writer
+        // thread drained it, which lagged up to ~10s with a full 512-slot
+        // backlog and made the trailer useless for WinJUPOS derotation.
+        m_qpcBaseUs = Timestamp::Now();
+        m_ftBase    = CurrentFileTimeUTC();
+
         // Build header
         SERHeader hdr = {};
         memcpy(hdr.FileID, "LUCAM-RECORDER", 14);
@@ -120,9 +129,11 @@ public:
     }
 
     // Write one frame with optional sharpness score (Phase 11 lucky imaging).
+    // timestampUs: the frame's CAPTURE time (QPC microseconds, FrameSlot
+    // convention) — converted to wall clock via the Open()-time correlation.
     // sharpness: 0-100 from FrameAnalyzer::sharpnessPct. 0 = unknown.
     bool WriteFrame(const uint8_t* data, size_t sizeBytes,
-                    uint64_t /*timestampUs*/, float sharpness = 0.0f) {
+                    uint64_t timestampUs, float sharpness = 0.0f) {
         if (!m_file || !data || sizeBytes == 0) return false;
 
         size_t written = fwrite(data, 1, sizeBytes, m_file);
@@ -134,7 +145,12 @@ public:
 
         m_framesWritten++;
         m_bytesWritten += sizeBytes;
-        m_timestamps.push_back(CurrentFileTimeUTC());
+        // Capture-time trailer entry (100ns ticks): base + (qpc − qpcBase).
+        // A zero timestamp (no capture stamp available) falls back to now.
+        int64_t ts = (timestampUs != 0)
+            ? m_ftBase + ((int64_t)timestampUs - (int64_t)m_qpcBaseUs) * 10
+            : CurrentFileTimeUTC();
+        m_timestamps.push_back(ts);
         m_sharpnessScores.push_back(sharpness);  // Phase 11
 
         return true;
@@ -237,6 +253,9 @@ private:
     int                   m_bitDepth     = 8;
     uint32_t              m_framesWritten = 0;
     uint64_t              m_bytesWritten  = 0;
+    // Phase 59 (C2): QPC↔wall-clock correlation captured at Open()
+    uint64_t              m_qpcBaseUs = 0;
+    int64_t               m_ftBase    = 0;
     std::vector<int64_t>  m_timestamps;
     std::vector<float>    m_sharpnessScores;  // Phase 11: one per frame
 };

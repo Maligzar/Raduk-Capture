@@ -32,6 +32,7 @@
 #include <thread>
 #include <vector>
 
+#include "Version.h"
 #include "core/DeviceFactory.h"
 #include "core/RingBuffer.h"
 #include "core/CaptureThread.h"
@@ -451,7 +452,9 @@ static int RunApp(bool useEmulator) {
     const int screenH  = GetSystemMetrics(SM_CYSCREEN);
 
     Log("==============================================\n");
-    Log("  RADUKCAPTURE v0.9 -- Phase 4 Complete %s\n", useEmulator ? "[EMULATOR]" : "");
+    Log("  RADUKCAPTURE v%s  (built %s %s) %s\n",
+        RADUK_VERSION_A, __DATE__, __TIME__,
+        useEmulator ? "[EMULATOR]" : "");
     Log("==============================================\n\n");
 
     SessionLog slog;
@@ -681,10 +684,14 @@ static int RunApp(bool useEmulator) {
     bool     summaryWasRecording   = false;
 
     // ── Window ─────────────────────────────────────────────────
+    // Title carries the iteration version (Version.h, bumped every push)
+    // plus this binary's compile timestamp — a stale exe is visible at
+    // a glance instead of being inferred from behavior.
     Window window;
     wchar_t title[128];
-    swprintf(title, 128, L"RadukCapture v1.0.5%s",
-             useEmulator ? L" [EMULATOR]" : L"");
+    swprintf(title, 128, L"RadukCapture v%s  [build %hs %hs]%s",
+             RADUK_VERSION_W, __DATE__, __TIME__,
+             useEmulator ? L"  [EMULATOR]" : L"");
     if (!window.Create(title, screenW, screenH)) {
         Log("[FATAL] Window creation failed\n");
         analyzer.Stop(); capture.Stop(); cam.Close(); return 1;

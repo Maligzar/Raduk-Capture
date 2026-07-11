@@ -7,6 +7,7 @@
 // ============================================================
 #include "PreviewRenderer.h"
 #include "Theme.h"
+#include "Version.h"
 #include "core/ADCAssistant.h"
 #include "core/RigConfig.h"
 #include <cstdio>
@@ -720,7 +721,10 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
         const wchar_t* debayerTag =
             m_debayerMode == DebayerMode::Color ? L"COLOR" : L"RAW";
 
-        swprintf(buf, 256, L"RADUKCAPTURE  ASI678MC  %.1f FPS  [%s]", fps, debayerTag);
+        // Version in the always-visible banner (I control this color, unlike
+        // the OS title bar) so a stale build is obvious at a glance.
+        swprintf(buf, 256, L"RADUKCAPTURE v%s  ASI678MC  %.1f FPS  [%s]",
+                 RADUK_VERSION_W, fps, debayerTag);
         D2D1_RECT_F titleRect = D2D1::RectF(px+8, 6, px+pw-200, 26);
         m_titleFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
         m_renderTarget->DrawText(buf, (UINT32)wcslen(buf),

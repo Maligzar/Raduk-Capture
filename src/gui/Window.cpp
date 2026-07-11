@@ -9,7 +9,9 @@
 #include "Window.h"
 #include "Theme.h"
 #include <windowsx.h>
+#include <dwmapi.h>
 #include <cstdio>
+#pragma comment(lib, "dwmapi.lib")
 
 // Must match ControlPanel.h PANEL_WIDTH — the D2D render target is sized
 // to the preview area only (clientW - PANEL_WIDTH) so it never paints over
@@ -72,6 +74,16 @@ bool Window::Create(const wchar_t* title, int width, int height) {
     if (!m_hwnd) {
         printf("[Window] CreateWindowExW failed: %lu\n", GetLastError());
         return false;
+    }
+
+    // Dark title bar so it matches the app and the title text stays readable
+    // (on light Windows themes the caption was dark-on-light and unreadable).
+    // DWMWA_USE_IMMERSIVE_DARK_MODE = 20 on current Win10/11; 19 on older
+    // builds — set both, DWM ignores the one it doesn't know.
+    {
+        BOOL dark = TRUE;
+        DwmSetWindowAttribute(m_hwnd, 20, &dark, sizeof(dark));
+        DwmSetWindowAttribute(m_hwnd, 19, &dark, sizeof(dark));
     }
 
     // Maximize and pump the message queue so WM_SIZE fires and sets

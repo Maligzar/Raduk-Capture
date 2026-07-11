@@ -125,13 +125,13 @@ endif()
 if(RADUK_EMULATOR)
     target_link_libraries(RadukCapture PRIVATE
         d2d1 dwrite d3d11 dxgi d3dcompiler windowscodecs shell32
-        ws2_32 winhttp Shcore
+        ws2_32 winhttp Shcore dwmapi
     )
 else()
     target_link_libraries(RadukCapture PRIVATE
         ASI_SDK EAF_SDK
         d2d1 dwrite d3d11 dxgi d3dcompiler windowscodecs shell32
-        ws2_32 winhttp ole32 oleaut32 advapi32 uxtheme Shcore
+        ws2_32 winhttp ole32 oleaut32 advapi32 uxtheme Shcore dwmapi
     )
 endif()
 

@@ -450,6 +450,35 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                                    double fps, uint64_t frameCount, int droppedFrames) {
     if (!m_renderTarget) return;
 
+    // v1.1.1: hold the newest frame between camera frames. Each frame is
+    // delivered exactly once (SDK semantics), so whenever the camera rate
+    // drops below the ~60Hz render loop most render ticks arrive with
+    // frame == null — and the preview flashed NO SIGNAL between frames
+    // (visible at any exposure > ~16ms; the old always-a-frame emulator
+    // masked it). Redraw the held copy instead; NO SIGNAL only appears
+    // after HOLD_TIMEOUT_MS with no frames at all (real signal loss).
+    raduk::core::FrameSlot holdShim;
+    if (frame && frame->data && frame->width > 0 && frame->height > 0) {
+        size_t bytes = (size_t)frame->width * frame->height
+                     * (frame->bitDepth == 16 ? 2 : 1);
+        m_holdBuf.assign(frame->data, frame->data + bytes);
+        m_holdW     = (int)frame->width;
+        m_holdH     = (int)frame->height;
+        m_holdDepth = frame->bitDepth;
+        m_holdTime  = std::chrono::steady_clock::now();
+    } else if (!m_holdBuf.empty()) {
+        auto ageMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - m_holdTime).count();
+        if (ageMs < HOLD_TIMEOUT_MS) {
+            holdShim.data     = m_holdBuf.data();
+            holdShim.dataSize = m_holdBuf.size();
+            holdShim.width    = (uint32_t)m_holdW;
+            holdShim.height   = (uint32_t)m_holdH;
+            holdShim.bitDepth = (uint8_t)m_holdDepth;
+            frame = &holdShim;
+        }
+    }
+
     int previewHeight = windowHeight - statusBarHeight;
     float px = (float)previewX;
     float pw = (float)previewWidth;

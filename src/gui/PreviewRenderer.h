@@ -14,6 +14,7 @@
 #include <array>
 #include <chrono>
 #include <string>
+#include <vector>
 #include <functional>
 #include "../core/FrameSlot.h"
 #include "../core/FrameAnalyzer.h"
@@ -401,6 +402,14 @@ private:
     float                   m_dragStartY    = 0;
     float                   m_dragCurX      = 0;
     float                   m_dragCurY      = 0;
+    // v1.1.1: last-frame hold — preview redraws the newest frame between
+    // camera deliveries instead of flashing NO SIGNAL (see RenderFrame)
+    static constexpr int    HOLD_TIMEOUT_MS = 2000;
+    std::vector<uint8_t>    m_holdBuf;
+    int                     m_holdW = 0, m_holdH = 0;
+    uint8_t                 m_holdDepth = 8;
+    std::chrono::steady_clock::time_point m_holdTime{};
+
     bool                    m_roiAutoApplyPending = false; // Phase 56 (G2)
     int                     m_pendingROIW   = 0;
     int                     m_pendingROIH   = 0;

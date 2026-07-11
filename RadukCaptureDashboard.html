@@ -822,7 +822,7 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
   <div class="col-center">
     <div class="panel" style="flex:0 0 auto">
       <div class="panel-title" style="justify-content:space-between">
-        <span>⭐ LIVE SKY MAP — ANTHEM AZ</span>
+        <span>⭐ LIVE SKY MAP</span>
         <div style="display:flex;gap:8px;font-size:9px;margin-left:auto">
           <span style="color:var(--accent2)">● PLANET</span><span style="color:var(--green)">● PRIME</span><span style="color:var(--accent)">● GOOD</span><span style="color:var(--amber)">● FAIR</span>
         </div>
@@ -887,7 +887,7 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
 
     <!-- Connection panel -->
     <div class="rc-panel" style="flex:0 0 auto">
-      <div class="rc-title"><div class="rc-dot rc-dot-idle" id="rcDotConn"></div>RADUKCAPTURE — STARMACHINE</div>
+      <div class="rc-title"><div class="rc-dot rc-dot-idle" id="rcDotConn"></div>RADUKCAPTURE — REMOTE</div>
       <div class="rc-connect-panel">
         <div class="rc-connect-header">
           <span>BRIDGE STATUS</span>
@@ -909,10 +909,10 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
           <span id="rcTextCam" style="color:var(--text-dim);font-size:10px">--</span>
         </div>
         <div class="rc-url-row">
-          <input class="rc-url-input" id="rcWsUrl" value="ws://localhost:8765" placeholder="ws://localhost:8765 or ws://starmachine:8765">
+          <input class="rc-url-input" id="rcWsUrl" value="ws://localhost:8765" placeholder="ws://localhost:8765 or ws://<capture-pc>:8765">
           <button class="rc-connect-btn connect" id="rcConnectBtn" onclick="rcToggleConnect()">CONNECT</button>
         </div>
-        <div style="font-size:9px;color:var(--text-dim);padding:2px 10px 4px;letter-spacing:1px">Local: ws://localhost:8765 · Remote: ws://starmachine:8765 or ws://[IP]:8765</div>
+        <div style="font-size:9px;color:var(--text-dim);padding:2px 10px 4px;letter-spacing:1px">Local: ws://localhost:8765 · Remote: ws://&lt;capture-pc&gt;:8765 or ws://[IP]:8765</div>
         <div class="rc-sync-msg" id="rcSyncMsg">Connect to RadukCapture WebSocket — enter IP if hostname fails</div>
       </div>
     </div>
@@ -963,8 +963,8 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
       <div class="rc-title">📋 SESSION LOG <span id="rcLiveIndicator" style="margin-left:8px;font-size:10px;color:var(--text-dim)">(NOT CONNECTED)</span></div>
       <div class="rc-session-log" id="rcSessionLog">
         <div class="log-line info">[INIT] RadukCapture monitor loaded</div>
-        <div class="log-line info">[RC] Enter StarMachine IP or hostname above, then click CONNECT</div>
-        <div class="log-line info">[RC] e.g. ws://192.168.1.x:8765 if 'starmachine' doesn't resolve</div>
+        <div class="log-line info">[RC] Enter the capture PC's IP or hostname above, then click CONNECT</div>
+        <div class="log-line info">[RC] e.g. ws://192.168.1.x:8765 if the hostname doesn't resolve</div>
       </div>
     </div>
 
@@ -1197,8 +1197,8 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
 <div id="content-hist" class="tab-content">
   <div class="hist-header">
     <div>
-      <div class="hist-title">◈ OBSERVATION HISTORY — ANTHEM, AZ</div>
-      <div class="hist-subtitle">PERSISTENT LOG · UP TO 7,300 SESSIONS · 20-YEAR ARCHIVE · BORTLE 4 SITE</div>
+      <div class="hist-title">◈ OBSERVATION HISTORY</div>
+      <div class="hist-subtitle">PERSISTENT LOG · UP TO 7,300 SESSIONS · 20-YEAR ARCHIVE</div>
     </div>
     <div class="hist-actions">
       <button class="log-night-btn" onclick="openLogModal()">+ LOG TONIGHT</button>
@@ -1312,8 +1312,8 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
 <div id="content-sky" class="tab-content">
   <div class="hist-header">
     <div>
-      <div class="hist-title" style="color:var(--accent)">◈ SKY CONDITIONS HISTORY — ANTHEM, AZ</div>
-      <div class="hist-subtitle">AUTO-CAPTURED NIGHTLY · EVERY PAGE LOAD · UNLIMITED ARCHIVE · BORTLE 4</div>
+      <div class="hist-title" style="color:var(--accent)">◈ SKY CONDITIONS HISTORY</div>
+      <div class="hist-subtitle">AUTO-CAPTURED NIGHTLY · EVERY PAGE LOAD · UNLIMITED ARCHIVE</div>
     </div>
     <div class="hist-actions">
       <button class="hist-btn" onclick="skyExport()">⬇ EXPORT CSV</button>
@@ -1535,7 +1535,7 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
         <div class="fcast-chart-card">
           <div class="fcast-chart-lbl">◈ CLEAR OUTSIDE REFERENCE</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:var(--text-dim);margin-bottom:8px;letter-spacing:1px">Direct link — browser CORS prevents inline embedding</div>
-          <a id="coLink" href="https://clearoutside.com/forecast/33.86/-112.13" target="_blank"
+          <a id="coLink" href="https://clearoutside.com/forecast/0.00/0.00" target="_blank"
              style="display:inline-block;font-family:'Space Mono',monospace;font-size:19px;padding:7px 14px;border:1px solid rgba(0,229,255,.3);color:var(--accent);text-decoration:none">
             ↗ OPEN CLEAR OUTSIDE
           </a>
@@ -1735,8 +1735,8 @@ const apexStorage = {
 // ============================================================
 // LOCATION & CONSTANTS
 // ============================================================
-// Default = 3556 W Twain Dr, Anthem, AZ 85086
-const DEFAULT_LAT=33.8653, DEFAULT_LON=-112.1235, DEFAULT_LABEL="3556 W TWAIN DR · ANTHEM AZ";
+// Default location is unset — user configures via the location panel
+const DEFAULT_LAT=0.0, DEFAULT_LON=0.0, DEFAULT_LABEL="SET YOUR LOCATION";
 let LAT=DEFAULT_LAT, LON=DEFAULT_LON;
 let SITE_LABEL=DEFAULT_LABEL, SITE_ELEV="1,732 FT";
 const TIMEZONE="America/Phoenix";
@@ -1963,7 +1963,7 @@ function rcLoadProfile(name) {
 (function() {
   const urlEl = document.getElementById('rcWsUrl');
   if (urlEl && (location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-    if (urlEl.value.indexOf('starmachine') !== -1) {
+    if (false) { // hostname-specific fallback removed
       urlEl.value = 'ws://localhost:8765';
     }
   }
@@ -1978,7 +1978,7 @@ function rcToggleConnect() {
     document.getElementById('rcConnectBtn').className = 'rc-connect-btn connect';
     if (rcSimInterval) { clearInterval(rcSimInterval); rcSimInterval = null; }
   } else {
-    const url = document.getElementById('rcWsUrl').value.trim() || 'ws://starmachine:8765';
+    const url = document.getElementById('rcWsUrl').value.trim() || 'ws://localhost:8765';
     rcSetSyncMsg('Connecting…', 'info');
     document.getElementById('rcConnectBtn').textContent = 'CONNECTING…';
     try {
@@ -1997,7 +1997,7 @@ function rcToggleConnect() {
       };
       rcWs.onerror = () => {
         rcSetSyncMsg('Connection failed — is RadukCapture running? Try IP address instead of hostname', 'err');
-        rcLogSession('[RC] WebSocket error — is RadukCapture running on StarMachine?', 'err');
+        rcLogSession('[RC] WebSocket error — is RadukCapture running on the capture PC?', 'err');
       };
       rcWs.onclose = () => {
         rcConnected = false; rcRunning = false;
@@ -5380,7 +5380,7 @@ function skyClearAll() {
         🏠 USE DEFAULT HOME SITE
         <span class="loc-active-dot" id="locDot-default" style="display:none"></span>
       </div>
-      <div class="loc-option-desc">3556 W Twain Dr · Anthem, AZ 85086 · 33.8653°N 112.1235°W · Bortle 4</div>
+      <div class="loc-option-desc">No default site — set your coordinates below</div>
     </div>
 
     <!-- Option 2: Auto-detect -->
@@ -5407,7 +5407,7 @@ function skyClearAll() {
       <div class="loc-inputs" id="locAddressInputs">
         <div class="loc-field" style="margin-top:10px">
           <label>STREET ADDRESS</label>
-          <input type="text" id="locAddressInput" placeholder="3556 W Twain Dr, Anthem, AZ 85086" oninput="locClearResult('address')">
+          <input type="text" id="locAddressInput" placeholder="123 Example St, City, ST" oninput="locClearResult('address')">
         </div>
         <button class="loc-save-btn" style="font-size:9px;padding:7px 14px" onclick="event.stopPropagation();doGeocodeAddress()">▶ LOOK UP COORDINATES</button>
         <div class="loc-status" id="locAddressStatus"></div>
@@ -5426,11 +5426,11 @@ function skyClearAll() {
         <div class="loc-field-row" style="margin-top:10px">
           <div class="loc-field">
             <label>LATITUDE (decimal °N)</label>
-            <input type="number" id="locManualLat" step="0.0001" placeholder="33.8653" oninput="locUpdateManualPreview()">
+            <input type="number" id="locManualLat" step="0.0001" placeholder="e.g. 40.7128" oninput="locUpdateManualPreview()">
           </div>
           <div class="loc-field">
             <label>LONGITUDE (decimal °E, neg=W)</label>
-            <input type="number" id="locManualLon" step="0.0001" placeholder="-112.1235" oninput="locUpdateManualPreview()">
+            <input type="number" id="locManualLon" step="0.0001" placeholder="e.g. -74.0060" oninput="locUpdateManualPreview()">
           </div>
         </div>
         <div class="loc-field">

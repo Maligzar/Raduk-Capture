@@ -1,5 +1,5 @@
 # RadukCapture Help & Reference
-### v1.0.10 — Built for the stars, from Anthem, Arizona
+### Built for the stars
 
 ---
 
@@ -87,7 +87,7 @@ All sections are collapsible — click the section header to expand/collapse.
 - **Input box** — Type a target position and click `GO TO` for a direct move.
 - **TEMP** — Current EAF temperature in °C.
 - **AUTO FOCUS** — Runs the built-in V-curve autofocus routine. Steps outward, measures sharpness at each position, fits a parabola, moves to the computed best focus. Abortable mid-run.
-- **ADC: severity (N.N")** — Live atmospheric dispersion measurement. Computed from mount altitude using the Edlen 1966 model for Anthem AZ (P=918hPa, T=288K). Shows NONE / MINOR / MODERATE / SIGNIFICANT / SEVERE. Use as a guide for when to apply an ADC or use RGB Align.
+- **ADC: severity (N.N")** — Live atmospheric dispersion measurement. Computed from mount altitude using the Edlen 1966 model (default site profile, P=918hPa, T=288K). Shows NONE / MINOR / MODERATE / SIGNIFICANT / SEVERE. Use as a guide for when to apply an ADC or use RGB Align.
 
 ### TELESCOPE
 - **Mount name / COM port** — Celestron 8SE on COM3 (NexStar serial protocol, not ASCOM).
@@ -278,7 +278,7 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 **Sensor:** Sony IMX678, 3840×2160, 2.9µm pixel pitch
 **EAF safe test position:** 50000 (physical position currently 150000)
 **HCG threshold:** gain 182 (above this = high-conversion-gain mode)
-**Site:** Anthem, AZ — Bortle 4, elevation 1732ft, UTC-7 (no DST)
+**Site:** configured in rig.ini (latitude/longitude; default 0,0)
 **ADC model:** Edlen 1966, P=918hPa, T=288K
 
 ---

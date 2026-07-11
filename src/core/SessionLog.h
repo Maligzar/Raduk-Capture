@@ -5,6 +5,13 @@
 // log file alongside captures. One log per session.
 // ============================================================
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>   // GetComputerNameA — machine name resolved at runtime
 #include <string>
 #include <cstdio>
 #include <ctime>
@@ -162,14 +169,18 @@ private:
         localtime_s(&t, &now);
         strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", &t);
 
+        // Machine name resolved at runtime — nothing personal hardcoded
+        char machine[64] = "unknown";
+        DWORD mlen = (DWORD)sizeof(machine);
+        GetComputerNameA(machine, &mlen);
         fprintf(m_file,
             "# ============================================================\n"
             "# RadukCapture Session Log\n"
             "# Started: %s\n"
-            "# Machine: StarMachine  Location: Anthem, AZ\n"
+            "# Machine: %s\n"
             "# Telescope: Celestron 8SE  Camera: ZWO ASI678MC\n"
             "# ============================================================\n\n",
-            timebuf);
+            timebuf, machine);
         fflush(m_file);
     }
 

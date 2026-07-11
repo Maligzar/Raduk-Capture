@@ -145,7 +145,7 @@ public:
     static constexpr size_t   MAX_RECV_BUF   = 2  * 1024 * 1024;
 
     // Binds 127.0.0.1 by default — the command set has NO authentication.
-    // Set bindAny=true only on a trusted LAN (APEX dashboard on Elminster).
+    // Set bindAny=true only on a trusted LAN (remote APEX dashboard).
     bool Start(uint16_t port = 8765, bool bindAny = false) {
         if (m_running.load()) return true;
 
@@ -329,7 +329,7 @@ private:
 
         // Send 101 Switching Protocols
         // Include Access-Control-Allow-Origin so browsers can connect from
-        // any origin (file://, Elminster IP, iPhone, etc.)
+        // any origin (file://, dashboard PC, phone, etc.)
         std::string response =
             "HTTP/1.1 101 Switching Protocols\r\n"
             "Upgrade: websocket\r\n"

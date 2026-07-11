@@ -3,7 +3,7 @@
 // SkyMapWindow.h — Phase 6.1: Interactive Sky Map
 //
 // Alt-azimuth polar projection centered on zenith.
-// Observer: Anthem, AZ (33.8653°N, 112.1235°W, UTC-7 no DST)
+// Observer: site coordinates come from rig.ini (RigConfig)
 //
 // Renders:
 //  - Horizon circle with N/S/E/W compass labels
@@ -101,7 +101,7 @@ public:
 
         m_hwnd = CreateWindowExW(
             WS_EX_TOOLWINDOW,
-            L"RadukSkyMap", L"Sky Map — Anthem AZ",
+            L"RadukSkyMap", L"Sky Map",
             WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_SIZEBOX,
             x, y, w, h,
             parent, nullptr, GetModuleHandle(nullptr), this);
@@ -598,15 +598,18 @@ private:
         // ── Status bar ─────────────────────────────────────────
         {
             time_t t = time(nullptr);
-            struct tm* utc = gmtime(&t);
-            // MST = UTC-7
-            int mstH = (utc->tm_hour - 7 + 24) % 24;
+            struct tm lt{};
+            localtime_s(&lt, &t);
             wchar_t status[256];
             if (m_zoom <= 1.0f) {
+                // Site from RigConfig, clock from the local timezone --
+                // no hardcoded location or UTC offset
                 swprintf(status, 256,
-                    L"Anthem AZ 33.87°N 112.12°W   %02d:%02d MST   "
+                    L"Site %.2f\u00B0%s %.2f\u00B0%s   %02d:%02d LT   "
                     L"Left-click to GoTo  \u00B7  Right-click object for Info  \u00B7  Right-click sky to reset",
-                    mstH, utc->tm_min);
+                    fabs(OBS_LAT), OBS_LAT >= 0 ? L"N" : L"S",
+                    fabs(OBS_LON), OBS_LON >= 0 ? L"E" : L"W",
+                    lt.tm_hour, lt.tm_min);
             } else {
                 swprintf(status, 256,
                     L"%.1f\u00D7 zoom  \u00B7  FOV %.1f\u00B0  \u00B7  Alt %.0f\u00B0 Az %.0f\u00B0   "

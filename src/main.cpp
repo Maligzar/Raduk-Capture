@@ -646,7 +646,7 @@ static int RunApp(bool useEmulator) {
 
     // Phase 57 (review S1): loopback-only by default — the WS command set
     // slews the mount with no authentication. Set RADUK_WS_LAN=1 to expose
-    // it on the LAN for the APEX dashboard on Elminster (trusted WiFi only).
+    // it on the LAN for the APEX dashboard machine (trusted WiFi only).
     {
         char wsEnv[8] = {};
         bool wsLan = GetEnvironmentVariableA("RADUK_WS_LAN", wsEnv, 8) > 0

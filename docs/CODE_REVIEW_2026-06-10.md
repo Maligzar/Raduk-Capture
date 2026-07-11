@@ -254,7 +254,7 @@ FINE gets a full-speed slam at rate 9. Pass the rate through the callback.
 `src/gui/MountController.h:226-234, 368`, `src/main.cpp:673, 1475-1476`,
 `src/core/CentroidTracker.h:67`
 
-Latitude 33.86 / longitude −112.09 (Anthem, AZ), 3840×2160 sensor, and the
+The site latitude/longitude, 3840×2160 sensor, and the
 0.203″/px plate scale are scattered as literals. Fine for one rig, but they
 should live in one config struct so a Barlow/bin change doesn't silently break
 pulse sizing (T3/T13) and ROI math (T11). (The `ApproxLST` math itself is

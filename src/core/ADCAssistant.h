@@ -3,7 +3,7 @@
 // ADCAssistant.h — Atmospheric Dispersion Corrector guide
 //
 // Computes R vs B chromatic separation caused by atmospheric
-// refraction at a given altitude angle. Tuned for Anthem, AZ:
+// refraction at a given altitude angle. Default site profile:
 //   Elevation: 1,732 ft (528 m)
 //   Latitude:  33.87°N
 //   Standard atmosphere model (Owens 1967 / Filippenko 1982)
@@ -54,7 +54,7 @@ public:
     //
     // R(lambda) ≈ A(lambda) * tan(z)   [simplified, valid above 15°]
     //
-    // A(lambda) for Anthem AZ (P=918 hPa at 528m, T=288K):
+    // A(lambda) for a mid-elevation site (P=918 hPa at ~530m, T=288K):
     //   Derived from Edlen formula for refractive index of air.
     //   n-1 ≈ (k1/lambda^2 + k2/lambda^4) * P / T
     //   where lambda in microns, P in hPa, T in Kelvin.
@@ -77,7 +77,7 @@ public:
         double z = (90.0 - altitudeDeg) * ADC_PI / 180.0;
         double tanZ = tan(z);
 
-        // Anthem AZ site parameters
+        // Default site parameters (~530m elevation)
         constexpr double P = 918.0;   // pressure hPa (sea level 1013, -11.5/1000m * 528m)
         constexpr double T = 288.0;   // temperature K (~15°C nominal)
 
@@ -128,7 +128,7 @@ public:
     // ── Dispersion at key altitudes (for reference) ───────────
     // Useful for building a lookup table or calibration display.
     static void PrintTable() {
-        printf("[ADC] Dispersion table for Anthem AZ (P=918hPa):\n");
+        printf("[ADC] Dispersion table (default site, P=918hPa):\n");
         printf("  Alt    R-B sep\n");
         for (int alt : {10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90}) {
             auto r = Compute(alt);

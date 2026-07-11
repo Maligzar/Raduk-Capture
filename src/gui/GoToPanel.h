@@ -52,7 +52,7 @@ public:
     // ── Setup ─────────────────────────────────────────────────
     void SetMount(raduk::core::IMount* mount) { m_mount = mount; }
 
-    // Observer location for altitude sorting (Anthem, AZ defaults)
+    // Observer location for altitude sorting (set via SetLocation from RigConfig)
     void SetLocation(double lat, double lon) { m_lat = lat; m_lon = lon; }
 
     // Called when GoTo is issued — main.cpp uses this to auto-load
@@ -1196,7 +1196,7 @@ private:
 
         std::vector<const raduk::sky::SkyObject*> items;
         if (filter.empty()) {
-            // Sort by altitude: Anthem, AZ (lat 33.86, lon -112.09)
+            // Sort by altitude at the configured site (RigConfig)
             // Use approximate LST based on current UTC
             double lst = ApproximateLST();
             items = m_catalog.ByAltitude(lst, m_lat);
@@ -1754,9 +1754,9 @@ private:
     int         m_alignPoints   = 0;
     std::string m_currentTarget;
 
-    // Observer location (Anthem, AZ)
-    double m_lat =  33.86;
-    double m_lon = -112.09;
+    // Observer location — 0,0 until SetLocation() wires in RigConfig
+    double m_lat = 0.0;
+    double m_lon = 0.0;
 
     // Callbacks
     std::function<void(const std::string&)> m_onGoToComplete;

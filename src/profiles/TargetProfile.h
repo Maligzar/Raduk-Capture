@@ -306,7 +306,7 @@ inline TargetProfile DefaultDSO() {
     p.histogram_target = "10-30% peak (faint DSO)";
     p.notes = "RAW16 for stacking. Full sensor 3840x2160. "
               "HCG active at gain 300 (0.8e read noise). "
-              "60s subs at Bortle 4 Anthem is a good starting point. "
+              "60s subs at a Bortle 4 site is a good starting point. "
               "Dark frames at same gain/temp improve stack quality. "
               "EQ mount strongly recommended for subs > 30s.";
     return p;

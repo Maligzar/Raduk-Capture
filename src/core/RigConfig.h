@@ -10,8 +10,9 @@
 //
 // Persisted as rig.ini next to the executable, same Win32
 // GetPrivateProfileString mechanism ProfileManager uses. A
-// missing file yields the defaults below (Anthem AZ, 8SE +
-// ASI678MC at f/10, NexStar guide rate 1 ≈ 0.5x sidereal).
+// missing file yields the defaults below (site 0,0 — set your
+// own coordinates in rig.ini; optics default to 8SE + ASI678MC
+// at f/10, NexStar guide rate 1 ≈ 0.5x sidereal).
 //
 // NOTE: the nominal plate scale seeds UI overlays and solver
 // hints only — the CentroidTracker's correction loop uses the
@@ -33,8 +34,10 @@ namespace raduk::core {
 
 struct RigConfig {
     // Observing site
-    double siteLatDeg = 33.86;    // +N
-    double siteLonDeg = -112.09;  // +E (negative = west)
+    // 0,0 by default — deliberately not a real location. Set your
+    // observing site in rig.ini (alt/az math and the planner need it).
+    double siteLatDeg = 0.0;    // +N
+    double siteLonDeg = 0.0;    // +E (negative = west)
 
     // Optics / sensor (nominal)
     float  plateScaleArcsecPx = 0.203f;  // 8SE 2032mm + 2.0um pixels
@@ -90,8 +93,8 @@ private:
 
         // Sanity clamps — a corrupted INI must not produce absurd pulse
         // sizing or site math
-        if (cfg.siteLatDeg < -90 || cfg.siteLatDeg > 90)    cfg.siteLatDeg = 33.86;
-        if (cfg.siteLonDeg < -180 || cfg.siteLonDeg > 180)  cfg.siteLonDeg = -112.09;
+        if (cfg.siteLatDeg < -90 || cfg.siteLatDeg > 90)    cfg.siteLatDeg = 0.0;
+        if (cfg.siteLonDeg < -180 || cfg.siteLonDeg > 180)  cfg.siteLonDeg = 0.0;
         if (cfg.plateScaleArcsecPx < 0.01f || cfg.plateScaleArcsecPx > 20.0f)
             cfg.plateScaleArcsecPx = 0.203f;
         if (cfg.guideRateArcsecPerSec < 0.5f || cfg.guideRateArcsecPerSec > 60.0f)

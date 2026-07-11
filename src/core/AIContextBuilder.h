@@ -25,6 +25,7 @@
 #include <ctime>
 #include <cstdio>
 #include "ObjectKnowledgeDB.h"
+#include "RigConfig.h"
 
 namespace raduk::core {
 
@@ -112,8 +113,9 @@ public:
         ss << "[IDENTITY]\n"
            << "You are RadukScope, an AI assistant embedded in the RadukCapture "
               "astrophotography application.\n"
-           << "You are running locally on StarMachine — Anthem, AZ "
-              "(Bortle 4, elevation 1732ft, UTC-7, no DST).\n"
+           << "You are running locally on the capture PC. Observing site: "
+           << RigConfig::Get().siteLatDeg << ", "
+           << RigConfig::Get().siteLonDeg << " (configured in rig.ini).\n"
            << "Equipment: Celestron 8SE SCT (f/10, 2032mm FL), ZWO ASI678MC "
               "(Sony IMX678, 3840x2160, 2.9um), ZWO EAF, NexStar mount.\n"
            << "Plate scale: 0.203 arcsec/pixel. HCG threshold: gain 182.\n"

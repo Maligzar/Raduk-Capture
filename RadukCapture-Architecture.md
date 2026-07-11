@@ -50,7 +50,7 @@ RadukCapture exists because the astronomy stack — capture, mount control, plat
 
 Unified state across the session. Pixels, mount position, plate solves, and quality scores live in one process, so a capture decision — start recording, hold for better seeing, correct pointing — is made from a single live picture of the system, not reassembled from logs afterward.
 Direct hardware integration. Native ASI SDK access and direct NexStar serial control give the pipeline the low-latency, zero-copy path the ASI678MC's ~1.5 GB/s raw stream and the centroid-tracking loop actually require.
-Instrument-specific tuning. Exposure logic, quality gating, and gust-aware scoring are built around this telescope (8SE, 2032mm f/10, single-arm mount) and this site (Bortle 4, Anthem AZ, 0.203"/px plate scale) — not generalized for an average setup.
+Instrument-specific tuning. Exposure logic, quality gating, and gust-aware scoring are built around this telescope (8SE, 2032mm f/10, single-arm mount) and this site (Bortle 4, the observing site, 0.203"/px plate scale) — not generalized for an average setup.
 A foundation for capabilities that don't exist yet. Pointing-model learning from repeated plate solves, hybrid SGP4/JPL Horizons satellite tracking, and an AI assistant with growing autonomy over the capture loop all require the application's internals to be exposed and addressable from the start, not bolted on later.
 Full ownership of the data. Session logs, quality metrics, and pointing corrections are captured in a schema designed for how the data will actually be used — archival, AI context building, dashboard scoring — rather than adapted from someone else's log format.
 A long-term personal instrument. This is infrastructure meant to be extended indefinitely as equipment, targets, and ambitions change, the same way an amateur astronomer extends their own optics or mount over decades.
@@ -66,17 +66,17 @@ RadukCapture is designed around a two-desktop configuration:
 
 Both machines are on the same home network (LAN via CAT5 or WiFi). They communicate via:
 - **WebSocket** (Phase 4): real-time telemetry — FPS, seeing score, mount position, session events. Tiny payloads, works on WiFi.
-- **RTSP stream** (Phase 7): H.264-encoded preview stream from StarMachine's GPU to Elminster's OBS. ~5-10 Mbps, works on WiFi.
-- **File transfer**: stacked images only (TIFF/PNG, 10-50MB) — never raw SER files. Raw capture stays on StarMachine; AutoStakkert! runs on StarMachine; finished stacks transfer to Elminster for post-processing and archiving.
+- **RTSP stream** (Phase 7): H.264-encoded preview stream from the capture PC's GPU to the streaming PC's OBS. ~5-10 Mbps, works on WiFi.
+- **File transfer**: stacked images only (TIFF/PNG, 10-50MB) — never raw SER files. Raw capture stays on the capture PC; AutoStakkert! runs on the capture PC; finished stacks transfer to the streaming PC for post-processing and archiving.
 
 ### Workflow
 
 ```
-StarMachine (outside)                    Elminster (inside)
+the capture PC (outside)                    the streaming PC (inside)
 ─────────────────────────────────        ──────────────────────────────
 Telescope + camera + EAF + mount         APEX Dashboard (weather/scoring)
 RadukCapture:                            OBS Studio:
-  - Live preview                           - RTSP feed from StarMachine
+  - Live preview                           - RTSP feed from the capture PC
   - Hardware control                       - Telemetry overlay (web panel)
   - Capture to SER file                    - Seeing monitor graph
   - Quality scoring                        - Webcam (optional)
@@ -112,7 +112,7 @@ Export stacked TIFF ────────────────────
 | Mount Alignment | StarSense AutoAlign — automatic sky alignment (~3 min) |
 | Mount Interface | USB to Serial (StarSense hand control, NexStar-compatible) |
 | Mount Protocol | Celestron NexStar serial command set (RS-232 over USB) |
-| Mount COM Port | COM3 (StarMachine) |
+| Mount COM Port | COM3 (the capture PC) |
 | Tracking Modes | Sidereal, Solar, Lunar, Off |
 | GoTo | COMPLETE — catalog, GoTo, plate-solve alignment, ASTAP |
 | Slew Rates | 1-9 (1x to 3 deg/s). Jog buttons use rate 9 for physical movement. |
@@ -234,7 +234,7 @@ Header-only `FrameAnalyzer` running on a dedicated below-normal-priority thread.
 
 #### Milestone 10: GPU Debayer + Frame Bar + Quality Gate [COMPLETE]
 
-- D3D11 compute shader (cs_5_0) RGGB→RGB debayer — replaces CPU debayer for preview. <1ms on StarMachine GPU vs ~15ms CPU. CPU fallback retained.
+- D3D11 compute shader (cs_5_0) RGGB→RGB debayer — replaces CPU debayer for preview. <1ms on the capture PC GPU vs ~15ms CPU. CPU fallback retained.
 - Frame control bar: [CENTROID] [C] COLOR [+] MAP [I] GOTO [+] RETICLE buttons at bottom of preview
 - ROI rubber-band selection: left-click drag on preview → crops capture ROI
 - Quality gate: MIN SEEING threshold + GATE checkbox in capture panel. When enabled, `capturer.SubmitFrame()` is gated on `lastAnalysis.seeingScore >= threshold`. `SetGateActive(bool)` provides visual feedback (amber = holding, green = passing).
@@ -244,7 +244,7 @@ Header-only `FrameAnalyzer` running on a dedicated below-normal-priority thread.
 
 #### APEX Dashboard — RadukCapture Tab [COMPLETE]
 
-Full monitoring tab on Elminster. Three-column layout: connection + telemetry | live preview canvas + histogram | capture control + seeing monitor. WebSocket bridge (`apex_bridge.py`) connects to RadukCapture on StarMachine at `ws://starmachine:8765`.
+Full monitoring tab on the streaming PC. Three-column layout: connection + telemetry | live preview canvas + histogram | capture control + seeing monitor. WebSocket bridge (`apex_bridge.py`) connects to RadukCapture on the capture PC at `ws://<capture-pc>:8765`.
 
 **Remaining Phase 4 work (deferred):**
 - `apex_bridge.py` update to forward RC telemetry (emit `rc_running` instead of `fc_running`)
@@ -275,7 +275,7 @@ Three-stage acquisition state machine: Off → Searching → Centering → Locke
 
 #### Phase 6.1: Sky Map [COMPLETE]
 - `src/gui/SkyMapWindow.h` — D2D alt-az polar projection
-- Observer: Anthem AZ (33.8653°N, 112.1235°W), LST from UTC + longitude
+- Observer: the observing site ((site lat)°N, (site lon)°W), LST from UTC + longitude
 - 100+ bright stars (mag ≤ 4.5), planets (coloured glowing dots), Messier (cyan)
 - Zoom: mouse wheel 1×–32×; right-click resets. Pan: click-drag when zoomed.
 - Progressive reveal: zoom 1× = mag<4.5, 2–4× = mag<5.5, 4–8× = mag<6.5, 8×+ = mag<8.5
@@ -329,7 +329,7 @@ Three-stage acquisition state machine: Off → Searching → Centering → Locke
 The core challenge is sustaining ~1.5 GB/s from USB3 while simultaneously displaying preview, computing quality metrics, and writing to disk — all without dropping frames. The architecture uses a multi-threaded pipeline with lock-free ring buffers between stages.
 
 ```
-STARMACHINE THREAD MODEL
+CAPTURE PC THREAD MODEL
 ========================
 
 +----------------------------------------------------------+
@@ -363,7 +363,7 @@ STARMACHINE THREAD MODEL
 |   (Phase 8 —       |                   | THREAD        |
 |    far future,     |                   |               |
 |    WiFi TBD)       |                   | Telemetry to  |
-|   H.264 encode     |                   | Elminster     |
+|   H.264 encode     |                   | the streaming PC     |
 |   RTSP serve       |                   | every 500ms   |
 |   ~30fps stream    |                   +---------------+
 +--------------------+
@@ -427,7 +427,7 @@ Frame memory allocated with `VirtualAlloc` (page-aligned, avoids heap fragmentat
 | Modal dialog via SetWindowSubclass | Correct WM_COMMAND routing vs hand-rolled GetMessage loop |
 | Disable panel during modal | Prevents PanelWndProc arrow key forwarding → accidental mount jog |
 | Sky map click-to-confirm | Prevents accidental slews from fat-finger clicks on map |
-| 15° horizon floor | Anthem AZ obstruction margin — SLEW not offered below this altitude |
+| 15° horizon floor | the observing site obstruction margin — SLEW not offered below this altitude |
 | Fire-and-forget PulseGuide | Eliminates 500ms serial block per correction cycle |
 | Quality gate (seeing threshold) | Only records frames meeting minimum seeing score |
 | Profile cache in ControlPanel | `m_cachedProfileNames` survives RebuildControls — combo never empty |
@@ -600,7 +600,7 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 
 ---
 
-## 10. WHAT TO INSTALL ON STARMACHINE
+## 10. WHAT TO INSTALL ON THE CAPTURE PC
 
 1. **Visual Studio 2026** (v18) — Community Edition, "Desktop development with C++" workload
 2. **CMake 4.2+** — bundled with VS 2026 or from cmake.org
@@ -614,18 +614,18 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 10. **Git** — version control
 11. **vcpkg** — for Phase 2+ dependencies (nlohmann/json, ixwebsocket)
 12. **Space Mono + Barlow Condensed fonts** — for Elite Raduk aesthetic (Verdana ships with Windows)
-13. **AutoStakkert!** — runs on StarMachine post-session for stacking
+13. **AutoStakkert!** — runs on the capture PC post-session for stacking
 
 **Not needed (removed from plan):**
 - ~~ASCOM Platform~~ — NexStar direct eliminates ASCOM dependency
 - ~~CPWI~~ — GoTo tab replaces it entirely
 
-### What to install on Elminster
+### What to install on the streaming PC
 
-1. **OBS Studio** — for streaming (Phase 7). Configure sources to pull from StarMachine URLs.
+1. **OBS Studio** — for streaming (Phase 7). Configure sources to pull from the capture PC URLs.
 2. **APEX Dashboard** — already running
 3. **PixInsight / post-processing software** — for stacked image processing
-4. No RadukCapture installation needed — Elminster only consumes telemetry and RTSP stream
+4. No RadukCapture installation needed — the streaming PC only consumes telemetry and RTSP stream
 
 ---
 
@@ -673,7 +673,7 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 | v1.0 UI: Child Window Architecture | D2D in preview child HWND — zero bleed, no clip hacks, true bounded preview box |
 | v1.0 UI: SharpCap-Style Panel | All 10 sections collapsible, colored circle headers, profile cache, scrollbar layout fix |
 | v1.0.1: Floating Mount Controller | Always-on-top WS_EX_TOPMOST safety panel — STOP/jog/rate/tracking/park, RA/Dec readout |
-| v1.0.2: Phase 15 ADC Assistant | Edlen refractivity model, Anthem AZ site params, preview overlay + panel readout, severity labels |
+| v1.0.2: Phase 15 ADC Assistant | Edlen refractivity model, the observing site site params, preview overlay + panel readout, severity labels |
 | v1.0.3: Phase 11 Lucky Imaging Frame Tagger | sharpness score per frame → WriteSlot → SERWriter → _quality.txt alongside every SER |
 | v1.0.4: GetAltAz render loop fix | Serial GetAltAz moved off render thread → detached background thread + atomic cache; RingBuffer release ordering fix |
 | v1.0.5: Phase 12 Auto-Exposure Assistant | I-controller, clip detection, HCG floor (182), advisory + auto modes, AE button in CAMERA section |
@@ -801,7 +801,7 @@ SharpCap's toolbar has 19 buttons. RadukCapture currently has 7. Full parity req
 | Pause capture | — | 🔲 Add to toolbar (Phase 41) |
 | Snapshot (save PNG) | — | 🔲 Phase 22 |
 | Framing Shot | — | 🔲 Phase 39 |
-| Two Monitor Mode | — | 🔲 Phase 42 (Elminster second monitor) |
+| Two Monitor Mode | — | 🔲 Phase 42 (the streaming PC second monitor) |
 | Live Stack | — | 🔲 Phase 17 |
 | Deep Sky Annotation | — | 🔲 Phase 43 |
 | Target Name | Notes field in panel | Partial |
@@ -816,7 +816,7 @@ SharpCap's toolbar has 19 buttons. RadukCapture currently has 7. Full parity req
 
 **New phases from toolbar review:**
 - **Phase 41 — Pause Capture:** Pause/resume recording without closing the SER file. Frames continue displaying live but are not written to disk. Amber PAUSED indicator on RECORD button.
-- **Phase 42 — Two Monitor Mode:** Send preview to second monitor (Elminster via network share or second display on StarMachine). Preview fills second screen; controls stay on primary.
+- **Phase 42 — Two Monitor Mode:** Send preview to second monitor (the streaming PC via network share or second display on the capture PC). Preview fills second screen; controls stay on primary.
 - **Phase 43 — Deep Sky Image Annotation:** After plate solve, overlay catalog object names/icons on the preview for any DSO in the field. Uses existing SkyObject catalog + ASTAP solve result.
 - **Phase 44 — Frame Type Labels:** Light / Dark / Flat / Bias frame type selector. Appended to output filename. Used for session organization and dark library management.
 - **Phase 45 — Multi-Reticle Overlays:** Multiple reticle shapes — crosshair (current), circle, rings (collimation), custom — selectable from toolbar dropdown.
@@ -883,7 +883,7 @@ tracking bugs are visible before a live night.
 >    prove the measured transform, and `RADUK_EMU_REMOVE_AFTER_S=30` to
 >    exercise fault recovery.
 > 2. `RADUK_WS_LAN` note: the APEX dashboard now needs this env var set on
->    StarMachine to connect from Elminster.
+>    the capture PC to connect from the streaming PC.
 
 #### Phase 51 — Guide Calibration & Axis Transform (review T3) — CRITICAL
 The correction loop currently *assumes* +X→East / +Y→North, a fixed 0.203″/px
@@ -1264,7 +1264,7 @@ Alternative output formats alongside SER.
 - **Effort: Medium** — format adapters, header writing
 
 #### Phase 19 — Multi-Session Statistics Dashboard
-Local HTML page served at `http://starmachine:8080/stats`.
+Local HTML page served at `http://<capture-pc>:8080/stats`.
 - All sessions this season: date, target, frames, best seeing, stack quality
 - Pointing model accuracy over time, most-imaged objects, total hours by target
 - Built from CSV/log files that already exist
@@ -1282,7 +1282,7 @@ Floating chat panel powered by a local LLM (Ollama + llama3.2:3b). Fully offline
 
 **Stack**
 - **Runtime:** Ollama (`https://ollama.com`) running as a local HTTP server on `localhost:11434`
-- **Model:** `llama3.2:3b` — ~2GB VRAM, ~1-2s first-token latency on StarMachine GPU
+- **Model:** `llama3.2:3b` — ~2GB VRAM, ~1-2s first-token latency on the capture PC GPU
 - **Install once:** `ollama pull llama3.2:3b` — after that fully offline forever
 - **RadukCapture side:** WinHTTP calls to `http://localhost:11434/api/chat` (streaming NDJSON)
 
@@ -1303,7 +1303,7 @@ Builds a system prompt prepended to every conversation. Refreshed on each new us
 ```
 [IDENTITY]
 You are RadukScope, an AI assistant for the RadukCapture astrophotography application.
-You are running locally on StarMachine (Anthem, AZ — Bortle 4, elevation 1732ft, UTC-7).
+You are running locally on the capture PC (the observing site — Bortle 4, elevation 1732ft, UTC-7).
 Answer concisely. If unsure, say so. Never invent equipment specs or sky positions.
 
 [APP REFERENCE]
@@ -1378,7 +1378,7 @@ User types question
 **Installation instructions (add to Help.md)**
 ```
 1. Download Ollama: https://ollama.com/download
-2. Install on StarMachine
+2. Install on the capture PC
 3. Open Command Prompt: ollama pull llama3.2:3b
 4. Ollama runs automatically as a background service
 5. Press / in RadukCapture to open the AI assistant
@@ -1387,9 +1387,9 @@ User types question
 **Effort: Medium** — WinHTTP streaming, Win32 chat UI, context builder, ~1 day
 
 #### Phase 12b — Ollama Integration (Advisory)
-Local LLM on Elminster reads session telemetry via WebSocket and offers suggestions.
+Local LLM on the streaming PC reads session telemetry via WebSocket and offers suggestions.
 - Suggests capture start/stop, ROI adjustments, target transitions
-- Advisory only — all safety-critical ops remain permanently local on StarMachine
+- Advisory only — all safety-critical ops remain permanently local on the capture PC
 - **Effort: Medium** — WebSocket bridge to Ollama API, prompt engineering
 
 #### Phase 34 — Solar / Lunar Framing Assistant
@@ -1409,7 +1409,7 @@ ASCOM camera/focuser/mount support for non-ZWO hardware. WiX installer. Auto-upd
 ### 🚫 Far Future — Deferred
 
 #### OBS Streaming (Phase 7)
-RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Media Source on Elminster. ~5–10 Mbps H.264.
+RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS Media Source on the streaming PC. ~5–10 Mbps H.264.
 - Deferred until home WiFi bandwidth confirmed sufficient for low-latency video
 - No timeline — revisit after all Tier 1 and Tier 2 phases complete
 
@@ -1472,7 +1472,7 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 ---
 
-*RadukCapture v1.0.12 — Built for the stars, from Anthem, Arizona*
+*RadukCapture v1.0.12 — Built for the stars, from the observing site*
 ### 6.3 Fault Tolerance & Auto-Recovery (Self-Healing)
 Planetary imaging requires high-bandwidth USB stability. To prevent session loss during I/O stalls (e.g., drive swaps, OS bus contention), RadukCapture implements a hardware-level auto-reset state machine.
 

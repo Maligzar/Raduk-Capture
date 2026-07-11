@@ -58,7 +58,7 @@ public:
 
         // D2D HWND render targets expose IDXGISurface via the bitmap.
         // We create our D3D device on the default adapter — for a single-GPU
-        // system (StarMachine) this is always the same adapter D2D uses.
+        // single-GPU system this is always the same adapter D2D uses.
         // If multi-GPU were a concern we'd query via IDXGIFactory::EnumAdapters.
 
         UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT; // required for D2D interop

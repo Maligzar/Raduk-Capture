@@ -1,3 +1,0 @@
-D:/RadukCapture/build/CMakeFiles/RadukCapture.dir
-D:/RadukCapture/build/CMakeFiles/ALL_BUILD.dir
-D:/RadukCapture/build/CMakeFiles/ZERO_CHECK.dir

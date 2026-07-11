@@ -2,7 +2,7 @@
 // ============================================================
 // APEXTelemetry.h — Phase 4: APEX dashboard telemetry
 // Aggregates all RadukCapture state into a JSON broadcast
-// consumed by the APEX dashboard RC tab on Elminster.
+// consumed by the APEX dashboard RC tab on a remote machine.
 //
 // JSON fields match exactly what the APEX RC tab expects:
 //   rc_running, fps, exposure_ms, gain, gamma, wb_red, wb_blue,

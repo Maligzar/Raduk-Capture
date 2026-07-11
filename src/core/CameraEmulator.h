@@ -206,7 +206,7 @@ public:
             const float CX=W*0.5f,CY=H*0.5f,JR=H*0.22f,JRy=JR*(1.f-0.0649f);
             const float PI=3.14159265f, iR=1.f/JR, iRy=1.f/JRy;
             float brightness = (m_gain/100.0f)*(m_exposureUs/8000.0f);
-            if(brightness<0.1f)brightness=0.1f; if(brightness>3.5f)brightness=3.5f;
+            if(brightness<0.35f)brightness=0.35f; if(brightness>3.5f)brightness=3.5f;
             for(int py=0;py<H;py++){
                 float dy=(py-CY)*iRy, dy2=dy*dy;
                 for(int px=0;px<W;px++){
@@ -418,7 +418,14 @@ private:
             auto frameStart = std::chrono::steady_clock::now();
             float timeS = std::chrono::duration<float>(frameStart - startTime).count();
             float brightness = (m_gain/100.0f)*(m_exposureUs/8000.0f);
-            if (brightness < 0.1f) brightness = 0.1f;
+            // Brightness floor raised 0.1 → 0.35: profile auto-load on GoTo
+            // can set sub-millisecond exposures (Moon/Venus profiles), and at
+            // the old floor the synthetic disk peaked below the analyzer's
+            // rmax>20 centroid gate — the tracking test target went black
+            // (PK 0%) and acquisition could never lock. The emulator is a
+            // test rig: the disk must stay trackable at any profile while
+            // still responding to gain/exposure above the floor.
+            if (brightness < 0.35f) brightness = 0.35f;
             if (brightness > 3.5f) brightness = 3.5f;
             float rotPhase = fmodf(timeS/ROT, 1.0f);
             float midLon = fmodf(0.5f + rotPhase, 1.0f);

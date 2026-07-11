@@ -67,6 +67,17 @@ public:
     // Callback fired when user completes a ROI selection or clicks reset.
     void SetROIChangeCallback(std::function<void(int,int,int,int)> cb) { m_onROIChange = cb; }
 
+    // Phase 56 (review G2): the rubber-band 2s auto-apply only FLAGS the
+    // ROI change during rendering. The main loop must call this after
+    // ReleaseRead() — the callback reallocates the frame ring, which is
+    // unsafe while a FrameSlot* from GetLatestFrame() is still held.
+    void FireDeferredROIApply() {
+        if (!m_roiAutoApplyPending) return;
+        m_roiAutoApplyPending = false;
+        if (m_onROIChange && m_pendingROIW > 0)
+            m_onROIChange(m_pendingROIW, m_pendingROIH, m_pendingROIX, m_pendingROIY);
+    }
+
     // State setters — kept so main.cpp compile doesn't break;
     // actual button visuals are now in ToolbarStrip::UpdateStates().
     void SetGoToPanelVisible(bool v) { m_goToPanelVisible = v; }
@@ -390,6 +401,7 @@ private:
     float                   m_dragStartY    = 0;
     float                   m_dragCurX      = 0;
     float                   m_dragCurY      = 0;
+    bool                    m_roiAutoApplyPending = false; // Phase 56 (G2)
     int                     m_pendingROIW   = 0;
     int                     m_pendingROIH   = 0;
     int                     m_pendingROIX   = 0;

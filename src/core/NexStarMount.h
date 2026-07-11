@@ -5,14 +5,16 @@
 //
 // THREADING MODEL:
 // A background poll thread reads position + tracking mode every
-// 2 seconds. Main thread reads from atomic cache — never blocks.
-// Slew/stop commands are fire-and-forget (no response wait).
+// 4 seconds. Main thread reads from atomic cache — never blocks.
+// Slew/stop commands are fire-and-forget (no response wait); their
+// deferred '#' acks are counted and drained before the next
+// synchronous command so they can't corrupt reply parsing.
 // This keeps the UI fully responsive even when the HC is slow.
 //
 // SAFETY — HEARTBEAT WATCHDOG:
 // A second background thread monitors a heartbeat timestamp.
 // The main loop must call Heartbeat() at least once per
-// WATCHDOG_TIMEOUT_MS (default 3000ms). If the heartbeat stops
+// WATCHDOG_TIMEOUT_MS (8000ms). If the heartbeat stops
 // (app freeze, crash, deadlock), the watchdog fires:
 //   1. Sends StopSlew on both axes
 //   2. Sends CancelGoTo
@@ -45,9 +47,10 @@ namespace raduk::core {
 class NexStarMount : public IMount {
 public:
     // Watchdog timeout — if Heartbeat() not called within this window,
-    // mount is emergency-stopped. 3 seconds gives plenty of margin
-    // while catching real freezes quickly.
-    static constexpr int WATCHDOG_TIMEOUT_MS = 8000; // 8s — allows two max pulses (550ms each) + D2D render headroom
+    // mount is emergency-stopped. 8s allows two max guide pulses
+    // (~550ms each) plus D2D render headroom while still catching
+    // real freezes.
+    static constexpr int WATCHDOG_TIMEOUT_MS = 8000;
 
     NexStarMount() = default;
     ~NexStarMount() override { Disconnect(); }
@@ -119,6 +122,7 @@ private:
     bool SendCommand(const char* cmd, int cmdLen,
                      char* response, int maxResponseLen, int& bytesRead);
     bool SendCommandNoWait(const char* cmd, int cmdLen);
+    void DrainPendingAcks(); // call with m_serialMutex held
 
     static void   EncodePosition(double fraction, char* out);
     static double DecodePosition(const char* hex);
@@ -130,6 +134,9 @@ private:
     bool         m_connected = false;
     std::string  m_comPort;
     std::mutex   m_serialMutex;
+    // '#' acks owed by fire-and-forget commands, drained before the next
+    // synchronous command parses its reply
+    std::atomic<int> m_pendingAcks{0};
 
     // Poll thread
     std::thread       m_pollThread;

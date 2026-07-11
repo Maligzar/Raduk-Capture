@@ -81,11 +81,26 @@ public:
         // Build output filename
         std::string path = BuildFilePath(width, height, bitDepth);
 
-        // Allocate write buffer (RAM ring)
+        // Allocate write buffer (RAM ring).
+        // Phase 59 (review C3): reallocate when the per-slot CAPACITY no
+        // longer fits the frame, not just when the slot count changed —
+        // recording a larger ROI into small slots made every Push fail,
+        // yielding a zero-frame SER with console spam only. And a failed
+        // Allocate (512 full-frame slots ≈ 4.2GB) must abort the start,
+        // not silently "record" nothing.
         size_t frameBytes = (size_t)width * height * (bitDepth == 16 ? 2 : 1);
         if (!m_writeBuffer.IsAllocated() ||
-            m_writeBuffer.NumSlots() != m_config.writeBufferSlots) {
-            m_writeBuffer.Allocate(m_config.writeBufferSlots, frameBytes);
+            m_writeBuffer.NumSlots() != m_config.writeBufferSlots ||
+            m_writeBuffer.SlotCapacity() < frameBytes) {
+            if (!m_writeBuffer.Allocate(m_config.writeBufferSlots, frameBytes)) {
+                printf("[CaptureManager] Write buffer allocation FAILED "
+                       "(%d x %zu bytes) — recording not started\n",
+                       m_config.writeBufferSlots, frameBytes);
+                std::lock_guard<std::mutex> lk(m_mutex);
+                m_status.lastError = "Write buffer allocation failed (RAM)";
+                if (m_log) m_log->Capture("ERROR: write buffer allocation failed");
+                return false;
+            }
         }
 
         // Open SER writer

@@ -4,6 +4,15 @@
 // Implements IMount — same interface as ASCOMMount and NexStarMount.
 // Simulates RA/DEC drift, slewing, tracking modes, PulseGuide.
 // Enabled when RADUK_EMULATOR is defined in CMakeLists.txt.
+//
+// Phase 52 — closed-loop tracking emulation:
+// The emulator models a fixed "sky target" (the planet). The pointing
+// error (target − mount) is exposed via GetPointingErrorArcsec(), which
+// CameraEmulator uses to render the planet displaced from frame centre.
+// Guide pulses move the mount → error shrinks → planet re-centres, so
+// the full CentroidTracker correction loop runs closed in emulation.
+// Imperfect tracking is simulated by drifting the mount away from the
+// target at a configurable rate even while "tracking" is on.
 // ============================================================
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -25,13 +34,16 @@
 
 namespace raduk::core {
 
-class NexStarMount : public IMount {
+// Note: this class was previously named NexStarMount, colliding with the
+// real serial backend's class name (ODR landmine if both headers were ever
+// included). The alias below keeps existing emulator-build code compiling.
+class MountEmulator : public IMount {
 public:
-    NexStarMount()  = default;
-    ~NexStarMount() override { Disconnect(); }
+    MountEmulator()  = default;
+    ~MountEmulator() override { Disconnect(); }
 
-    NexStarMount(const NexStarMount&) = delete;
-    NexStarMount& operator=(const NexStarMount&) = delete;
+    MountEmulator(const MountEmulator&) = delete;
+    MountEmulator& operator=(const MountEmulator&) = delete;
 
     // ── Connection ─────────────────────────────────────────────
 
@@ -44,7 +56,7 @@ public:
         m_decDeg    = -5.3833; // ~-05° 23'
         m_tracking  = ALT_AZ;
         // Start the simulation thread
-        m_simThread = std::thread(&NexStarMount::SimLoop, this);
+        m_simThread = std::thread(&MountEmulator::SimLoop, this);
         printf("[MountEmulator] Connected on %s — simulating NexStar 8SE\n",
                comPort.c_str());
         return true;
@@ -102,6 +114,40 @@ public:
     static constexpr int WATCHDOG_TIMEOUT_MS = 8000;
     void Heartbeat() override {} // no-op — no watchdog in emulator
     void EmergencyStop() { CancelGoTo(); StopSlew(0); StopSlew(1); }
+
+    // ── Phase 52: closed-loop sky model ────────────────────────
+    // The "planet" sits at a fixed sky position; CameraEmulator renders it
+    // displaced from frame centre by (target − mount pointing).
+
+    void SetSkyTarget(double raHours, double decDeg) {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_targetRA  = raHours;
+        m_targetDec = decDeg;
+    }
+
+    // Simulated tracking imperfection: the mount drifts away from the target
+    // at this rate (arcsec/s on each axis) while tracking is ON. Gives the
+    // CentroidTracker a real error signal to correct.
+    void SetTrackingErrorRate(float raArcsecPerSec, float decArcsecPerSec) {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_trackErrRA  = raArcsecPerSec;
+        m_trackErrDec = decArcsecPerSec;
+    }
+
+    // Pointing error (target − mount) in arcsec. RA error is on-sky
+    // (scaled by cos(dec)). Returns false when not connected — the camera
+    // then renders the planet centred, matching the old open-loop behavior.
+    // Thread-safe: called from CameraEmulator's frame-generator thread.
+    bool GetPointingErrorArcsec(float& errRA, float& errDec) {
+        if (!m_connected) return false;
+        std::lock_guard<std::mutex> lk(m_mutex);
+        double dRA = m_targetRA - m_raHours;
+        if (dRA >  12.0) dRA -= 24.0;
+        if (dRA < -12.0) dRA += 24.0;
+        errRA  = (float)(dRA * 15.0 * 3600.0 * cos(m_decDeg * 3.14159265358979 / 180.0));
+        errDec = (float)((m_targetDec - m_decDeg) * 3600.0);
+        return true;
+    }
 
     // ── Tracking ───────────────────────────────────────────────
 
@@ -211,11 +257,16 @@ private:
                     double dist = sqrt(dRADeg * dRADeg + dDec * dDec);
 
                     if (dist < 0.01) {
-                        // Arrived
-                        m_raHours = m_gotoRA;
-                        m_decDeg  = m_gotoDec;
+                        // Arrived. Phase 52: the object slewed to IS the sky
+                        // target, and the mount lands with a realistic GoTo
+                        // pointing error (~45"/25") so acquisition starts with
+                        // the planet off-centre and Centering has real work.
+                        m_raHours   = m_gotoRA - (45.0 / 3600.0 / 15.0);
+                        m_decDeg    = m_gotoDec - (25.0 / 3600.0);
+                        m_targetRA  = m_gotoRA;
+                        m_targetDec = m_gotoDec;
                         m_slewing = false;
-                        printf("[MountEmulator] GoTo complete\n");
+                        printf("[MountEmulator] GoTo complete (sim pointing error 45\"/25\")\n");
                     } else {
                         double step = std::min(GOTO_DEG_PER_TICK, dist);
                         m_raHours += (dRADeg / dist) * step / 15.0;
@@ -225,8 +276,13 @@ private:
                     // Sidereal drift when tracking is OFF
                     if (m_tracking == OFF) {
                         m_raHours -= SIDEREAL_DEG_PER_TICK / 15.0;
+                    } else {
+                        // Phase 52: tracking ON = mount compensates, but not
+                        // perfectly — drift away from the target at the
+                        // configured rate so the guide loop has work to do.
+                        m_raHours -= (m_trackErrRA  / 3600.0 / 15.0) * 0.1; // per 100ms tick
+                        m_decDeg  -= (m_trackErrDec / 3600.0)        * 0.1;
                     }
-                    // tracking ON = no drift (mount compensates)
 
                     // Manual jog
                     if (m_slewRateRA != 0) {
@@ -284,6 +340,13 @@ private:
     double      m_gotoDec = 0.0;
     std::atomic<bool> m_slewing{false};
 
+    // Phase 52: sky target ("the planet") + simulated tracking error rate.
+    // Defaults match the connect position so the loop starts near-centred.
+    double      m_targetRA    = 5.5833;
+    double      m_targetDec   = -5.3833;
+    float       m_trackErrRA  = 0.3f;   // arcsec/s
+    float       m_trackErrDec = 0.1f;   // arcsec/s
+
     // Active jog rates (-9 to +9, 0=stopped)
     int         m_slewRateRA  = 0;
     int         m_slewRateDec = 0;
@@ -291,5 +354,10 @@ private:
     std::mutex  m_mutex;
     std::thread m_simThread;
 };
+
+// Emulator builds historically instantiated this class as NexStarMount
+// (DeviceFactory swaps headers, main.cpp code is shared). Keep that name
+// working without the ODR hazard of two classes sharing it.
+using NexStarMount = MountEmulator;
 
 } // namespace raduk::core

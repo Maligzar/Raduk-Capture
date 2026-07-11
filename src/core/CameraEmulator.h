@@ -11,6 +11,11 @@
 #else
 #  include "ASICamera2.h"
 #endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <cstdlib>
 #include <vector>
 #include <string>
 #include <cstdint>
@@ -21,6 +26,7 @@
 #include <atomic>
 #include <mutex>
 #include <chrono>
+#include <functional>
 
 namespace raduk::core {
 
@@ -162,6 +168,26 @@ public:
     void SetFlip(ASI_FLIP_STATUS /*f*/)         {}
     bool SetStartPos(int /*x*/, int /*y*/)      { return true; } // no-op in emulator
 
+    // ── Phase 52: closed-loop pointing input ───────────────────
+    // Plate scale of the synthetic frames (arcsec/pixel). Deliberately NOT
+    // the value CentroidTracker assumes for the real rig — a realistic
+    // mismatch the Phase 51 calibration must measure, not assume.
+    static constexpr float EMU_PLATE_SCALE_AS_PX = 0.61f;
+
+    // Provider returns the mount's pointing error (target − pointing) in
+    // arcsec; the planet renders displaced from frame centre by that error.
+    // All three must be set BEFORE StartVideoCapture() — the generator
+    // thread reads them unguarded.
+    void SetPointingErrorProvider(std::function<bool(float&, float&)> f) {
+        m_errProvider = std::move(f);
+    }
+    // Camera orientation in the focuser: rotates the on-sky error vector
+    // into sensor axes. Non-zero values prove the tracker's axis transform
+    // is measured (Phase 51), not assumed.
+    void SetCameraRotationDeg(float deg)  { m_camRotDeg = deg; }
+    // Seeing-like centroid wander amplitude, arcsec.
+    void SetSeeingJitterArcsec(float amp) { m_jitterAs = amp; }
+
     // ── Video capture ──────────────────────────────────────────
 
     bool StartVideoCapture() {
@@ -204,6 +230,16 @@ public:
         }
 
         m_genThread = std::thread(&ASICamera::GenerateFrames, this);
+        m_captureStart = std::chrono::steady_clock::now();
+        {
+            char envBuf[32] = {};
+            m_removeAfterS = 0.0f;
+            if (GetEnvironmentVariableA("RADUK_EMU_REMOVE_AFTER_S", envBuf, 32))
+                m_removeAfterS = (float)atof(envBuf);
+            if (m_removeAfterS > 0)
+                printf("[CameraEmulator] USB-drop injection armed at t+%.0fs\n",
+                       m_removeAfterS);
+        }
         printf("[CameraEmulator] Video capture started (%dx%d)\n", m_roiW, m_roiH);
         return true;
     }
@@ -216,27 +252,58 @@ public:
                m_frameCounter.load());
     }
 
+    // Phase 58: error-code variant, matching ASICamera. Supports USB-drop
+    // injection for testing the recovery path: set RADUK_EMU_REMOVE_AFTER_S=N
+    // and the "camera" disappears N seconds into capture (CAMERA_REMOVED,
+    // immediate return like the SDK) for 10 seconds, then replugs.
+    bool GetVideoFrameEx(uint8_t* buffer, int bufferSize, int timeoutMs,
+                         ASI_ERROR_CODE& err) {
+        if (InRemovedWindow()) { err = ASI_ERROR_CAMERA_REMOVED; return false; }
+        bool ok = GetVideoFrame(buffer, bufferSize, timeoutMs);
+        err = ok ? ASI_SUCCESS : ASI_ERROR_TIMEOUT;
+        return ok;
+    }
+
+    bool RestartCapture() {
+        // Emulated §6.3 recovery: succeeds unless the camera is currently
+        // "unplugged" by the injection window.
+        return m_isCapturing && !InRemovedWindow();
+    }
+
     bool GetVideoFrame(uint8_t* buffer, int bufferSize, int timeoutMs) {
         if (!m_isCapturing) return false;
 
-        // In emulator mode we always have a frame — serve last rendered frame
-        // immediately, or wait up to timeoutMs for the first one.
+        // Phase 52 — real SDK semantics: ASIGetVideoData blocks until a NEW
+        // frame arrives and delivers each frame exactly once. The previous
+        // emulator returned the same frame immediately and forever, so FPS,
+        // backpressure, and timeout behavior were validated against a regime
+        // that cannot occur live.
         auto deadline = std::chrono::steady_clock::now()
                       + std::chrono::milliseconds(timeoutMs);
         do {
             {
                 std::lock_guard<std::mutex> lk(m_frameMutex);
-                if (!m_frameBuffer.empty()) {
-                    int copyBytes = bufferSize < (int)m_frameBuffer.size()
-                                  ? bufferSize : (int)m_frameBuffer.size();
-                    memcpy(buffer, m_frameBuffer.data(), copyBytes);
-                    return true;  // always succeed once buffer is populated
+                if (m_frameReady && !m_frameBuffer.empty()) {
+                    const int n = (int)m_frameBuffer.size(); // W*H rendered bytes
+                    if (m_imgType == ASI_IMG_RAW16) {
+                        // Honest RAW16: left-aligned 16-bit, full frame —
+                        // reject undersized buffers like the SDK does.
+                        if (bufferSize < n * 2) return false;
+                        uint16_t* out = reinterpret_cast<uint16_t*>(buffer);
+                        for (int i = 0; i < n; i++)
+                            out[i] = (uint16_t)(m_frameBuffer[i] << 8);
+                    } else {
+                        if (bufferSize < n) return false;
+                        memcpy(buffer, m_frameBuffer.data(), n);
+                    }
+                    m_frameReady = false; // consumed — next call waits for a new frame
+                    return true;
                 }
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         } while (std::chrono::steady_clock::now() < deadline);
 
-        return false; // only on truly empty buffer at startup
+        return false; // timeout — no new frame within timeoutMs
     }
 
     int GetDroppedFrames() const { return 0; }
@@ -270,7 +337,8 @@ private:
     // Runs on a background thread at the exposure-limited FPS.
     // Generates RGGB Bayer RAW8 frames with:
     //   - Dark background gradient
-    //   - Bright planet disk that drifts slowly across the sensor
+    //   - Bright planet disk positioned by the mount's pointing error
+    //     (Phase 52 closed loop; centred when no provider is wired)
     //   - Brightness modulated by gain and exposure
 
     // ── Jupiter Renderer ───────────────────────────────────────
@@ -352,6 +420,28 @@ private:
             float rotPhase = fmodf(timeS/ROT, 1.0f);
             float midLon = fmodf(0.5f + rotPhase, 1.0f);
 
+            // Phase 52: planet centre = frame centre + pointing error.
+            // +RA error maps to +x at zero camera rotation; the rotation
+            // models the camera's unknown orientation in the focuser.
+            float offX = 0.f, offY = 0.f;
+            if (m_errProvider) {
+                float eRA = 0.f, eDec = 0.f;
+                if (m_errProvider(eRA, eDec)) {
+                    const float th   = m_camRotDeg * PI / 180.f;
+                    const float pxRA  = eRA  / EMU_PLATE_SCALE_AS_PX;
+                    const float pxDec = eDec / EMU_PLATE_SCALE_AS_PX;
+                    offX = cosf(th)*pxRA - sinf(th)*pxDec;
+                    offY = sinf(th)*pxRA + cosf(th)*pxDec;
+                }
+            }
+            if (m_jitterAs > 0.f) {
+                // Two incommensurate sines per axis approximate seeing wander
+                const float j = m_jitterAs / EMU_PLATE_SCALE_AS_PX;
+                offX += j * (0.6f*sinf(timeS*9.7f)  + 0.4f*sinf(timeS*23.3f));
+                offY += j * (0.6f*sinf(timeS*11.3f) + 0.4f*sinf(timeS*19.1f));
+            }
+            const float PCX = CX + offX, PCY = CY + offY;
+
             // Build latitude LUT — 512 entries, no per-pixel trig on disk
             for (int i = 0; i < LUT_N; i++) {
                 float sinLat = (i/(float)(LUT_N-1))*2.0f - 1.0f;
@@ -366,8 +456,8 @@ private:
             for (int m = 0; m < NUM_JUP_MOONS; m++) {
                 const JupMoon& moon = JUP_MOONS[m];
                 float angle = (2.f*PI*timeS/(moon.period_d*86400.f)) + m*1.1f;
-                moonPos[m].x  = CX + JR*moon.dist*cosf(angle);
-                moonPos[m].y  = CY + JRy*0.15f*sinf(angle);
+                moonPos[m].x  = PCX + JR*moon.dist*cosf(angle);
+                moonPos[m].y  = PCY + JRy*0.15f*sinf(angle);
                 moonPos[m].r  = moon.radius_px_base;
                 float b = brightness>1.f?1.f:brightness;
                 moonPos[m].r8 = (uint8_t)(moon.r*b*255.f);
@@ -378,9 +468,9 @@ private:
 
             // Main loop — LUT lookup + sqrtf only, no asinf/sinf/fmod per pixel
             for (int py = 0; py < H; py++) {
-                float dy  = (py-CY)*iRy, dy2 = dy*dy;
+                float dy  = (py-PCY)*iRy, dy2 = dy*dy;
                 for (int px = 0; px < W; px++) {
-                    float dx = (px-CX)*iR;
+                    float dx = (px-PCX)*iR;
                     float r2 = dx*dx + dy2;
                     uint8_t rv, gv, bv;
                     if (r2 <= 1.0f) {
@@ -444,6 +534,22 @@ private:
     std::vector<uint8_t>        m_frameBuffer;
     bool                        m_frameReady = false;
     std::atomic<uint64_t>       m_frameCounter{0};
+
+    // Phase 52 closed-loop inputs — set before StartVideoCapture()
+    std::function<bool(float&, float&)> m_errProvider;
+    float                       m_camRotDeg = 0.0f;
+    float                       m_jitterAs  = 0.0f;
+
+    // Phase 58: USB-drop injection window (RADUK_EMU_REMOVE_AFTER_S)
+    std::chrono::steady_clock::time_point m_captureStart{};
+    float                       m_removeAfterS = 0.0f;
+
+    bool InRemovedWindow() const {
+        if (m_removeAfterS <= 0.0f || !m_isCapturing) return false;
+        float t = std::chrono::duration<float>(
+            std::chrono::steady_clock::now() - m_captureStart).count();
+        return t >= m_removeAfterS && t < m_removeAfterS + 10.0f;
+    }
 };
 
 } // namespace raduk::core

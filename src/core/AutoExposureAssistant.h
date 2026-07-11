@@ -131,10 +131,21 @@ public:
             double newExp = m_currentExpMs * 0.70;
             newExp = std::max(newExp, m_cfg.expMinMs);
             s.exposureMs = snapExp(newExp);
-            char buf[80];
+            // Phase 59 (review S4): if exposure is already at its floor and
+            // we're still clipping, exposure alone can never recover — cut
+            // gain too (below the HCG floor if that's what it takes; a
+            // clipped image is worse than low conversion gain).
+            bool expStuck = (s.exposureMs <= m_cfg.expMinMs + m_cfg.expMinStep) &&
+                            (m_currentExpMs <= m_cfg.expMinMs + m_cfg.expMinStep);
+            if (expStuck && m_currentGain > 0) {
+                int newGain = (int)(m_currentGain * 0.85f);
+                s.gain = std::max(0, newGain);
+            }
+            char buf[96];
             snprintf(buf, sizeof(buf),
-                     "AE: CLIPPING %.1f%% -> exp %.2fms",
-                     m_clipPct, s.exposureMs);
+                     "AE: CLIPPING %.1f%% -> exp %.2fms%s",
+                     m_clipPct, s.exposureMs,
+                     (s.gain != m_currentGain) ? " + gain cut" : "");
             s.text = buf;
             m_settling = m_cfg.settleFrames;
             m_lastSuggestion = s;
@@ -198,7 +209,13 @@ public:
 
         if (needGain) {
             int newGain = (int)(m_currentGain * correctionFactor);
-            newGain = std::clamp(newGain, m_cfg.gainMin, m_cfg.gainMax);
+            // Phase 59 (review S4): the HCG floor is advisory, not a hard
+            // clamp. Clamping a DOWNWARD correction to 182 snapped gain UP
+            // on already-bright low-gain profiles (Venus/Moon at min
+            // exposure), brightening a clipped image. Only enforce the
+            // floor when the correction itself is raising gain.
+            int lowBound = (error < 0) ? 0 : m_cfg.gainMin;
+            newGain = std::clamp(newGain, lowBound, m_cfg.gainMax);
             int gainDelta = newGain - m_currentGain;
 
             if (abs(gainDelta) >= m_cfg.gainMinStep) {

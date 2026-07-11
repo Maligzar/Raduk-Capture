@@ -23,6 +23,7 @@
 #include <shellapi.h>
 #include <shellscalingapi.h>  // SetProcessDpiAwarenessContext — must be after windows.h
 #include <cstdio>
+#include <cstdlib>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -38,6 +39,7 @@
 #include "core/USBTrafficManager.h"
 #include "core/FrameAnalyzer.h"
 #include "core/CentroidTracker.h"
+#include "core/RigConfig.h"
 #include "core/Timestamp.h"
 #include "core/SessionLog.h"
 #include "net/WebSocketServer.h"
@@ -577,6 +579,37 @@ static int RunApp(bool useEmulator) {
 
     IMount* mount = mountPtr.get(); // may be nullptr
 
+#ifdef RADUK_EMULATOR
+    // ── Phase 52: close the tracking loop in emulation ─────────
+    // The synthetic planet's frame position follows the emulated mount's
+    // pointing error, so guide pulses visibly re-centre it — and a wrong-sign
+    // correction visibly runs away instead of passing silently.
+    // Env knobs for adversarial runs:
+    //   RADUK_EMU_ROTATION_DEG — camera orientation (default 0; set e.g. 137
+    //                            to prove calibration measures the transform)
+    //   RADUK_EMU_JITTER_AS    — seeing wander amplitude, arcsec (default 0.5)
+    //   RADUK_EMU_DRIFT_AS     — RA tracking-error rate, arcsec/s (default 0.3)
+    if (mount) {
+        auto* emuMount = static_cast<raduk::core::MountEmulator*>(mount);
+        cam.SetPointingErrorProvider([emuMount](float& eRA, float& eDec) {
+            return emuMount->GetPointingErrorArcsec(eRA, eDec);
+        });
+        float rotDeg = 0.0f, jitAs = 0.5f, driftAs = 0.3f;
+        char envBuf[32];
+        if (GetEnvironmentVariableA("RADUK_EMU_ROTATION_DEG", envBuf, 32))
+            rotDeg = (float)atof(envBuf);
+        if (GetEnvironmentVariableA("RADUK_EMU_JITTER_AS", envBuf, 32))
+            jitAs = (float)atof(envBuf);
+        if (GetEnvironmentVariableA("RADUK_EMU_DRIFT_AS", envBuf, 32))
+            driftAs = (float)atof(envBuf);
+        cam.SetCameraRotationDeg(rotDeg);
+        cam.SetSeeingJitterArcsec(jitAs);
+        emuMount->SetTrackingErrorRate(driftAs, driftAs * 0.4f);
+        Log("[INIT] Closed-loop emulation: rot=%.1f deg jitter=%.2f\" drift=%.2f\"/s\n",
+            rotDeg, jitAs, driftAs);
+    }
+#endif // RADUK_EMULATOR
+
     // ── Preview ring + capture thread ──────────────────────────
     int frameSizeBytes = ASICamera::FrameSize(roiWidth, roiHeight, ASI_IMG_RAW8);
     RingBuffer ring;
@@ -608,8 +641,18 @@ static int RunApp(bool useEmulator) {
     std::vector<SessionEvent> pendingEvents; // accumulates between broadcasts
     std::mutex eventsMutex;
 
-    wsServer.Start(8765);
-    Log("[INIT] WebSocket server started on :8765\n");
+    // Phase 57 (review S1): loopback-only by default — the WS command set
+    // slews the mount with no authentication. Set RADUK_WS_LAN=1 to expose
+    // it on the LAN for the APEX dashboard on Elminster (trusted WiFi only).
+    {
+        char wsEnv[8] = {};
+        bool wsLan = GetEnvironmentVariableA("RADUK_WS_LAN", wsEnv, 8) > 0
+                     && wsEnv[0] == '1';
+        wsServer.Start(8765, wsLan);
+        Log("[INIT] WebSocket server on %s:8765%s\n",
+            wsLan ? "0.0.0.0" : "127.0.0.1",
+            wsLan ? " (LAN exposed — RADUK_WS_LAN=1)" : "");
+    }
 
     // ── Capture manager ────────────────────────────────────────
     CaptureManager capturer;
@@ -680,7 +723,8 @@ static int RunApp(bool useEmulator) {
     // ── GoTo Panel (Phase 6) ───────────────────────────────────
     raduk::gui::GoToPanel gotoPanel;
     gotoPanel.SetMount(mount);
-    gotoPanel.SetLocation(33.86, -112.09); // Anthem, AZ
+    gotoPanel.SetLocation(raduk::core::RigConfig::Get().siteLatDeg,
+                          raduk::core::RigConfig::Get().siteLonDeg);
 
     gotoPanel.Create(window.Handle(), 0, 0, 500, 750);
 
@@ -1586,6 +1630,18 @@ static int RunApp(bool useEmulator) {
         slog.Mount("Acquisition: Planet centred — ROI ready");
     });
 
+    // Phase 51: calibration result — success auto-advances to Centering
+    // inside the tracker; failure drops back to Searching.
+    tracker.SetCalibrationCallback([&](bool ok, const std::string& msg) {
+        if (ok) {
+            Log("[ACQ] Calibration OK: %s — Stage 2: CENTERING\n", msg.c_str());
+            slog.Mount("Calibration OK: %s", msg.c_str());
+        } else {
+            Log("[ACQ] Calibration FAILED: %s — back to SEARCHING\n", msg.c_str());
+            slog.Mount("Calibration failed: %s", msg.c_str());
+        }
+    });
+
     // Phase 6.6: auto-solve callback — fires from worker thread after Stage 3 lock
     // Updates session log and the sidebar status flash (thread-safe string write)
     gotoPanel.SetAutoSolveCallback([&](bool success, const std::string& obj,
@@ -1782,9 +1838,11 @@ static int RunApp(bool useEmulator) {
     });
     toolbar.SetLockCallback([&]() {
         if (tracker.Stage() == raduk::core::AcquisitionStage::Searching && tracker.IsStable()) {
-            Log("[ACQ] Stage 2: CENTERING\n");
-            slog.Mount("Acquisition: Centering");
-            tracker.StartCentering();
+            // Phase 51: LOCK measures the pulse→pixel transform first
+            // (or reuses a fresh calibration), then advances to Centering.
+            Log("[ACQ] LOCK: calibrating guide axes\n");
+            slog.Mount("Acquisition: Calibrating");
+            tracker.StartCalibration();
         }
     });
     toolbar.SetROICallback([&]()   { doROILock(); });
@@ -1955,8 +2013,8 @@ static int RunApp(bool useEmulator) {
                 }
             } else if (rc.cmd == "centroid_lock") {
                 if (tracker.Stage() == raduk::core::AcquisitionStage::Searching && tracker.IsStable()) {
-                    tracker.StartCentering();
-                    Log("[WS] Remote centroid_lock\n");
+                    tracker.StartCalibration();
+                    Log("[WS] Remote centroid_lock (calibrates first)\n");
                 }
             } else if (rc.cmd == "centroid_roi") {
                 doROILock();
@@ -1982,7 +2040,10 @@ static int RunApp(bool useEmulator) {
                     }).detach();
                     Log("[WS] Remote jog %s\n", rc.arg.c_str());
                 }
-                // Case-insensitive name match
+            } else if (rc.cmd == "load_profile") {
+                // Phase 57 (review G3): this block previously sat INSIDE the
+                // jog handler — load_profile did nothing, and every jog also
+                // tried to load a profile named "N"/"S"/"E"/"W".
                 int idx = -1;
                 for (int i = 0; i < (int)profiles.Profiles().size(); i++) {
                     if (_stricmp(profiles.Profiles()[i].name.c_str(), rc.arg.c_str()) == 0) {
@@ -2264,6 +2325,11 @@ static int RunApp(bool useEmulator) {
         preview.EndFrame();
         ring.ReleaseRead(frame);
 
+        // Phase 56 (review G2): rubber-band auto-ROI is applied only here,
+        // after the frame is back in the ring — the callback reallocates
+        // the ring, which was a use-after-free when fired mid-render.
+        preview.FireDeferredROIApply();
+
         // ── Readouts every 500ms, EAF/Mount gated by USB manager ──
         auto now = std::chrono::steady_clock::now();
         if (std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -2325,6 +2391,24 @@ static int RunApp(bool useEmulator) {
                 (int)stats.droppedFrames.load(),
                 cam.IsOpen() ? cam.Temperature() : 0.0f,
                 roiWidth, roiHeight, 8);
+
+            // Phase 58: surface camera faults (USB drop / wedge) once per
+            // transition — CaptureThread keeps retrying recovery itself.
+            {
+                static bool lastCamFault = false;
+                bool camFault = stats.cameraFault.load();
+                if (camFault != lastCamFault) {
+                    lastCamFault = camFault;
+                    if (camFault) {
+                        Log("[CAMERA] FAULT — no frames (USB drop?); auto-recovery running\n");
+                        slog.Camera("FAULT: frames stopped — auto-recovery running");
+                    } else {
+                        Log("[CAMERA] Recovered — frames flowing again\n");
+                        slog.Camera("Recovered after fault (%u restarts)",
+                                    stats.restarts.load());
+                    }
+                }
+            }
 
             // EAF — only poll if USB manager allows (never blocks for long)
             if (focuser.IsOpen() && usbMgr.ShouldPollFocuser())

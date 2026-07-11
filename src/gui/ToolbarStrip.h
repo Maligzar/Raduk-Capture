@@ -167,14 +167,17 @@ public:
         m_lastAIVis       = aiVisible;
         m_lastGhostActive = ghostActive;
 
+        // Stage values (AcquisitionStage): 0 Off, 1 Searching,
+        // 2 Calibrating (Phase 51), 3 Centering, 4 Locked
         const wchar_t* centLabel =
-            (acqStage >= 2) ? L"[CENTROID \u2713]" :
-            (acqStage == 1) ? L"[CENTROID \u25CF]" : L"[CENTROID]";
+            (acqStage >= 3) ? L"[CENTROID \u2713]" :
+            (acqStage >= 1) ? L"[CENTROID \u25CF]" : L"[CENTROID]";
         const wchar_t* lockLabel =
-            (acqStage >= 2) ? L"[LOCK \u2713]" :
+            (acqStage >= 3) ? L"[LOCK \u2713]" :
+            (acqStage == 2) ? L"[LOCK CAL\u2026]" :
             lockReady       ? L"[LOCK \u25CF]"  : L"[LOCK]";
         const wchar_t* roiLabel =
-            (acqStage >= 3) ? L"[ROI \u2713]" :
+            (acqStage >= 4) ? L"[ROI \u2713]" :
             roiReady        ? L"[ROI \u25CF]"  : L"[ROI]";
 
         SetWindowTextW(m_btnCentroid, centLabel);
@@ -191,7 +194,7 @@ public:
 
         SendMessage(m_btnCentroid, WM_SETFONT, (WPARAM)(acqStage > 0  ? m_fontActive : m_font), TRUE);
         SendMessage(m_btnLock,     WM_SETFONT, (WPARAM)(acqStage >= 2 ? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnROI,      WM_SETFONT, (WPARAM)(acqStage >= 3 ? m_fontActive : m_font), TRUE);
+        SendMessage(m_btnROI,      WM_SETFONT, (WPARAM)(acqStage >= 4 ? m_fontActive : m_font), TRUE);
         SendMessage(m_btnColor,    WM_SETFONT, (WPARAM)(colorActive   ? m_fontActive : m_font), TRUE);
         SendMessage(m_btnMap,      WM_SETFONT, (WPARAM)(mapVisible    ? m_fontActive : m_font), TRUE);
         SendMessage(m_btnGoTo,     WM_SETFONT, (WPARAM)(gotoVisible   ? m_fontActive : m_font), TRUE);

@@ -5,6 +5,8 @@
 
 #include "CaptureThread.h"
 #include <cstdio>
+#include <thread>
+#include <chrono>
 
 namespace raduk::core {
 
@@ -103,6 +105,16 @@ void CaptureThread::Run() {
            (roiType == ASI_IMG_RAW16) ? "RAW16" : "RAW8",
            frameSizeBytes);
 
+    // Phase 58 (review C4 / Architecture §6.3): pipeline-wedge detection.
+    // 20 consecutive timeouts (~500ms of no frames at planetary exposures)
+    // triggers RestartCapture (stop → 100ms USB settle → start). A removed
+    // camera (immediate SDK error) backs off instead of busy-spinning this
+    // TIME_CRITICAL thread, retries the restart each second, and flags
+    // cameraFault for the UI until frames flow again.
+    constexpr int WEDGE_TIMEOUT_COUNT = 20;
+    int  consecTimeouts = 0;
+    bool faultLogged = false;
+
     while (m_running.load(std::memory_order_relaxed)) {
         // Calculate timeout: 2x exposure + 500ms safety margin
         double expMs = m_exposureMs.load(std::memory_order_relaxed);
@@ -111,16 +123,25 @@ void CaptureThread::Run() {
         // Acquire a slot from the ring buffer
         FrameSlot* slot = m_ringBuffer->AcquireWriteSlot();
         if (!slot) {
+            // Every slot busy (readers mid-frame). Brief yield instead of a
+            // TIME_CRITICAL busy-spin; the SDK buffers the frame meanwhile.
             m_stats.bufferOverruns.fetch_add(1, std::memory_order_relaxed);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
 
         // Pull a frame from the SDK
-        bool gotFrame = m_camera->GetVideoFrame(slot->data,
-                                                 static_cast<int>(slot->bufferCapacity),
-                                                 timeoutMs);
+        ASI_ERROR_CODE frameErr = ASI_SUCCESS;
+        bool gotFrame = m_camera->GetVideoFrameEx(slot->data,
+                                                   static_cast<int>(slot->bufferCapacity),
+                                                   timeoutMs, frameErr);
 
         if (gotFrame) {
+            consecTimeouts = 0;
+            if (m_stats.cameraFault.exchange(false))
+                printf("[CaptureThread] Camera recovered — frames flowing again\n");
+            faultLogged = false;
+
             // Fill metadata
             slot->dataSize = frameSizeBytes;
             slot->timestamp = Timestamp::Now();
@@ -148,7 +169,37 @@ void CaptureThread::Run() {
         } else {
             // Frame not received — release the slot
             m_ringBuffer->ReleaseWrite(slot);
-            m_stats.timeouts.fetch_add(1, std::memory_order_relaxed);
+
+            if (frameErr == ASI_ERROR_CAMERA_REMOVED ||
+                frameErr == ASI_ERROR_CAMERA_CLOSED) {
+                // USB drop: the SDK call returns IMMEDIATELY, so back off
+                // instead of spinning, and retry a restart each second.
+                m_stats.errors.fetch_add(1, std::memory_order_relaxed);
+                m_stats.cameraFault.store(true, std::memory_order_relaxed);
+                if (!faultLogged) {
+                    faultLogged = true;
+                    printf("[CaptureThread] *** CAMERA FAULT: %s — attempting "
+                           "recovery every 1s ***\n",
+                           ASICamera::ErrorString(frameErr));
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                if (m_running.load(std::memory_order_relaxed) &&
+                    m_camera->RestartCapture()) {
+                    printf("[CaptureThread] RestartCapture succeeded after fault\n");
+                    m_stats.restarts.fetch_add(1, std::memory_order_relaxed);
+                }
+            } else {
+                // Timeout — count toward §6.3 pipeline-wedge detection
+                m_stats.timeouts.fetch_add(1, std::memory_order_relaxed);
+                if (++consecTimeouts >= WEDGE_TIMEOUT_COUNT) {
+                    consecTimeouts = 0;
+                    printf("[CaptureThread] Pipeline wedge (%d consecutive "
+                           "timeouts) — RestartCapture\n", WEDGE_TIMEOUT_COUNT);
+                    m_stats.restarts.fetch_add(1, std::memory_order_relaxed);
+                    if (!m_camera->RestartCapture())
+                        m_stats.cameraFault.store(true, std::memory_order_relaxed);
+                }
+            }
         }
 
         // Check for SDK-reported dropped frames

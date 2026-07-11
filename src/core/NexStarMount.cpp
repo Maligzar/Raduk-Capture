@@ -103,9 +103,15 @@ void NexStarMount::Disconnect() {
     m_pollRunning.store(false);
     if (m_pollThread.joinable()) m_pollThread.join();
 
+    // Close the handle under the serial mutex — a UI/correction thread
+    // already inside SendCommand could otherwise race ReadFile against
+    // CloseHandle (review T18).
     m_connected = false;
-    CloseHandle(m_serial);
-    m_serial = INVALID_HANDLE_VALUE;
+    {
+        std::lock_guard<std::mutex> lk(m_serialMutex);
+        CloseHandle(m_serial);
+        m_serial = INVALID_HANDLE_VALUE;
+    }
     printf("[NexStarMount] Disconnected from %s\n", m_comPort.c_str());
 }
 
@@ -116,7 +122,10 @@ bool NexStarMount::SendCommand(const char* cmd, int cmdLen,
     std::lock_guard<std::mutex> lock(m_serialMutex);
     if (!m_connected) return false;
 
-    // Flush input buffer
+    // Consume acks from earlier fire-and-forget commands (waits for any
+    // still in flight), THEN flush — a stray '#' arriving after the purge
+    // would otherwise be parsed as this command's reply.
+    DrainPendingAcks();
     PurgeComm(m_serial, PURGE_RXCLEAR);
 
     DWORD written = 0;
@@ -142,6 +151,10 @@ bool NexStarMount::SendCommand(const char* cmd, int cmdLen,
 // Fire-and-forget: write command, don't wait for '#' response.
 // Used for slew commands where we don't need the acknowledgement
 // and blocking the main thread for 500ms is unacceptable.
+// The HC still sends a '#' ack later; m_pendingAcks counts them so the
+// next synchronous command can drain them BEFORE parsing its own reply —
+// an ack arriving after a PurgeComm otherwise corrupts that parse
+// (intermittent poll failures / wrong IsSlewing, review T18).
 bool NexStarMount::SendCommandNoWait(const char* cmd, int cmdLen) {
     std::lock_guard<std::mutex> lock(m_serialMutex);
     if (!m_connected) {
@@ -156,7 +169,26 @@ bool NexStarMount::SendCommandNoWait(const char* cmd, int cmdLen) {
                (int)ok, written, cmdLen, GetLastError());
         return false;
     }
+    m_pendingAcks.fetch_add(1);
     return true;
+}
+
+// Drain outstanding '#' acks from fire-and-forget commands.
+// Called with m_serialMutex HELD, before writing a synchronous command.
+// Buffered acks read back instantly; an ack still in flight is waited for
+// (bounded by the port's read timeout), so it can't land mid-reply and
+// corrupt the next parse.
+void NexStarMount::DrainPendingAcks() {
+    int pending = m_pendingAcks.exchange(0);
+    if (pending <= 0) return;
+    int acksSeen = 0;
+    int maxBytes = pending * 8 + 8; // hard bound against junk streams
+    while (acksSeen < pending && maxBytes-- > 0) {
+        char c = 0;
+        DWORD got = 0;
+        if (!ReadFile(m_serial, &c, 1, &got, nullptr) || got == 0) break;
+        if (c == '#') acksSeen++;
+    }
 }
 
 // ── Position readout ───────────────────────────────────────────
@@ -366,6 +398,7 @@ void NexStarMount::PollLoop() {
         {
             std::lock_guard<std::mutex> lk(m_serialMutex);
             if (!m_connected) break;
+            DrainPendingAcks();
             PurgeComm(m_serial, PURGE_RXCLEAR);
             DWORD written = 0;
             char cmd = 'e';
@@ -439,6 +472,7 @@ void NexStarMount::EmergencyStop() {
         std::lock_guard<std::mutex> lk(m_serialMutex);
         DWORD w = 0;
         WriteFile(m_serial, cmd, 8, &w, nullptr);
+        m_pendingAcks.fetch_add(1);
     }
     // Stop axis 1 (Dec/Alt) — rate 0
     {
@@ -446,6 +480,7 @@ void NexStarMount::EmergencyStop() {
         std::lock_guard<std::mutex> lk(m_serialMutex);
         DWORD w = 0;
         WriteFile(m_serial, cmd, 8, &w, nullptr);
+        m_pendingAcks.fetch_add(1);
     }
     // Cancel GoTo ('M' command)
     {
@@ -453,6 +488,7 @@ void NexStarMount::EmergencyStop() {
         std::lock_guard<std::mutex> lk(m_serialMutex);
         DWORD w = 0;
         WriteFile(m_serial, cmd, 1, &w, nullptr);
+        m_pendingAcks.fetch_add(1);
     }
 
     printf("[NexStarMount] Emergency stop sent on both axes\n");

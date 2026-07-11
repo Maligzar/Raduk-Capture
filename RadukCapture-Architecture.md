@@ -687,7 +687,16 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 
 | Phase | Feature | Priority |
 |-------|---------|---------|
-| Phase 26 | Night Vision Mode | Tier 1 — Next |
+| Phase 52 | Closed-Loop Tracking Emulation | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 51 | Guide Calibration & Axis Transform | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 53 | Correction-Loop Dynamics | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 54 | Auto-Sync Repair (ASTAP + J2000) | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 55 | Rig Configuration | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 56 | Frame-Path Memory Safety | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 57 | Mount-Safety & Remote-Control Hardening | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 58 | Camera Fault Recovery | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 59 | Capture & Assist Reliability | Tier 0 — 🛠 implemented 2026-07-10, validation pending |
+| Phase 26 | Night Vision Mode | Tier 1 |
 | Phase 49 | Help System | Tier 1 |
 
 | Phase 38 | Single-Channel Display Mode | Tier 2 |
@@ -828,9 +837,157 @@ SharpCap's toolbar has 19 buttons. RadukCapture currently has 7. Full parity req
 ## 13. FEATURE ROADMAP — ELITE RADUK COMPLETE
 
 Phases are ordered by **impact × ease**, not just phase number. The priority within each tier is deliberate:
+- Tier 0: object-tracking reliability — blockers that must land before first hardware light
 - Tier 1: directly improves capture quality or session productivity tonight
 - Tier 2: operational polish and automation
 - Tier 3: advanced / long-term / nice-to-have
+
+---
+
+### Tier 0 — Object-Tracking Reliability (added 2026-07-06)
+
+Source: `docs/CODE_REVIEW_2026-07-06.md` (end-to-end tracking review). The
+June 2026 blocker batch (T1–T16) landed and was verified — guide pulses are now
+physically deliverable, and the safety paths (STOP, capture loss, jog
+contention, stale centroids) are sound. What remains is the work that makes the
+correction loop *correct* and *testable*. Phases 51–54 are hard blockers for
+live tracking; 55–58 close the remaining review findings that sit in or beside
+the tracking path. Recommended order: **52 → 51 → 53 → 54 → 55 → 56 → 57 → 58**
+— the emulation harness comes first because every later phase needs a rig where
+tracking bugs are visible before a live night.
+
+> **Implementation status (2026-07-10):** all eight phases are implemented on
+> PR #2 (one commit per phase). The code has NOT yet been compiled or run —
+> the implementation session had no Windows/MSVC build environment — so the
+> acceptance tests below are still owed:
+> 1. Emulator build: GoTo Jupiter → CENTROID → LOCK (calibration runs) →
+>    planet visibly re-centres; repeat with `RADUK_EMU_ROTATION_DEG=137` to
+>    prove the measured transform, and `RADUK_EMU_REMOVE_AFTER_S=30` to
+>    exercise fault recovery.
+> 2. `RADUK_WS_LAN` note: the APEX dashboard now needs this env var set on
+>    StarMachine to connect from Elminster.
+
+#### Phase 51 — Guide Calibration & Axis Transform (review T3) — CRITICAL
+The correction loop currently *assumes* +X→East / +Y→North, a fixed 0.203″/px
+plate scale, and 100 ms/arcsec pulse sizing. On the alt-az 8SE the sensor↔mount
+mapping rotates continuously with the field, and the tracker computes RA/Dec
+errors while NexStar pulses drive Az/Alt axes. A wrong sign makes the loop
+positive feedback — each pulse pushes the planet further out.
+- PHD2-style calibration at the start of Centering: pulse East N ms, measure
+  centroid displacement vector; pulse North, measure again; derive the 2×2
+  pixel→mount transform and effective ms/arcsec from the response
+- Re-derive (or rotate) the transform as altitude changes; scale azimuth
+  corrections by 1/cos(alt)
+- Persist calibration per rig; refuse to enter Centering with a stale/missing
+  calibration; surface calibration quality in the UI
+- **Effort: Hard** — new routine + state machine, but the single most important
+  change before live tracking
+
+#### Phase 52 — Closed-Loop Tracking Emulation (review E1 + C5) — CRITICAL, do first
+`CameraEmulator` renders Jupiter pinned to the ROI centre; `MountEmulator`
+pulses nudge coordinates nothing reads back. The tracking loop has therefore
+**never run closed**, even once — sign/axis/gain bugs are invisible in every
+test the project can currently run. This is the structural reason tracking has
+remained the biggest hurdle.
+- Feed MountEmulator pointing error (commanded − target) into CameraEmulator so
+  the planet renders at centre + error × plate scale; pulses then visibly
+  re-centre it
+- Injectable drift rate, seeing jitter, and camera-rotation angle (to prove
+  Phase 51 calibration finds arbitrary orientations)
+- Adversarial SDK semantics: blocking `GetVideoFrame`, dropped frames,
+  `ASI_ERROR_CAMERA_REMOVED` injection, honest RAW16 frame generation
+- Rename the emulator class `NexStarMount` → `MountEmulator` (ODR landmine) and
+  delete the stale duplicate `src/core/SkyMapWindow.h`
+- **Effort: Medium** — pays for itself immediately; acceptance test = full
+  Search→Center→Lock→drift→correct→lose→reacquire cycle passing with a
+  randomized camera rotation
+
+#### Phase 53 — Correction-Loop Dynamics (review T13)
+Deadbands (1″/2″) sit below planetary seeing jitter (2–5″), there is no
+centroid averaging, and pulses are issued with blocking sleeps so a Locked
+cycle takes ~1.35 s, not the stated 4 Hz. The loop will chase noise.
+- Average the centroid over a 0.5–2 s window before correcting
+- Size deadbands from measured jitter; make aggressiveness/deadband tunable
+  from the rig config (Phase 55)
+- Schedule pulses without sleeping the correction loop through delivery;
+  document the achievable cycle rate honestly
+- **Effort: Medium** — validate against Phase 52's injected drift + jitter
+
+#### Phase 54 — Auto-Sync Repair: ASTAP keys + J2000 consistency (review S2 + S5)
+Stage-3 auto-sync and the pointing model silently never work: the parser reads
+`SOLVEAD=`/`SOLVEDEC=` but ASTAP writes `PLTSOLVD=T`, `CRVAL1/2`, `CDELT1/2`,
+`CROTA2`.
+- Parse ASTAP's real .ini output; fix the RA-hint hours/degrees mismatch
+- `TerminateProcess` timed-out solves; unique temp filenames so a zombie's
+  stale output can't poison the next solve
+- Reconcile equinox-of-date ephemeris output with J2000 plate solves and the
+  J2000 catalog (~22′ discrepancy in 2026) before mixing them in syncs
+- **Effort: Easy–Medium** — small parser fix, big payoff: closes the
+  GoTo → solve → sync verification loop that tracking acquisition depends on
+
+#### Phase 55 — Rig Configuration (review T17)
+Plate scale, sensor size, site lat/long, and guide-rate constants are scattered
+literals; a Barlow or bin change silently breaks pulse sizing and ROI math.
+- One persisted rig-config struct (site, sensor dims, plate scale, guide rate,
+  camera rotation seed) consumed by CentroidTracker, ADC, GoTo, and ROI code
+- Populate sensor size from `ASI_CAMERA_INFO` at connect
+- **Effort: Easy–Medium**
+
+#### Phase 56 — Frame-Path Memory Safety (review C1 + G1 + G2)
+The three memory-safety findings in the path that feeds the tracker and SER
+writer:
+- RingBuffer: fix the producer-overwrite race (CAS the READY→WRITING
+  transition; keep `m_writePos` in sync on the skip path) — torn frames
+  currently become garbage centroids at real frame rates
+- PreviewRenderer: reallocate `m_fxAccum`/`m_fxFrames` on frame-size change
+  (heap overflow with Stack FX active)
+- Defer the rubber-band ROI auto-apply callback (PostMessage) instead of firing
+  `ring.Allocate()` mid-render (use-after-free)
+- **Effort: Medium**
+
+#### Phase 57 — Mount-Safety & Remote-Control Hardening (review G5 + S1 + G3 + T18)
+Every remaining path that can move the mount against the user's intent:
+- SkyMap confirm popup: store the object (name+coords), not an index into a
+  list that rebuilds under the popup
+- WebSocket server: clamp `payLen` (~1 MB) before any arithmetic, cap `recvBuf`
+  growth, bind 127.0.0.1 by default or require a handshake token — the current
+  server exposes unauthenticated mount slewing to the LAN and a one-frame
+  remote crash
+- Unfuse `load_profile` from the `jog` remote-command branch in main.cpp
+- Serial hygiene: hold `m_serialMutex` across `Disconnect()`'s CloseHandle;
+  drain fire-and-forget `#` acks so poll parsing stops corrupting; align the
+  watchdog header comment (3 s) with the constant (8 s)
+- **Effort: Medium**
+
+#### Phase 59 — Capture & Assist Reliability (review C2 + C3 + S3 + S4 + G4-scoped)
+The remaining HIGH findings beside the tracking chain — all capture-quality or
+shutdown-safety issues that would surface on a real session night:
+- SER trailer timestamps derived from each frame's CAPTURE time via a
+  QPC↔wall-clock correlation taken at file open (they recorded disk-write
+  time, up to ~10s late with a full write-buffer backlog — useless for
+  WinJUPOS derotation); QPC math made overflow-safe past 21 days uptime
+- CaptureManager reallocates the write buffer when per-slot capacity no
+  longer fits the frame (ROI grew → every push failed → zero-frame SER),
+  and a failed multi-GB allocation now aborts the start with a visible error
+- Autofocus parabola fit rejects upward-opening fits (noisy data previously
+  drove the focuser to maximum defocus and reported success)
+- Auto-exposure HCG floor is advisory: it no longer snaps gain UP on
+  already-bright low-gain profiles, and a clip emergency stuck at minimum
+  exposure now cuts gain too
+- Autofocus scan thread is joinable (was detached — could outlive shutdown
+  and invoke destroyed callbacks)
+- **Status: 🛠 implemented 2026-07-10 (PR #2), validation pending**
+
+#### Phase 58 — Camera Fault Recovery (review C4)
+Architecture §6.3 describes the "Pipeline Wedge" auto-reset, but
+`RestartCapture()` has no callers and all `ASI_ERROR_CODE`s collapse to bool —
+a USB drop busy-spins a TIME_CRITICAL thread forever.
+- Plumb error codes out of `GetVideoFrame`; distinguish TIMEOUT from
+  CAMERA_REMOVED
+- Implement §6.3: consecutive-timeout threshold → StopVideoCapture → 100 ms
+  flush → StartVideoCapture, with backoff and a UI fault banner
+- Validated by Phase 52's CAMERA_REMOVED injection
+- **Effort: Medium**
 
 ---
 
@@ -1244,6 +1401,15 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 
 | # | Phase | Tier | Effort | Status |
 |---|-------|------|--------|--------|
+| 52 | Closed-Loop Tracking Emulation | 0 | Medium | 🛠 implemented, validation pending |
+| 51 | Guide Calibration & Axis Transform | 0 | Hard | 🛠 implemented, validation pending |
+| 53 | Correction-Loop Dynamics | 0 | Medium | 🛠 implemented, validation pending |
+| 54 | Auto-Sync Repair (ASTAP + J2000) | 0 | Easy-Med | 🛠 implemented, validation pending |
+| 55 | Rig Configuration | 0 | Easy-Med | 🛠 implemented, validation pending |
+| 56 | Frame-Path Memory Safety | 0 | Medium | 🛠 implemented, validation pending |
+| 57 | Mount-Safety & Remote Hardening | 0 | Medium | 🛠 implemented, validation pending |
+| 58 | Camera Fault Recovery | 0 | Medium | 🛠 implemented, validation pending |
+| 59 | Capture & Assist Reliability | 0 | Medium | 🛠 implemented, validation pending |
 | 12 | Auto-Exposure Assistant | 1 | Medium | ✅ v1.0.5 |
 | 21 | Clipping Warning Overlay | 1 | Easy | ✅ v1.0.6 |
 | 22 | Snapshot PNG/FITS | 1 | Easy | ✅ v1.0.7 |
@@ -1270,32 +1436,10 @@ RTSP stream from StarMachine GPU (NVENC / Windows Media Foundation) → OBS Medi
 | 35 | ADC Alignment Tool | 2 | Medium | 🔲 |
 | 47 | Pixel Position / Click to Recentre | 2 | Medium | 🔲 |
 | 48 | Goto Previous Image | 2 | Medium | 🔲 |
-| 49 | Help System | 1 | Medium | 🔲 |
 | 6.6 | GoTo Map Learning | 2 | Med-Hard | 🔲 |
 | 42 | Two Monitor Mode | 2 | Hard | 🔲 |
 | 16 | Polar Alignment Assistant | 2 | Hard | 🔲 |
 | 43 | Deep Sky Image Annotation | 3 | Hard | 🔲 |
-| 17 | Live Stacking Preview | 3 | Hard | 🔲 |
-| 31 | Multi-Star FWHM Focus | 3 | Hard | 🔲 |
-| 32 | Bahtinov Mask Focus | 3 | Hard | 🔲 |
-| 18 | AVI/FITS Output | 3 | Medium | 🔲 |
-| 19 | Multi-Session Stats Dashboard | 3 | Medium | 🔲 |
-| 36 | Sensor Analysis / Smart Histogram | 3 | Hard | 🔲 |
-| 33 | Stellar Photometry | 3 | Very Hard | 🔲 |
-| 34 | Solar/Lunar Framing | 3 | Hard | 🔲 |
-| 12b | Ollama Integration | 3 | Medium | 🔲 |
-| 20 | Distribution / ASCOM | 3 | Very Hard | 🔲 |
-| — | OBS Streaming | — | Hard | 🚫 Deferred |
-| 29 | Ghosted Image Overlay | 2 | Easy | 🔲 |
-| 13 | Sky Survey / Pointing Model | 2 | Medium | 🔲 |
-| 14 | Session Planner | 2 | Medium | 🔲 |
-| 37 | Display Stretch Mini Histogram | 2 | Medium | 🔲 |
-| 27 | Dark Frame Subtraction | 2 | Medium | 🔲 |
-| 28 | Flat Frame Correction | 2 | Medium | 🔲 |
-| 30 | Push-To Assistant | 2 | Medium | 🔲 |
-| 35 | ADC Alignment Tool | 2 | Medium | 🔲 |
-| 6.6 | GoTo Map Learning | 2 | Med-Hard | 🔲 |
-| 16 | Polar Alignment Assistant | 2 | Hard | 🔲 |
 | 17 | Live Stacking Preview | 3 | Hard | 🔲 |
 | 31 | Multi-Star FWHM Focus | 3 | Hard | 🔲 |
 | 32 | Bahtinov Mask Focus | 3 | Hard | 🔲 |

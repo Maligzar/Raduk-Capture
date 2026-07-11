@@ -21,6 +21,9 @@ struct CaptureStats {
     std::atomic<uint64_t> bufferOverruns{0};  // Ring buffer overruns
     std::atomic<double>   fps{0.0};           // Measured FPS
     std::atomic<uint64_t> lastFrameTimestamp{0};
+    // Phase 58 (review C4 / Architecture §6.3)
+    std::atomic<uint32_t> restarts{0};        // pipeline-wedge auto-resets
+    std::atomic<bool>     cameraFault{false}; // camera removed / unrecovered
 };
 
 class CaptureThread {

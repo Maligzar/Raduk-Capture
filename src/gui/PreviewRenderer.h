@@ -1,0 +1,424 @@
+#pragma once
+// ============================================================
+// PreviewRenderer.h
+// Preview renderer — frame display + frame bar overlay.
+// Frame control bar: thin strip on bottom edge of sensor frame.
+//   - Debayer toggle: COLOR (RGGB) / RAW (grayscale Bayer)
+//   - More controls to be added here later
+// HandleClick(): forwards mouse clicks from Window to test
+//   against frame bar buttons (returns true if consumed).
+// ============================================================
+#include <d2d1.h>
+#include <dwrite.h>
+#include <cstdint>
+#include <array>
+#include <chrono>
+#include <string>
+#include <vector>
+#include <functional>
+#include "../core/FrameSlot.h"
+#include "../core/FrameAnalyzer.h"
+
+namespace raduk::gui {
+
+enum class ZoomMode    { Fit, One, Two, Four };
+enum class DebayerMode { Color, Raw };  // Color=RGGB debayer, Raw=grayscale Bayer
+
+// Phase 25 — Display FX mode
+enum class DisplayFX {
+    Normal,    // no modification
+    Boost2x,   // multiply channels ×2, clamp 255
+    Boost4x,   // multiply channels ×4, clamp 255
+    Stack3,    // rolling average of last 3 debayered frames
+    Stack5,    // rolling average of last 5 frames
+    Stack10,   // rolling average of last 10 frames
+};
+
+class PreviewRenderer {
+public:
+    PreviewRenderer() = default;
+    ~PreviewRenderer();
+
+    bool Init(ID2D1HwndRenderTarget* renderTarget, IDWriteFactory* dwriteFactory);
+    bool SetFrameSize(int width, int height);
+    void Release();
+
+    // Call order each tick:
+    //   RenderFrame(...)           — BeginDraw, preview + reticle + HUD + frame bar
+    //   DrawAnalysisOverlay(...)   — histogram + seeing (optional)
+    //   statusBar.Draw(...)        — status bar strip
+    //   EndFrame()                 — EndDraw, present
+    void RenderFrame(const raduk::core::FrameSlot* frame,
+                     int previewX, int previewWidth, int windowHeight,
+                     int statusBarHeight,
+                     double fps, uint64_t frameCount, int droppedFrames);
+
+    void DrawAnalysisOverlay(const raduk::core::AnalysisResult& analysis,
+                              int previewX, int previewWidth, int windowHeight,
+                              int statusBarHeight);
+
+    void EndFrame();
+
+    // Forward mouse events from Window for ROI rubber-band selection
+    // Returns true from HandleMouseDown if a drag was started on the image.
+    bool HandleMouseDown(float x, float y);
+    void HandleMouseMove(float x, float y);
+    void HandleMouseUp(float x, float y);
+
+    // Callback fired when user completes a ROI selection or clicks reset.
+    void SetROIChangeCallback(std::function<void(int,int,int,int)> cb) { m_onROIChange = cb; }
+
+    // Phase 56 (review G2): the rubber-band 2s auto-apply only FLAGS the
+    // ROI change during rendering. The main loop must call this after
+    // ReleaseRead() — the callback reallocates the frame ring, which is
+    // unsafe while a FrameSlot* from GetLatestFrame() is still held.
+    void FireDeferredROIApply() {
+        if (!m_roiAutoApplyPending) return;
+        m_roiAutoApplyPending = false;
+        if (m_onROIChange && m_pendingROIW > 0)
+            m_onROIChange(m_pendingROIW, m_pendingROIH, m_pendingROIX, m_pendingROIY);
+    }
+
+    // State setters — kept so main.cpp compile doesn't break;
+    // actual button visuals are now in ToolbarStrip::UpdateStates().
+    void SetGoToPanelVisible(bool v) { m_goToPanelVisible = v; }
+    void SetSkyMapVisible(bool v)    { m_skyMapVisible    = v; }
+    void SetAcquisitionStage(int s)  { m_acqStage  = s; }
+    void SetLockReady(bool r)        { m_lockReady = r; }
+    void SetROIReady(bool r)         { m_roiReady  = r; }
+
+    // Current sensor ROI — set externally when ROI changes
+    void SetSensorROI(int w, int h) { m_sensorW = w; m_sensorH = h; }
+    int  SensorW() const { return m_sensorW; }
+    int  SensorH() const { return m_sensorH; }
+
+    static constexpr int MAX_SENSOR_W = 3840;
+    static constexpr int MAX_SENSOR_H = 2160;
+
+    // ── Debayer control ────────────────────────────────────────
+    DebayerMode GetDebayerMode() const  { return m_debayerMode; }
+    void        SetDebayerMode(DebayerMode m);
+    void        CycleDebayer();          // toggles Color ↔ Raw
+
+    // ── View controls ──────────────────────────────────────────
+    void ToggleReticle()        { m_showReticle = !m_showReticle; }
+    bool ReticleVisible() const { return m_showReticle; }
+
+    void CycleZoom() {
+        switch (m_zoom) {
+            case ZoomMode::Fit:  m_zoom = ZoomMode::One;  break;
+            case ZoomMode::One:  m_zoom = ZoomMode::Two;  break;
+            case ZoomMode::Two:  m_zoom = ZoomMode::Four; break;
+            case ZoomMode::Four: m_zoom = ZoomMode::Fit;  break;
+        }
+    }
+    void ZoomStep(int direction) {
+        if (direction > 0) {
+            if      (m_zoom == ZoomMode::Fit)  m_zoom = ZoomMode::One;
+            else if (m_zoom == ZoomMode::One)  m_zoom = ZoomMode::Two;
+            else if (m_zoom == ZoomMode::Two)  m_zoom = ZoomMode::Four;
+        } else {
+            if      (m_zoom == ZoomMode::Four) m_zoom = ZoomMode::Two;
+            else if (m_zoom == ZoomMode::Two)  m_zoom = ZoomMode::One;
+            else if (m_zoom == ZoomMode::One)  m_zoom = ZoomMode::Fit;
+        }
+    }
+    ZoomMode CurrentZoom() const { return m_zoom; }
+    const wchar_t* ZoomLabel() const {
+        switch (m_zoom) {
+            case ZoomMode::Fit:  return L"FIT";
+            case ZoomMode::One:  return L"1:1";
+            case ZoomMode::Two:  return L"2x";
+            case ZoomMode::Four: return L"4x";
+        }
+        return L"FIT";
+    }
+
+    // ── ADC overlay ────────────────────────────────────────────
+    // Feed current mount altitude so the ADC dispersion arrow updates live.
+    void SetMountAltitude(double altDeg) { m_mountAltDeg = altDeg; }
+    void SetShowADC(bool show)           { m_showADC = show; }
+    bool ADCVisible() const              { return m_showADC; }
+    void ToggleADC()                     { m_showADC = !m_showADC; }
+
+    // ── Clipping warning overlay ───────────────────────────────
+    // Flash overexposed pixels red in the bitmap. Feed clipPct from
+    // FrameAnalyzer each frame. Toggle via CLIP toolbar button or key.
+    void SetShowClip(bool show) { m_showClip = show; }
+    bool ClipVisible()    const { return m_showClip; }
+    void ToggleClip()           { m_showClip = !m_showClip; }
+    void SetClipPct(float pct)  { m_clipPct = pct; }
+
+    // ── Quality bar graph — Phase 25a ─────────────────────────
+    // Rolling per-frame sharpness history drawn as a vertical bar
+    // chart in the bottom-left of the preview. Toggle via Q key.
+    void SetShowQualityGraph(bool show) { m_showQualityGraph = show; }
+    bool QualityGraphVisible()    const { return m_showQualityGraph; }
+    void ToggleQualityGraph()           { m_showQualityGraph = !m_showQualityGraph; }
+    // Push a new sharpness sample (0-100). Call each frame.
+    void PushQualitySample(float sharpnessPct) {
+        m_qualHistory[m_qualHead] = sharpnessPct;
+        m_qualHead = (m_qualHead + 1) % QUAL_HISTORY;
+        if (m_qualCount < QUAL_HISTORY) ++m_qualCount;
+    }
+    bool HasFrame() const { return m_rgbBuffer && m_frameWidth > 0 && m_frameHeight > 0; }
+    // Save the current debayered RGB frame as PNG using WIC.
+    bool SaveSnapshotPNG(const std::wstring& path);
+
+    // Show "SAVED: filename" notification in HUD for ~3 seconds.
+    void SetSnapshotNotification(const std::wstring& msg) {
+        m_snapMsg   = msg;
+        m_snapTimer = 180;
+    }
+
+    // ── RGB Align — Phase 23 ──────────────────────────────────
+    // Shift blue channel UP by computed pixel offset to compensate
+    // atmospheric dispersion. Auto value from ADCAssistant altitude.
+    // Manual slider adds ±20px fine-tune on top. Display-only.
+    void SetRGBAlignEnabled(bool e)    { m_rgbAlignEnabled = e; }
+    bool RGBAlignEnabled()       const { return m_rgbAlignEnabled; }
+    void ToggleRGBAlign()              { m_rgbAlignEnabled = !m_rgbAlignEnabled; }
+    void SetRGBAlignManual(int px)     { m_rgbAlignManual = px; }
+    int  RGBAlignManual()        const { return m_rgbAlignManual; }
+    int  RGBAlignShift()         const { return m_rgbAlignShift; }
+
+    // ── Pixel Value Readout — Phase 24 ───────────────────────
+    // Hover: live tooltip at cursor. Click: lock to pixel. Click again: unlock.
+    // Disabled by default — toggle with X key or panel button.
+    void SetPixelReadoutEnabled(bool e) { m_pixelReadout = e; }
+    bool PixelReadoutEnabled()    const { return m_pixelReadout; }
+    void TogglePixelReadout()           { m_pixelReadout = !m_pixelReadout;
+                                          if (!m_pixelReadout) m_pixelLocked = false; }
+    // Feed mouse position (D2D coords, already DPI-corrected) each WM_MOUSEMOVE
+    void SetPixelHover(float sx, float sy) {
+        if (!m_pixelLocked) { m_pixelHoverX = sx; m_pixelHoverY = sy; }
+    }
+    // Left-click: toggle lock on current hover position
+    void ClickPixelLock(float sx, float sy) {
+        if (!m_pixelReadout) return;
+        if (m_pixelLocked) { m_pixelLocked = false; }
+        else { m_pixelHoverX = sx; m_pixelHoverY = sy; m_pixelLocked = true; }
+    }
+
+    // ── Display FX — Phase 25 ─────────────────────────────────
+    // Boost or stack frames for display only. SER data unaffected.
+    DisplayFX GetDisplayFX()       const { return m_displayFX; }
+    void      SetDisplayFX(DisplayFX fx);   // defined in .cpp — handles alloc/free
+    void      CycleDisplayFX() {
+        // Normal → Boost2x → Boost4x → Stack3 → Stack5 → Stack10 → Normal
+        switch (m_displayFX) {
+            case DisplayFX::Normal:   SetDisplayFX(DisplayFX::Boost2x);  break;
+            case DisplayFX::Boost2x:  SetDisplayFX(DisplayFX::Boost4x);  break;
+            case DisplayFX::Boost4x:  SetDisplayFX(DisplayFX::Stack3);   break;
+            case DisplayFX::Stack3:   SetDisplayFX(DisplayFX::Stack5);   break;
+            case DisplayFX::Stack5:   SetDisplayFX(DisplayFX::Stack10);  break;
+            case DisplayFX::Stack10:  SetDisplayFX(DisplayFX::Normal);   break;
+        }
+    }
+    const wchar_t* DisplayFXLabel() const {
+        switch (m_displayFX) {
+            case DisplayFX::Boost2x:  return L"BOOST ×2";
+            case DisplayFX::Boost4x:  return L"BOOST ×4";
+            case DisplayFX::Stack3:   return L"STACK 3f";
+            case DisplayFX::Stack5:   return L"STACK 5f";
+            case DisplayFX::Stack10:  return L"STACK 10f";
+            default:                  return L"NORMAL";
+        }
+    }
+
+    // Phase 26: Night Vision Mode — red tint for dark adaptation
+    void SetNightVision(bool on)   { m_nightVision = on; }
+    bool NightVisionOn()     const { return m_nightVision; }
+    void ToggleNightVision()       { m_nightVision = !m_nightVision; }
+
+    // Phase 29: Ghost Frame Overlay
+    // CaptureGhost() snaps the current RGB frame as reference.
+    // ToggleGhost() captures on first press, clears on second (and any time
+    // GhostEnabled() is true), matching the [GH] button cycle.
+    void CaptureGhost() {
+        if (!m_rgbBuffer || m_frameWidth == 0 || m_frameHeight == 0) return;
+        size_t bytes = (size_t)m_frameWidth * m_frameHeight * 3;
+        if (m_ghostFrameSize != bytes) {
+            delete[] m_ghostFrame;
+            m_ghostFrame     = new uint8_t[bytes];
+            m_ghostFrameSize = bytes;
+        }
+        memcpy(m_ghostFrame, m_rgbBuffer, bytes);
+        m_ghostW       = m_frameWidth;
+        m_ghostH       = m_frameHeight;
+        m_ghostEnabled = true;
+    }
+    void ClearGhost() {
+        m_ghostEnabled = false;
+    }
+    void ToggleGhost() {
+        if (m_ghostEnabled) ClearGhost();
+        else                CaptureGhost();
+    }
+    bool GhostEnabled() const { return m_ghostEnabled; }
+
+    // Phase 38: Single-Channel Display Mode — R / G / B / All
+    enum class ChannelMode { All = 0, R, G, B };
+    ChannelMode GetChannelMode()   const { return m_channelMode; }
+    void CycleChannelMode() {
+        switch (m_channelMode) {
+            case ChannelMode::All: m_channelMode = ChannelMode::R; break;
+            case ChannelMode::R:   m_channelMode = ChannelMode::G; break;
+            case ChannelMode::G:   m_channelMode = ChannelMode::B; break;
+            case ChannelMode::B:   m_channelMode = ChannelMode::All; break;
+        }
+    }
+    const wchar_t* ChannelLabel() const {
+        switch (m_channelMode) {
+            case ChannelMode::R:  return L"CH: RED";
+            case ChannelMode::G:  return L"CH: GREEN";
+            case ChannelMode::B:  return L"CH: BLUE";
+            default:              return L"CH: ALL";
+        }
+    }
+
+private:
+    void DebayerRGGB(const uint8_t* raw, uint8_t* rgb, int width, int height, int bitDepth);
+    D2D1_RECT_F CalculateZoomedRect(int frameW, int frameH, int previewX, int previewW, int previewH);
+    void DrawReticle(float cx, float cy, float rw, float rh);
+    void DrawADCOverlay(float previewW, float previewH);
+    void DrawQualityGraph(float px, float pw, float ph);
+    void DrawPixelReadout(float px, float pw, float ph);
+    void DrawRubberBand();
+    void DrawResetPopup();
+
+    static bool HitTest(float x, float y, const D2D1_RECT_F& r) {
+        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    }
+
+    ID2D1HwndRenderTarget*  m_renderTarget  = nullptr;
+    IDWriteFactory*         m_dwriteFactory = nullptr;
+    ID2D1Bitmap*            m_bitmap        = nullptr;   // CPU-path D2D bitmap
+    ID2D1SolidColorBrush*   m_textBrush     = nullptr;
+    ID2D1SolidColorBrush*   m_accentBrush   = nullptr;
+    ID2D1SolidColorBrush*   m_dimBrush      = nullptr;
+    ID2D1SolidColorBrush*   m_reticleBrush  = nullptr;
+    ID2D1SolidColorBrush*   m_greenBrush    = nullptr;
+    ID2D1SolidColorBrush*   m_amberBrush    = nullptr;
+    ID2D1SolidColorBrush*   m_redBrush      = nullptr;
+    ID2D1SolidColorBrush*   m_barBgBrush    = nullptr;  // frame bar background
+    ID2D1SolidColorBrush*   m_barHiBrush    = nullptr;  // frame bar active button
+    IDWriteTextFormat*      m_hudFont       = nullptr;
+    IDWriteTextFormat*      m_titleFont     = nullptr;
+    IDWriteTextFormat*      m_barFont       = nullptr;   // smaller font for frame bar
+
+    uint8_t*                m_rgbBuffer     = nullptr;
+    size_t                  m_rgbBufferSize = 0;
+    int                     m_frameWidth    = 0;
+    int                     m_frameHeight   = 0;
+
+    bool                    m_showReticle   = false;
+    ZoomMode                m_zoom          = ZoomMode::Fit;
+    DebayerMode             m_debayerMode   = DebayerMode::Color;
+
+    // ADC overlay
+    double                  m_mountAltDeg   = -1.0;
+    bool                    m_showADC       = true;
+
+    // Clipping warning
+    bool                    m_showClip      = false;
+    float                   m_clipPct       = 0.0f;
+    int                     m_clipFlash     = 0;
+
+    // Snapshot notification (Phase 22)
+    std::wstring            m_snapMsg;
+    int                     m_snapTimer     = 0;
+
+    // RGB Align (Phase 23)
+    bool                    m_rgbAlignEnabled = false;
+    int                     m_rgbAlignManual  = 0;     // user fine-tune ±20px
+    int                     m_rgbAlignShift   = 0;     // last applied shift (for HUD)
+
+    // Pixel Value Readout (Phase 24)
+    bool                    m_pixelReadout  = false;
+    bool                    m_pixelLocked   = false;
+    float                   m_pixelHoverX   = 0.0f;
+    float                   m_pixelHoverY   = 0.0f;
+
+    // Display FX (Phase 25)
+    DisplayFX               m_displayFX     = DisplayFX::Normal;
+    // Stack accumulator — uint32 per channel to avoid overflow
+    static constexpr int    FX_STACK_MAX    = 10;
+    uint8_t*                m_fxFrames[FX_STACK_MAX] = {}; // circular history of RGB frames
+    uint32_t*               m_fxAccum       = nullptr;     // running sum (R,G,B per pixel)
+    int                     m_fxHead        = 0;           // next slot to write
+    int                     m_fxFilled      = 0;           // how many slots valid
+    int                     m_fxN           = 0;           // current stack depth (3/5/10)
+
+    // Night Vision Mode (Phase 26)
+    bool                    m_nightVision   = false;
+
+    // Single-Channel Display Mode (Phase 38)
+    ChannelMode             m_channelMode   = ChannelMode::All;
+
+    // Ghost Frame Overlay (Phase 29)
+    // Stores a snapshot of m_rgbBuffer at the moment CaptureGhost() is called.
+    // Blended at 50% opacity over the live frame for framing reference.
+    uint8_t*                m_ghostFrame    = nullptr;
+    size_t                  m_ghostFrameSize= 0;
+    int                     m_ghostW        = 0;
+    int                     m_ghostH        = 0;
+    bool                    m_ghostEnabled  = false;
+
+    // Quality bar graph (Phase 25a)
+    static constexpr int    QUAL_HISTORY    = 200; // ~5s at 40fps
+    float                   m_qualHistory[200] = {};
+    int                     m_qualHead      = 0;
+    int                     m_qualCount     = 0;
+    bool                    m_showQualityGraph = true; // on by default
+
+    // Last drawn frame rect — used for hit testing frame bar clicks
+    D2D1_RECT_F             m_lastDestRect  = {};
+    bool                    m_hasLastRect   = false;
+
+    // Full preview region — frame bar spans this, not just the image rect.
+    // Updated every RenderFrame call so DrawFrameBar always uses current extents.
+    float                   m_lastPreviewX  = 0;
+    float                   m_lastPreviewW  = 0;
+    float                   m_lastPreviewH  = 0;
+
+    // HUD status line rect — clickable to show reset popup
+    D2D1_RECT_F             m_hudStatusRect  = {};
+    D2D1_RECT_F             m_btnResetMax    = {};
+    bool                    m_showResetPopup = false;
+
+    bool                    m_goToPanelVisible = false;
+    bool                    m_skyMapVisible    = false;
+    int                     m_acqStage  = 0;
+    bool                    m_lockReady = false;
+    bool                    m_roiReady  = false;
+
+    std::function<void(int,int,int,int)> m_onROIChange;
+
+    // ROI rubber-band selection state
+    enum class DragState { Idle, Dragging, Confirming };
+    DragState               m_dragState     = DragState::Idle;
+    float                   m_dragStartX    = 0;
+    float                   m_dragStartY    = 0;
+    float                   m_dragCurX      = 0;
+    float                   m_dragCurY      = 0;
+    // v1.1.1: last-frame hold — preview redraws the newest frame between
+    // camera deliveries instead of flashing NO SIGNAL (see RenderFrame)
+    static constexpr int    HOLD_TIMEOUT_MS = 2000;
+    std::vector<uint8_t>    m_holdBuf;
+    int                     m_holdW = 0, m_holdH = 0;
+    uint8_t                 m_holdDepth = 8;
+    std::chrono::steady_clock::time_point m_holdTime{};
+
+    bool                    m_roiAutoApplyPending = false; // Phase 56 (G2)
+    int                     m_pendingROIW   = 0;
+    int                     m_pendingROIH   = 0;
+    int                     m_pendingROIX   = 0;
+    int                     m_pendingROIY   = 0;
+    std::chrono::steady_clock::time_point m_confirmTime;
+
+    int                     m_sensorW       = MAX_SENSOR_W;
+    int                     m_sensorH       = MAX_SENSOR_H;
+};
+
+} // namespace raduk::gui

@@ -1,0 +1,17 @@
+# Build output — never commit binaries or generated projects
+build/
+build_emu/
+*.exe
+*.obj
+*.pdb
+*.ilk
+
+# Runtime data written next to the app — session logs, observation
+# history, and rig.ini contain the operator's site and schedule
+logs/
+apex_data/
+rig.ini
+
+# IDE / local
+.vs/
+*.user

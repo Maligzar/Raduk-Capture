@@ -43,6 +43,7 @@
 #include "core/RigConfig.h"
 #include "core/SerialPortScan.h"
 #include "core/SiteLocator.h"
+#include "gui/SiteDialog.h"
 #include "core/Timestamp.h"
 #include "core/SessionLog.h"
 #include "net/WebSocketServer.h"
@@ -800,6 +801,36 @@ static int RunApp(bool useEmulator) {
     // ── GoTo Panel (Phase 6) ───────────────────────────────────
     raduk::gui::GoToPanel gotoPanel;
     gotoPanel.SetMount(mount);
+    // Phase 66: last resort. rig.ini, Windows Location and a GPS probe
+    // have all been tried above, and the mount was asked on connect.
+    // If the site is still unknown, ask -- rather than falling back to
+    // 0,0 and pushing a real place in the Gulf of Guinea to the mount,
+    // which is what used to happen with nothing on screen to say so.
+    {
+        auto& rig = raduk::core::RigConfig::Get();
+        if (!rig.SiteIsSet()) {
+            Log("[INIT] Site still unknown after all sources - asking\n");
+            auto res = raduk::gui::AskForSite(
+                window.Handle(), controls.PanelHwnd(),
+                "Windows Location was unavailable or declined, no GPS "
+                "receiver answered, and the mount has no site of its own.");
+            if (res.accepted) {
+                // "manual" is deliberate: an explicit entry outranks any
+                // later estimate and AdoptSite will refuse to replace it.
+                rig.AdoptSite(res.latDeg, res.lonDeg,
+                              res.elevM != 0.0 ? res.elevM
+                                               : raduk::core::RigConfig::UNKNOWN_ELEV,
+                              "manual");
+                Log("[INIT] Site entered by hand and saved to rig.ini\n");
+            } else {
+                Log("[INIT] Site declined - alt/az tracking, the sky map and "
+                    "the ADC model will not work until one is set\n");
+                // notifBar is not constructed yet at this point in
+                // startup; the log line is the record.
+            }
+        }
+    }
+
     gotoPanel.SetLocation(raduk::core::RigConfig::Get().siteLatDeg,
                           raduk::core::RigConfig::Get().siteLonDeg);
 

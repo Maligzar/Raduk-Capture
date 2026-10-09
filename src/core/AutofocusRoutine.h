@@ -253,7 +253,7 @@ private:
             m_focuser->MoveTo(pos);
 
             // Wait for motion to complete
-            if (!WaitForMove(10000)) {
+            if (!WaitForMove()) {
                 Finish(false, m_startPosition, 0.0f, startSharpness,
                        "EAF move timed out");
                 return;
@@ -330,12 +330,14 @@ private:
             approachFrom = (approachFrom < m_params.minStepBound)
                 ? m_params.minStepBound : approachFrom;
             m_focuser->MoveTo(approachFrom);
-            WaitForMove(10000);
+            if (!WaitForMove())
+                printf("[AF] backlash approach to %d did not complete\n", approachFrom);
             Sleep(300);
         }
 
         m_focuser->MoveTo(finalPos);
-        WaitForMove(10000);
+        if (!WaitForMove())
+            printf("[AF] final move to %d did not complete - focus may be off\n", finalPos);
         Sleep(m_params.settleMs);
 
         // Verify final sharpness
@@ -444,13 +446,52 @@ private:
     }
 
     // ── Helpers ───────────────────────────────────────────────
-    bool WaitForMove(int timeoutMs) {
-        auto start = std::chrono::steady_clock::now();
+    // No-progress budget: a moving EAF reports a changing position every
+    // poll, so this long without change means genuinely stuck, not slow.
+    static constexpr int MOVE_STALL_MS = 5000;
+    // Backstop against a focuser that crawls forever. A full scanRange
+    // hop at a pessimistic 50 steps/s is ~2 min, so 3 min is clear.
+    static constexpr int MOVE_CAP_MS   = 180000;
+
+    // Waits for an EAF move to finish.
+    //
+    // Phase 61: this used a flat 10 s budget for ANY move. The scan's
+    // first hop is scanRange/2 -- 3000 steps on the default params --
+    // which a real EAF cannot cover in 10 s, so autofocus aborted at the
+    // start of every sweep with "EAF move timed out" and left the
+    // focuser 3000 steps below a known-good position. Observed twice on
+    // 2026-10-08: good focus 168187, abort position 165187.
+    //
+    // Elapsed time is the wrong test, because a legitimate move is slow
+    // in proportion to its distance while a stuck one stops reporting
+    // progress immediately. Wait on PROGRESS instead: the clock resets
+    // whenever the position changes, with an absolute cap as a backstop.
+    bool WaitForMove(int stallMs = MOVE_STALL_MS, int capMs = MOVE_CAP_MS) {
+        auto now = [] { return std::chrono::steady_clock::now(); };
+        auto msSince = [&](std::chrono::steady_clock::time_point t) {
+            return (long long)std::chrono::duration_cast<
+                std::chrono::milliseconds>(now() - t).count();
+        };
+
+        auto start        = now();
+        auto lastProgress = start;
+        int  lastPos      = m_focuser->GetPosition();
+
         while (m_focuser->IsMoving()) {
             if (m_abortFlag.load()) return false;
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - start).count();
-            if (elapsed > timeoutMs) return false;
+
+            int pos = m_focuser->GetPosition();
+            if (pos != lastPos) { lastPos = pos; lastProgress = now(); }
+
+            if (msSince(lastProgress) > stallMs) {
+                printf("[AF] EAF stalled at %d (%d ms without progress)\n",
+                       lastPos, stallMs);
+                return false;
+            }
+            if (msSince(start) > capMs) {
+                printf("[AF] EAF move exceeded %d ms cap at %d\n", capMs, lastPos);
+                return false;
+            }
             Sleep(50);
         }
         return true;

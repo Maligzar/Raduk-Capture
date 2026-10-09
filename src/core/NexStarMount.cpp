@@ -78,8 +78,19 @@ bool NexStarMount::Connect(const std::string& comPort, int baudRate) {
     // track. An alt-az mount derives its altitude/azimuth rates from
     // latitude and local time, so without these SetTrackingMode is
     // asking it to solve an underdetermined problem and it declines.
-    // Done here so every connect path gets it, including profile loads.
-    PushSiteAndTime();
+    // Phase 64: only when the mount has no alignment to lose. Setting
+    // time or location on an aligned Celestron can invalidate its
+    // model, and the app reconnects far more often than the mount is
+    // re-aligned -- pushing unconditionally cost a hard-won alignment
+    // across an app restart on 2026-10-08.
+    if (IsAligned()) {
+        printf("[NexStarMount] Mount reports ALIGNED - leaving its site and "
+               "clock untouched\n");
+    } else {
+        printf("[NexStarMount] Mount reports NOT aligned - pushing site and "
+               "clock\n");
+        PushSiteAndTime();
+    }
 
     // Start background poll thread — keeps position cache fresh
     // without ever blocking the main/UI thread on serial I/O
@@ -259,11 +270,47 @@ void NexStarMount::CancelGoTo() {
 
 // ── Tracking ───────────────────────────────────────────────────
 
+int NexStarMount::ReadTrackingModeRaw() {
+    char resp[4] = {};
+    int  len = 0;
+    if (!SendCommand("t", 1, resp, 2, len) || len < 1) return -1;
+    return (int)(unsigned char)resp[0];
+}
+
 bool NexStarMount::SetTrackingMode(TrackingMode mode) {
     char cmd[2] = {'T', static_cast<char>(mode)};
     char resp[4] = {};
     int len = 0;
-    return SendCommand(cmd, 2, resp, 2, len);
+    if (!SendCommand(cmd, 2, resp, 2, len)) {
+        printf("[NexStarMount] Tracking %s: no response to command\n",
+               TrackingModeName(mode));
+        return false;
+    }
+
+    // Phase 64: the '#' acknowledgement means the command was RECEIVED,
+    // not that the mount is driving. An unaligned mount ACKs a 'T'
+    // happily and then sits still -- which is exactly how the UI came
+    // to report "tracking ALT-AZ" on a mount that never moved. Read the
+    // mode back and report what the mount is actually doing.
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    int actual = ReadTrackingModeRaw();
+    if (actual < 0) {
+        printf("[NexStarMount] Tracking %s: ACKed but readback failed\n",
+               TrackingModeName(mode));
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lk(m_cacheMutex);
+        m_cachedTracking = static_cast<TrackingMode>(actual);
+    }
+
+    bool ok = (actual == (int)mode);
+    printf("[NexStarMount] Tracking %s requested, mount reports %s : %s\n",
+           TrackingModeName(mode),
+           TrackingModeName(static_cast<TrackingMode>(actual)),
+           ok ? "confirmed" : "NOT RUNNING (mount likely unaligned)");
+    return ok;
 }
 
 NexStarMount::TrackingMode NexStarMount::GetTrackingMode() {

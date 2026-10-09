@@ -15,3 +15,18 @@ rig.ini
 # IDE / local
 .vs/
 *.user
+
+# Session output not covered above — produced by running the app,
+# large, and can carry observing details.
+captures/
+sharpness/
+raduk_log.txt
+raduk_session.log
+
+# MSBuild tracker logs left in the build tree.
+*.tlog
+*.lastbuildstate
+
+# Local backups (e.g. profiles/saturn.ini.working-2026-10-08).
+*.bak
+*.working-*

@@ -170,12 +170,54 @@ public:
     void SetDriftCallback(std::function<void(float,float)> cb){ m_onDrift = std::move(cb); }
     // Fired from Tick() (main thread) when a calibration attempt finishes:
     // (success, human-readable summary/reason).
+    // Phase 65: fired from Tick() when auto-acquire reaches Locked, so
+    // the UI can say guiding is live. Not fired for a manual StartLocked
+    // via the ROI button, which logs for itself.
+    void SetAutoLockedCallback(std::function<void()> cb) { m_onAutoLocked = cb; }
+
     void SetCalibrationCallback(std::function<void(bool, const std::string&)> cb) {
         m_onCalibration = std::move(cb);
     }
 
     // ── Stage control — main thread only ─────────────────────
     AcquisitionStage Stage() const { return m_stage.load(); }
+
+    // -- Phase 65: one-button acquisition -----------------------
+    // Point, centre, track. Previously this took three button presses
+    // (CENTROID, then LOCK once five centroids had accumulated, then
+    // ROI once the dwell was met) and each silently did nothing when
+    // its precondition was unmet, so a refusal was indistinguishable
+    // from a dead button.
+    //
+    // Returns false with a reason the caller can show. The tracking
+    // check is the important one: with the mount not driving, the
+    // planet crosses the 10 px dwell window in 0.14 s, so Centering
+    // can never converge and calibration measures about four times
+    // more drift than pulse response. Every stage downstream fails,
+    // and none of them can say why.
+    bool StartAutoAcquire(std::string& whyNot) {
+        if (m_stage.load() != AcquisitionStage::Off) {
+            whyNot = "acquisition already running";
+            return false;
+        }
+        IMount* mnt = nullptr;
+        { std::lock_guard<std::mutex> lk(m_mutex); mnt = m_mount; }
+        if (!mnt || !mnt->IsConnected()) {
+            whyNot = "mount not connected";
+            return false;
+        }
+        if (mnt->GetTrackingMode() == IMount::OFF) {
+            whyNot = "mount is not tracking - align it on the hand control "
+                     "first (Align > Quick Align needs no stars)";
+            return false;
+        }
+        m_autoAdvance.store(true);
+        StartSearching();
+        printf("[CentroidTracker] Auto-acquire: searching for the planet\n");
+        return true;
+    }
+
+    bool AutoAdvancing() const { return m_autoAdvance.load(); }
 
     void StartSearching() {
         if (m_stage.load() != AcquisitionStage::Off) return;
@@ -356,6 +398,29 @@ public:
             }
         }
         auto stage = m_stage.load();
+
+        // Phase 65: drive the sequence to completion without further
+        // button presses. Done here on the main thread, where the other
+        // stage transitions already live.
+        if (m_autoAdvance.load()) {
+            if (stage == AcquisitionStage::Searching && IsStable()) {
+                printf("[CentroidTracker] Auto-acquire: centroid stable, "
+                       "calibrating\n");
+                StartCalibration();
+            } else if (stage == AcquisitionStage::Centering && IsDwellMet()) {
+                printf("[CentroidTracker] Auto-acquire: centred, locking\n");
+                StartLocked();
+                // Stop here rather than cropping the sensor. The ROI crop
+                // changes capture resolution, which is the user's call --
+                // auto-acquire's job is to centre and guide.
+                m_autoAdvance.store(false);
+                if (m_onAutoLocked) m_onAutoLocked();
+            } else if (stage == AcquisitionStage::Off) {
+                m_autoAdvance.store(false);   // Reset() ends the sequence
+            }
+            stage = m_stage.load();
+        }
+
         if ((stage == AcquisitionStage::Centering ||
              stage == AcquisitionStage::Locked) && m_onDrift)
             m_onDrift(m_driftRA.load(), m_driftDec.load());
@@ -486,35 +551,42 @@ private:
         if (!_WaitCentroidAvg(CAL_SAMPLES, bx, by))
             return finish(false, "no stable centroid to calibrate against");
 
-        // A pulse + settle + measurement for one axis; returns response vector.
-        auto measureAxis = [&](GuideDirection dir, GuideDirection back,
+        // Phase 65: one pulse per axis, and the displacement is KEPT.
+        //
+        // This used to pulse out, measure, then pulse back to the start --
+        // four pulses and four settles for two measurements, with half the
+        // motion deliberately undone. The return served "so the two axis
+        // measurements share a similar working point (and the planet stays
+        // in frame)", but a CAL_PULSE_MS pulse at the nominal guide rate
+        // moves the planet about 30 px inside a 3840 px frame, so staying
+        // in frame was never at risk, and each measurement is a delta that
+        // does not care where it started.
+        //
+        // Dropping the return halves calibration (two pulses, two settles)
+        // and leaves the planet displaced by at most two pulse lengths --
+        // which Centering, entered immediately afterwards, corrects as part
+        // of its normal work. Calibration stops being a detour.
+        auto measureAxis = [&](GuideDirection dir,
                                float fromX, float fromY,
-                               float& vx, float& vy, float& endX, float& endY) -> bool {
+                               float& vx, float& vy,
+                               float& endX, float& endY) -> bool {
             if (!_CalAlive()) return false;
             if (!mount->PulseGuide(dir, CAL_PULSE_MS)) return false;
             if (!_CalSettle(CAL_SETTLE_MS)) return false;
-            float mx, my;
-            if (!_WaitCentroidAvg(CAL_SAMPLES, mx, my)) return false;
-            vx = mx - fromX; vy = my - fromY;
-            // Pulse back toward the start so the two axis measurements share
-            // a similar working point (and the planet stays in frame).
-            if (!mount->PulseGuide(back, CAL_PULSE_MS)) return false;
-            if (!_CalSettle(CAL_SETTLE_MS)) return false;
             if (!_WaitCentroidAvg(CAL_SAMPLES, endX, endY)) return false;
+            vx = endX - fromX; vy = endY - fromY;
             return true;
         };
 
         float ex, ey, b2x, b2y;
-        if (!measureAxis(GuideDirection::East, GuideDirection::West,
-                         bx, by, ex, ey, b2x, b2y))
+        if (!measureAxis(GuideDirection::East, bx, by, ex, ey, b2x, b2y))
             return finish(false, "East pulse measurement failed or aborted");
         float eMag = std::sqrt(ex*ex + ey*ey);
         if (eMag < CAL_MIN_MOVE_PX)
             return finish(false, "East response too small — check guide rate/target");
 
         float nx, ny, b3x, b3y;
-        if (!measureAxis(GuideDirection::North, GuideDirection::South,
-                         b2x, b2y, nx, ny, b3x, b3y))
+        if (!measureAxis(GuideDirection::North, b2x, b2y, nx, ny, b3x, b3y))
             return finish(false, "North pulse measurement failed or aborted");
         float nMag = std::sqrt(nx*nx + ny*ny);
         if (nMag < CAL_MIN_MOVE_PX)
@@ -531,8 +603,37 @@ private:
         cal.eyPerMs = ey / (float)CAL_PULSE_MS;
         cal.nxPerMs = nx / (float)CAL_PULSE_MS;
         cal.nyPerMs = ny / (float)CAL_PULSE_MS;
-        cal.arcsecPerPx = (RigConfig::Get().guideRateArcsecPerSec
-                           * CAL_PULSE_MS / 1000.0f) / eMag;
+        // Phase 65: the plate scale is KNOWN from the optics
+        // (206.265 x pixel_um / focal_mm) and sits in RigConfig. The guide
+        // rate is the genuinely unknown quantity -- PulseGuide just asserts
+        // NexStar fixed rate 1 is about 7.5"/s and nothing has ever checked.
+        //
+        // This previously assumed the rate and derived the scale, which is
+        // backwards: it pinned a known number to an unverified one, so every
+        // arcsecond the user reads scaled with that assumption. Take the
+        // scale as given and derive the rate instead, then log it -- a
+        // measured rate far from the assumed value immediately explains any
+        // mis-sized pulse, instead of hiding inside the displayed figures.
+        //
+        // The correction solve is unaffected either way: it works in the
+        // pixel domain from the measured px/ms matrix, where the rate
+        // cancels out.
+        cal.arcsecPerPx = RigConfig::Get().plateScaleArcsecPx;
+        {
+            float assumed  = RigConfig::Get().guideRateArcsecPerSec;
+            float measured = (eMag * cal.arcsecPerPx)
+                           / (CAL_PULSE_MS / 1000.0f);   // arcsec per second
+            printf("[CentroidTracker] Guide rate: assumed %.2f\"/s, "
+                   "measured %.2f\"/s (%.0f%% of assumed)\n",
+                   assumed, measured,
+                   assumed > 0.01f ? (measured / assumed * 100.0f) : 0.0f);
+            if (assumed > 0.01f &&
+                (measured < assumed * 0.5f || measured > assumed * 2.0f)) {
+                printf("[CentroidTracker] WARNING: measured guide rate is far "
+                       "from rig.ini GuideRateArcsecPerSec -- pulse sizing and "
+                       "the drift readout will be off until it is corrected\n");
+            }
+        }
         cal.when    = std::chrono::steady_clock::now();
         {
             double alt = 0, az = 0;
@@ -722,6 +823,8 @@ private:
     std::atomic<bool>            m_suspended{false};
     std::atomic<bool>            m_lostPending{false};
     std::atomic<bool>            m_dwellPending{false};
+    std::function<void()>        m_onAutoLocked;
+    std::atomic<bool>            m_autoAdvance{false};
     std::atomic<bool>            m_calPending{false};
     std::atomic<bool>            m_calSuccess{false};
     std::atomic<float>           m_driftRA{0.0f};

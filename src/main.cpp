@@ -1713,8 +1713,15 @@ static int RunApp(bool useEmulator) {
 
     // Dwell met callback — just log; UI already reflects IsDwellMet()
     tracker.SetDwellCallback([&]() {
-        Log("[ACQ] Dwell condition met — ROI button now active\n");
-        slog.Mount("Acquisition: Planet centred — ROI ready");
+        Log("[ACQ] Dwell condition met - planet is centred\n");
+        slog.Mount("Acquisition: Planet centred");
+    });
+    // Phase 65: auto-acquire finished. Guiding is live; the ROI crop is
+    // left to the user because it changes capture resolution.
+    tracker.SetAutoLockedCallback([&]() {
+        Log("[ACQ] Auto-acquire complete - LOCKED, guiding active\n");
+        slog.Mount("Acquisition: Locked (auto) - guiding active");
+        notifBar.NotifyInfo(L"Planet locked - guiding active. [ROI] to crop.");
     });
 
     // Phase 51: calibration result — success auto-advances to Centering
@@ -1912,10 +1919,22 @@ static int RunApp(bool useEmulator) {
     // ── Toolbar button callbacks (Win32 native buttons) ────────
     toolbar.SetCentroidCallback([&]() {
         if (tracker.Stage() == raduk::core::AcquisitionStage::Off) {
-            Log("[ACQ] Stage 1: SEARCHING\n");
-            slog.Mount("Acquisition: Searching");
+            // Phase 65: one press now runs the whole sequence -- find the
+            // planet, calibrate, centre, lock -- instead of requiring
+            // CENTROID then LOCK then ROI, each of which silently did
+            // nothing when its precondition was unmet.
             tracker.SetMount(mount);
-            tracker.StartSearching();
+            std::string whyNot;
+            if (!tracker.StartAutoAcquire(whyNot)) {
+                Log("[ACQ] Auto-acquire refused: %s\n", whyNot.c_str());
+                slog.Mount("Acquisition refused: %s", whyNot.c_str());
+                std::wstring w(whyNot.begin(), whyNot.end());
+                notifBar.NotifyWarn(L"Cannot acquire: " + w);
+                return;
+            }
+            Log("[ACQ] Auto-acquire started: searching\n");
+            slog.Mount("Acquisition: auto (search -> calibrate -> centre -> lock)");
+            notifBar.NotifyInfo(L"Acquiring planet - searching...");
         } else {
             Log("[ACQ] Cancelled — reset to Off\n");
             slog.Mount("Acquisition: Cancelled");
@@ -2108,10 +2127,16 @@ static int RunApp(bool useEmulator) {
                     Log("[WS] Remote autofocus_abort\n");
                 }
             } else if (rc.cmd == "centroid_start") {
+                // Phase 65: same one-shot path as the CENTROID button, so
+                // the remote and the UI cannot drift apart.
                 if (tracker.Stage() == raduk::core::AcquisitionStage::Off) {
                     tracker.SetMount(mount);
-                    tracker.StartSearching();
-                    Log("[WS] Remote centroid_start\n");
+                    std::string whyNot;
+                    if (tracker.StartAutoAcquire(whyNot))
+                        Log("[WS] Remote centroid_start: auto-acquire\n");
+                    else
+                        Log("[WS] Remote centroid_start refused: %s\n",
+                            whyNot.c_str());
                 }
             } else if (rc.cmd == "centroid_lock") {
                 if (tracker.Stage() == raduk::core::AcquisitionStage::Searching && tracker.IsStable()) {

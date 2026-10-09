@@ -116,6 +116,16 @@ struct RigConfig {
     // Phase 67: degrees of cumulative azimuth travel before the cord-wrap
     // warning fires. Depends on cable length and how they are dressed, so
     // it is per-rig rather than a constant.
+    // Phase 67 step 4: bearing FROM the mount TO where the observer
+    // stands, degrees true. One number, because everything the align
+    // helper says is relative to it -- and it is a question answerable
+    // in the dark, unlike "which way is north".
+    // -1 means unasked; 0 is a legal bearing (due north).
+    double observerBearingDeg = -1.0;
+    bool ObserverBearingSet() const { return observerBearingDeg >= 0.0; }
+    // Set by "Don't show again" on the align helper.
+    bool showAlignHelper = true;
+
     double wrapLimitDeg = 360.0;
 
     std::string mountPort;
@@ -139,6 +149,8 @@ struct RigConfig {
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
         wf("SiteElevationM", siteElevationM);
         wf("WrapLimitDeg", wrapLimitDeg);
+        wf("ObserverBearingDeg", observerBearingDeg);
+        wf("ShowAlignHelper", showAlignHelper ? 1.0 : 0.0);
         WritePrivateProfileStringA("Rig", "SiteSource",
                                    siteSource.empty() ? "manual" : siteSource.c_str(),
                                    p.c_str());
@@ -185,6 +197,8 @@ private:
         cfg.siteValid             = haveLat && haveLon;
         cfg.siteElevationM        = rf("SiteElevationM", cfg.siteElevationM);
         cfg.wrapLimitDeg          = rf("WrapLimitDeg", cfg.wrapLimitDeg);
+        cfg.observerBearingDeg    = rf("ObserverBearingDeg", cfg.observerBearingDeg);
+        cfg.showAlignHelper       = rf("ShowAlignHelper", 1.0) != 0.0;
         {
             char sbuf[32] = {};
             GetPrivateProfileStringA("Rig", "SiteSource", "", sbuf, sizeof(sbuf), p.c_str());

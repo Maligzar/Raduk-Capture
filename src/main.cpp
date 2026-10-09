@@ -45,6 +45,7 @@
 #include "core/SiteLocator.h"
 #include "core/CordWrap.h"
 #include "gui/SiteDialog.h"
+#include "gui/AlignHelperDialog.h"
 #include "core/Timestamp.h"
 #include "core/SessionLog.h"
 #include "net/WebSocketServer.h"
@@ -838,6 +839,25 @@ static int RunApp(bool useEmulator) {
                     "the ADC model will not work until one is set\n");
                 // notifBar is not constructed yet at this point in
                 // startup; the log line is the record.
+            }
+        }
+    }
+
+    // Phase 67 step 4: an unaligned mount will not track, and the fix
+    // is on the hand control rather than in here. Say so at the point
+    // it matters, and translate "point the tube north" into the
+    // landmarks actually in front of the user.
+    {
+        auto& rig = raduk::core::RigConfig::Get();
+        if (rig.showAlignHelper && mount && mount->IsConnected()
+            && !mount->IsAligned()) {
+            Log("[ALIGN] Mount reports NOT aligned - showing Quick Align helper\n");
+            bool never = raduk::gui::ShowQuickAlignHelper(window.Handle(),
+                                                          controls.PanelHwnd());
+            if (never) {
+                rig.showAlignHelper = false;
+                rig.Save();
+                Log("[ALIGN] Helper suppressed at user request\n");
             }
         }
     }

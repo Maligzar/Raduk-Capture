@@ -247,7 +247,17 @@ public:
         return true;
     }
 
-    bool IsAligned() override { return true; }
+    // Phase 67: RADUK_EMU_UNALIGNED=1 makes the emulator report itself
+    // unaligned, so the whole tracking-blocked path -- the align
+    // helper, refused acquisition, the warnings -- can be reproduced
+    // without waiting for a cloudless night and an unaligned mount.
+    bool IsAligned() override {
+        char buf[8] = {};
+        if (GetEnvironmentVariableA("RADUK_EMU_UNALIGNED", buf, sizeof(buf)) > 0
+            && buf[0] == '1')
+            return false;
+        return true;
+    }
 
 
     static std::string FormatDec(double decDegrees) {

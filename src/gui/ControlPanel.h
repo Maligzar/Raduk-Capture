@@ -118,6 +118,10 @@ public:
     void SetAutofocusCallback(std::function<void(bool)> cb) { m_onAutofocus = cb; }
     // Mount controller button — clicked to show/reposition the floating panel
     void SetMountCtrlCallback(std::function<void()> cb) { m_onMountCtrl = cb; }
+    // Phase 67: "cables dressed" zeroes the cord-wrap total. It is the
+    // only thing that legitimately resets it, because the app has no
+    // way to observe a cable - it has to be told.
+    void SetCablesDressedCallback(std::function<void()> cb) { m_onCablesDressed = cb; }
     // Jog activity — cb(true) on jog start, cb(false) on jog stop.
     // main.cpp suspends centroid-tracker corrections during manual jogs
     // (otherwise the guide loop fights the user).
@@ -519,6 +523,7 @@ private:
     HWND m_lblMountTrack = nullptr;
     HWND m_btnMountCtrl = nullptr;   // Shows/repositions floating mount controller
     HWND m_btnSync = nullptr;
+    HWND m_btnCables = nullptr;   // cord-wrap reset
     HWND m_lblMountControl = nullptr;
     HWND m_lblSkyMapLock   = nullptr;
     HWND m_lblSkyMapTarget = nullptr;
@@ -602,6 +607,7 @@ private:
         ID_LBL_MOUNT_CONNECTED,
         ID_BTN_SYNC = 1500,
         ID_BTN_MOUNT_CTRL,
+        ID_BTN_CABLES,
         ID_BTN_MOUNT_STOP,
         ID_BTN_JOG_N, ID_BTN_JOG_S, ID_BTN_JOG_E, ID_BTN_JOG_W,
         ID_BTN_RATE_9, ID_BTN_RATE_8, ID_BTN_RATE_7, ID_BTN_RATE_5,
@@ -656,6 +662,7 @@ private:
     std::function<void()>                   m_onSolveSync;
     std::function<void(bool)>               m_onAutofocus;  // Phase 9
     std::function<void()>                   m_onMountCtrl;  // floating mount controller toggle
+    std::function<void()>                   m_onCablesDressed;  // cord-wrap reset
     std::function<void(bool)>               m_onJogActivity; // jog start/stop notification
     std::function<void(bool,bool)>          m_onAEToggle;
     std::function<void()>                   m_onRGBAlign;

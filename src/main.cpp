@@ -1055,6 +1055,18 @@ static int RunApp(bool useEmulator) {
     });
     Log("[INIT] Notification bar ready\n");
 
+    // Phase 67: the only legitimate way to zero the cord-wrap total.
+    // The app cannot see a cable, so it has to be told when one has
+    // been freed; everything the warning later claims is measured from
+    // this moment.
+    controls.SetCablesDressedCallback([&]() {
+        double was = cordWrap.CumulativeDeg();
+        cordWrap.CablesDressed();
+        Log("[CORDWRAP] Cables dressed - reset from %+.0f deg\n", was);
+        slog.Mount("Cord wrap reset (was %+.0f deg)", was);
+        notifBar.NotifyInfo(L"Cord wrap reset - counting from here");
+    });
+
     // Re-register align callback now that notifBar exists — adds notification flash
     mountCtrl.SetAlignCallback([&](double ra_h, double dec_deg,
                                     const std::string& name) {

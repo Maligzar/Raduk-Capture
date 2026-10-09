@@ -983,6 +983,10 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
             }
             return true;
 
+        case ID_BTN_CABLES:
+            if (m_onCablesDressed) m_onCablesDressed();
+            return true;
+
         case ID_BTN_MOUNT_CTRL:
             // Show and reposition floating mount controller to default position
             if (m_onMountCtrl) m_onMountCtrl();
@@ -2300,6 +2304,12 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         int hw = (w - 2) / 2;
         m_btnMountCtrl = MakeButton(L"MOUNT CTRL", x, y, hw, BH, ID_BTN_MOUNT_CTRL);
         TagControl(m_btnMountCtrl, Section::Mount);
+        // Phase 67: the other half of this row was empty. CABLES resets
+        // the cord-wrap total after the cables have been physically
+        // freed - press it when you dress them, so the count that warns
+        // you later is measured from a known-good state.
+        m_btnCables = MakeButton(L"CABLES OK", x + hw + 2, y, hw, BH, ID_BTN_CABLES);
+        TagControl(m_btnCables, Section::Mount);
         y += BH + 2;
     }
 

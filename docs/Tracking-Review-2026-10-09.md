@@ -16,7 +16,7 @@ chain against the goal —
 | Change | Evidence |
 |---|---|
 | Serial port auto-detect | `Mount: OK (COM4 responded)` at startup; probe found COM4 only, pinned and stale-pin cases both correct |
-| Site/clock push | `Site -> 33°51'36" N, 112°05'24" W : accepted`, `Clock -> ... UTC-7 dst=0 : accepted` |
+| Site/clock push | `Site -> <lat/lon from rig.ini> : accepted`, `Clock -> ... UTC-7 dst=0 : accepted` |
 | Sky map projection | user reports "close" after the fix, versus unusable before |
 
 ### Compile-verified only — still unproven on sky

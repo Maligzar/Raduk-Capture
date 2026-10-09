@@ -5,9 +5,14 @@
 
 ## Quick Key Reference
 
+Keys work **whatever window or panel has focus**. Before v1.1.5 they only
+reached the mount while the main window was focused, so clicking a text field
+or opening Help silently killed them until you clicked the preview again.
+
 | Key | Action |
 |-----|--------|
 | `Space` | Emergency stop all mount movement |
+| `Arrow keys` | Jog the mount (hold to slew, release to stop) |
 | `?` | Toggle this Help window |
 | `A` | Toggle Autofocus (start / abort) |
 | `B` | Cycle Display FX (Normal → Boost ×2 → Boost ×4 → Stack 3/5/10) |
@@ -39,9 +44,9 @@ Nine buttons across the top of the preview window:
 
 | Button | Key | Function |
 |--------|-----|----------|
-| `[CENTROID]` | — | Start centroid tracking (Stage 1: Search) |
-| `[LOCK]` | — | Advance to Stage 2: Center target |
-| `[ROI]` | — | Advance to Stage 3: Lock ROI |
+| `[CENTROID]` | — | **Acquire the planet**: find, calibrate, centre, lock. Press again to cancel. |
+| `[LOCK]` | — | Manual override — force the calibration step |
+| `[ROI]` | — | Crop the sensor around a locked planet (not a freehand ROI — drag a box on the preview for that) |
 | `[C] COLOR` | — | Toggle COLOR / RAW debayer mode |
 | `[*] MAP` | `M` | Toggle Sky Map window |
 | `[I] GOTO` | `G` | Open GoTo panel |
@@ -87,7 +92,7 @@ All sections are collapsible — click the section header to expand/collapse.
 - **Input box** — Type a target position and click `GO TO` for a direct move.
 - **TEMP** — Current EAF temperature in °C.
 - **AUTO FOCUS** — Runs the built-in V-curve autofocus routine. Steps outward, measures sharpness at each position, fits a parabola, moves to the computed best focus. Abortable mid-run.
-- **ADC: severity (N.N")** — Live atmospheric dispersion measurement. Computed from mount altitude using the Edlen 1966 model (default site profile, P=918hPa, T=288K). Shows NONE / MINOR / MODERATE / SIGNIFICANT / SEVERE. Use as a guide for when to apply an ADC or use RGB Align.
+- **ADC: severity (N.N")** — Live atmospheric dispersion measurement. Computed from mount altitude using the Edlen 1966 model, with air pressure derived from your site elevation (T=288K). Shows NONE / MINOR / MODERATE / SIGNIFICANT / SEVERE. Use as a guide for when to apply an ADC or use RGB Align.
 
 ### TELESCOPE
 - **Mount name / COM port** — Celestron 8SE on COM3 (NexStar serial protocol, not ASCOM).
@@ -129,8 +134,11 @@ Open with `MOUNT CTRL` button or from the TELESCOPE section. Always stays on top
 - **N / S / E / W** — Hold to slew. Release to stop.
 - **9× / FAST / MED / FINE** — Slew rate selector.
 - **STOP** — Immediately halt all movement (also `Space` key).
-- **Tracking** — Toggle sidereal tracking on/off.
-- **Park** — Send mount to park position.
+- **★ ALIGN** — One-point align on a centred object: syncs the mount to the
+  object's computed position **and** switches tracking on. Pick the target from
+  the list; planets are offered first. The result is reported honestly —
+  "Aligned ... tracking ALT-AZ", "Synced ... mount refused tracking", or
+  "Mount refused the sync".
 - **RA / Dec readout** — Live coordinates updated every 500ms.
 
 ---
@@ -274,12 +282,13 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 | Mount | NexStar (8SE single-arm) | USB-serial, port auto-detected |
 | Alignment | StarSense AutoAlign | — |
 
-**Plate scale:** 0.203 arcsec/pixel (f/10, 2032mm FL, 2.9µm pixels)
-**Sensor:** Sony IMX678, 3840×2160, 2.9µm pixel pitch
+**Plate scale:** 0.203 arcsec/pixel (206.265 × 2.0µm ÷ 2032mm)
+**Sensor:** Sony IMX678, 3840×2160, **2.0µm** pixel pitch
+**Field of view:** 12.99' × 7.31' at full frame
 **EAF safe test position:** 50000 (physical position currently 150000)
 **HCG threshold:** gain 182 (above this = high-conversion-gain mode)
-**Site:** configured in rig.ini (latitude/longitude; default 0,0)
-**ADC model:** Edlen 1966, P=918hPa, T=288K
+**Site:** auto-detected at startup (see *Observing site* below); stored in rig.ini
+**ADC model:** Edlen 1966, pressure from site elevation, T=288K
 
 ---
 
@@ -325,10 +334,81 @@ so a stale entry falls back to auto-detect instead of breaking the connection.
 - Close other USB-intensive applications
 - The write buffer is 512 slots — sustained drops mean disk write speed is insufficient
 
+### Mount will not track (TRK stays OFF)
+An alt-az mount computes its altitude and azimuth rates from **latitude and
+local time**. Without them the calculation is underdetermined and the mount
+declines to track, however often it is asked.
+
+RadukCapture sends both on connect. Check the startup console:
+
+```
+[NexStarMount] Site  -> ... : accepted
+[NexStarMount] Clock -> ... : accepted
+```
+
+If those are accepted and `TRK` still reads `OFF`, the mount is **not
+aligned**. Tracking is gated behind the hand control's own alignment, and
+nothing in this application can substitute for it:
+
+> **Hand control -> Align -> Quick Align.** It needs **no stars** - level the
+> tube, point north, confirm. GoTo accuracy will be mediocre; tracking will
+> work, which is what matters if you find targets by hand.
+
+Afterwards the console should read `Mount reports ALIGNED - leaving its site
+and clock untouched`: the app will not re-push a site to an aligned mount,
+because changing time or location can invalidate a Celestron's model.
+
+Note that `TRK` reflects a readback of the mount's actual state. A command the
+mount merely acknowledges is not reported as success.
+
+### Acquisition refuses to start
+`[CENTROID]` runs the whole sequence: find the planet, calibrate, centre, lock.
+If it cannot start it says why, in the notification bar and the log. The usual
+cause is tracking:
+
+- *"mount is not tracking"* - see above. With the mount undriven the planet
+  drifts 15"/s, which is 74 px/s at this plate scale; the centring dwell window
+  is 10 px, so it is crossed in 0.14 s and can never be satisfied.
+- *"no steady centroid yet"* - the planet is too faint or off-screen. Raise
+  exposure until the frame peak clears ~8%.
+
+`[ROI]` is stage 3 of that sequence, not a manual crop tool. To set an ROI by
+hand, **drag a box on the preview** instead.
+
+### Observing site wrong or missing
+The site is resolved at startup in this order, and the first that answers wins:
+
+1. `SiteLatDeg` / `SiteLonDeg` in rig.ini, if present
+2. **Windows Location** - typically accurate to ~100 m, which is far better
+   than the 5.6 km needed to land a target in the frame
+3. A USB GPS receiver on any serial port (NMEA, passive listen)
+4. The site the mount itself already holds
+5. A dialog asking for it
+
+If none answers, **no site is sent to the mount**. An unknown site is left
+unknown rather than defaulted to 0,0 - which is a real place in the Gulf of
+Guinea and would break tracking, the sky map and the ADC model while looking
+perfectly configured.
+
+Windows Location needs *Settings > Privacy > Location*, including **"Let
+desktop apps access your location"**. If it is refused the log says so and
+names the setting.
+
+To pin the site by hand, set both coordinates and `SiteSource=manual` in
+rig.ini; an entry marked manual is never replaced by an automatic estimate.
+
 ### Autofocus fails / doesn't converge
 - Ensure EAF is connected (position shows a number, not dashes)
-- Ensure target is bright enough for sharpness measurement
+- **Centre the target first.** Sharpness is measured on a 256×256 crop that
+  follows the detected planet; with nothing detected it falls back to frame
+  centre and reads background noise.
+- Check the reported result. `sharp=0.0%` means the curve was fitted to noise
+  and the position returned is meaningless.
 - Check EAF is not at travel limits (safe zone: 10000–490000)
+
+A move that makes no progress for 5 s is reported as stalled. Long moves are
+fine - the sweep's first hop is 3000 steps and is allowed to take as long as
+it needs.
 
 ### GoTo misses target
 - Run `POINT SOLVE → SYNC` to correct mount model at current position
@@ -365,7 +445,27 @@ so a stale entry falls back to auto-detect instead of breaking the connection.
 | v1.0.13 | 26 | Night Vision Mode (N key, red tint via Rec.709 luminance) |
 | v1.0.14 | 38 | Single-Channel Display Mode (H key, R/G/B/All cycle, grayscale) |
 | v1.0.15 | 49 | Help System (? key, floating window, live search filter) |
+| v1.1.0 | — | Build version + compile timestamp in title bar |
+| v1.1.1 | — | Hold last frame in preview (stop NO SIGNAL flashing) |
+| v1.1.2 | — | Version in preview banner, dark title bar |
+| v1.1.3 | — | Initial public release (MIT licence, README) |
+| v1.1.4 | 60 | Hotkeys routed from the message pump — work whatever has focus |
+| v1.1.4 | 60 | Arrow-key jog: auto-repeat suppressed, stop on app deactivation |
+| v1.1.4 | 61 | Mouse reaches the preview — drag-box ROI and pixel readout |
+| v1.1.4 | 61 | Sharpness crop follows the planet instead of the frame centre |
+| v1.1.4 | 61 | Autofocus waits on progress, not a flat 10 s budget |
+| v1.1.4 | 61 | ROI and LOCK state why they refuse instead of doing nothing |
+| v1.1.4 | — | Mount serial port auto-detected (NexStar echo probe) |
+| v1.1.4 | — | Profile SAVE captures live camera and focuser settings |
+| v1.1.5 | 62 | Site and clock sent to the mount — makes alt/az tracking possible |
+| v1.1.5 | 62 | ALIGN performs a one-point align and enables tracking |
+| v1.1.5 | 63 | Sky map rebuilt as a true zenith-centred polar projection |
+| v1.1.5 | 64 | Tracking verified by readback, not by command acknowledgement |
+| v1.1.5 | 65 | One-button acquisition: find, calibrate, centre, lock |
+| v1.1.5 | 65 | Calibration halved; guide rate measured instead of assumed |
+| v1.1.5 | 66 | Observing site auto-detected (Windows Location, GPS, mount) |
+| v1.1.5 | 66 | ADC pressure derived from site elevation |
 
 ---
 
-*RadukCapture Help v1.0.15 — Updated after each release*
+*RadukCapture Help v1.1.5 — Updated after each release*

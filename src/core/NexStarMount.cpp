@@ -544,7 +544,7 @@ bool NexStarMount::PushSiteAndTime() {
 
     if (!cfg.SiteIsSet() && mountHasSite) {
         // The mount is the only one who knows. Take it.
-        raduk::core::RigConfig::Get().AdoptSite(mLat, mLon, 0.0, "mount");
+        raduk::core::RigConfig::Get().AdoptSite(mLat, mLon, raduk::core::RigConfig::UNKNOWN_ELEV, "mount");
     } else if (cfg.SiteIsSet() && mountHasSite) {
         // Both know. Agreement is reassurance; disagreement is a real
         // finding, and better surfaced before a session than after.

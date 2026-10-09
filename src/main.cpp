@@ -42,6 +42,7 @@
 #include "core/CentroidTracker.h"
 #include "core/RigConfig.h"
 #include "core/SerialPortScan.h"
+#include "core/SiteLocator.h"
 #include "core/Timestamp.h"
 #include "core/SessionLog.h"
 #include "net/WebSocketServer.h"
@@ -496,6 +497,36 @@ static int RunApp(bool useEmulator) {
         }
     }
 #endif // RADUK_EMULATOR
+    // Phase 66: resolve the observing site before anything consumes it.
+    // Order matters -- an explicit rig.ini entry always wins, and only
+    // a genuinely unknown site reaches out to Windows. The mount is
+    // asked later, on connect, because it is not open yet here.
+    {
+        auto& rig = raduk::core::RigConfig::Get();
+        if (rig.SiteIsSet()) {
+            Log("[INIT] Site: %.1f%c %.1f%c (%s)\n",
+                rig.siteLatDeg < 0 ? -rig.siteLatDeg : rig.siteLatDeg,
+                rig.siteLatDeg < 0 ? 'S' : 'N',
+                rig.siteLonDeg < 0 ? -rig.siteLonDeg : rig.siteLonDeg,
+                rig.siteLonDeg < 0 ? 'W' : 'E',
+                rig.siteSource.empty() ? "manual" : rig.siteSource.c_str());
+        } else {
+            Log("[INIT] Site unknown - asking Windows Location\n");
+            auto fix = raduk::core::QueryWindowsLocation();
+            if (fix.valid) {
+                rig.AdoptSite(fix.latDeg, fix.lonDeg,
+                              fix.hasElev ? fix.elevM
+                                          : raduk::core::RigConfig::UNKNOWN_ELEV,
+                              "windows");
+                Log("[INIT] Site from Windows Location (+/-%.0f m)\n",
+                    fix.accuracyM);
+            } else {
+                Log("[INIT] Windows Location: %s\n", fix.status.c_str());
+                // Not fatal. The mount may know, and is asked on connect.
+            }
+        }
+    }
+
     ASICamera cam;
     if (!cam.Open(0)) {
         if (!useEmulator)

@@ -54,6 +54,8 @@ struct RigConfig {
     // otherwise derives pressure from a constant tied to one town.
     double      siteElevationM = 0.0;
 
+    static constexpr double UNKNOWN_ELEV = -1.0e9;
+
     bool SiteIsSet() const { return siteValid; }
 
     // Phase 66: accept a site derived at runtime (mount, Windows
@@ -71,7 +73,12 @@ struct RigConfig {
             return false;
         siteLatDeg     = latDeg;
         siteLonDeg     = lonDeg;
-        if (elevM > -500.0 && elevM < 9000.0) siteElevationM = elevM;
+        // Pass UNKNOWN_ELEV when the source has no vertical fix. A
+        // WiFi position reports altitude 0.0, and treating that as sea
+        // level would overwrite a correct elevation and skew the ADC
+        // pressure model.
+        if (elevM != UNKNOWN_ELEV && elevM > -500.0 && elevM < 9000.0)
+            siteElevationM = elevM;
         siteSource     = source;
         siteValid      = true;
         printf("[RigConfig] Site adopted from %s: %.1f%c %.1f%c\n", source,

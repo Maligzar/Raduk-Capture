@@ -930,16 +930,6 @@ static int RunApp(bool useEmulator) {
         slog.Mount("Emergency stop (MountCtrl)");
     });
 
-    mountCtrl.SetAlignCallback([&](double ra_h, double dec_deg,
-                                    const std::string& name) {
-        Log("[ALIGN] Syncing to %s (RA=%.4fh Dec=%.4f°)\n",
-            name.c_str(), ra_h, dec_deg);
-        slog.Mount("Align sync: %s RA=%.4fh Dec=%.4f°",
-                   name.c_str(), ra_h, dec_deg);
-        if (mount && mount->IsConnected())
-            mount->SyncRADec(ra_h, dec_deg);
-        skyMap.SetMountPosition(ra_h, dec_deg, true);
-    });
     mountCtrl.Create(window.Handle());
     mountCtrl.Show();  // visible by default - safety first
     Log("[INIT] Mount controller ready (always on top)\n");
@@ -982,16 +972,32 @@ static int RunApp(bool useEmulator) {
     // Re-register align callback now that notifBar exists — adds notification flash
     mountCtrl.SetAlignCallback([&](double ra_h, double dec_deg,
                                     const std::string& name) {
-        Log("[ALIGN] Syncing to %s (RA=%.4fh Dec=%.4f°)\n",
+        // Phase 62: a one-point align, not merely a sync. The sync gives
+        // the mount its orientation reference; tracking then has to be
+        // switched on explicitly, which this never did -- so ALIGN could
+        // not have started the drive however well the target was centred.
+        // Both results are reported, because the old code discarded
+        // SyncRADec's return and claimed "Aligned" unconditionally.
+        Log("[ALIGN] One-point align on %s (RA=%.4fh Dec=%.4f)\n",
             name.c_str(), ra_h, dec_deg);
-        slog.Mount("Align sync: %s RA=%.4fh Dec=%.4f°",
-                   name.c_str(), ra_h, dec_deg);
-        if (mount && mount->IsConnected())
-            mount->SyncRADec(ra_h, dec_deg);
+        bool synced = false, tracking = false;
+        if (mount && mount->IsConnected()) {
+            synced = mount->SyncRADec(ra_h, dec_deg);
+            if (synced) tracking = mount->SetTrackingMode(IMount::ALT_AZ);
+            Log("[ALIGN] sync=%s tracking=%s\n",
+                synced ? "ok" : "REFUSED", tracking ? "ALT-AZ" : "REFUSED");
+            slog.Mount("Align: %s sync=%s tracking=%s", name.c_str(),
+                       synced ? "ok" : "refused",
+                       tracking ? "alt-az" : "refused");
+        }
         skyMap.SetMountPosition(ra_h, dec_deg, true);
-        notifBar.NotifyInfo(
-            std::wstring(L"\u2605 Aligned to ") +
-            std::wstring(name.begin(), name.end()));
+        std::wstring wname(name.begin(), name.end());
+        if (synced && tracking)
+            notifBar.NotifyInfo(L"★ Aligned on " + wname + L" - tracking ALT-AZ");
+        else if (synced)
+            notifBar.NotifyWarn(L"Synced on " + wname + L" - mount refused tracking");
+        else
+            notifBar.NotifyError(L"Mount refused the sync - not aligned");
     });
 
     // RC is always in control - no CPWI. Set initial state before callbacks wired.

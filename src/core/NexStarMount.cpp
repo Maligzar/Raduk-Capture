@@ -4,6 +4,8 @@
 // ============================================================
 
 #include "NexStarMount.h"
+#include "RigConfig.h"
+#include <ctime>
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -71,6 +73,13 @@ bool NexStarMount::Connect(const std::string& comPort, int baudRate) {
                    comPort.c_str());
         }
     }
+
+    // Phase 62: push site and clock before anything asks the mount to
+    // track. An alt-az mount derives its altitude/azimuth rates from
+    // latitude and local time, so without these SetTrackingMode is
+    // asking it to solve an underdetermined problem and it declines.
+    // Done here so every connect path gets it, including profile loads.
+    PushSiteAndTime();
 
     // Start background poll thread — keeps position cache fresh
     // without ever blocking the main/UI thread on serial I/O
@@ -314,6 +323,99 @@ bool NexStarMount::GetVersion(int& major, int& minor) {
     major = (unsigned char)resp[0];
     minor = (unsigned char)resp[1];
     return true;
+}
+
+// -- Phase 62: tell the mount where and when it is --------------------
+// Without these an alt-az mount has no way to turn sidereal motion into
+// altitude/azimuth rates, so it declines to track no matter how often
+// SetTrackingMode is sent. The site lived in RigConfig and was never
+// pushed; the clock was never pushed at all.
+
+bool NexStarMount::SetSiteLocation(double latDeg, double lonDeg) {
+    // NexStar 'W': 8 bytes, deg/min/sec per axis plus a hemisphere flag.
+    // Sign is carried by the flag, not the magnitude, so send absolutes.
+    auto split = [](double deg, int& d, int& m, int& s) {
+        double a = (deg < 0.0) ? -deg : deg;
+        d = (int)a;
+        double remMin = (a - d) * 60.0;
+        m = (int)remMin;
+        s = (int)((remMin - m) * 60.0 + 0.5);
+        if (s >= 60) { s -= 60; m++; }      // carry from rounding
+        if (m >= 60) { m -= 60; d++; }
+    };
+
+    int latD, latM, latS, lonD, lonM, lonS;
+    split(latDeg, latD, latM, latS);
+    split(lonDeg, lonD, lonM, lonS);
+
+    char cmd[9];
+    cmd[0] = 'W';
+    cmd[1] = (char)latD;
+    cmd[2] = (char)latM;
+    cmd[3] = (char)latS;
+    cmd[4] = (char)(latDeg < 0.0 ? 1 : 0);   // 0 = north, 1 = south
+    cmd[5] = (char)lonD;
+    cmd[6] = (char)lonM;
+    cmd[7] = (char)lonS;
+    cmd[8] = (char)(lonDeg < 0.0 ? 1 : 0);   // 0 = east, 1 = west
+
+    char resp[4] = {}; int len = 0;
+    bool ok = SendCommand(cmd, 9, resp, 2, len);
+    printf("[NexStarMount] Site -> %d%c%02d'%02d\" %s, %d%c%02d'%02d\" %s : %s\n",
+           latD, 0xB0, latM, latS, (latDeg < 0.0 ? "S" : "N"),
+           lonD, 0xB0, lonM, lonS, (lonDeg < 0.0 ? "W" : "E"),
+           ok ? "accepted" : "REFUSED");
+    return ok;
+}
+
+bool NexStarMount::SetDateTime(int hour, int minute, int second,
+                               int month, int day, int year,
+                               int utcOffsetHours, bool dst) {
+    // NexStar 'H': 8 bytes. The UTC offset is a signed byte sent as
+    // two's complement, and the year is the last two digits.
+    char cmd[9];
+    cmd[0] = 'H';
+    cmd[1] = (char)hour;
+    cmd[2] = (char)minute;
+    cmd[3] = (char)second;
+    cmd[4] = (char)month;
+    cmd[5] = (char)day;
+    cmd[6] = (char)(year % 100);
+    cmd[7] = (char)(signed char)utcOffsetHours;
+    cmd[8] = (char)(dst ? 1 : 0);
+
+    char resp[4] = {}; int len = 0;
+    bool ok = SendCommand(cmd, 9, resp, 2, len);
+    printf("[NexStarMount] Clock -> %04d-%02d-%02d %02d:%02d:%02d UTC%+d dst=%d : %s\n",
+           year, month, day, hour, minute, second,
+           utcOffsetHours, dst ? 1 : 0, ok ? "accepted" : "REFUSED");
+    return ok;
+}
+
+bool NexStarMount::PushSiteAndTime() {
+    const auto& cfg = RigConfig::Get();
+
+    // Local wall clock plus the offset the OS reports, so a DST change
+    // or a trip to another timezone needs no edit. _get_timezone gives
+    // seconds WEST of UTC, hence the negation.
+    time_t now = time(nullptr);
+    struct tm lt {};
+    localtime_s(&lt, &now);
+
+    long tzSec = 0;
+    _get_timezone(&tzSec);
+    int  utcOffset = (int)(-tzSec / 3600);
+    bool dst       = (lt.tm_isdst > 0);
+    if (dst) utcOffset += 1;   // offset must describe the time being sent
+
+    bool okSite = SetSiteLocation(cfg.siteLatDeg, cfg.siteLonDeg);
+    bool okTime = SetDateTime(lt.tm_hour, lt.tm_min, lt.tm_sec,
+                              lt.tm_mon + 1, lt.tm_mday, lt.tm_year + 1900,
+                              utcOffset, dst);
+    if (!okSite || !okTime)
+        printf("[NexStarMount] Site/clock push incomplete -- alt-az tracking "
+               "may be refused\n");
+    return okSite && okTime;
 }
 
 bool NexStarMount::IsAligned() {

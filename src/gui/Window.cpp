@@ -392,6 +392,15 @@ LRESULT CALLBACK Window::PreviewProc(HWND hwnd, UINT msg,
             if (self->m_onMouseUp) self->m_onMouseUp(x, y);
             return 0;
 
+        case WM_CAPTURECHANGED:
+            // Capture stolen mid-drag (alt-tab, a popup, the system menu)
+            // means WM_LBUTTONUP never arrives, leaving the renderer in
+            // DragState::Dragging with a rubber band painted over the
+            // image. End the drag. Coordinates are deliberately off-frame
+            // so the selection is rejected rather than applied.
+            if (self->m_onMouseUp) self->m_onMouseUp(-1.0f, -1.0f);
+            return 0;
+
         default:
             break;
     }

@@ -475,13 +475,22 @@ private:
 
         auto start        = now();
         auto lastProgress = start;
+        auto lastPosPoll  = start;
         int  lastPos      = m_focuser->GetPosition();
 
         while (m_focuser->IsMoving()) {
             if (m_abortFlag.load()) return false;
 
-            int pos = m_focuser->GetPosition();
-            if (pos != lastPos) { lastPos = pos; lastProgress = now(); }
+            // Poll position less often than IsMoving(). Each call is a USB
+            // round-trip to the EAF competing with the camera stream -- the
+            // USB traffic manager throttles routine EAF polling to 10 s
+            // during capture for exactly that reason, and progress only
+            // needs checking often enough to beat the stall timeout.
+            if (msSince(lastPosPoll) >= 250) {
+                lastPosPoll = now();
+                int pos = m_focuser->GetPosition();
+                if (pos != lastPos) { lastPos = pos; lastProgress = now(); }
+            }
 
             if (msSince(lastProgress) > stallMs) {
                 printf("[AF] EAF stalled at %d (%d ms without progress)\n",

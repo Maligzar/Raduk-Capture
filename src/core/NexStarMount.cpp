@@ -453,7 +453,11 @@ bool NexStarMount::PushSiteAndTime() {
     _get_timezone(&tzSec);
     int  utcOffset = (int)(-tzSec / 3600);
     bool dst       = (lt.tm_isdst > 0);
-    if (dst) utcOffset += 1;   // offset must describe the time being sent
+    // NOTE: the 'H' command carries the STANDARD timezone offset and a
+    // separate DST flag -- the mount adds the hour itself. Adding it here
+    // as well double-counted it and put the mount an hour ahead in summer.
+    // Harmless at this site (Arizona keeps standard time year round),
+    // which is exactly why it would have gone unnoticed.
 
     bool okSite = SetSiteLocation(cfg.siteLatDeg, cfg.siteLonDeg);
     bool okTime = SetDateTime(lt.tm_hour, lt.tm_min, lt.tm_sec,

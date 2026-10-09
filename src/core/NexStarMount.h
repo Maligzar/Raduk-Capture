@@ -91,6 +91,14 @@ public:
     // the two by defaulting its local to OFF.
     int ReadTrackingModeRaw();
 
+    // Phase 69: true when the cached tracking mode came from a reply
+    // the mount actually sent. False means unknown -- distinct from
+    // OFF, which the poll loop used to report for both.
+    bool TrackingModeKnown() const override {
+        std::lock_guard<std::mutex> lk(m_cacheMutex);
+        return m_trackingValid;
+    }
+
     // -- Phase 62: site and clock -------------------------------
     // An alt-az mount cannot derive tracking rates without knowing
     // where and when it is: converting sidereal motion into altitude
@@ -192,6 +200,12 @@ private:
     double       m_cachedRA       = 0.0;
     double       m_cachedDec      = 0.0;
     TrackingMode m_cachedTracking = OFF;
+    // Consecutive failed 't' reads tolerated before the mode is
+    // declared unknown. A single dropped reply is noise; a run of them
+    // is information.
+    static constexpr int TRACKING_READ_FAIL_LIMIT = 3;
+    bool         m_trackingValid     = false;
+    int          m_trackingReadFails = 0;
     bool         m_cacheValid     = false;
 };
 

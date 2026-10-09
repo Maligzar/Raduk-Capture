@@ -46,6 +46,14 @@ public:
     enum TrackingMode { OFF = 0, ALT_AZ = 1, EQ_NORTH = 2, EQ_SOUTH = 3 };
     virtual bool         SetTrackingMode(TrackingMode mode) = 0;
     virtual TrackingMode GetTrackingMode() = 0;
+    // Phase 69: false when the backend could not read the mode and is
+    // therefore guessing. Virtual with a true default because the
+    // other backends always know their own state -- only the serial
+    // NexStar path can fail to obtain an answer, and it used to report
+    // that failure as OFF, which is a different claim entirely.
+    // Virtual rather than a downcast: a static_cast to NexStarMount
+    // here previously corrupted ASCOMMount instances.
+    virtual bool TrackingModeKnown() const { return true; }
 
     // ── Jog slewing ────────────────────────────────────────────
     virtual bool SlewFixed(int axis, int direction, int rate) = 0;

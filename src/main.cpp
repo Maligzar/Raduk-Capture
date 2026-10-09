@@ -2028,9 +2028,16 @@ static int RunApp(bool useEmulator) {
                     ? "acquisition not started - press CENTROID first"
                 : (tracker.Stage() != raduk::core::AcquisitionStage::Searching)
                     ? "already past Searching"
-                    : "no steady centroid yet - centre the planet and make sure it is bright enough";
-            Log("[ACQ] LOCK refused - %s\n", why);
-            notifBar.NotifyWarn(L"LOCK refused - see log");
+                    : "no steady centroid yet";
+            // Phase 69: if the centroid is blocked, say which kind of
+            // blocked -- too faint and nothing-in-frame need opposite
+            // responses and used to read identically.
+            std::string blocked = tracker.CentroidBlockReason();
+            std::string reason  = blocked.empty() ? std::string(why)
+                                                  : std::string(why) + " (" + blocked + ")";
+            Log("[ACQ] LOCK refused - %s\n", reason.c_str());
+            std::wstring wr(reason.begin(), reason.end());
+            notifBar.NotifyWarn(L"LOCK refused - " + wr);
             return;
         }
         {
@@ -2402,7 +2409,10 @@ static int RunApp(bool useEmulator) {
                                            lastAnalysis.width,
                                            lastAnalysis.height);
                 else
-                    tracker.SubmitCentroidLost();
+                    // Pass the reason through: a frame under the centroid
+                    // gate is a different problem from an empty one.
+                    tracker.SubmitCentroidLost(lastAnalysis.centroidTooFaint,
+                                               (int)lastAnalysis.centroidPeak);
 
                 // Stages advance only on explicit user button press ([LOCK] and [ROI]).
                 // Auto-advance removed — user must confirm each stage transition.
@@ -2626,7 +2636,14 @@ static int RunApp(bool useEmulator) {
                         statusBar.SetMountStats(
                             IMount::FormatRA(ra),
                             IMount::FormatDec(dec),
-                            std::string(IMount::TrackingModeName(mount->GetTrackingMode())),
+                            // Phase 69: "UNKNOWN" when the mode could not be
+                            // read. Showing OFF for an unreadable mount is a
+                            // claim about the hardware we cannot support, and
+                            // it sent a whole session chasing a tracking bug
+                            // that was really a comms failure.
+                            mount->TrackingModeKnown()
+                                ? std::string(IMount::TrackingModeName(mount->GetTrackingMode()))
+                                : std::string("UNKNOWN"),
                             true);
                     }
                     // GetAltAz is a serial round-trip — run it on a dedicated thread

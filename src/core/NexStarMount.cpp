@@ -677,9 +677,19 @@ void NexStarMount::PollLoop() {
             double dec = DecodePosition(decHex) * 360.0;
             if (dec > 180.0) dec -= 360.0;
 
-            // Read tracking mode
+            // Read tracking mode.
+            //
+            // Phase 69: this defaulted its local to OFF, so a failed read
+            // was stored and displayed as "tracking off" -- identical to
+            // the mount genuinely not driving. That ambiguity is the last
+            // instance of the pattern that cost the 2026-10-08 session:
+            // reporting a value when what happened was a failure to
+            // obtain one. Track whether the read actually succeeded and
+            // leave the previous mode in place when it did not, rather
+            // than inventing OFF.
             char tresp[4] = {}; int tlen = 0;
             TrackingMode mode = OFF;
+            bool modeRead = false;
             {
                 std::lock_guard<std::mutex> lk(m_serialMutex);
                 if (m_connected) {
@@ -687,8 +697,10 @@ void NexStarMount::PollLoop() {
                     DWORD tw = 0;
                     if (WriteFile(m_serial, &tcmd, 1, &tw, nullptr) && tw == 1) {
                         DWORD got = 0;
-                        if (ReadFile(m_serial, tresp, 1, &got, nullptr) && got == 1)
-                            mode = static_cast<TrackingMode>((unsigned char)tresp[0]);
+                        if (ReadFile(m_serial, tresp, 1, &got, nullptr) && got == 1) {
+                            mode     = static_cast<TrackingMode>((unsigned char)tresp[0]);
+                            modeRead = true;
+                        }
                     }
                 }
             }
@@ -696,7 +708,20 @@ void NexStarMount::PollLoop() {
             std::lock_guard<std::mutex> lk(m_cacheMutex);
             m_cachedRA       = ra;
             m_cachedDec      = dec;
-            m_cachedTracking = mode;
+            if (modeRead) {
+                m_cachedTracking      = mode;
+                m_trackingValid       = true;
+                m_trackingReadFails   = 0;
+            } else if (++m_trackingReadFails >= TRACKING_READ_FAIL_LIMIT) {
+                // Sustained failure is real information: the link is up
+                // enough to return a position but the mode query keeps
+                // failing. Mark it unknown rather than asserting a state.
+                m_trackingValid = false;
+                if (m_trackingReadFails == TRACKING_READ_FAIL_LIMIT)
+                    printf("[NexStarMount] Tracking mode unreadable after %d "
+                           "attempts - reporting UNKNOWN, not OFF\n",
+                           TRACKING_READ_FAIL_LIMIT);
+            }
             m_cacheValid     = true;
             consecutiveFailures = 0;
         } else {

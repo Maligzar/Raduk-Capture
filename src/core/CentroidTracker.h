@@ -136,6 +136,8 @@ public:
     static constexpr int   AVG_MIN_SAMPLES = 2;
 
     // Transition thresholds
+    // Mirrors FrameAnalyzer::CENTROID_MIN_PEAK (20/255) as a percentage.
+    static constexpr int   CENTROID_MIN_PEAK_PCT = 8;
     static constexpr int   STABLE_FRAMES       = 5;
     static constexpr float CENTRE_THRESHOLD_PX = 10.0f;
     static constexpr int   DWELL_FRAMES        = 8;
@@ -376,8 +378,14 @@ public:
         return false;
     }
 
-    void SubmitCentroidLost() {
+    // Phase 69: tooFaint distinguishes "the planet is dimmer than the
+    // centroid gate" from "there is nothing in frame". They need
+    // opposite responses -- raise exposure versus go and find it --
+    // and acquisition used to stall identically for both, silently.
+    void SubmitCentroidLost(bool tooFaint = false, int peak = -1) {
         std::lock_guard<std::mutex> lk(m_mutex);
+        m_lostTooFaint = tooFaint;
+        m_lostPeak     = peak;
         m_centroidValid = false;
         // Reset counters on lost — need fresh run of consecutive frames
         m_stableCount = 0;
@@ -434,6 +442,23 @@ public:
     float LastCentroidX()     const { std::lock_guard<std::mutex> lk(m_mutex); return m_centroidX; }
     float LastCentroidY()     const { std::lock_guard<std::mutex> lk(m_mutex); return m_centroidY; }
     bool  LastCentroidValid() const { std::lock_guard<std::mutex> lk(m_mutex); return m_centroidValid; }
+
+    // Phase 69: why the last frame produced no centroid, phrased for
+    // the user. Empty when there is nothing useful to add.
+    std::string CentroidBlockReason() const {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        if (m_centroidValid) return std::string();
+        if (m_lostTooFaint) {
+            char buf[160];
+            snprintf(buf, sizeof(buf),
+                     "planet too faint to detect (frame peak %d%%, needs "
+                     "above %d%%) - raise exposure or gain",
+                     m_lostPeak >= 0 ? (m_lostPeak * 100 / 255) : 0,
+                     CENTROID_MIN_PEAK_PCT);
+            return std::string(buf);
+        }
+        return "no planet detected in frame";
+    }
 
 private:
     struct Snapshot {
@@ -804,6 +829,8 @@ private:
     uint32_t   m_frameW           = 0;
     uint32_t   m_frameH           = 0;
     bool       m_centroidValid    = false;
+    bool       m_lostTooFaint     = false;  // last loss was a dim frame
+    int        m_lostPeak         = -1;     // frame peak at that moment
     bool       m_centroidEverSeen = false;
     std::chrono::steady_clock::time_point m_lastCentroidTime;
 

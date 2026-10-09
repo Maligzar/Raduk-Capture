@@ -56,10 +56,21 @@ struct AnalysisResult {
     std::array<float, 60> seeingHistory{};
     int seeingHistoryCount = 0;
 
+    // Minimum frame peak (0-255) before a centroid is attempted. Below
+    // this a frame is noise, and a centroid computed from it would be
+    // a random walk. 20/255 is about 8%.
+    static constexpr uint8_t CENTROID_MIN_PEAK = 20;
+
     // ── Centroid (planet lock) ─────────────────────────────────
     bool  centroidValid = false;
     float centroidX     = 0.0f;
     float centroidY     = 0.0f;
+    // Phase 69: why there is no centroid, not merely that there is
+    // none. "Too faint" and "nothing in frame" need opposite responses
+    // from the user -- raise exposure versus go and find the planet --
+    // and the gate below could not tell them apart.
+    bool  centroidTooFaint = false;   // brightest pixel under the gate
+    uint8_t centroidPeak   = 0;       // frame peak, 0-255, for the message
 
     // ── Frame info ────────────────────────────────────────────
     uint32_t width  = 0;
@@ -316,7 +327,16 @@ private:
                     }
                 }
 
-                if (rcount > 0 && rmax > 20) { // skip if field is dark/empty
+                r.centroidPeak = rmax;
+                // The gate exists so a dark frame does not produce a
+                // centroid out of noise. It used to fail silently, so a
+                // planet dimmer than this threshold looked identical to
+                // no planet at all -- and the acquisition chain above
+                // simply never became ready, with nothing said.
+                if (rcount > 0 && rmax <= AnalysisResult::CENTROID_MIN_PEAK) {
+                    r.centroidTooFaint = true;
+                }
+                if (rcount > 0 && rmax > AnalysisResult::CENTROID_MIN_PEAK) {
                     float rmean = (float)rsum / rcount;
                     // Threshold: 70% of the way from mean to max
                     // This isolates the bright planet disk

@@ -43,6 +43,7 @@
 #include "core/RigConfig.h"
 #include "core/SerialPortScan.h"
 #include "core/SiteLocator.h"
+#include "core/CordWrap.h"
 #include "gui/SiteDialog.h"
 #include "core/Timestamp.h"
 #include "core/SessionLog.h"
@@ -652,6 +653,16 @@ static int RunApp(bool useEmulator) {
 #endif // RADUK_EMULATOR
 
     IMount* mount = mountPtr.get(); // may be nullptr
+
+    // Phase 67: cord wrap. Measured as cumulative azimuth travel since
+    // the cables were last dressed, not as absolute azimuth -- 350 and
+    // 10 degrees are adjacent on a compass but 340 apart in travel.
+    // Valid without alignment, which matters because the slewing that
+    // wraps a cable usually happens while hunting for a target.
+    raduk::core::CordWrapTracker cordWrap;
+    cordWrap.SetLimit(raduk::core::RigConfig::Get().wrapLimitDeg);
+    // Connecting is when the rig was set up, so treat it as dressed.
+    cordWrap.CablesDressed();
 
 #ifdef RADUK_EMULATOR
     // ── Phase 52: close the tracking loop in emulation ─────────
@@ -2228,6 +2239,12 @@ static int RunApp(bool useEmulator) {
             } else if (rc.cmd == "centroid_roi") {
                 doROILock();
                 Log("[WS] Remote centroid_roi\n");
+            } else if (rc.cmd == "cables_dressed") {
+                // The one thing that legitimately zeroes the count. It
+                // cannot be inferred -- the app cannot see a cable.
+                cordWrap.CablesDressed();
+                Log("[CORDWRAP] Reset - cables reported dressed\n");
+                slog.Mount("Cord wrap reset");
             } else if (rc.cmd == "centroid_reset") {
                 tracker.Reset();
                 Log("[WS] Remote centroid_reset\n");
@@ -2649,17 +2666,46 @@ static int RunApp(bool useEmulator) {
                     // GetAltAz is a serial round-trip — run it on a dedicated thread
                     // so it never stalls the render loop. Cached result read back here.
                     static std::atomic<float> cachedAlt{-1.0f};
+                    // Phase 67: azimuth was fetched here and thrown away.
+                    // It is what cord wrap is measured from, and without
+                    // it the Az readout could never be anything but "--".
+                    static std::atomic<float> cachedAz{-1.0f};
                     static std::atomic<bool>  altPending{false};
                     if (!altPending.load()) {
                         altPending.store(true);
                         std::thread([&]() {
                             double alt = 0, az = 0;
-                            if (mount && mount->IsConnected() && mount->GetAltAz(alt, az))
+                            if (mount && mount->IsConnected() && mount->GetAltAz(alt, az)) {
                                 cachedAlt.store((float)alt);
+                                cachedAz.store((float)az);
+                            }
                             altPending.store(false);
                         }).detach();
                     }
                     float alt = cachedAlt.load();
+                    float az  = cachedAz.load();
+                    if (az >= 0.0f) {
+                        cordWrap.Sample(az);
+                        controls.SetMountAltAz(alt, az, true,
+                                               cordWrap.CumulativeDeg(),
+                                               cordWrap.WorthShowing(),
+                                               cordWrap.OverLimit());
+                        // Warn once per crossing rather than every poll.
+                        static bool warned = false;
+                        if (cordWrap.OverLimit() && !warned) {
+                            warned = true;
+                            Log("[CORDWRAP] %+.0f deg of travel since the cables "
+                                "were dressed (limit %.0f) - check them before "
+                                "slewing further\n",
+                                cordWrap.CumulativeDeg(), cordWrap.Limit());
+                            slog.Mount("Cord wrap %+.0f deg - check cables",
+                                       cordWrap.CumulativeDeg());
+                            notifBar.NotifyWarn(L"Cord wrap - check the cables "
+                                                L"before slewing further");
+                        } else if (!cordWrap.OverLimit()) {
+                            warned = false;
+                        }
+                    }
                     if (alt >= 0.0f) {
                         preview.SetMountAltitude(alt);
                         auto adcResult = raduk::core::ADCAssistant::Compute(alt);

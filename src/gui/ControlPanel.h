@@ -231,6 +231,23 @@ public:
     }
 
     void SetMount(raduk::core::IMount* mount) { m_mount = mount; }
+
+    // Phase 67: altitude and azimuth, plus accumulated cord wrap.
+    // Azimuth was read from the mount every poll and discarded, and
+    // these labels only ever showed "--" -- so there was no way to see
+    // how far the mount had rotated, which is what wraps a cable.
+    // wrapDeg is signed cumulative travel; pass showWrap false to keep
+    // the readout clean until it means something.
+    void SetMountAltAz(float altDeg, float azDeg, bool valid,
+                       double wrapDeg = 0.0, bool showWrap = false,
+                       bool wrapOverLimit = false) {
+        m_altDeg       = altDeg;
+        m_azDeg        = azDeg;
+        m_altAzValid   = valid;
+        m_wrapDeg      = wrapDeg;
+        m_showWrap     = showWrap;
+        m_wrapOverLimit= wrapOverLimit;
+    }
     void SetRCControl(bool take);
 
     // ── Label updates ─────────────────────────────────────────
@@ -487,6 +504,13 @@ private:
 
     // ── Mount controls ─────────────────────────────────────────
     HWND m_lblMountConnected = nullptr;  // "● Device Name  Connected" status line
+    float  m_altDeg        = 0.0f;
+    float  m_azDeg         = 0.0f;
+    bool   m_altAzValid    = false;
+    double m_wrapDeg       = 0.0;
+    bool   m_showWrap      = false;
+    bool   m_wrapOverLimit = false;
+
     HWND m_lblMountAz  = nullptr;        // Az readout
     HWND m_lblMountAlt = nullptr;        // Alt readout
     HWND m_lblMountRA  = nullptr;

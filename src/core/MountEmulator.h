@@ -26,9 +26,12 @@
 #include <string>
 #include <cstdio>
 #include <cmath>
+#include <algorithm>   // std::clamp - header was relying on its includer
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include "RigConfig.h"
+#include <ctime>
 #include <chrono>
 #include "IMount.h"
 
@@ -83,9 +86,48 @@ public:
 
     bool GetAltAz(double& altDegrees, double& azDegrees) override {
         if (!m_connected) return false;
-        // Simplified: return static values for emulator
-        altDegrees = 45.0;
-        azDegrees  = 180.0;
+
+        // Phase 67: derive this from the emulated pointing instead of
+        // returning constants. Static alt/az made the emulator useless
+        // for anything azimuth-dependent -- cord wrap could never
+        // accumulate, the ADC readout was always the same, and the sky
+        // map's mount marker never moved. A test rig that cannot
+        // reproduce a behaviour cannot verify it.
+        double raH = 0.0, decD = 0.0;
+        { std::lock_guard<std::mutex> lk(m_mutex); raH = m_raHours; decD = m_decDeg; }
+
+        const auto& cfg = RigConfig::Get();
+        const double D2R = 3.14159265358979 / 180.0;
+        const double R2D = 180.0 / 3.14159265358979;
+
+        // Local sidereal time from UTC and longitude, same form the sky
+        // map uses.
+        time_t t  = time(nullptr);
+        double jd = (double)t / 86400.0 + 2440587.5;
+        double gmstDeg = 280.46061837 + 360.98564736629 * (jd - 2451545.0);
+        double lstDeg  = gmstDeg + cfg.siteLonDeg;
+        lstDeg = fmod(lstDeg, 360.0);
+        if (lstDeg < 0) lstDeg += 360.0;
+
+        double haDeg = lstDeg - raH * 15.0;
+        while (haDeg >  180.0) haDeg -= 360.0;
+        while (haDeg < -180.0) haDeg += 360.0;
+
+        double ha  = haDeg * D2R;
+        double dec = decD  * D2R;
+        double lat = cfg.siteLatDeg * D2R;
+
+        double sinAlt = sin(dec) * sin(lat) + cos(dec) * cos(lat) * cos(ha);
+        if (sinAlt >  1.0) sinAlt =  1.0;
+        if (sinAlt < -1.0) sinAlt = -1.0;
+        double alt = asin(sinAlt);
+
+        double az = atan2(-cos(dec) * cos(lat) * sin(ha),
+                          sin(dec) - sin(lat) * sinAlt);
+        double azD = fmod(az * R2D + 360.0, 360.0);
+
+        altDegrees = alt * R2D;
+        azDegrees  = azD;
         return true;
     }
 

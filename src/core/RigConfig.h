@@ -113,6 +113,11 @@ struct RigConfig {
     // that answers the NexStar echo. Set this only to override a
     // scan that picks the wrong device; a stale value falls back to
     // auto-detect rather than failing the connect.
+    // Phase 67: degrees of cumulative azimuth travel before the cord-wrap
+    // warning fires. Depends on cable length and how they are dressed, so
+    // it is per-rig rather than a constant.
+    double wrapLimitDeg = 360.0;
+
     std::string mountPort;
 
     // Singleton — loads rig.ini on first access
@@ -133,6 +138,7 @@ struct RigConfig {
         wf("PlateScaleArcsecPx", plateScaleArcsecPx);
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
         wf("SiteElevationM", siteElevationM);
+        wf("WrapLimitDeg", wrapLimitDeg);
         WritePrivateProfileStringA("Rig", "SiteSource",
                                    siteSource.empty() ? "manual" : siteSource.c_str(),
                                    p.c_str());
@@ -178,6 +184,7 @@ private:
         cfg.siteLonDeg            = rf("SiteLonDeg", cfg.siteLonDeg);
         cfg.siteValid             = haveLat && haveLon;
         cfg.siteElevationM        = rf("SiteElevationM", cfg.siteElevationM);
+        cfg.wrapLimitDeg          = rf("WrapLimitDeg", cfg.wrapLimitDeg);
         {
             char sbuf[32] = {};
             GetPrivateProfileStringA("Rig", "SiteSource", "", sbuf, sizeof(sbuf), p.c_str());

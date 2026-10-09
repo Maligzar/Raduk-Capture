@@ -1207,11 +1207,33 @@ void ControlPanel::UpdateReadouts() {
                 if (m_lblMountDec) SetWindowTextW(m_lblMountDec, buf);
             }
 
-            // Az / Alt — NexStar 'z' command; skip during active capture to
-            // avoid serial contention. Show cached values from panel's own poll.
-            // TODO: add Az/Alt to NexStar background poll cache.
-            if (m_lblMountAz)  SetWindowTextW(m_lblMountAz,  L"--°");
-            if (m_lblMountAlt) SetWindowTextW(m_lblMountAlt, L"--°");
+            // Az / Alt — fed by the render loop's background GetAltAz poll
+            // via SetMountAltAz (Phase 67). Until then azimuth was read from
+            // the mount every cycle and thrown away, and these two labels
+            // only ever read "--".
+            if (m_altAzValid) {
+                if (m_lblMountAlt) {
+                    swprintf(buf, 64, L"%.1f°", m_altDeg);
+                    SetWindowTextW(m_lblMountAlt, buf);
+                }
+                if (m_lblMountAz) {
+                    // Cord wrap rides alongside the azimuth rather than
+                    // taking its own row: it is the same quantity over
+                    // time, and it stays hidden until it means something
+                    // so a fresh session is not cluttered by "+0".
+                    if (m_showWrap) {
+                        swprintf(buf, 64, L"%.1f°   wrap %+.0f°%s",
+                                 m_azDeg, m_wrapDeg,
+                                 m_wrapOverLimit ? L"  !" : L"");
+                    } else {
+                        swprintf(buf, 64, L"%.1f°", m_azDeg);
+                    }
+                    SetWindowTextW(m_lblMountAz, buf);
+                }
+            } else {
+                if (m_lblMountAz)  SetWindowTextW(m_lblMountAz,  L"--°");
+                if (m_lblMountAlt) SetWindowTextW(m_lblMountAlt, L"--°");
+            }
 
             // Hour Angle — HA = LST - RA
             // NexStar doesn't provide LST directly; compute from RA and cached RA epoch.

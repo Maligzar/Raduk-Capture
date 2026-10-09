@@ -449,6 +449,9 @@ bool NexStarMount::PushSiteAndTime() {
     struct tm lt {};
     localtime_s(&lt, &now);
 
+    // Explicit, though localtime_s above already initialises it:
+    // _get_timezone otherwise returns the CRT default, not the OS zone.
+    _tzset();
     long tzSec = 0;
     _get_timezone(&tzSec);
     int  utcOffset = (int)(-tzSec / 3600);
@@ -459,7 +462,20 @@ bool NexStarMount::PushSiteAndTime() {
     // Harmless at this site (Arizona keeps standard time year round),
     // which is exactly why it would have gone unnoticed.
 
-    bool okSite = SetSiteLocation(cfg.siteLatDeg, cfg.siteLonDeg);
+    // Phase 66: never push a site we do not have. 0,0 is a real place
+    // in the Gulf of Guinea, so sending it is not a harmless default --
+    // it actively breaks the alt/az rates, the sky map and the ADC
+    // model, and looks like a configured site while doing so. Leaving
+    // the mount's own site alone is strictly better than overwriting it
+    // with a plausible-looking lie. The clock is independent of the
+    // site and still worth setting.
+    bool okSite = true;
+    if (cfg.SiteIsSet()) {
+        okSite = SetSiteLocation(cfg.siteLatDeg, cfg.siteLonDeg);
+    } else {
+        printf("[NexStarMount] No observing site configured - leaving the "
+               "mount's own site untouched (set it in rig.ini)\n");
+    }
     bool okTime = SetDateTime(lt.tm_hour, lt.tm_min, lt.tm_sec,
                               lt.tm_mon + 1, lt.tm_mday, lt.tm_year + 1900,
                               utcOffset, dst);

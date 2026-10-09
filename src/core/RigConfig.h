@@ -29,6 +29,7 @@
 #include <string>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 
 namespace raduk::core {
 
@@ -38,6 +39,21 @@ struct RigConfig {
     // observing site in rig.ini (alt/az math and the planner need it).
     double siteLatDeg = 0.0;    // +N
     double siteLonDeg = 0.0;    // +E (negative = west)
+
+    // Phase 66: 0,0 is both the default AND a legal coordinate (it is a
+    // real spot in the Gulf of Guinea), so the two were indistinguishable
+    // and an absent rig.ini looked exactly like a deliberate site on the
+    // equator. Nothing could tell "unset" from "set to zero", and a wrong
+    // site was pushed to the mount in silence. Track it explicitly.
+    bool        siteValid  = false;
+    // How the site was obtained: manual | windows | mount | gps.
+    // An explicit "manual" entry must never be replaced by an estimate.
+    std::string siteSource;
+    // Metres above sea level. Feeds the ADC pressure model, which
+    // otherwise derives pressure from a constant tied to one town.
+    double      siteElevationM = 0.0;
+
+    bool SiteIsSet() const { return siteValid; }
 
     // Optics / sensor (nominal)
     float  plateScaleArcsecPx = 0.203f;  // 8SE 2032mm + 2.0um pixels
@@ -70,6 +86,10 @@ struct RigConfig {
         wf("SiteLonDeg", siteLonDeg);
         wf("PlateScaleArcsecPx", plateScaleArcsecPx);
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
+        wf("SiteElevationM", siteElevationM);
+        WritePrivateProfileStringA("Rig", "SiteSource",
+                                   siteSource.empty() ? "manual" : siteSource.c_str(),
+                                   p.c_str());
         WritePrivateProfileStringA("Rig", "MountPort",
                                    mountPort.c_str(), p.c_str());
         printf("[RigConfig] Saved %s\n", p.c_str());
@@ -96,8 +116,27 @@ private:
             double v = strtod(buf, &end);
             return (end && end != buf) ? v : def;
         };
+        // Phase 66: presence, not value. A key that is absent means the
+        // site is unknown; a key reading 0.0 means someone chose the
+        // equator. Conflating them is what let a wrong site reach the
+        // mount silently.
+        auto present = [&](const char* key) -> bool {
+            char buf[64] = {};
+            GetPrivateProfileStringA("Rig", key, "", buf, sizeof(buf), p.c_str());
+            return buf[0] != 0;
+        };
+        bool haveLat = present("SiteLatDeg");
+        bool haveLon = present("SiteLonDeg");
+
         cfg.siteLatDeg            = rf("SiteLatDeg", cfg.siteLatDeg);
         cfg.siteLonDeg            = rf("SiteLonDeg", cfg.siteLonDeg);
+        cfg.siteValid             = haveLat && haveLon;
+        cfg.siteElevationM        = rf("SiteElevationM", cfg.siteElevationM);
+        {
+            char sbuf[32] = {};
+            GetPrivateProfileStringA("Rig", "SiteSource", "", sbuf, sizeof(sbuf), p.c_str());
+            cfg.siteSource = sbuf[0] ? sbuf : (cfg.siteValid ? "manual" : "");
+        }
         cfg.plateScaleArcsecPx    = (float)rf("PlateScaleArcsecPx", cfg.plateScaleArcsecPx);
         cfg.guideRateArcsecPerSec = (float)rf("GuideRateArcsecPerSec", cfg.guideRateArcsecPerSec);
 
@@ -111,15 +150,66 @@ private:
 
         // Sanity clamps — a corrupted INI must not produce absurd pulse
         // sizing or site math
-        if (cfg.siteLatDeg < -90 || cfg.siteLatDeg > 90)    cfg.siteLatDeg = 0.0;
-        if (cfg.siteLonDeg < -180 || cfg.siteLonDeg > 180)  cfg.siteLonDeg = 0.0;
+        // An out-of-range site is corrupt, not zero. Clamping it to 0,0
+        // would manufacture exactly the plausible-looking wrong site this
+        // phase exists to prevent.
+        if (cfg.siteLatDeg < -90 || cfg.siteLatDeg > 90 ||
+            cfg.siteLonDeg < -180 || cfg.siteLonDeg > 180) {
+            printf("[RigConfig] Site out of range (%.4f,%.4f) - treating as unset\n",
+                   cfg.siteLatDeg, cfg.siteLonDeg);
+            cfg.siteLatDeg = 0.0;
+            cfg.siteLonDeg = 0.0;
+            cfg.siteValid  = false;
+        }
         if (cfg.plateScaleArcsecPx < 0.01f || cfg.plateScaleArcsecPx > 20.0f)
             cfg.plateScaleArcsecPx = 0.203f;
         if (cfg.guideRateArcsecPerSec < 0.5f || cfg.guideRateArcsecPerSec > 60.0f)
             cfg.guideRateArcsecPerSec = 7.5f;
 
-        printf("[RigConfig] site=(%.4f,%.4f) scale=%.3f\"/px guide=%.1f\"/s port=%s (%s)\n",
-               cfg.siteLatDeg, cfg.siteLonDeg,
+        // Phase 66: cross-check longitude against the OS timezone. The UTC
+        // offset implies a longitude band (offset x 15 deg); real borders
+        // are irregular, so the tolerance is deliberately loose and only a
+        // gross mismatch trips it. This is the check that would have caught
+        // a 0,0 site instantly: UTC-7 implies about -105 deg, so 0.0 sits
+        // 105 deg away while a genuine -112.09 is only 7 deg away.
+        if (cfg.siteValid) {
+            // _get_timezone returns the CRT's default (PST) until the
+            // timezone is initialised, so a process that has not yet
+            // called a localtime function reads the wrong meridian.
+            // Observed: this machine is US Mountain Standard Time
+            // (UTC-7) but reported UTC-8 without this call.
+            _tzset();
+            long tzSec = 0;
+            _get_timezone(&tzSec);
+            double tzCentreLon = -(double)tzSec / 3600.0 * 15.0;
+            double delta = cfg.siteLonDeg - tzCentreLon;
+            while (delta >  180.0) delta -= 360.0;
+            while (delta < -180.0) delta += 360.0;
+            if (delta < 0) delta = -delta;
+            if (delta > 20.0) {
+                printf("[RigConfig] WARNING: longitude %.2f is %.0f deg from the "
+                       "timezone centre %.0f - the site or the clock is wrong\n",
+                       cfg.siteLonDeg, delta, tzCentreLon);
+            }
+        }
+
+        // Report coarsely. Full precision in a startup log ends up in
+        // screenshots; one decimal is about 11 km, which names a town
+        // rather than a house, and is plenty to confirm the right site.
+        if (cfg.siteValid) {
+            printf("[RigConfig] site=%.1f%c %.1f%c (%s) elev=%.0fm\n",
+                   cfg.siteLatDeg < 0 ? -cfg.siteLatDeg : cfg.siteLatDeg,
+                   cfg.siteLatDeg < 0 ? 'S' : 'N',
+                   cfg.siteLonDeg < 0 ? -cfg.siteLonDeg : cfg.siteLonDeg,
+                   cfg.siteLonDeg < 0 ? 'W' : 'E',
+                   cfg.siteSource.empty() ? "manual" : cfg.siteSource.c_str(),
+                   cfg.siteElevationM);
+        } else {
+            printf("[RigConfig] SITE NOT SET - alt/az tracking, the sky map and "
+                   "the ADC model all need one. Set SiteLatDeg and SiteLonDeg "
+                   "in %s\n", p.c_str());
+        }
+        printf("[RigConfig] scale=%.3f\"/px guide=%.1f\"/s port=%s (%s)\n",
                cfg.plateScaleArcsecPx, cfg.guideRateArcsecPerSec,
                cfg.mountPort.empty() ? "auto" : cfg.mountPort.c_str(), p.c_str());
         return cfg;

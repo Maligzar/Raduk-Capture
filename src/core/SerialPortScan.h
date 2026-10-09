@@ -199,6 +199,137 @@ inline MountPortScan FindNexStarPort(const std::string& preferred = std::string(
     return scan;
 }
 
+// -- Phase 66: NMEA GPS probe ---------------------------------
+// A USB GPS dongle presents as a serial port, so the enumeration above
+// already finds it; it just needs a different question asked. Unlike
+// the NexStar probe this one is passive -- a receiver streams
+// unprompted, so we only listen. Nothing is written, which matters
+// when probing a port that might be someone else's device.
+//
+// Strictly optional. The accuracy work in Phase 66 shows Windows
+// Location already clears the pointing requirement by a wide margin,
+// so this exists for users who have a dongle, not because one is
+// needed.
+
+struct GpsFix {
+    bool   valid  = false;
+    double latDeg = 0.0;
+    double lonDeg = 0.0;
+    double elevM  = 0.0;
+    bool   hasElev = false;
+};
+
+// Parses "ddmm.mmmm" plus a hemisphere character into signed degrees.
+// NMEA packs degrees and minutes into one field, so this is not a
+// plain decimal read.
+inline bool ParseNmeaCoord(const std::string& field, char hemi, double& out) {
+    if (field.size() < 3) return false;
+    size_t dot = field.find('.');
+    if (dot == std::string::npos || dot < 3) return false;
+    // Degrees are everything before the last two digits of the integer
+    // part; minutes are the rest.
+    size_t degLen = dot - 2;
+    double deg = atof(field.substr(0, degLen).c_str());
+    double min = atof(field.substr(degLen).c_str());
+    if (min < 0.0 || min >= 60.0) return false;
+    double v = deg + min / 60.0;
+    if (hemi == 'S' || hemi == 'W') v = -v;
+    out = v;
+    return true;
+}
+
+// Listens on one port for NMEA sentences. Returns a fix only from a
+// sentence that reports a valid satellite lock.
+inline bool ProbeNmeaPort(const std::string& comPort, GpsFix& fix,
+                          int listenMs = 2500) {
+    std::string path = "\\\\.\\" + comPort;
+    HANDLE h = CreateFileA(path.c_str(), GENERIC_READ,
+                           0, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return false;
+
+    DCB dcb = {};
+    dcb.DCBlength = sizeof(dcb);
+    if (GetCommState(h, &dcb)) {
+        dcb.BaudRate = 9600;        // near-universal for NMEA dongles
+        dcb.ByteSize = 8;
+        dcb.Parity   = NOPARITY;
+        dcb.StopBits = ONESTOPBIT;
+        dcb.fOutxCtsFlow = FALSE; dcb.fOutxDsrFlow = FALSE;
+        dcb.fDtrControl  = DTR_CONTROL_ENABLE;   // some dongles need DTR
+        dcb.fRtsControl  = RTS_CONTROL_ENABLE;
+        SetCommState(h, &dcb);
+    }
+    COMMTIMEOUTS to = {};
+    to.ReadIntervalTimeout        = 100;
+    to.ReadTotalTimeoutConstant   = 500;
+    to.ReadTotalTimeoutMultiplier = 1;
+    SetCommTimeouts(h, &to);
+    PurgeComm(h, PURGE_RXCLEAR);
+
+    std::string buf;
+    bool found = false;
+    DWORD start = GetTickCount();
+    while (GetTickCount() - start < (DWORD)listenMs && !found) {
+        char chunk[256];
+        DWORD got = 0;
+        if (!ReadFile(h, chunk, sizeof(chunk), &got, nullptr)) break;
+        if (got == 0) continue;
+        buf.append(chunk, got);
+        if (buf.size() > 8192) buf.erase(0, buf.size() - 4096);
+
+        size_t nl;
+        while ((nl = buf.find('\n')) != std::string::npos) {
+            std::string line = buf.substr(0, nl);
+            buf.erase(0, nl + 1);
+            // Accept any talker ID: GP (GPS), GN (multi-GNSS), GL, GA.
+            if (line.size() < 20 || line[0] != '$') continue;
+            bool isGGA = line.compare(3, 3, "GGA") == 0;
+            if (!isGGA) continue;
+
+            std::vector<std::string> f;
+            size_t pos = 0;
+            while (pos <= line.size()) {
+                size_t c = line.find(',', pos);
+                if (c == std::string::npos) { f.push_back(line.substr(pos)); break; }
+                f.push_back(line.substr(pos, c - pos));
+                pos = c + 1;
+            }
+            // GGA: 1 time, 2 lat, 3 N/S, 4 lon, 5 E/W, 6 quality, 9 alt
+            if (f.size() < 10) continue;
+            if (f[6].empty() || atoi(f[6].c_str()) == 0) continue;  // no lock
+
+            double la = 0, lo = 0;
+            if (!ParseNmeaCoord(f[2], f[3].empty() ? 'N' : f[3][0], la)) continue;
+            if (!ParseNmeaCoord(f[4], f[5].empty() ? 'E' : f[5][0], lo)) continue;
+
+            fix.latDeg = la;
+            fix.lonDeg = lo;
+            if (!f[9].empty()) { fix.elevM = atof(f[9].c_str()); fix.hasElev = true; }
+            fix.valid = true;
+            found = true;
+            break;
+        }
+    }
+    CloseHandle(h);
+    if (found)
+        printf("[SerialPortScan] NMEA fix on %s: %.1f%c %.1f%c\n",
+               comPort.c_str(),
+               fix.latDeg < 0 ? -fix.latDeg : fix.latDeg, fix.latDeg < 0 ? 'S' : 'N',
+               fix.lonDeg < 0 ? -fix.lonDeg : fix.lonDeg, fix.lonDeg < 0 ? 'W' : 'E');
+    return found;
+}
+
+// Walks the present ports looking for a receiver. skipPort lets the
+// caller exclude the mount, which is already known and must not be
+// tied up.
+inline bool FindGpsFix(GpsFix& fix, const std::string& skipPort = std::string()) {
+    for (const std::string& p : EnumerateSerialPorts()) {
+        if (!skipPort.empty() && p == skipPort) continue;
+        if (ProbeNmeaPort(p, fix)) return true;
+    }
+    return false;
+}
+
 // Comma-joined list of probed ports, for a one-line log message.
 inline std::string DescribeProbedPorts(const MountPortScan& scan) {
     if (scan.probed.empty()) return "none present";

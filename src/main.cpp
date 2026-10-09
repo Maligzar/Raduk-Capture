@@ -522,7 +522,20 @@ static int RunApp(bool useEmulator) {
                     fix.accuracyM);
             } else {
                 Log("[INIT] Windows Location: %s\n", fix.status.c_str());
-                // Not fatal. The mount may know, and is asked on connect.
+                // Opportunistic: a USB GPS dongle is just another serial
+                // port, and the scanner already enumerates them. Passive
+                // listen only -- nothing is written to a port that might
+                // belong to someone else's device.
+                raduk::core::GpsFix g;
+                if (raduk::core::FindGpsFix(g)) {
+                    rig.AdoptSite(g.latDeg, g.lonDeg,
+                                  g.hasElev ? g.elevM
+                                            : raduk::core::RigConfig::UNKNOWN_ELEV,
+                                  "gps");
+                } else {
+                    // Still not fatal: the mount is asked on connect.
+                    Log("[INIT] No GPS receiver found either\n");
+                }
             }
         }
     }

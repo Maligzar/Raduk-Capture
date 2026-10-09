@@ -41,6 +41,7 @@
 #include "core/FrameAnalyzer.h"
 #include "core/CentroidTracker.h"
 #include "core/RigConfig.h"
+#include "core/SerialPortScan.h"
 #include "core/Timestamp.h"
 #include "core/SessionLog.h"
 #include "net/WebSocketServer.h"
@@ -118,6 +119,11 @@ struct HardwareStatus {
     bool cameraFound = false;
     bool eafFound    = false;
     bool mountFound  = false;
+    // Where the mount was actually found. A USB-serial adapter's COM
+    // number is assigned by Windows and moves between reboots and USB
+    // ports, so it is discovered at scan time rather than assumed.
+    std::string mountPort;
+    bool        mountBusy = false;  // port held by CPWI
     bool AllPresent() const { return cameraFound && eafFound && mountFound; }
 };
 
@@ -130,21 +136,24 @@ static HardwareStatus CheckHardware() {
     int eafCount = EAFFocuser::GetCount();
     s.eafFound = (eafCount > 0);
     Log("[CHECK]   EAF:    %s (%d)\n", s.eafFound ? "OK" : "NOT FOUND", eafCount);
-    HANDLE hTest = CreateFileA("\\\\.\\COM3", GENERIC_READ | GENERIC_WRITE,
-        0, nullptr, OPEN_EXISTING, 0, nullptr);
-    if (hTest != INVALID_HANDLE_VALUE) {
+    // Mount: probe every serial port Windows reports as present and
+    // keep the one that answers the NexStar echo. rig.ini's MountPort,
+    // when set, is tried first. A port that exists but cannot be
+    // opened is CPWI holding the mount, which still counts as found.
+    auto scan = raduk::core::FindNexStarPort(raduk::core::RigConfig::Get().mountPort);
+    if (scan.found) {
         s.mountFound = true;
-        CloseHandle(hTest);
-        Log("[CHECK]   Mount:  OK (COM3 available)\n");
+        s.mountPort  = scan.port;
+        Log("[CHECK]   Mount:  OK (%s responded)\n", scan.port.c_str());
+    } else if (scan.busy) {
+        s.mountFound = true;
+        s.mountPort  = scan.busyPort;
+        s.mountBusy  = true;
+        Log("[CHECK]   Mount:  OK (%s owned by CPWI)\n", scan.busyPort.c_str());
     } else {
-        DWORD err = GetLastError();
-        if (err == ERROR_ACCESS_DENIED || err == ERROR_SHARING_VIOLATION) {
-            s.mountFound = true;
-            Log("[CHECK]   Mount:  OK (COM3 owned by CPWI)\n");
-        } else {
-            s.mountFound = false;
-            Log("[CHECK]   Mount:  NOT FOUND (COM3 error %lu)\n", err);
-        }
+        s.mountFound = false;
+        Log("[CHECK]   Mount:  NOT FOUND (probed: %s)\n",
+            raduk::core::DescribeProbedPorts(scan).c_str());
     }
     return s;
 }
@@ -173,7 +182,15 @@ static void UpdateStartupDeviceLabels(StartupDlgState& s) {
     };
     setLbl(s.lblCamera, s.hw.cameraFound, L"ZWO ASI678MC Camera");
     setLbl(s.lblEAF,    s.hw.eafFound,    L"ZWO EAF Focuser");
-    setLbl(s.lblMount,  s.hw.mountFound,  L"NexStar Mount (COM3)");
+    {
+        wchar_t mountName[64];
+        if (s.hw.mountPort.empty()) {
+            wcscpy_s(mountName, L"NexStar Mount");
+        } else {
+            swprintf(mountName, 64, L"NexStar Mount (%hs)", s.hw.mountPort.c_str());
+        }
+        setLbl(s.lblMount, s.hw.mountFound, mountName);
+    }
     if (s.lblHint) {
         if (s.hw.AllPresent())
             SetWindowTextW(s.lblHint, L"All devices found — ready for hardware mode.");
@@ -562,19 +579,28 @@ static int RunApp(bool useEmulator) {
         }
         // No ASCOM — try NexStar direct
         if (!mountPtr) {
+            // Find the hand control rather than assuming a port: the
+            // COM number of a USB-serial cable is assigned by Windows
+            // and moves when the cable lands on a different USB port.
+            // Rescanned here (not reused from the startup check) so a
+            // cable replugged at the device dialog is still found.
+            auto scan = raduk::core::FindNexStarPort(
+                            raduk::core::RigConfig::Get().mountPort);
             auto* nm = new NexStarMount();
-            if (nm->Connect("COM3")) {
+            if (scan.found && nm->Connect(scan.port)) {
                 mountPtr.reset(nm);
                 startInRCControl = true;
-                Log("[INIT] Mount: NexStar direct (COM3) — RC in control\n");
-                slog.System("Mount: RC direct via COM3");
+                Log("[INIT] Mount: NexStar direct (%s) — RC in control\n",
+                    scan.port.c_str());
+                slog.System("Mount: RC direct via %s", scan.port.c_str());
                 g_mountForCrash = nm;
                 std::atexit(EmergencyStopOnExit);
                 Log("[SAFETY] Heartbeat watchdog armed (timeout=%dms)\n",
                     raduk::core::NexStarMount::WATCHDOG_TIMEOUT_MS);
             } else {
                 delete nm;
-                Log("[INIT] Mount: not connected (neither CPWI nor COM3 available)\n");
+                Log("[INIT] Mount: not connected (no CPWI; no hand control on %s)\n",
+                    raduk::core::DescribeProbedPorts(scan).c_str());
             }
         }
     } // end !useEmulator hardware path
@@ -999,10 +1025,43 @@ static int RunApp(bool useEmulator) {
     controls.SetProfileSaveCallback([&](int index) {
         TargetProfile* p = profiles.ProfileAt(index);
         if (!p) return;
-        // Write current notes box back into profile before saving
+        // Capture the LIVE rig state, not just the notes box. Before
+        // Phase 61 this wrote the stored profile straight back out, so
+        // SAVE silently preserved the old numbers and a night of
+        // tuning was lost on the next LOAD -- the settings that
+        // actually worked never reached disk.
+        if (cam.IsOpen()) {
+            p->gain         = (int)cam.GetControl(ASI_GAIN);
+            // SDK exposure is microseconds; the profile stores ms.
+            p->exposureMs   = (double)cam.GetControl(ASI_EXPOSURE) / 1000.0;
+            p->gamma        = (int)cam.GetControl(ASI_GAMMA);
+            p->wbRed        = (int)cam.GetControl(ASI_WB_R);
+            p->wbBlue       = (int)cam.GetControl(ASI_WB_B);
+            p->usbBandwidth = (int)cam.GetControl(ASI_BANDWIDTHOVERLOAD);
+            p->highSpeed    = cam.GetControl(ASI_HIGH_SPEED_MODE) != 0;
+
+            int aW = 0, aH = 0, aB = 1; ASI_IMG_TYPE aT = ASI_IMG_RAW8;
+            if (cam.GetROI(aW, aH, aB, aT) && aW > 0 && aH > 0) {
+                p->roiWidth  = aW;
+                p->roiHeight = aH;
+                p->binning   = aB;
+                p->imgType   = aT;
+            }
+        }
+        // Focus is the setting most worth preserving: ApplyProfile drives
+        // the focuser to p->focusPosition on every LOAD, so a stale value
+        // actively defocuses the rig.
+        if (focuser.IsOpen()) p->focusPosition = focuser.GetPosition();
+
         p->notes = controls.GetNotes();
         profiles.Save(*p);
-        slog.Profile("Saved: %s", p->name.c_str());
+        Log("[PROFILE] Saved %s: gain=%d exp=%.2fms gamma=%d wb=%d/%d "
+            "usb=%d focus=%d roi=%dx%d\n",
+            p->name.c_str(), p->gain, p->exposureMs, p->gamma,
+            p->wbRed, p->wbBlue, p->usbBandwidth, p->focusPosition,
+            p->roiWidth, p->roiHeight);
+        slog.Profile("Saved: %s (gain=%d exp=%.2fms focus=%d)",
+                     p->name.c_str(), p->gain, p->exposureMs, p->focusPosition);
     });
 
     // ── Profile editor modal (Phase 9/10 — EDIT button) ───────────
@@ -1550,7 +1609,22 @@ static int RunApp(bool useEmulator) {
     //   b) Auto-advance in the render loop (post-GoTo flow)
     //   c) Remote APEX command
     auto doROILock = [&]() {
-        if (tracker.Stage() == raduk::core::AcquisitionStage::Centering && tracker.IsDwellMet()) {
+        // Phase 61: this is acquisition stage 3, not a manual ROI tool --
+        // it crops to the planet only after Centering has held it inside
+        // CENTRE_THRESHOLD_PX for DWELL_FRAMES. It used to do nothing at
+        // all otherwise, which reads as "the ROI button is broken".
+        // To draw an ROI by hand, drag a box on the preview instead.
+        if (tracker.Stage() != raduk::core::AcquisitionStage::Centering ||
+            !tracker.IsDwellMet()) {
+            const char* why =
+                (tracker.Stage() != raduk::core::AcquisitionStage::Centering)
+                    ? "not in Centering (run CENTROID, then LOCK)"
+                    : "planet not yet steady on centre";
+            Log("[ACQ] ROI crop refused - %s\n", why);
+            notifBar.NotifyWarn(L"ROI crop needs a centred, locked planet - drag a box to set one by hand");
+            return;
+        }
+        {
             Log("[ACQ] Stage 3: LOCKED\n");
             slog.Mount("Acquisition: Locked");
             tracker.StartLocked();
@@ -1844,7 +1918,22 @@ static int RunApp(bool useEmulator) {
         }
     });
     toolbar.SetLockCallback([&]() {
-        if (tracker.Stage() == raduk::core::AcquisitionStage::Searching && tracker.IsStable()) {
+        // Phase 61: refuse out loud. This silently did nothing when the
+        // conditions were unmet, so a failed LOCK was indistinguishable
+        // from a dead button.
+        if (tracker.Stage() != raduk::core::AcquisitionStage::Searching ||
+            !tracker.IsStable()) {
+            const char* why =
+                (tracker.Stage() == raduk::core::AcquisitionStage::Off)
+                    ? "acquisition not started - press CENTROID first"
+                : (tracker.Stage() != raduk::core::AcquisitionStage::Searching)
+                    ? "already past Searching"
+                    : "no steady centroid yet - centre the planet and make sure it is bright enough";
+            Log("[ACQ] LOCK refused - %s\n", why);
+            notifBar.NotifyWarn(L"LOCK refused - see log");
+            return;
+        }
+        {
             // Phase 51: LOCK measures the pulse→pixel transform first
             // (or reuses a fresh calibration), then advances to Centering.
             Log("[ACQ] LOCK: calibrating guide axes\n");

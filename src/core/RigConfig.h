@@ -45,6 +45,14 @@ struct RigConfig {
     // Mount guide rate behind PulseGuide, on-sky arcsec/second
     float  guideRateArcsecPerSec = 7.5f;
 
+    // Optional pin for the NexStar hand control's serial port, e.g.
+    // "COM4". Empty (the default) means auto-detect: SerialPortScan
+    // probes the ports Windows reports as present and keeps the one
+    // that answers the NexStar echo. Set this only to override a
+    // scan that picks the wrong device; a stale value falls back to
+    // auto-detect rather than failing the connect.
+    std::string mountPort;
+
     // Singleton — loads rig.ini on first access
     static RigConfig& Get() {
         static RigConfig cfg = LoadFromDisk();
@@ -62,6 +70,8 @@ struct RigConfig {
         wf("SiteLonDeg", siteLonDeg);
         wf("PlateScaleArcsecPx", plateScaleArcsecPx);
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
+        WritePrivateProfileStringA("Rig", "MountPort",
+                                   mountPort.c_str(), p.c_str());
         printf("[RigConfig] Saved %s\n", p.c_str());
     }
 
@@ -91,6 +101,14 @@ private:
         cfg.plateScaleArcsecPx    = (float)rf("PlateScaleArcsecPx", cfg.plateScaleArcsecPx);
         cfg.guideRateArcsecPerSec = (float)rf("GuideRateArcsecPerSec", cfg.guideRateArcsecPerSec);
 
+        // Optional explicit mount port. Read as a raw string: blank
+        // means auto-detect, which is the normal case.
+        {
+            char pbuf[32] = {};
+            GetPrivateProfileStringA("Rig", "MountPort", "", pbuf, sizeof(pbuf), p.c_str());
+            cfg.mountPort = pbuf;
+        }
+
         // Sanity clamps — a corrupted INI must not produce absurd pulse
         // sizing or site math
         if (cfg.siteLatDeg < -90 || cfg.siteLatDeg > 90)    cfg.siteLatDeg = 0.0;
@@ -100,9 +118,10 @@ private:
         if (cfg.guideRateArcsecPerSec < 0.5f || cfg.guideRateArcsecPerSec > 60.0f)
             cfg.guideRateArcsecPerSec = 7.5f;
 
-        printf("[RigConfig] site=(%.4f,%.4f) scale=%.3f\"/px guide=%.1f\"/s (%s)\n",
+        printf("[RigConfig] site=(%.4f,%.4f) scale=%.3f\"/px guide=%.1f\"/s port=%s (%s)\n",
                cfg.siteLatDeg, cfg.siteLonDeg,
-               cfg.plateScaleArcsecPx, cfg.guideRateArcsecPerSec, p.c_str());
+               cfg.plateScaleArcsecPx, cfg.guideRateArcsecPerSec,
+               cfg.mountPort.empty() ? "auto" : cfg.mountPort.c_str(), p.c_str());
         return cfg;
     }
 };

@@ -197,8 +197,32 @@ private:
         float cy = m_h * 0.5f;
         float R  = std::min(cx, cy) - 20.0f;
 
-        // Angular distance from centre of view, projected onto screen
-        // Use simple gnomonic-like projection for small FOVs
+        // Phase 63: all-sky view is a real zenith-centred polar
+        // (azimuthal-equidistant) projection.
+        //
+        // It used to run the rectangular branch below at every zoom,
+        // mapping azimuth linearly to x. That is only valid across a
+        // narrow field. At zoom 1 the field is the whole sky, so an
+        // object due south (az 180) landed at cx + 1.06*R -- off the
+        // edge entirely -- while east was pushed right and west left.
+        // Altitude was plotted correctly throughout, which is why the
+        // map looked plausible yet never matched the sky.
+        //
+        // Convention: zenith at centre, horizon at the rim, North up
+        // and East LEFT. Azimuth runs clockwise seen from above, so on
+        // a chart you read looking UP it runs counter-clockwise -- the
+        // mirror of a ground map.
+        if (m_zoom <= 1.01f) {
+            float zenithDist = 90.0f - (float)altDeg;      // 0 at zenith
+            float r   = (zenithDist / 90.0f) * R;          // rim = horizon
+            float azR = (float)(azDeg * M_PI / 180.0);
+            px = cx - r * sinf(azR);
+            py = cy - r * cosf(azR);
+            return;
+        }
+
+        // Zoomed in: a narrow field, where treating azimuth as a linear
+        // axis about the view centre is a fair approximation.
         float dAlt = (float)(altDeg  - m_centerAlt);
         float dAz  = (float)(azDeg   - m_centerAz);
         // Wrap Az difference to [-180, 180]
@@ -231,6 +255,17 @@ private:
         float R  = std::min(cx, cy) - 20.0f;
         float fov = FOVDeg();
         float scale = R / fov;
+
+        if (m_zoom <= 1.01f) {
+            // Inverse of the polar branch above.
+            float dx = px - cx, dy = py - cy;
+            float r  = sqrtf(dx * dx + dy * dy);
+            altDeg = 90.0f - (r / R) * 90.0f;
+            float a = atan2f(-dx, -dy) * 180.0f / (float)M_PI;
+            if (a < 0.0f) a += 360.0f;
+            azDeg = a;
+            return;
+        }
 
         float dAlt =  -(py - cy) / scale;
         float altRad = (m_centerAlt + dAlt) * (float)M_PI / 180.0f;
@@ -354,8 +389,10 @@ private:
         // ── Cardinal labels ────────────────────────────────────
         DrawCompassLabel(L"N", cx,     cy-R-14);
         DrawCompassLabel(L"S", cx,     cy+R+2);
-        DrawCompassLabel(L"E", cx+R+4, cy-6);
-        DrawCompassLabel(L"W", cx-R-14,cy-6);
+        // Phase 63: East LEFT, West RIGHT. These were mirrored, matching
+        // the old broken projection rather than the sky.
+        DrawCompassLabel(L"E", cx-R-14,cy-6);
+        DrawCompassLabel(L"W", cx+R+4, cy-6);
 
         // ── Stars + Messier / DSO objects ─────────────────────
         ID2D1SolidColorBrush* dsoBrush  = nullptr;

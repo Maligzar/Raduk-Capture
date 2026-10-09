@@ -209,13 +209,38 @@ private:
                 r.clipPct = (r.clipR + r.clipG + r.clipB) / 3.0f;
             }
 
-            // ── Sharpness: Laplacian variance on central 256x256 crop ──
+            // ── Sharpness: Laplacian variance on a 256x256 crop ──
             // Laplacian kernel: [ 0, -1, 0; -1, 4, -1; 0, -1, 0 ]
             // Applied to a downsampled green channel. Variance of the result
             // correlates strongly with focus quality and atmospheric seeing.
             {
-                // Sample a 128x128 centre region (every other pixel = 256x256 native)
+                // Sample a 128x128 region (every other pixel = 256x256 native)
+                // Phase 61: follow the planet rather than the geometric
+                // centre. The centroid search already scans the FULL frame
+                // on purpose, so the analyzer would locate an off-centre
+                // planet and simultaneously report it had no sharpness --
+                // 256 px is only ~52 arcsec at 0.203"/px, so a planet a
+                // minute of arc off centre measured pure background. AUTO
+                // FOCUS reads this same number, which is why it refused
+                // with "no usable star/planet" while the planet sat plainly
+                // on screen.
+                //
+                // Uses the PREVIOUS frame's centroid, since this frame's is
+                // computed further down; at video rates one frame of lag
+                // shifts the target a pixel or two inside a 256 px window.
                 uint32_t cx = w / 2, cy = h / 2;
+                if (m_lastCentroidValid) {
+                    const uint32_t halfW = 128, halfH = 128;
+                    // Clamp so the window stays wholly inside the frame: a
+                    // planet near an edge must still measure its own light
+                    // rather than a window half-filled with background.
+                    if (w > 2 * halfW && h > 2 * halfH) {
+                        uint32_t lx = (m_lastCentroidX < 0.0f) ? 0u : (uint32_t)m_lastCentroidX;
+                        uint32_t ly = (m_lastCentroidY < 0.0f) ? 0u : (uint32_t)m_lastCentroidY;
+                        cx = (lx < halfW) ? halfW : ((lx > w - halfW) ? w - halfW : lx);
+                        cy = (ly < halfH) ? halfH : ((ly > h - halfH) ? h - halfH : ly);
+                    }
+                }
                 uint32_t rw = 128, rh = 128;
                 uint32_t x0 = (cx > rw) ? cx - rw : 0;
                 uint32_t y0 = (cy > rh) ? cy - rh : 0;
@@ -316,8 +341,26 @@ private:
                         r.centroidX     = (float)(wx / wt);
                         r.centroidY     = (float)(wy / wt);
                         r.centroidValid = true;
+                        m_lastCentroidX     = r.centroidX;
+                        m_lastCentroidY     = r.centroidY;
+                        m_lastCentroidValid = true;
                     }
                 }
+            }
+
+            // Phase 61: hold the last centroid briefly when the planet
+            // drops out, rather than snapping the sharpness crop back to
+            // frame centre on the first dim frame. This matters most during
+            // an AUTO FOCUS sweep: at the ends of the sweep the planet is
+            // spread thin and can fall under the centroid threshold, and
+            // measuring background instead of its (genuinely soft) light
+            // would put a false floor in the V-curve. A short hold keeps
+            // the crop over the planet; a sustained loss falls back.
+            if (r.centroidValid) {
+                m_centroidMissFrames = 0;
+            } else if (m_lastCentroidValid) {
+                if (++m_centroidMissFrames > CENTROID_HOLD_FRAMES)
+                    m_lastCentroidValid = false;
             }
 
             // Copy rolling seeing history into result for graph drawing
@@ -360,6 +403,18 @@ private:
     AnalysisResult       m_result;
 
     // Seeing score rolling window
+    // Phase 61: last valid centroid, used to position the sharpness crop
+    // on the next frame. Reset when the planet is lost so the crop falls
+    // back to frame centre rather than chasing a stale position.
+    // Frames the centroid may stay lost before the sharpness crop
+    // returns to frame centre (~0.7 s at 43 FPS).
+    static constexpr int CENTROID_HOLD_FRAMES = 30;
+    int                  m_centroidMissFrames = 0;
+
+    float                m_lastCentroidX     = -1.0f;
+    float                m_lastCentroidY     = -1.0f;
+    bool                 m_lastCentroidValid = false;
+
     std::deque<float>    m_sharpHistory; // deque: O(1) pop_front vs O(N) vector erase
 };
 

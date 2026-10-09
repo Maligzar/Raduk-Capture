@@ -271,7 +271,7 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 | Telescope | Celestron 8SE SCT | — |
 | Camera | ZWO ASI678MC | USB3 |
 | Focuser | ZWO EAF | USB |
-| Mount | NexStar (8SE single-arm) | COM3 (serial) |
+| Mount | NexStar (8SE single-arm) | USB-serial, port auto-detected |
 | Alignment | StarSense AutoAlign | — |
 
 **Plate scale:** 0.203 arcsec/pixel (f/10, 2032mm FL, 2.9µm pixels)
@@ -291,9 +291,34 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 - Restart RadukCapture
 
 ### Mount not responding
-- Check COM3 is available (not locked by CPWI)
-- If CPWI is running, disconnect mount in CPWI first, then RadukCapture will grab COM3
-- Use `RELEASE` in the TELESCOPE section to hand COM3 back to CPWI
+The serial port is **auto-detected** at startup: RadukCapture probes every COM
+port Windows reports as present and keeps the one that answers the NexStar echo
+command. The port a USB-serial cable gets is assigned by Windows and changes
+when the cable is plugged into a different USB socket, so it is never assumed.
+
+The startup log line names what happened:
+- `Mount:  OK (COM4 responded)` — hand control found on that port
+- `Mount:  OK (COM4 owned by CPWI)` — port exists but CPWI holds it
+- `Mount:  NOT FOUND (probed: COM3, COM4)` — nothing answered on any present port
+
+If it is NOT FOUND:
+- Check the hand control is powered on and the cable is seated at both ends
+- Check the USB-serial adapter appears under Device Manager > Ports (COM & LPT)
+  with no warning icon — a port listed there but not working needs its driver
+- If CPWI is running, disconnect the mount in CPWI first, then RadukCapture
+  will take the port
+- Use `RELEASE` in the TELESCOPE section to hand the port back to CPWI
+
+To pin a specific port and skip the scan, add it to `rig.ini` next to the
+executable:
+
+```ini
+[Rig]
+MountPort=COM4
+```
+
+A pinned port is tried first; if it does not answer, the scan continues anyway,
+so a stale entry falls back to auto-detect instead of breaking the connection.
 
 ### Frames dropping (LOST > 0)
 - Reduce USB bandwidth slider in CAMERA section

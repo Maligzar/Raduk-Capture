@@ -120,6 +120,38 @@ private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam);
 
+    // -- Phase 60: thread-wide key routing ----------------------
+    // Every hotkey used to live in this window's WM_KEYDOWN, so it only
+    // fired while this window held focus. Clicking a panel text field, or
+    // opening Help / the AI chat / GoTo / Object Info / the align list,
+    // moves focus to another of our windows and the keys went dead until
+    // the main window was re-activated. RouteThreadKey is called from the
+    // message pump before dispatch, so the keys work whichever of our
+    // windows or controls has focus; HandleMessage calls the same
+    // handlers, so behaviour is identical on both paths.
+    // -- Phase 61: preview-child mouse routing -----------------
+    // The preview is a child HWND covering the whole image area. Its
+    // class proc was DefWindowProcW, so every click on the image was
+    // discarded and the rubber-band ROI and pixel-readout click never
+    // received a single event. (Scroll-zoom worked because
+    // WM_MOUSEWHEEL goes to the FOCUSED window, not the one under the
+    // cursor -- a different routing rule, hence the different outcome.)
+    static LRESULT CALLBACK PreviewProc(HWND hwnd, UINT msg,
+                                        WPARAM wParam, LPARAM lParam);
+    // Child-client pixels -> the units PreviewRenderer hit-tests in.
+    void PreviewMouseCoords(LPARAM lParam, float& x, float& y) const;
+
+    bool RouteThreadKey(const MSG& msg);
+    bool HandleKeyDown(WPARAM wParam, LPARAM lParam);
+    bool HandleKeyUp(WPARAM wParam);
+    bool HandleChar(WPARAM wParam);
+
+    // Arrow jogs are tracked per axis+direction so diagonals work and a
+    // stop is only ever sent for a direction actually held.
+    void StartArrowJog(int axis, int dir);
+    bool StopArrowJog(int axis, int dir);
+    void StopAllArrowJogs();
+
     bool InitDirect2D();
     void ReleaseDirect2D();
     void OnResize(int width, int height);

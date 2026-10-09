@@ -84,6 +84,31 @@ public:
     bool SyncRADec(double raHours, double decDegrees) override;
 
     // ── Alignment ──────────────────────────────────────────────
+    // -- Phase 64: verified tracking --------------------------
+    // Reads the mount's actual tracking mode ('t'), uncached.
+    // Returns -1 if the mount did not answer, so a comms failure is
+    // distinguishable from a genuine OFF -- the poll loop conflates
+    // the two by defaulting its local to OFF.
+    int ReadTrackingModeRaw();
+
+    // -- Phase 62: site and clock -------------------------------
+    // An alt-az mount cannot derive tracking rates without knowing
+    // where and when it is: converting sidereal motion into altitude
+    // and azimuth rates needs latitude and local time. The app knew
+    // the site (RigConfig) but never told the mount, so every attempt
+    // to enable tracking was asking it to solve an underdetermined
+    // problem. Both are pushed automatically on Connect().
+    //
+    // Return the mount's acknowledgement so a refusal is visible
+    // rather than assumed -- the failure mode this whole area suffers
+    // from is commands whose results are discarded.
+    bool SetSiteLocation(double latDeg, double lonDeg);   // +N, +E
+    bool SetDateTime(int hour, int minute, int second,
+                     int month, int day, int year,
+                     int utcOffsetHours, bool dst);
+    // Pushes RigConfig's site and the PC clock in one call.
+    bool PushSiteAndTime();
+
     bool IsAligned() override;
 
     // ── Guide pulses (Phase 5) ─────────────────────────────────

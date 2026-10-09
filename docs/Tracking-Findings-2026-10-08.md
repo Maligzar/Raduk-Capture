@@ -66,7 +66,33 @@ so alignment is a precondition, not a tuning issue.
 
 ---
 
-## Proposed Phase 61 — fail loudly instead of silently
+## Phase 61 item 0 — sharpness follows the planet (DONE)
+
+`FrameAnalyzer` measured sharpness on a crop fixed at the geometric
+centre of the frame, while the centroid search deliberately scanned the
+full frame. The analyzer would therefore locate an off-centre planet and
+report in the same breath that it had no sharpness.
+
+256 px is ~52 arcsec at 0.203"/px, so a planet a minute of arc off
+centre measured pure background: `SHARP PK 0% / AV 0%` with the planet
+plainly visible. AUTO FOCUS reads the same number, which is why it
+refused with "No usable star/planet - sharpness too low" all session.
+
+Fixed: the crop is now centred on the previous frame's centroid when one
+is valid, clamped to stay wholly inside the frame, falling back to frame
+centre otherwise. A 30-frame (~0.7 s) hold keeps the crop over the
+planet when it briefly drops under the centroid threshold -- without it,
+an AUTO FOCUS sweep would measure background at the ends of its travel
+and put a false floor in the V-curve.
+
+Note for anyone reading the HUD: `PK` and `AV` are the peak and mean of
+the rolling SHARPNESS history, not brightness. Clipping is reported
+separately via `clipPct` / the [CLIP] overlay. Confusing the two leads
+to "reduce exposure" advice when the planet is simply sharp.
+
+---
+
+## Remaining Phase 61 — fail loudly instead of silently
 
 1. **Check `IsAligned()` before acquisition.** Refuse CENTROID/LOCK with
    a plain message ("mount not aligned — align on the hand control

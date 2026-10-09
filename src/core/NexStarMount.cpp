@@ -378,6 +378,71 @@ bool NexStarMount::GetVersion(int& major, int& minor) {
 // SetTrackingMode is sent. The site lived in RigConfig and was never
 // pushed; the clock was never pushed at all.
 
+bool NexStarMount::SendCommandFixed(const char* cmd, int cmdLen,
+                                    unsigned char* response, int expectBytes) {
+    std::lock_guard<std::mutex> lock(m_serialMutex);
+    if (!m_connected) return false;
+
+    DrainPendingAcks();
+    PurgeComm(m_serial, PURGE_RXCLEAR);
+
+    DWORD written = 0;
+    if (!WriteFile(m_serial, cmd, cmdLen, &written, nullptr) ||
+        (int)written != cmdLen)
+        return false;
+
+    // Exactly expectBytes of payload, then the '#'. Reading "until #"
+    // would stop early whenever a payload byte happens to be 0x23.
+    for (int i = 0; i < expectBytes; i++) {
+        DWORD got = 0;
+        char  c   = 0;
+        if (!ReadFile(m_serial, &c, 1, &got, nullptr) || got == 0) return false;
+        response[i] = (unsigned char)c;
+    }
+    DWORD got = 0;
+    char  term = 0;
+    if (!ReadFile(m_serial, &term, 1, &got, nullptr) || got == 0) return false;
+    return term == '#';
+}
+
+bool NexStarMount::GetSiteLocation(double& latDeg, double& lonDeg) {
+    unsigned char r[8] = {};
+    if (!SendCommandFixed("w", 1, r, 8)) {
+        printf("[NexStarMount] Site read: no reply\n");
+        return false;
+    }
+
+    auto dms = [](unsigned char d, unsigned char m, unsigned char sec, bool neg) {
+        double v = (double)d + (double)m / 60.0 + (double)sec / 3600.0;
+        return neg ? -v : v;
+    };
+    double la = dms(r[0], r[1], r[2], r[3] != 0);   // r[3]: 0 = north
+    double lo = dms(r[4], r[5], r[6], r[7] != 0);   // r[7]: 0 = east
+
+    // Reject nonsense rather than adopting it. Minutes and seconds above
+    // 59 mean the reply was misframed, not that the mount is somewhere
+    // unusual.
+    if (r[1] > 59 || r[2] > 59 || r[5] > 59 || r[6] > 59 ||
+        la < -90.0 || la > 90.0 || lo < -180.0 || lo > 180.0) {
+        printf("[NexStarMount] Site read: implausible reply, ignoring\n");
+        return false;
+    }
+    // A mount that has never been given a site reports 0,0. That is a
+    // real place, but as a mount default it means "unset" -- adopting it
+    // is the very mistake this work exists to prevent.
+    if (la == 0.0 && lo == 0.0) {
+        printf("[NexStarMount] Site read: mount reports 0,0 (never set)\n");
+        return false;
+    }
+
+    latDeg = la;
+    lonDeg = lo;
+    printf("[NexStarMount] Site read from mount: %.1f%c %.1f%c\n",
+           la < 0 ? -la : la, la < 0 ? 'S' : 'N',
+           lo < 0 ? -lo : lo, lo < 0 ? 'W' : 'E');
+    return true;
+}
+
 bool NexStarMount::SetSiteLocation(double latDeg, double lonDeg) {
     // NexStar 'W': 8 bytes, deg/min/sec per axis plus a hemisphere flag.
     // Sign is carried by the flag, not the magnitude, so send absolutes.
@@ -469,12 +534,33 @@ bool NexStarMount::PushSiteAndTime() {
     // the mount's own site alone is strictly better than overwriting it
     // with a plausible-looking lie. The clock is independent of the
     // site and still worth setting.
+    // Phase 66: the relationship is bidirectional now. Until this, the
+    // app could only write, so a mount that already knew where it was --
+    // entered by hand on the keypad, or from a SkySync GPS -- had that
+    // knowledge ignored and then overwritten.
     bool okSite = true;
-    if (cfg.SiteIsSet()) {
+    double mLat = 0.0, mLon = 0.0;
+    bool mountHasSite = GetSiteLocation(mLat, mLon);
+
+    if (!cfg.SiteIsSet() && mountHasSite) {
+        // The mount is the only one who knows. Take it.
+        raduk::core::RigConfig::Get().AdoptSite(mLat, mLon, 0.0, "mount");
+    } else if (cfg.SiteIsSet() && mountHasSite) {
+        // Both know. Agreement is reassurance; disagreement is a real
+        // finding, and better surfaced before a session than after.
+        double km = cfg.DistanceKmTo(mLat, mLon);
+        if (km > 25.0) {
+            printf("[NexStarMount] WARNING: mount site differs from rig.ini "
+                   "by %.0f km - one of them is wrong\n", km);
+        } else {
+            printf("[NexStarMount] Mount site agrees with rig.ini (%.1f km)\n", km);
+        }
+        okSite = SetSiteLocation(cfg.siteLatDeg, cfg.siteLonDeg);
+    } else if (cfg.SiteIsSet()) {
         okSite = SetSiteLocation(cfg.siteLatDeg, cfg.siteLonDeg);
     } else {
-        printf("[NexStarMount] No observing site configured - leaving the "
-               "mount's own site untouched (set it in rig.ini)\n");
+        printf("[NexStarMount] No site known to either the app or the mount "
+               "- alt/az tracking cannot be computed\n");
     }
     bool okTime = SetDateTime(lt.tm_hour, lt.tm_min, lt.tm_sec,
                               lt.tm_mon + 1, lt.tm_mday, lt.tm_year + 1900,

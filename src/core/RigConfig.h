@@ -30,6 +30,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <cmath>
 
 namespace raduk::core {
 
@@ -54,6 +55,44 @@ struct RigConfig {
     double      siteElevationM = 0.0;
 
     bool SiteIsSet() const { return siteValid; }
+
+    // Phase 66: accept a site derived at runtime (mount, Windows
+    // Location, GPS). Refuses to overwrite one the user set by hand --
+    // a surveyed coordinate must not be replaced by a WiFi estimate.
+    // Returns true if the value was taken. Persists so the next launch
+    // starts from it rather than rediscovering.
+    bool AdoptSite(double latDeg, double lonDeg, double elevM,
+                   const char* source) {
+        if (siteValid && siteSource == "manual") {
+            printf("[RigConfig] Keeping the manual site; ignoring %s\n", source);
+            return false;
+        }
+        if (latDeg < -90 || latDeg > 90 || lonDeg < -180 || lonDeg > 180)
+            return false;
+        siteLatDeg     = latDeg;
+        siteLonDeg     = lonDeg;
+        if (elevM > -500.0 && elevM < 9000.0) siteElevationM = elevM;
+        siteSource     = source;
+        siteValid      = true;
+        printf("[RigConfig] Site adopted from %s: %.1f%c %.1f%c\n", source,
+               latDeg < 0 ? -latDeg : latDeg, latDeg < 0 ? 'S' : 'N',
+               lonDeg < 0 ? -lonDeg : lonDeg, lonDeg < 0 ? 'W' : 'E');
+        Save();
+        return true;
+    }
+
+    // Great-circle distance in km to another site — used to decide
+    // whether two sources genuinely disagree or merely differ in
+    // precision.
+    double DistanceKmTo(double latDeg, double lonDeg) const {
+        constexpr double R = 6371.0, D2R = 3.14159265358979 / 180.0;
+        double dLat = (latDeg - siteLatDeg) * D2R;
+        double dLon = (lonDeg - siteLonDeg) * D2R;
+        double a = std::sin(dLat/2) * std::sin(dLat/2)
+                 + std::cos(siteLatDeg * D2R) * std::cos(latDeg * D2R)
+                 * std::sin(dLon/2) * std::sin(dLon/2);
+        return 2.0 * R * std::asin(std::sqrt(a < 0 ? 0 : (a > 1 ? 1 : a)));
+    }
 
     // Optics / sensor (nominal)
     float  plateScaleArcsecPx = 0.203f;  // 8SE 2032mm + 2.0um pixels

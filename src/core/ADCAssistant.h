@@ -24,6 +24,7 @@
 #include <cmath>
 #include <string>
 #include <cstdio>
+#include "RigConfig.h"
 
 namespace raduk::core {
 
@@ -78,7 +79,23 @@ public:
         double tanZ = tan(z);
 
         // Default site parameters (~530m elevation)
-        constexpr double P = 918.0;   // pressure hPa (sea level 1013, -11.5/1000m * 528m)
+        // Phase 66: pressure from the configured elevation rather than a
+        // constant tied to one town. Dispersion scales with pressure, so
+        // a sea-level user was being shown figures ~10% high and a
+        // mountain user ~15% low, with nothing to indicate it.
+        //
+        // Barometric formula for the troposphere, standard atmosphere:
+        //   P = P0 * (1 - 2.25577e-5 * h)^5.25588
+        //
+        // Note this also CORRECTS the old constant, which was internally
+        // inconsistent: its own comment derived it as "sea level 1013,
+        // -11.5/1000m * 528m", which gives ~952 hPa, yet it hardcoded
+        // 918 -- a value belonging to roughly 830 m. Dispersion scales
+        // with pressure, so reported figures were about 3.5% low at this
+        // site. Small in absolute terms (0.2" on a 5.3" dispersion) but
+        // wrong, and wrong by more at any other elevation.
+        const double h = RigConfig::Get().siteElevationM;
+        const double P = 1013.25 * std::pow(1.0 - 2.25577e-5 * h, 5.25588);
         constexpr double T = 288.0;   // temperature K (~15°C nominal)
 
         // Edlen (1966) formula for refractive index of dry air at STP,

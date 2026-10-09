@@ -103,6 +103,11 @@ public:
     // rather than assumed -- the failure mode this whole area suffers
     // from is commands whose results are discarded.
     bool SetSiteLocation(double latDeg, double lonDeg);   // +N, +E
+    // Reads the site the mount already holds. An aligned hand control
+    // has one, often entered carefully or supplied by a SkySync GPS,
+    // and until now the app could only ever write. Returns false if
+    // the mount does not answer or reports an implausible site.
+    bool GetSiteLocation(double& latDeg, double& lonDeg);
     bool SetDateTime(int hour, int minute, int second,
                      int month, int day, int year,
                      int utcOffsetHours, bool dst);
@@ -146,6 +151,14 @@ public:
 private:
     bool SendCommand(const char* cmd, int cmdLen,
                      char* response, int maxResponseLen, int& bytesRead);
+    // Phase 66: fixed-length reply reader. SendCommand stops at the
+    // first '#', which is right for ASCII replies but wrong for the
+    // binary ones: 'w' (site) and 'h' (clock) return eight raw bytes
+    // and any of them can legitimately equal 0x23 -- a latitude of
+    // 33 deg 35' would truncate mid-reply and decode as nonsense.
+    // This reads exactly expectBytes, then the terminator.
+    bool SendCommandFixed(const char* cmd, int cmdLen,
+                          unsigned char* response, int expectBytes);
     bool SendCommandNoWait(const char* cmd, int cmdLen);
     void DrainPendingAcks(); // call with m_serialMutex held
 

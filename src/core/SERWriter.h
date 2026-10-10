@@ -179,9 +179,26 @@ public:
                m_path.c_str(), m_framesWritten,
                m_bytesWritten / (1024.0 * 1024.0));
 
-        // ── Phase 11: Write quality file ──────────────────────
-        // One sharpness score per line (0.0-100.0), frame order.
-        // AutoStakkert! reads this automatically for lucky stacking.
+        // ── Per-frame quality sidecar ─────────────────────────
+        // One sharpness score per line, frame order.
+        //
+        // AutoStakkert does NOT read this. The claim that it did stood
+        // here since Phase 11 and is false: AS!4 was tested directly
+        // against a recording with this sidecar beside it, and it ran
+        // its own BufferAndAnalyze and never opened the file. No
+        // external-quality import exists anywhere in the binary, and
+        // its accepted inputs are avi/ser/as3/dat and image formats -
+        // no .txt input path at all. A single global score could not
+        // drive its selection regardless, because AS grades quality
+        // per alignment point and each AP stacks a different subset.
+        //
+        // The file is kept because it is useful HERE: it is a record of
+        // how the seeing ran across a capture, and it is what a
+        // morning-after review reads to decide which runs are worth
+        // stacking. Scores are produced per frame on the writer thread
+        // (Phase 76) - before that they were whatever the ~2Hz analyser
+        // last happened to emit, repeated across long runs of frames,
+        // which could not rank anything.
         // File: same name as SER but with _quality.txt extension.
         if (!m_sharpnessScores.empty()) {
             std::string qualPath = m_path;

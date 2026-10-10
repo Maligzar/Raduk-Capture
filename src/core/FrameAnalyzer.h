@@ -22,6 +22,7 @@
 #include <deque>
 #include <chrono>
 #include <windows.h>
+#include "Sharpness.h"
 
 namespace raduk::core {
 
@@ -49,6 +50,8 @@ struct AnalysisResult {
 
     // ── Sharpness / seeing ─────────────────────────────────────
     float sharpnessPct = 0.0f;   // Laplacian variance 0-100%
+    float sharpRaw     = 0.0f;   // diagnostic: variance before noise subtraction
+    float sharpNoise   = 0.0f;   // diagnostic: the subtracted noise term
     float seeingScore  = 0.0f;   // rolling 1-10
 
     // Rolling seeing history for graph — last 60 samples
@@ -258,69 +261,18 @@ private:
                 uint32_t x1 = (cx + rw < w - 1) ? cx + rw : w - 1;
                 uint32_t y1 = (cy + rh < h - 1) ? cy + rh : h - 1;
 
-                double lapSum = 0, lapSumSq = 0;
-                uint32_t lapCount = 0;
-
-                auto getPixel = [&](uint32_t px, uint32_t py) -> float {
-                    if (bd == 8)
-                        return (float)buf[py * w + px];
-                    else // RAW16 is left-aligned: scale to 8-bit range
-                        return (float)(reinterpret_cast<const uint16_t*>(buf.data())[py * w + px] >> 8);
-                };
-
-                // Anchor the lattice to EVEN coordinates so the same Bayer
-                // channel is measured regardless of where the centroid is.
-                // x0/y0 derive from the centroid, so an odd start made the
-                // sampled channel flip whenever the planet moved one pixel,
-                // and the score jumped between two unrelated values.
-                uint32_t sx = (x0 + 2) & ~1u;
-                uint32_t sy = (y0 + 2) & ~1u;
-
-                for (uint32_t py = sy; py + 2 < y1; py += 2) {
-                    for (uint32_t px = sx; px + 2 < x1; px += 2) {
-                        // Taps at +/-2, not +/-1. The frame is a raw RGGB
-                        // mosaic: (px+/-1, py) and (px, py+/-1) belong to a
-                        // DIFFERENT colour channel than (px, py), so the
-                        // old kernel computed 4*R - 4*G — a red-minus-green
-                        // colour difference, not a Laplacian of detail. It
-                        // responded to the Bayer pattern itself and barely
-                        // at all to focus. Stepping by 2 keeps every tap in
-                        // one channel, which is what makes this a measure
-                        // of sharpness.
-                        float lap = 4.0f * getPixel(px, py)
-                                  - getPixel(px-2, py) - getPixel(px+2, py)
-                                  - getPixel(px, py-2) - getPixel(px, py+2);
-                        lapSum   += lap;
-                        lapSumSq += (double)lap * lap;
-                        lapCount++;
-                    }
-                }
-
-                if (lapCount > 1) {
-                    double mean = lapSum / lapCount;
-                    double variance = (lapSumSq / lapCount) - (mean * mean);
-                    // Normalise to 0-100%.
-                    //
-                    // RECALIBRATED with the same-channel Laplacian above. The
-                    // old ceiling of 8000 was tuned against the broken kernel,
-                    // whose 4*R - 4*G colour difference produced variances
-                    // one to two orders of magnitude larger than real detail
-                    // does. Keeping 8000 left a correct, cleanly monotonic
-                    // focus curve reading 0.0-0.5%, which minSharpness then
-                    // rejected as "no usable star/planet".
-                    //
-                    // 100 comes from the emulator: a frozen synthetic Jupiter
-                    // at focus measures a variance near 40, so it reads ~40%
-                    // and leaves headroom for real planetary detail, which
-                    // should exceed a synthetic target. Worth one on-sky check
-                    // — and note every displayed sharpness number changes
-                    // scale with this, so previously remembered values no
-                    // longer compare.
-                    constexpr double SHARP_CEIL = 100.0;
-                    double pct = (variance / SHARP_CEIL * 100.0 < 100.0)
-                        ? variance / SHARP_CEIL * 100.0 : 100.0;
-                    r.sharpnessPct = (float)pct;
-                }
+                // Phase 76: one shared definition, in Sharpness.h, used by
+                // this gauge AND by the SER writer's per-frame sidecar.
+                // They had drifted apart once already - this kernel was
+                // measuring a red-minus-green colour difference rather
+                // than detail - and a second copy is how that happens.
+                double dbgRaw = 0.0, dbgNoise = 0.0;
+                const double variance = BayerLaplacianVariance(
+                    buf.data(), w, h, bd, cx, cy, 128, &dbgRaw, &dbgNoise);
+                r.sharpRaw   = (float)dbgRaw;
+                r.sharpNoise = (float)dbgNoise;
+                if (variance > 0.0)
+                    r.sharpnessPct = SharpnessPercent(variance);
             }
 
             // ── Rolling seeing score ────────────────────────────────

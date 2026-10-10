@@ -17,6 +17,7 @@
 #include "SERWriter.h"
 #include "SessionLog.h"
 #include "FrameSlot.h"
+#include "Sharpness.h"
 #include <string>
 #include <thread>
 #include <atomic>
@@ -167,7 +168,8 @@ public:
 
     // Called from the render loop for each preview frame when recording.
     // sharpness: current FrameAnalyzer sharpnessPct (0-100), 0 = no analysis yet.
-    bool SubmitFrame(const FrameSlot* slot, float sharpness = 0.0f) {
+    bool SubmitFrame(const FrameSlot* slot, float sharpness = 0.0f,
+                     uint32_t cropCX = 0, uint32_t cropCY = 0) {
         if (!m_status.recording.load()) return false;
         if (!slot || !slot->data) return false;
 
@@ -193,7 +195,8 @@ public:
 
         bool ok = m_writeBuffer.Push(
             slot->data, slot->dataSize, slot->timestamp,
-            slot->width, slot->height, slot->bitDepth, sharpness);
+            slot->width, slot->height, slot->bitDepth, sharpness,
+            cropCX, cropCY);
 
         if (!ok) {
             m_status.framesDropped.fetch_add(1);
@@ -247,8 +250,19 @@ private:
                 continue;
             }
 
+            // Phase 76: score THIS frame, here, rather than recording
+            // whatever the analyser last happened to produce. The
+            // analyser runs at ~2Hz and drops most frames, so the old
+            // sidecar held one value across long runs of frames and
+            // could not rank anything. Scoring costs microseconds on a
+            // thread already waiting on disk.
+            uint32_t ccx = slot->cropCX ? slot->cropCX : slot->width  / 2;
+            uint32_t ccy = slot->cropCY ? slot->cropCY : slot->height / 2;
+            float realSharp = SharpnessPercent(
+                BayerLaplacianVariance(slot->data, slot->width, slot->height,
+                                       slot->bitDepth, ccx, ccy));
             bool ok = m_writer.WriteFrame(slot->data, slot->dataSize,
-                                          slot->timestampUs, slot->sharpness);
+                                          slot->timestampUs, realSharp);
             m_writeBuffer.Pop();
 
             if (ok) {

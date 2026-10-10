@@ -31,6 +31,13 @@ struct WriteSlot {
     uint32_t              height         = 0;
     uint8_t               bitDepth       = 8;
     float                 sharpness      = 0.0f;  // Phase 11: lucky imaging score 0-100
+    // Phase 76: where to measure sharpness. The writer thread scores each
+    // frame itself, but has no idea where the planet is, and measuring the
+    // frame centre reads background noise whenever the planet is off
+    // centre. The centroid moves slowly next to the 256px crop, so the
+    // analyser's last known one positions it well enough.
+    uint32_t              cropCX         = 0;
+    uint32_t              cropCY         = 0;
     std::atomic<bool>     ready{false};
 };
 
@@ -105,7 +112,8 @@ public:
     bool Push(const uint8_t* data, size_t sizeBytes,
               uint64_t timestampUs,
               uint32_t width, uint32_t height, uint8_t bitDepth,
-              float sharpness = 0.0f) {
+              float sharpness = 0.0f,
+              uint32_t cropCX = 0, uint32_t cropCY = 0) {
 
         uint64_t wp = m_writePos.load(std::memory_order_relaxed);
         uint64_t rp = m_readPos.load(std::memory_order_acquire);
@@ -132,6 +140,8 @@ public:
         slot.height      = height;
         slot.bitDepth    = bitDepth;
         slot.sharpness   = sharpness;
+        slot.cropCX      = cropCX;
+        slot.cropCY      = cropCY;
         slot.ready.store(true, std::memory_order_release);
 
         m_writePos.fetch_add(1, std::memory_order_release);

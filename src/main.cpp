@@ -2641,8 +2641,16 @@ static int RunApp(bool useEmulator) {
                                  || !lastAnalysis.valid
                                  || lastAnalysis.seeingScore >= gateThresh;
             if (seenOk) {
+                // Phase 76: the sharpness argument is now only a hint for
+                // the live gate; the writer thread scores each frame
+                // itself. What it genuinely needs from here is WHERE to
+                // measure, since it cannot see the planet.
                 capturer.SubmitFrame(frame,
-                    lastAnalysis.valid ? lastAnalysis.sharpnessPct : 0.0f);
+                    lastAnalysis.valid ? lastAnalysis.sharpnessPct : 0.0f,
+                    (lastAnalysis.valid && lastAnalysis.centroidValid)
+                        ? (uint32_t)lastAnalysis.centroidX : 0u,
+                    (lastAnalysis.valid && lastAnalysis.centroidValid)
+                        ? (uint32_t)lastAnalysis.centroidY : 0u);
                 if (gateEnabled) controls.SetGateActive(false);  // show green STOP
             } else {
                 controls.SetGateActive(true);  // show amber GATED (waiting)
@@ -3248,6 +3256,12 @@ static int RunApp(bool useEmulator) {
             // bury the rest of the session log, and a line here is only
             // interesting as after-the-fact evidence that a command did
             // something - which is the whole question this answers.
+            if (lastAnalysis.valid)
+                Log("[SHARP] pct=%.2f  raw=%.1f  noise=%.1f  net=%.1f\n",
+                    lastAnalysis.sharpnessPct, lastAnalysis.sharpRaw,
+                    lastAnalysis.sharpNoise,
+                    lastAnalysis.sharpRaw - lastAnalysis.sharpNoise);
+
             if (mountCtrl.MotionSpeed() > 0.5f)
                 Log("[MOTION] src=%s  %.2f arcsec/s  samples=%d\n",
                     mountCtrl.MotionSourceName(), mountCtrl.MotionSpeed(),

@@ -46,6 +46,7 @@
 #include "core/CordWrap.h"
 #include "core/SkyMath.h"
 #include "core/Readiness.h"
+#include "gui/ReadinessDialog.h"
 #include "gui/SiteDialog.h"
 #include "gui/AlignHelperDialog.h"
 #include "core/Timestamp.h"
@@ -873,7 +874,7 @@ static int RunApp(bool useEmulator) {
     // time becomes a speed bump within a week, and the three manual
     // items are reminders rather than faults - they must never be the
     // reason for an interruption. The dialog is step 3.
-    {
+    auto gatherReadiness = [&]() -> raduk::core::ReadyReport {
         raduk::core::ReadyInputs ri;
         ri.camOpen        = cam.IsOpen();
         ri.framesSeen     = (long long)capture.Stats().framesCaptured.load();
@@ -898,7 +899,11 @@ static int RunApp(bool useEmulator) {
                 ri.diskFreeGB = (double)avail.QuadPart / 1073741824.0;
         }
 
-        auto report = raduk::core::EvaluateReadiness(ri);
+        return raduk::core::EvaluateReadiness(ri);
+    };
+
+    {
+        auto report = gatherReadiness();
         Log("[READY] %s\n", report.Summary().c_str());
         for (const auto& it : report.items) {
             // Only the things that need attention. Listing the passes
@@ -910,6 +915,22 @@ static int RunApp(bool useEmulator) {
         }
         if (report.AnyFailed())
             slog.System("Not ready: %s", report.Summary().c_str());
+
+        // Phase 68 step 3: interrupt only when something is actually
+        // wrong. Manual items never qualify on their own -- they are
+        // reminders, and a dialog raised for them every launch is what
+        // teaches people to dismiss it unread.
+        if (report.WorthShowing() &&
+            raduk::core::RigConfig::Get().showReadinessCheck) {
+            bool allTicked = raduk::gui::ShowReadinessDialog(
+                window.Handle(), controls.PanelHwnd(), gatherReadiness);
+            if (allTicked) {
+                // They confirmed the cables among the rest, so the wrap
+                // count should start from here rather than from connect.
+                cordWrap.CablesDressed();
+                Log("[READY] All manual items ticked - cord wrap reset\n");
+            }
+        }
     }
 
     gotoPanel.SetLocation(raduk::core::RigConfig::Get().siteLatDeg,

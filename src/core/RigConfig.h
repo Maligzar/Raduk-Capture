@@ -125,6 +125,10 @@ struct RigConfig {
     bool ObserverBearingSet() const { return observerBearingDeg >= 0.0; }
     // Set by "Don't show again" on the align helper.
     bool showAlignHelper = true;
+    // Phase 68: the readiness dialog appears only on a failure. This
+    // turns even that off, because a tool that cannot be silenced is
+    // one people learn to resent.
+    bool showReadinessCheck = true;
 
     // Phase 67 step 6: an obstruction sector in azimuth - a house, a
     // wall, a tree. Degrees true, running CLOCKWISE from start to end.
@@ -161,6 +165,7 @@ struct RigConfig {
         wf("KeepOutEndDeg",   keepOutEndDeg);
         wf("ObserverBearingDeg", observerBearingDeg);
         wf("ShowAlignHelper", showAlignHelper ? 1.0 : 0.0);
+        wf("ShowReadinessCheck", showReadinessCheck ? 1.0 : 0.0);
         WritePrivateProfileStringA("Rig", "SiteSource",
                                    siteSource.empty() ? "manual" : siteSource.c_str(),
                                    p.c_str());
@@ -211,6 +216,7 @@ private:
         cfg.keepOutEndDeg         = rf("KeepOutEndDeg",   cfg.keepOutEndDeg);
         cfg.observerBearingDeg    = rf("ObserverBearingDeg", cfg.observerBearingDeg);
         cfg.showAlignHelper       = rf("ShowAlignHelper", 1.0) != 0.0;
+        cfg.showReadinessCheck    = rf("ShowReadinessCheck", 1.0) != 0.0;
         {
             char sbuf[32] = {};
             GetPrivateProfileStringA("Rig", "SiteSource", "", sbuf, sizeof(sbuf), p.c_str());

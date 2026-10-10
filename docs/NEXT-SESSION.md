@@ -3,7 +3,13 @@
 Written 2026-10-09 when a usage limit cut the session short. Everything
 below is unstarted; nothing is half-finished in the working tree.
 
-## 1. Code review: sliders, buttons and hotkeys (NOT STARTED)
+## 1. Code review: sliders, buttons and hotkeys (DONE - Phase 71)
+
+Completed 2026-10-09. Five defects found and fixed; see commit
+a2ded88 and docs/Control-Review-2026-10-09.md. The original scope
+notes are kept below for the record.
+
+### Original scope
 
 The one task from the last request that was not reached. Goal: confirm
 nothing added across Phases 60-70 conflicts with existing controls.

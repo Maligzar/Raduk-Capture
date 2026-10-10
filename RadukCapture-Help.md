@@ -9,9 +9,15 @@ Keys work **whatever window or panel has focus**. Before v1.1.5 they only
 reached the mount while the main window was focused, so clicking a text field
 or opening Help silently killed them until you clicked the preview again.
 
+Both `Esc` and `Space` stop the mount, and both work unconditionally. Until
+v1.1.8 `Space` was listed here but bound to nothing, and `Esc` exited
+fullscreen instead of stopping - so there was no stop key at all while
+fullscreen.
+
 | Key | Action |
 |-----|--------|
 | `Space` | Emergency stop all mount movement |
+| `Esc` | Emergency stop (works in fullscreen too; `F11` exits fullscreen) |
 | `Arrow keys` | Jog the mount (hold to slew, release to stop) |
 | `?` | Toggle this Help window |
 | `A` | Toggle Autofocus (start / abort) |
@@ -76,6 +82,10 @@ All sections are collapsible — click the section header to expand/collapse.
 - Profiles store: gain, exposure, gamma, white balance, output directory, frame prefix, capture limits, and gate threshold.
 
 ### CAMERA
+The **Exposure** slider covers **0.001 ms to 60 ms**, which spans planetary
+work including the auto-exposure assistant's 50 ms ceiling. Longer exposures
+are set through the profile editor, which accepts up to 60 s.
+
 - **Gain** — ASI678MC gain (0–600). HCG threshold at 182 — above this gain, the camera switches to high-conversion-gain mode.
 - **Exposure** — Exposure time in ms (0.1ms–10000ms).
 - **Gamma** — Display gamma adjustment (1–100, default 50).
@@ -632,7 +642,11 @@ real site is stored. Most of it is written for you.
 | v1.1.7 | 68 | Readiness check: verified at startup, shown only on a failure |
 | v1.1.7 | 68 | Live-refreshing rows and "Explain this" into the Help file |
 | v1.1.7 | 70 | Acquisition stage and its blocker shown continuously |
+| v1.1.8 | 71 | Esc stops the mount unconditionally, including in fullscreen |
+| v1.1.8 | 71 | Space (emergency stop) and A (autofocus) actually bound |
+| v1.1.8 | 71 | Exposure slider: one unit system, ceiling 10 ms -> 60 ms |
+| v1.1.8 | 71 | PLANET LOCK indicator restored when acquisition ends |
 
 ---
 
-*RadukCapture Help v1.1.7 — Updated after each release*
+*RadukCapture Help v1.1.8 — Updated after each release*

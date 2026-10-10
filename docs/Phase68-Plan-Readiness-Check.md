@@ -94,7 +94,7 @@ Three manual ticks is few enough to actually read.
 - **Continue anyway** is always available. This is advice, not a
   gate; someone doing daytime testing or bench work must not be
   trapped behind a checklist about the sky.
-- **Re-runnable** from a menu, since a failed check is usually
+- **Re-runnable** (DONE, Phase 72: the READY button) from a menu, since a failed check is usually
   something you go and fix, then want to re-test without restarting.
 - **Live rows.** A failing row should clear itself when the condition
   is fixed — align the mount on the hand control with the dialog open

@@ -117,6 +117,9 @@ are set through the profile editor, which accepts up to 60 s.
 - **SETUP** — Opens the rig setup view: a plan of where you stand relative to
   the mount, the keep-out sector and the wrap limit, drawn so the stored
   numbers can be checked against the actual garden.
+- **READY** — Reopens the readiness check at any time. It appears by itself
+  at startup only when something is wrong; this is how you get back to it
+  after fixing whatever it flagged.
 - **Acquisition status** — While acquiring, this line shows the stage and what
   is holding it up, e.g. `SEARCHING - planet too faint to detect (frame peak
   3%, needs above 8%)`. It updates continuously, not only when you press
@@ -410,7 +413,12 @@ mount, run Quick Align, and watch the row turn green without restarting
 anything. **Explain this** opens the Help section for the first failing row,
 and **Continue** is always available — this is advice, not a gate.
 
-Set `ShowReadinessCheck=0` in rig.ini to suppress it entirely.
+**READY** in the TELESCOPE section reopens it whenever you want — unlike the
+automatic appearance, that always shows the list whatever it says, because
+you asked for it.
+
+Set `ShowReadinessCheck=0` in rig.ini to suppress the automatic appearance.
+The READY button still works.
 
 ---
 
@@ -646,7 +654,8 @@ real site is stored. Most of it is written for you.
 | v1.1.8 | 71 | Space (emergency stop) and A (autofocus) actually bound |
 | v1.1.8 | 71 | Exposure slider: one unit system, ceiling 10 ms -> 60 ms |
 | v1.1.8 | 71 | PLANET LOCK indicator restored when acquisition ends |
+| v1.1.9 | 72 | READY button — reopen the readiness check without relaunching |
 
 ---
 
-*RadukCapture Help v1.1.8 — Updated after each release*
+*RadukCapture Help v1.1.9 — Updated after each release*

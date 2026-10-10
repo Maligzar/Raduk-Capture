@@ -124,6 +124,11 @@ public:
     void SetCablesDressedCallback(std::function<void()> cb) { m_onCablesDressed = cb; }
     // Phase 67 step 3: opens the rig setup view.
     void SetRigSetupCallback(std::function<void()> cb) { m_onRigSetup = cb; }
+    // Phase 72: reopen the readiness check on demand. It appears at
+    // startup only when something is wrong, which is right -- but a
+    // failing check is usually something you walk off and fix, and
+    // until now the only way back to it was relaunching the app.
+    void SetReadinessCheckCallback(std::function<void()> cb) { m_onReadinessCheck = cb; }
 
     // Phase 70: the acquisition stage and what is blocking it, shown
     // continuously rather than only in response to a button press. A
@@ -548,6 +553,7 @@ private:
     HWND m_btnSync = nullptr;
     HWND m_btnCables = nullptr;   // cord-wrap reset
     HWND m_btnRigSetup = nullptr;
+    HWND m_btnReady = nullptr;   // reopen the readiness check
     std::wstring m_acqStatus;   // last acquisition line shown
     HWND m_lblMountControl = nullptr;
     HWND m_lblSkyMapLock   = nullptr;
@@ -634,6 +640,7 @@ private:
         ID_BTN_MOUNT_CTRL,
         ID_BTN_CABLES,
         ID_BTN_RIGSETUP,
+        ID_BTN_READY,
         ID_BTN_MOUNT_STOP,
         ID_BTN_JOG_N, ID_BTN_JOG_S, ID_BTN_JOG_E, ID_BTN_JOG_W,
         ID_BTN_RATE_9, ID_BTN_RATE_8, ID_BTN_RATE_7, ID_BTN_RATE_5,
@@ -690,6 +697,7 @@ private:
     std::function<void()>                   m_onMountCtrl;  // floating mount controller toggle
     std::function<void()>                   m_onCablesDressed;  // cord-wrap reset
     std::function<void()>                   m_onRigSetup;
+    std::function<void()>                   m_onReadinessCheck;
     std::function<void(bool)>               m_onJogActivity; // jog start/stop notification
     std::function<void(bool,bool)>          m_onAEToggle;
     std::function<void()>                   m_onRGBAlign;

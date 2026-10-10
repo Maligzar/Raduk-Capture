@@ -1117,6 +1117,28 @@ static int RunApp(bool useEmulator) {
     });
     Log("[INIT] Notification bar ready\n");
 
+    // Phase 72: one implementation for both entry points. Startup
+    // calls it only when something is wrong; the READY button calls it
+    // unconditionally, because someone pressing it has asked to see
+    // the list whatever it says.
+    auto showReadiness = [&]() {
+        bool allTicked = raduk::gui::ShowReadinessDialog(
+            window.Handle(), controls.PanelHwnd(), gatherReadiness,
+            [&](const std::string& section) {
+                helpWindow.ShowSection(section);
+            });
+        if (allTicked) {
+            // They confirmed the cables among the rest, so the wrap
+            // count should start from here rather than from connect.
+            cordWrap.CablesDressed();
+            Log("[READY] All manual items ticked - cord wrap reset\n");
+        }
+    };
+    controls.SetReadinessCheckCallback([&]() {
+        Log("[READY] Re-check requested\n");
+        showReadiness();
+    });
+
     {
         auto report = gatherReadiness();
         Log("[READY] %s\n", report.Summary().c_str());
@@ -1137,17 +1159,7 @@ static int RunApp(bool useEmulator) {
         // teaches people to dismiss it unread.
         if (report.WorthShowing() &&
             raduk::core::RigConfig::Get().showReadinessCheck) {
-            bool allTicked = raduk::gui::ShowReadinessDialog(
-                window.Handle(), controls.PanelHwnd(), gatherReadiness,
-                [&](const std::string& section) {
-                    helpWindow.ShowSection(section);
-                });
-            if (allTicked) {
-                // They confirmed the cables among the rest, so the wrap
-                // count should start from here rather than from connect.
-                cordWrap.CablesDressed();
-                Log("[READY] All manual items ticked - cord wrap reset\n");
-            }
+            showReadiness();
         }
     }
 

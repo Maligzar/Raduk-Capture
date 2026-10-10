@@ -989,6 +989,10 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
             if (m_onRigSetup) m_onRigSetup();
             return true;
 
+        case ID_BTN_READY:
+            if (m_onReadinessCheck) m_onReadinessCheck();
+            return true;
+
         case ID_BTN_MOUNT_CTRL:
             // Show and reposition floating mount controller to default position
             if (m_onMountCtrl) m_onMountCtrl();
@@ -2315,8 +2319,11 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // MOUNT CTRL button — shows/repositions the floating mount controller
     // The floating controller has all jog/stop/rate/tracking/park controls
     {
-        // Three across: MOUNT CTRL | CABLES OK | SETUP.
-        int hw = (w - 4) / 3;
+        // Four across: MOUNT CTRL | CABLES OK | SETUP | READY.
+        // At PANEL_WIDTH 560 that is about 131 px each, comfortable for
+        // the longest label at this font. The panel width is fixed, so
+        // this cannot be squeezed by resizing the window.
+        int hw = (w - 6) / 4;
         m_btnMountCtrl = MakeButton(L"MOUNT CTRL", x, y, hw, BH, ID_BTN_MOUNT_CTRL);
         TagControl(m_btnMountCtrl, Section::Mount);
         // Phase 67: the other half of this row was empty. CABLES resets
@@ -2330,6 +2337,13 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         m_btnRigSetup = MakeButton(L"SETUP", x + (hw + 2) * 2, y, hw, BH,
                                    ID_BTN_RIGSETUP);
         TagControl(m_btnRigSetup, Section::Mount);
+        // Phase 72: reopens the readiness check. Startup shows it only
+        // on a failure, which is correct, but a failed check is usually
+        // something you go and fix -- and then want to re-test without
+        // relaunching.
+        m_btnReady = MakeButton(L"READY", x + (hw + 2) * 3, y, hw, BH,
+                                ID_BTN_READY);
+        TagControl(m_btnReady, Section::Mount);
         y += BH + 2;
     }
 

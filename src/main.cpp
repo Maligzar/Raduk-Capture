@@ -2603,6 +2603,37 @@ static int RunApp(bool useEmulator) {
             // camera stalled, the 2s loss cutoff never fired and corrections
             // continued against a frozen centroid. It also made the stable/
             // dwell counters count render ticks (~60Hz) instead of analyses.
+            // Phase 70: report the stage and what is holding it up, every
+            // tick. The state machine used to announce itself only when a
+            // button was pressed, so a user watching nothing happen had no
+            // way to tell which of five stages they were in or why it was
+            // not advancing.
+            {
+                std::wstring acq;
+                switch (stage) {
+                case raduk::core::AcquisitionStage::Off:
+                    break;                       // nothing to say when idle
+                case raduk::core::AcquisitionStage::Searching: {
+                    std::string why = tracker.CentroidBlockReason();
+                    if (!why.empty())
+                        acq = L"SEARCHING - " + std::wstring(why.begin(), why.end());
+                    else
+                        acq = L"SEARCHING - locking on";
+                    break;
+                }
+                case raduk::core::AcquisitionStage::Calibrating:
+                    acq = L"CALIBRATING - measuring pulse response";
+                    break;
+                case raduk::core::AcquisitionStage::Centering:
+                    acq = L"CENTRING - pulling the planet to the middle";
+                    break;
+                case raduk::core::AcquisitionStage::Locked:
+                    acq = L"LOCKED - guiding";
+                    break;
+                }
+                controls.SetAcquisitionStatus(acq);
+            }
+
             if (stage != raduk::core::AcquisitionStage::Off && freshAnalysis) {
                 if (lastAnalysis.valid && lastAnalysis.centroidValid)
                     tracker.SubmitCentroid(lastAnalysis.centroidX,

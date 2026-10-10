@@ -122,6 +122,20 @@ public:
     // only thing that legitimately resets it, because the app has no
     // way to observe a cable - it has to be told.
     void SetCablesDressedCallback(std::function<void()> cb) { m_onCablesDressed = cb; }
+
+    // Phase 70: the acquisition stage and what is blocking it, shown
+    // continuously rather than only in response to a button press. A
+    // state machine that reports itself only when poked leaves the
+    // user guessing which of five stages they are in and why it is
+    // not advancing - which is most of what went wrong on 2026-10-08.
+    void SetAcquisitionStatus(const std::wstring& text) {
+        if (text == m_acqStatus) return;        // avoid needless repaints
+        m_acqStatus = text;
+        if (m_lblMountControl) {
+            SetWindowTextW(m_lblMountControl, m_acqStatus.c_str());
+            InvalidateRect(m_lblMountControl, nullptr, TRUE);
+        }
+    }
     // Jog activity — cb(true) on jog start, cb(false) on jog stop.
     // main.cpp suspends centroid-tracker corrections during manual jogs
     // (otherwise the guide loop fights the user).
@@ -524,6 +538,7 @@ private:
     HWND m_btnMountCtrl = nullptr;   // Shows/repositions floating mount controller
     HWND m_btnSync = nullptr;
     HWND m_btnCables = nullptr;   // cord-wrap reset
+    std::wstring m_acqStatus;   // last acquisition line shown
     HWND m_lblMountControl = nullptr;
     HWND m_lblSkyMapLock   = nullptr;
     HWND m_lblSkyMapTarget = nullptr;

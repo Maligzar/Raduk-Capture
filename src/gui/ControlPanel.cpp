@@ -1459,11 +1459,11 @@ void ControlPanel::SetRCControl(bool take) {
 void ControlPanel::UpdatePlanetLockUI() {
     if (!m_btnSync || !m_lblMountControl) return;
     InvalidateRect(m_btnSync, nullptr, TRUE); // triggers WM_DRAWITEM repaint
-    if (m_planetLock) {
-        SetWindowTextW(m_lblMountControl, L"PLANET LOCK ACTIVE");
-        InvalidateRect(m_lblMountControl, nullptr, TRUE);
-    } else {
-        SetWindowTextW(m_lblMountControl, L"");
+    // Phase 70: the label is driven by SetAcquisitionStatus now, which
+    // updates every tick with the real stage. Writing a fixed string
+    // here as well made the two fight, and the stale one usually won.
+    if (m_acqStatus.empty()) {
+        SetWindowTextW(m_lblMountControl, m_planetLock ? L"PLANET LOCK ACTIVE" : L"");
         InvalidateRect(m_lblMountControl, nullptr, TRUE);
     }
 }

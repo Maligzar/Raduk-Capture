@@ -268,11 +268,28 @@ private:
                         return (float)(reinterpret_cast<const uint16_t*>(buf.data())[py * w + px] >> 8);
                 };
 
-                for (uint32_t py = y0 + 1; py < y1 - 1; py += 2) {
-                    for (uint32_t px = x0 + 1; px < x1 - 1; px += 2) {
+                // Anchor the lattice to EVEN coordinates so the same Bayer
+                // channel is measured regardless of where the centroid is.
+                // x0/y0 derive from the centroid, so an odd start made the
+                // sampled channel flip whenever the planet moved one pixel,
+                // and the score jumped between two unrelated values.
+                uint32_t sx = (x0 + 2) & ~1u;
+                uint32_t sy = (y0 + 2) & ~1u;
+
+                for (uint32_t py = sy; py + 2 < y1; py += 2) {
+                    for (uint32_t px = sx; px + 2 < x1; px += 2) {
+                        // Taps at +/-2, not +/-1. The frame is a raw RGGB
+                        // mosaic: (px+/-1, py) and (px, py+/-1) belong to a
+                        // DIFFERENT colour channel than (px, py), so the
+                        // old kernel computed 4*R - 4*G — a red-minus-green
+                        // colour difference, not a Laplacian of detail. It
+                        // responded to the Bayer pattern itself and barely
+                        // at all to focus. Stepping by 2 keeps every tap in
+                        // one channel, which is what makes this a measure
+                        // of sharpness.
                         float lap = 4.0f * getPixel(px, py)
-                                  - getPixel(px-1, py) - getPixel(px+1, py)
-                                  - getPixel(px, py-1) - getPixel(px, py+1);
+                                  - getPixel(px-2, py) - getPixel(px+2, py)
+                                  - getPixel(px, py-2) - getPixel(px, py+2);
                         lapSum   += lap;
                         lapSumSq += (double)lap * lap;
                         lapCount++;
@@ -282,9 +299,24 @@ private:
                 if (lapCount > 1) {
                     double mean = lapSum / lapCount;
                     double variance = (lapSumSq / lapCount) - (mean * mean);
-                    // Normalise: variance of ~5000 = perfect focus for typical planetary
-                    // Scale to 0-100% with a reasonable ceiling
-                    constexpr double SHARP_CEIL = 8000.0;
+                    // Normalise to 0-100%.
+                    //
+                    // RECALIBRATED with the same-channel Laplacian above. The
+                    // old ceiling of 8000 was tuned against the broken kernel,
+                    // whose 4*R - 4*G colour difference produced variances
+                    // one to two orders of magnitude larger than real detail
+                    // does. Keeping 8000 left a correct, cleanly monotonic
+                    // focus curve reading 0.0-0.5%, which minSharpness then
+                    // rejected as "no usable star/planet".
+                    //
+                    // 100 comes from the emulator: a frozen synthetic Jupiter
+                    // at focus measures a variance near 40, so it reads ~40%
+                    // and leaves headroom for real planetary detail, which
+                    // should exceed a synthetic target. Worth one on-sky check
+                    // — and note every displayed sharpness number changes
+                    // scale with this, so previously remembered values no
+                    // longer compare.
+                    constexpr double SHARP_CEIL = 100.0;
                     double pct = (variance / SHARP_CEIL * 100.0 < 100.0)
                         ? variance / SHARP_CEIL * 100.0 : 100.0;
                     r.sharpnessPct = (float)pct;

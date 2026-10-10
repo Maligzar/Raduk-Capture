@@ -2664,7 +2664,9 @@ static int RunApp(bool useEmulator) {
         // seeing noise instead of an 8-frame average — exactly why the fit
         // is unreliable in poor seeing.
         if (freshAnalysis && lastAnalysis.valid && autofocus.IsRunning())
-            autofocus.SubmitSharpness(lastAnalysis.sharpnessPct);
+            autofocus.SubmitSharpness(lastAnalysis.sharpnessPct,
+                                      lastAnalysis.centroidValid,
+                                      (int)lastAnalysis.centroidPeak);
 
         // Feed centroid to tracker for all active stages
         // Stage 1 (Searching): SubmitCentroid updates stable counter, no corrections

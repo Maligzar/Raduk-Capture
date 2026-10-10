@@ -146,6 +146,7 @@ public:
         m_samples.clear();
         m_pendingSharpness.store(-1.0f);
         m_sharpnessSamples.clear();
+            m_centValidSamples.clear(); m_centPeakSamples.clear();
         m_samplesNeeded.store(0);
         SetStatus("Autofocus starting...");
 
@@ -177,7 +178,11 @@ public:
     // ── Sharpness feed (called from render loop, main thread) ─
     // Submit the latest sharpness score for the current position.
     // The scan thread accumulates these while at each step.
-    void SubmitSharpness(float sharpness) {
+    // centroidValid/centroidPeak are diagnostic only: the sharpness crop
+    // follows the centroid, so a step where the centroid kept dropping out
+    // measured something other than focus.
+    void SubmitSharpness(float sharpness, bool centroidValid = true,
+                         int centroidPeak = -1) {
         // Gate on m_samplesNeeded, not on state == Scanning. The final
         // verification after the move runs in state Moving (set before it),
         // so a Scanning-only gate collected NOTHING there: finalSharp was
@@ -192,6 +197,8 @@ public:
         // Accumulate in a small local buffer
         m_sharpnessMutex.lock();
         m_sharpnessSamples.push_back(sharpness);
+        m_centValidSamples.push_back(centroidValid ? 1 : 0);
+        m_centPeakSamples.push_back(centroidPeak);
         m_sharpnessMutex.unlock();
     }
 
@@ -242,6 +249,7 @@ private:
             // Take a quick 3-frame sample at current position before moving
             m_samplesNeeded.store(3);
             m_sharpnessSamples.clear();
+            m_centValidSamples.clear(); m_centPeakSamples.clear();
             WaitForSamples(3, 6000);   // 3 fresh analyses at ~2Hz = ~1.5s
             m_sharpnessMutex.lock();
             if (!m_sharpnessSamples.empty()) {
@@ -290,6 +298,7 @@ private:
             // Collect sharpness samples
             int fp = m_params.framesPerStep;
             m_sharpnessSamples.clear();
+            m_centValidSamples.clear(); m_centPeakSamples.clear();
             m_samplesNeeded.store(fp);
 
             // Timeout budget: samples now arrive only on a FRESH analyzer
@@ -307,6 +316,7 @@ private:
             // Compute mean sharpness at this position
             float meanSharp = 0.0f;
             int   nSamples = 0, nDistinct = 0;
+            int   nCentOk = 0, peakMin = 999, peakMax = -1;
             {
                 m_sharpnessMutex.lock();
                 if (!m_sharpnessSamples.empty()) {
@@ -328,13 +338,27 @@ private:
                                uniq.end());
                     nSamples  = (int)m_sharpnessSamples.size();
                     nDistinct = (int)uniq.size();
+                    // The sharpness crop FOLLOWS the centroid, so a step
+                    // where the centroid kept dropping out did not measure
+                    // focus at all - it measured whether the crop happened
+                    // to be on the planet. Defocus lowers the frame peak,
+                    // which is exactly what makes the centroid fail, so
+                    // the ends of a sweep are the least trustworthy points.
+                    for (char c : m_centValidSamples) if (c) nCentOk++;
+                    for (int pk : m_centPeakSamples) {
+                        if (pk < 0) continue;
+                        if (pk < peakMin) peakMin = pk;
+                        if (pk > peakMax) peakMax = pk;
+                    }
                 }
                 m_sharpnessMutex.unlock();
             }
 
             m_samples.push_back({pos, meanSharp});
-            Emit("[AF] Step %d/%d  pos=%d  sharp=%.1f%%  (%d samples, %d distinct)\n",
-                   i + 1, n, pos, meanSharp, nSamples, nDistinct);
+            Emit("[AF] Step %d/%d  pos=%d  sharp=%.1f%%  (%d samples, "
+                 "%d distinct, centroid %d/%d ok, peak %d-%d)\n",
+                 i + 1, n, pos, meanSharp, nSamples, nDistinct,
+                 nCentOk, nSamples, peakMax < 0 ? -1 : peakMin, peakMax);
         }
 
         // ── Fit parabola to find best position ────────────────
@@ -384,6 +408,7 @@ private:
         // Verify final sharpness. 8000ms, not 4000: samples now arrive only
         // on a fresh analyzer result (~2Hz), so 5 of them take ~2.5s.
         m_sharpnessSamples.clear();
+            m_centValidSamples.clear(); m_centPeakSamples.clear();
         m_samplesNeeded.store(5);
         WaitForSamples(5, 8000);
         m_samplesNeeded.store(0);
@@ -664,6 +689,8 @@ private:
     // Sharpness sample accumulator — written by main thread, read by scan thread
     mutable std::mutex     m_sharpnessMutex;
     std::vector<float>     m_sharpnessSamples;
+    std::vector<char>      m_centValidSamples;   // diagnostic
+    std::vector<int>       m_centPeakSamples;    // diagnostic
 
     mutable std::mutex     m_statusMutex;
     std::string            m_statusText;

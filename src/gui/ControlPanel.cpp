@@ -987,6 +987,10 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
             if (m_onCablesDressed) m_onCablesDressed();
             return true;
 
+        case ID_BTN_RIGSETUP:
+            if (m_onRigSetup) m_onRigSetup();
+            return true;
+
         case ID_BTN_MOUNT_CTRL:
             // Show and reposition floating mount controller to default position
             if (m_onMountCtrl) m_onMountCtrl();
@@ -2301,7 +2305,8 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // MOUNT CTRL button — shows/repositions the floating mount controller
     // The floating controller has all jog/stop/rate/tracking/park controls
     {
-        int hw = (w - 2) / 2;
+        // Three across: MOUNT CTRL | CABLES OK | SETUP.
+        int hw = (w - 4) / 3;
         m_btnMountCtrl = MakeButton(L"MOUNT CTRL", x, y, hw, BH, ID_BTN_MOUNT_CTRL);
         TagControl(m_btnMountCtrl, Section::Mount);
         // Phase 67: the other half of this row was empty. CABLES resets
@@ -2310,6 +2315,11 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         // you later is measured from a known-good state.
         m_btnCables = MakeButton(L"CABLES OK", x + hw + 2, y, hw, BH, ID_BTN_CABLES);
         TagControl(m_btnCables, Section::Mount);
+        // Orientation, keep-out sector and wrap limit, drawn so the
+        // stored numbers can be checked against the actual garden.
+        m_btnRigSetup = MakeButton(L"SETUP", x + (hw + 2) * 2, y, hw, BH,
+                                   ID_BTN_RIGSETUP);
+        TagControl(m_btnRigSetup, Section::Mount);
         y += BH + 2;
     }
 

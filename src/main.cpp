@@ -47,6 +47,7 @@
 #include "core/SkyMath.h"
 #include "core/Readiness.h"
 #include "gui/ReadinessDialog.h"
+#include "gui/RigSetupDialog.h"
 #include "gui/SiteDialog.h"
 #include "gui/AlignHelperDialog.h"
 #include "core/Timestamp.h"
@@ -1229,6 +1230,17 @@ static int RunApp(bool useEmulator) {
         Log("[CORDWRAP] Slew cancelled\n");
         slog.Mount("Slew cancelled on cord-wrap warning");
         return false;
+    });
+
+    controls.SetRigSetupCallback([&]() {
+        // The live azimuth is what makes the drawing checkable: a
+        // bearing typed into a file is unfalsifiable, but one drawn
+        // beside where the scope is actually pointing is not.
+        raduk::gui::ShowRigSetupDialog(
+            window.Handle(), controls.PanelHwnd(),
+            [&]() -> double {
+                return cordWrap.LastAz();   // -1 when not yet known
+            });
     });
 
     controls.SetCablesDressedCallback([&]() {

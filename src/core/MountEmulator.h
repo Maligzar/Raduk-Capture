@@ -31,6 +31,7 @@
 #include <atomic>
 #include <mutex>
 #include "RigConfig.h"
+#include "SkyMath.h"
 #include <ctime>
 #include <chrono>
 #include "IMount.h"
@@ -96,38 +97,11 @@ public:
         double raH = 0.0, decD = 0.0;
         { std::lock_guard<std::mutex> lk(m_mutex); raH = m_raHours; decD = m_decDeg; }
 
-        const auto& cfg = RigConfig::Get();
-        const double D2R = 3.14159265358979 / 180.0;
-        const double R2D = 180.0 / 3.14159265358979;
-
-        // Local sidereal time from UTC and longitude, same form the sky
-        // map uses.
-        time_t t  = time(nullptr);
-        double jd = (double)t / 86400.0 + 2440587.5;
-        double gmstDeg = 280.46061837 + 360.98564736629 * (jd - 2451545.0);
-        double lstDeg  = gmstDeg + cfg.siteLonDeg;
-        lstDeg = fmod(lstDeg, 360.0);
-        if (lstDeg < 0) lstDeg += 360.0;
-
-        double haDeg = lstDeg - raH * 15.0;
-        while (haDeg >  180.0) haDeg -= 360.0;
-        while (haDeg < -180.0) haDeg += 360.0;
-
-        double ha  = haDeg * D2R;
-        double dec = decD  * D2R;
-        double lat = cfg.siteLatDeg * D2R;
-
-        double sinAlt = sin(dec) * sin(lat) + cos(dec) * cos(lat) * cos(ha);
-        if (sinAlt >  1.0) sinAlt =  1.0;
-        if (sinAlt < -1.0) sinAlt = -1.0;
-        double alt = asin(sinAlt);
-
-        double az = atan2(-cos(dec) * cos(lat) * sin(ha),
-                          sin(dec) - sin(lat) * sinAlt);
-        double azD = fmod(az * R2D + 360.0, 360.0);
-
-        altDegrees = alt * R2D;
-        azDegrees  = azD;
+        // Shared with the sky map and the cord-wrap predictor (SkyMath.h).
+        // This was a local copy; three copies of the same conversion
+        // drift, and an emulator that disagrees with the sky map is a
+        // test rig that lies.
+        RADecToAltAzNow(raH, decD, altDegrees, azDegrees);
         return true;
     }
 

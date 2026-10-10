@@ -44,6 +44,7 @@
 #include "core/SerialPortScan.h"
 #include "core/SiteLocator.h"
 #include "core/CordWrap.h"
+#include "core/SkyMath.h"
 #include "gui/SiteDialog.h"
 #include "gui/AlignHelperDialog.h"
 #include "core/Timestamp.h"
@@ -1079,6 +1080,55 @@ static int RunApp(bool useEmulator) {
     // The app cannot see a cable, so it has to be told when one has
     // been freed; everything the warning later claims is measured from
     // this moment.
+    // Phase 67 step 5: warn before a slew that would wrap the cables
+    // further than the configured limit.
+    //
+    // The mount picks its own path for a GoTo -- the protocol carries
+    // coordinates, not a direction -- so the forecast assumes the
+    // SHORTEST turn. That is deliberately the optimistic case: if even
+    // the short way breaks the limit, the long way certainly does, so
+    // a warning raised on it is never a false alarm.
+    //
+    // The unwind is left to the user rather than driven automatically.
+    // Shedding a turn means rotating the mount up to 360 degrees, which
+    // is a long motion that can itself snag something; doing that
+    // unattended on the strength of a dead-reckoned count is a worse
+    // risk than the wrap. The dialog says which way to jog instead, and
+    // the counter visibly falls as it unwinds.
+    gotoPanel.SetPreSlewCheck([&](double raH, double decDeg) -> bool {
+        double alt = 0.0, az = 0.0;
+        raduk::core::RADecToAltAzNow(raH, decDeg, alt, az);
+        auto f = cordWrap.ForecastSlewTo(az);
+        if (!f.usable || !f.wouldExceed) return true;   // nothing to say
+
+        const wchar_t* jog = (f.predictedDeg > 0) ? L"west (anticlockwise)"
+                                                  : L"east (clockwise)";
+        wchar_t msg[640];
+        swprintf(msg, 640,
+            L"This slew would wrap the cables further than your limit.\n\n"
+            L"  Travelled since CABLES OK:  %+.0f°\n"
+            L"  This slew adds:             %+.0f°\n"
+            L"  Would leave you at:         %+.0f°   (limit %.0f°)\n\n"
+            L"To unwind, jog the mount %s until the wrap figure beside Az "
+            L"drops, then slew again. Or press CABLES OK if you have just "
+            L"freed them.\n\nSlew anyway?",
+            cordWrap.CumulativeDeg(), f.turnDeg, f.predictedDeg,
+            cordWrap.Limit(), jog);
+
+        Log("[CORDWRAP] Slew would reach %+.0f deg (limit %.0f) - asking\n",
+            f.predictedDeg, cordWrap.Limit());
+        int r = MessageBoxW(window.Handle(), msg, L"Cord wrap warning",
+                            MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+        if (r == IDYES) {
+            Log("[CORDWRAP] User chose to slew anyway\n");
+            slog.Mount("Cord wrap warning overridden (%+.0f deg)", f.predictedDeg);
+            return true;
+        }
+        Log("[CORDWRAP] Slew cancelled\n");
+        slog.Mount("Slew cancelled on cord-wrap warning");
+        return false;
+    });
+
     controls.SetCablesDressedCallback([&]() {
         double was = cordWrap.CumulativeDeg();
         cordWrap.CablesDressed();

@@ -65,6 +65,12 @@ public:
         { m_onGoToComplete = cb; }
 
     // Called when sync is performed (notify status bar etc.)
+    // Phase 67 step 5: asked before a user-initiated slew. Return
+    // false to abort. Lets the cord-wrap check live in main.cpp, where
+    // the tracker and the window are, without GoToPanel knowing
+    // anything about cables.
+    void SetPreSlewCheck(std::function<bool(double,double)> cb) { m_preSlew = cb; }
+
     void SetSyncCallback(std::function<void(double,double)> cb)
         { m_onSync = cb; }
 
@@ -1293,6 +1299,14 @@ private:
         wchar_t wbuf[256];
         MultiByteToWideChar(CP_UTF8, 0, buf, -1, wbuf, 256);
         SetStatus(wbuf);
+        // Phase 67: let the cord-wrap guard veto this. Only the
+        // user-initiated path is checked -- the sky survey below fires
+        // dozens of slews unattended and must not raise a modal each
+        // time.
+        if (m_preSlew && !m_preSlew(ra_h, dec_deg)) {
+            SetStatus(L"Slew cancelled - cord wrap");
+            return;
+        }
         m_mount->GoToRADec(ra_h, dec_deg);
         m_lastSlewing = true;
     }
@@ -1761,6 +1775,7 @@ private:
     // Callbacks
     std::function<void(const std::string&)> m_onGoToComplete;
     std::function<void(const std::string&)> m_onProfileAutoLoad;
+    std::function<bool(double,double)>  m_preSlew;   // cord-wrap guard
     std::function<void(double,double)>      m_onSync;
     std::function<void(const std::string&, float, float, float)> m_onInfo;
 

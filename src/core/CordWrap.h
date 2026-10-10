@@ -21,6 +21,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include "SkyMath.h"   // ShortestTurnDeg
 
 namespace raduk::core {
 
@@ -93,6 +94,39 @@ public:
         m_cumulativeDeg = 0.0;
         m_skipped       = 0;
         m_have          = false;
+    }
+
+    // Last azimuth seen, or -1 before the first sample.
+    double LastAz() const { return m_have ? m_lastAz : -1.0; }
+
+    // -- Phase 67 step 5: what a slew would cost --------------
+    struct SlewForecast {
+        bool   usable        = false;  // false if the current az is unknown
+        double targetAzDeg   = 0.0;
+        double turnDeg       = 0.0;    // shortest signed path to get there
+        double predictedDeg  = 0.0;    // cumulative travel afterwards
+        bool   wouldExceed   = false;
+        bool   alreadyOver   = false;  // over the limit before slewing
+        double unwindDeg     = 0.0;    // travel to shed to get back inside
+    };
+
+    // The mount picks its own path for a GoTo -- the protocol sends
+    // coordinates, not a direction -- so this assumes the shortest
+    // turn. That is the optimistic case: if even the short way breaks
+    // the limit, the long way certainly does, which makes a warning
+    // based on it trustworthy in the direction that matters.
+    SlewForecast ForecastSlewTo(double targetAzDeg) const {
+        SlewForecast f;
+        if (!m_have) return f;              // nothing to measure from
+        f.usable       = true;
+        f.targetAzDeg  = targetAzDeg;
+        f.turnDeg      = ShortestTurnDeg(m_lastAz, targetAzDeg);
+        f.predictedDeg = m_cumulativeDeg + f.turnDeg;
+        double after   = f.predictedDeg < 0 ? -f.predictedDeg : f.predictedDeg;
+        f.alreadyOver  = OverLimit();
+        f.wouldExceed  = after >= m_limitDeg;
+        f.unwindDeg    = after > m_limitDeg ? (after - m_limitDeg) : 0.0;
+        return f;
     }
 
     int SkippedJumps() const { return m_skipped; }

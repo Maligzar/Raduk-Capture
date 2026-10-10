@@ -95,8 +95,15 @@ All sections are collapsible — click the section header to expand/collapse.
 - **ADC: severity (N.N")** — Live atmospheric dispersion measurement. Computed from mount altitude using the Edlen 1966 model, with air pressure derived from your site elevation (T=288K). Shows NONE / MINOR / MODERATE / SIGNIFICANT / SEVERE. Use as a guide for when to apply an ADC or use RGB Align.
 
 ### TELESCOPE
-- **Mount name / COM port** — Celestron 8SE on COM3 (NexStar serial protocol, not ASCOM).
-- **Az / Alt / RA / Dec / HA** — Live mount coordinates, updated every 500ms.
+- **Mount name / COM port** — Celestron 8SE over the NexStar serial protocol
+  (not ASCOM). The port is auto-detected; the one in use is shown here.
+- **Az / Alt / RA / Dec** — Live mount coordinates. Azimuth was read from the
+  mount and discarded before v1.1.6, so these showed `--`.
+- **Cord wrap** — Appears beside the azimuth once the mount has turned more
+  than 30° since the cables were dressed, e.g. `184.2°   wrap +210°`. See
+  *Cord wrap* below.
+- **CABLES OK** — Press after dressing the cables. Zeroes the wrap count, which
+  every later warning is measured from.
 - **MOUNT CTRL** — Opens the floating mount controller (always-on-top).
 - **TRK ON/OFF** — Tracking state toggle.
 - **PLANET LOCK** — Engages planetary centroid lock mode.
@@ -292,6 +299,31 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 
 ---
 
+## Cord wrap
+
+An alt-az fork turns in azimuth with the camera, focuser, power and serial
+cables all hanging off the moving part. Enough rotation one way strains the
+connectors and can pull the camera out mid-capture.
+
+What matters is **cumulative travel, not azimuth**. 350° and 10° are next to
+each other on a compass but 340° apart in travel if the mount went the long
+way round, and a cable only cares how many turns have piled up.
+
+- The readout appears next to Az once travel passes 30°, so a fresh session
+  is not cluttered with `+0`.
+- It is **signed**: 180° out and 180° back reads 0, because the cable is
+  slack again.
+- GoTo slews are excluded. A jump of more than 90° between readings is not
+  continuous rotation, and counting it would make the total meaningless.
+- It works **before alignment**, since it only needs the change between
+  readings, not where the mount thinks it is pointing.
+- Past the limit (`WrapLimitDeg` in rig.ini, default 360°) it warns once.
+
+**Press CABLES OK whenever you free or re-dress the cables.** Nothing else
+resets the count — the app cannot see a cable, so it has to be told.
+
+---
+
 ## Troubleshooting
 
 ### No signal / black preview
@@ -354,12 +386,30 @@ nothing in this application can substitute for it:
 > tube, point north, confirm. GoTo accuracy will be mediocre; tracking will
 > work, which is what matters if you find targets by hand.
 
+RadukCapture notices an unaligned mount at startup and offers help with the
+hard part of that instruction. "Point the tube north" is an abstraction in a
+dark garden, so it asks one question - *standing where you normally sit, the
+scope is to my ...?* - and answers in terms of what is actually around you:
+
+> North is behind you. Point the tube back towards yourself - north is on your
+> side of the mount, so the tube should face your desk.
+
+The tube ending up aimed at you is correct and counter-intuitive, which is
+why it says so plainly. The answer is saved to rig.ini
+(`ObserverBearingDeg`), so you are asked once per rig, not once per session.
+Dismiss it permanently with **Don't show again**, or set
+`ShowAlignHelper=0`.
+
 Afterwards the console should read `Mount reports ALIGNED - leaving its site
 and clock untouched`: the app will not re-push a site to an aligned mount,
 because changing time or location can invalidate a Celestron's model.
 
 Note that `TRK` reflects a readback of the mount's actual state. A command the
 mount merely acknowledges is not reported as success.
+
+`TRK: UNKNOWN` is a third state, and means the mode could not be read at all
+after several tries — a link problem, not a tracking problem. It used to be
+reported as `OFF`, which sent at least one session chasing the wrong fault.
 
 ### Acquisition refuses to start
 `[CENTROID]` runs the whole sequence: find the planet, calibrate, centre, lock.
@@ -369,8 +419,13 @@ cause is tracking:
 - *"mount is not tracking"* - see above. With the mount undriven the planet
   drifts 15"/s, which is 74 px/s at this plate scale; the centring dwell window
   is 10 px, so it is crossed in 0.14 s and can never be satisfied.
-- *"no steady centroid yet"* - the planet is too faint or off-screen. Raise
-  exposure until the frame peak clears ~8%.
+- *"planet too faint to detect (frame peak 3%, needs above 8%)"* - it is in
+  frame but under the detection threshold. Raise exposure or gain.
+- *"no planet detected in frame"* - nothing bright enough is there at all.
+  Go and find it first.
+
+Those two used to read identically, which mattered because they need opposite
+responses.
 
 `[ROI]` is stage 3 of that sequence, not a manual crop tool. To set an ROI by
 hand, **drag a box on the preview** instead.
@@ -420,6 +475,25 @@ it needs.
 
 ---
 
+## rig.ini reference
+
+Sits next to the executable, is never committed, and is the only place your
+real site is stored. Most of it is written for you.
+
+| Key | Meaning |
+|-----|---------|
+| `SiteLatDeg` / `SiteLonDeg` | Observing site. Auto-detected if absent. |
+| `SiteElevationM` | Metres above sea level; sets the ADC pressure model. |
+| `SiteSource` | `manual`, `windows`, `gps` or `mount`. A `manual` site is never overwritten by an automatic one. |
+| `MountPort` | Pin a COM port. Empty means auto-detect. |
+| `PlateScaleArcsecPx` | Nominal image scale; seeds overlays and solver hints. |
+| `GuideRateArcsecPerSec` | Assumed guide rate. Calibration measures the real one and warns if they disagree. |
+| `WrapLimitDeg` | Cumulative azimuth travel before the cord-wrap warning. |
+| `ObserverBearingDeg` | Mount to observer, degrees true. Used by the align helper. |
+| `ShowAlignHelper` | `0` suppresses the align helper. |
+
+---
+
 ## Phase History
 
 | Version | Phase | Feature |
@@ -465,7 +539,12 @@ it needs.
 | v1.1.5 | 65 | Calibration halved; guide rate measured instead of assumed |
 | v1.1.5 | 66 | Observing site auto-detected (Windows Location, GPS, mount) |
 | v1.1.5 | 66 | ADC pressure derived from site elevation |
+| v1.1.6 | 69 | Acquisition says whether the planet is too faint or absent |
+| v1.1.6 | 69 | Tracking reads UNKNOWN when unreadable, no longer OFF |
+| v1.1.6 | 67 | Azimuth surfaced — it was read every poll and discarded |
+| v1.1.6 | 67 | Cord-wrap tracking as cumulative travel, with CABLES OK reset |
+| v1.1.6 | 67 | Quick Align helper — "point north" in terms of your landmarks |
 
 ---
 
-*RadukCapture Help v1.1.5 — Updated after each release*
+*RadukCapture Help v1.1.6 — Updated after each release*

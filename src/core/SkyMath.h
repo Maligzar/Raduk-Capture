@@ -68,4 +68,31 @@ inline void RADecToAltAzNow(double raHours, double decDeg,
     azDeg = NormDeg360(az * R2D);
 }
 
+// Is a bearing inside the arc running CLOCKWISE from start to end?
+//
+// Direction matters and cannot be inferred: an arc from 300 to 60 is
+// a 120-degree sector across north, while 60 to 300 is the 240-degree
+// sector the other way. Both are legitimate descriptions of an
+// obstruction, so the convention is fixed as clockwise and the caller
+// enters the edges in that order.
+inline bool BearingInArc(double bearingDeg, double startDeg, double endDeg) {
+    double b = NormDeg360(bearingDeg - startDeg);
+    double e = NormDeg360(endDeg      - startDeg);
+    if (e == 0.0) return false;          // empty arc, not a full circle
+    return b <= e;
+}
+
+// Smallest turn from a bearing to the nearer edge of an arc. Negative
+// when already inside, giving the depth of intrusion.
+inline double DegreesOutsideArc(double bearingDeg, double startDeg, double endDeg) {
+    if (BearingInArc(bearingDeg, startDeg, endDeg)) {
+        double intoStart = NormDeg360(bearingDeg - startDeg);
+        double toEnd     = NormDeg360(endDeg - bearingDeg);
+        return -(intoStart < toEnd ? intoStart : toEnd);
+    }
+    double toStart = std::fabs(ShortestTurnDeg(bearingDeg, startDeg));
+    double toEnd   = std::fabs(ShortestTurnDeg(bearingDeg, endDeg));
+    return toStart < toEnd ? toStart : toEnd;
+}
+
 } // namespace raduk::core

@@ -1098,6 +1098,34 @@ static int RunApp(bool useEmulator) {
     gotoPanel.SetPreSlewCheck([&](double raH, double decDeg) -> bool {
         double alt = 0.0, az = 0.0;
         raduk::core::RADecToAltAzNow(raH, decDeg, alt, az);
+        // Phase 67 step 6: an obstruction sector, if one is configured.
+        // Checked first because pointing into a wall is a harder stop
+        // than wrapping a cable, and the two warnings should not stack
+        // into a pair of dialogs.
+        const auto& rigc = raduk::core::RigConfig::Get();
+        if (rigc.KeepOutSet() &&
+            raduk::core::BearingInArc(az, rigc.keepOutStartDeg,
+                                      rigc.keepOutEndDeg)) {
+            wchar_t kmsg[480];
+            swprintf(kmsg, 480,
+                L"That target is inside your keep-out sector.\n\n"
+                L"  Target azimuth:  %.0f\u00b0\n"
+                L"  Keep-out sector: %.0f\u00b0 to %.0f\u00b0 (clockwise)\n\n"
+                L"This is the arc you marked as blocked - a wall, a tree, "
+                L"the house. Slew anyway?",
+                az, rigc.keepOutStartDeg, rigc.keepOutEndDeg);
+            Log("[KEEPOUT] Target az %.0f is inside the sector %.0f-%.0f\n",
+                az, rigc.keepOutStartDeg, rigc.keepOutEndDeg);
+            if (MessageBoxW(window.Handle(), kmsg, L"Keep-out sector",
+                            MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES) {
+                Log("[KEEPOUT] Slew cancelled\n");
+                slog.Mount("Slew cancelled - target inside keep-out sector");
+                return false;
+            }
+            slog.Mount("Keep-out warning overridden (az %.0f)", az);
+            // Accepted: fall through so cord wrap still gets its say.
+        }
+
         auto f = cordWrap.ForecastSlewTo(az);
         if (!f.usable || !f.wouldExceed) return true;   // nothing to say
 

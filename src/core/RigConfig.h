@@ -126,6 +126,14 @@ struct RigConfig {
     // Set by "Don't show again" on the align helper.
     bool showAlignHelper = true;
 
+    // Phase 67 step 6: an obstruction sector in azimuth - a house, a
+    // wall, a tree. Degrees true, running CLOCKWISE from start to end.
+    // Equal values mean no arc, which is the default: most sites do
+    // not need one and an accidental sector would be worse than none.
+    double keepOutStartDeg = 0.0;
+    double keepOutEndDeg   = 0.0;
+    bool KeepOutSet() const { return keepOutStartDeg != keepOutEndDeg; }
+
     double wrapLimitDeg = 360.0;
 
     std::string mountPort;
@@ -149,6 +157,8 @@ struct RigConfig {
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
         wf("SiteElevationM", siteElevationM);
         wf("WrapLimitDeg", wrapLimitDeg);
+        wf("KeepOutStartDeg", keepOutStartDeg);
+        wf("KeepOutEndDeg",   keepOutEndDeg);
         wf("ObserverBearingDeg", observerBearingDeg);
         wf("ShowAlignHelper", showAlignHelper ? 1.0 : 0.0);
         WritePrivateProfileStringA("Rig", "SiteSource",
@@ -197,6 +207,8 @@ private:
         cfg.siteValid             = haveLat && haveLon;
         cfg.siteElevationM        = rf("SiteElevationM", cfg.siteElevationM);
         cfg.wrapLimitDeg          = rf("WrapLimitDeg", cfg.wrapLimitDeg);
+        cfg.keepOutStartDeg       = rf("KeepOutStartDeg", cfg.keepOutStartDeg);
+        cfg.keepOutEndDeg         = rf("KeepOutEndDeg",   cfg.keepOutEndDeg);
         cfg.observerBearingDeg    = rf("ObserverBearingDeg", cfg.observerBearingDeg);
         cfg.showAlignHelper       = rf("ShowAlignHelper", 1.0) != 0.0;
         {

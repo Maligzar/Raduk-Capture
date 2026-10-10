@@ -104,6 +104,13 @@ All sections are collapsible — click the section header to expand/collapse.
   *Cord wrap* below.
 - **CABLES OK** — Press after dressing the cables. Zeroes the wrap count, which
   every later warning is measured from.
+- **SETUP** — Opens the rig setup view: a plan of where you stand relative to
+  the mount, the keep-out sector and the wrap limit, drawn so the stored
+  numbers can be checked against the actual garden.
+- **Acquisition status** — While acquiring, this line shows the stage and what
+  is holding it up, e.g. `SEARCHING - planet too faint to detect (frame peak
+  3%, needs above 8%)`. It updates continuously, not only when you press
+  something.
 - **MOUNT CTRL** — Opens the floating mount controller (always-on-top).
 - **TRK ON/OFF** — Tracking state toggle.
 - **PLANET LOCK** — Engages planetary centroid lock mode.
@@ -322,6 +329,79 @@ way round, and a cable only cares how many turns have piled up.
 **Press CABLES OK whenever you free or re-dress the cables.** Nothing else
 resets the count — the app cannot see a cable, so it has to be told.
 
+### Before a slew
+
+A GoTo is checked before it runs. If the result would pass your limit you get
+the three numbers that matter and which way to jog to unwind:
+
+```
+  Travelled since CABLES OK:  +340°
+  This slew adds:              +80°
+  Would leave you at:         +420°   (limit 360°)
+```
+
+The mount chooses its own path for a GoTo — the protocol carries coordinates,
+not a direction — so the forecast assumes the **shortest** turn. If even the
+short way breaks the limit, the long way certainly does, so the warning is
+never a false alarm, and a slew that happens to *unwind* stays silent.
+
+Unwinding is left to you rather than driven automatically: shedding a turn
+means rotating up to 360°, a long motion that can snag something by itself.
+Jog in the direction given and watch the wrap figure beside Az fall.
+
+Only slews you start are checked. The sky survey fires dozens unattended and
+would otherwise raise a dialog on each.
+
+---
+
+## Keep-out sector
+
+An optional arc of azimuth marking something you cannot point at — a wall, a
+tree, the house. A GoTo whose target lands inside it asks first.
+
+Direction is part of the definition and cannot be guessed: **300° to 60°** is
+the 120° sector crossing north, while **60° to 300°** is the 240° sector the
+other way round. The convention is **clockwise from start to end**. Equal
+values mean no sector, which is the default.
+
+Set it in the **SETUP** view, where it is drawn as a wedge so you can see
+which sector you have actually described, or directly as `KeepOutStartDeg`
+and `KeepOutEndDeg` in rig.ini.
+
+---
+
+## Before you start (readiness check)
+
+Once the camera and mount are up, RadukCapture checks whether the rig can
+actually image and writes one line to the log either way:
+
+```
+[READY] 7 ok, 0 warn, 1 fail, 0 unknown, 3 to check by hand
+[READY]   Alignment  FAIL  mount reports NOT aligned - hand control,
+          Align > Quick Align (needs no stars)
+```
+
+**A dialog appears only if something failed or warned.** A list that appeared
+every launch would be dismissed unread within a week, so a ready rig gets
+silence.
+
+What it verifies for itself: camera streaming, dropped frames, focuser
+present, mount connected, **mount aligned**, **tracking actually driving**,
+observing site known, disk space, profile loaded. The two in bold are the
+ones that will stop a night dead.
+
+Three things it cannot see and must ask you: dust cap off, tube cooled to
+ambient, cables dressed. These are reminders and **never** cause the dialog to
+appear on their own. Ticking all three also resets the cord-wrap count, since
+that is what confirming the cables means.
+
+While the dialog is open the rows **refresh every two seconds**. Walk to the
+mount, run Quick Align, and watch the row turn green without restarting
+anything. **Explain this** opens the Help section for the first failing row,
+and **Continue** is always available — this is advice, not a gate.
+
+Set `ShowReadinessCheck=0` in rig.ini to suppress it entirely.
+
 ---
 
 ## Troubleshooting
@@ -489,8 +569,10 @@ real site is stored. Most of it is written for you.
 | `PlateScaleArcsecPx` | Nominal image scale; seeds overlays and solver hints. |
 | `GuideRateArcsecPerSec` | Assumed guide rate. Calibration measures the real one and warns if they disagree. |
 | `WrapLimitDeg` | Cumulative azimuth travel before the cord-wrap warning. |
+| `KeepOutStartDeg` / `KeepOutEndDeg` | Obstruction sector, clockwise from start to end. Equal values = none. |
 | `ObserverBearingDeg` | Mount to observer, degrees true. Used by the align helper. |
 | `ShowAlignHelper` | `0` suppresses the align helper. |
+| `ShowReadinessCheck` | `0` suppresses the readiness dialog (the log line remains). |
 
 ---
 
@@ -544,7 +626,13 @@ real site is stored. Most of it is written for you.
 | v1.1.6 | 67 | Azimuth surfaced — it was read every poll and discarded |
 | v1.1.6 | 67 | Cord-wrap tracking as cumulative travel, with CABLES OK reset |
 | v1.1.6 | 67 | Quick Align helper — "point north" in terms of your landmarks |
+| v1.1.7 | 67 | Pre-slew cord-wrap forecast and warning |
+| v1.1.7 | 67 | Keep-out sector — warn before slewing into a wall or tree |
+| v1.1.7 | 67 | Rig setup view — check the stored bearings against reality |
+| v1.1.7 | 68 | Readiness check: verified at startup, shown only on a failure |
+| v1.1.7 | 68 | Live-refreshing rows and "Explain this" into the Help file |
+| v1.1.7 | 70 | Acquisition stage and its blocker shown continuously |
 
 ---
 
-*RadukCapture Help v1.1.6 — Updated after each release*
+*RadukCapture Help v1.1.7 — Updated after each release*

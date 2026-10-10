@@ -594,6 +594,9 @@ static int RunApp(bool useEmulator) {
 
     // Phase 9: wire autofocus routine to focuser
     autofocus.SetFocuser(&focuser);
+    // Send the V-curve to raduk_log.txt as well as the console, so a focus
+    // run can be judged after the fact instead of only while watching it.
+    autofocus.SetLogger([](const char* s) { Log("%s", s); });
     std::unique_ptr<IMount> mountPtr;
     bool startInRCControl = false;
 
@@ -697,6 +700,37 @@ static int RunApp(bool useEmulator) {
         emuMount->SetTrackingErrorRate(driftAs, driftAs * 0.4f);
         Log("[INIT] Closed-loop emulation: rot=%.1f deg jitter=%.2f\" drift=%.2f\"/s\n",
             rotDeg, jitAs, driftAs);
+    }
+
+    // ── Phase 73: defocus in emulation ─────────────────────────
+    // Without this the synthetic planet was equally sharp at every focuser
+    // position, so an autofocus sweep fitted a parabola to noise and no
+    // autofocus change could be verified on the bench at all. With it the
+    // correct answer is a known number, so the bench test is an assertion.
+    //   RADUK_EMU_TRUE_FOCUS   — step position of perfect focus
+    //                            (default 51200; the EAF opens at 50000,
+    //                            so the default sits 1200 steps away and
+    //                            is comfortably inside the +/-3000 sweep)
+    //   RADUK_EMU_BLUR_PX_STEP — blur px per step off focus (default 0.0083,
+    //                            2000 steps/mm at f/10 on 2.0um pixels,
+    //                            rescaled to the emulator's 0.61"/px — see
+    //                            CameraEmulator::SetBlurPxPerStep)
+    {
+        int   trueFocus   = 51200;
+        float blurPerStep = 0.0083f;
+        char  fb[32];
+        if (GetEnvironmentVariableA("RADUK_EMU_TRUE_FOCUS", fb, 32))
+            trueFocus = atoi(fb);
+        if (GetEnvironmentVariableA("RADUK_EMU_BLUR_PX_STEP", fb, 32))
+            blurPerStep = (float)atof(fb);
+        cam.SetTrueFocusPosition(trueFocus);
+        cam.SetBlurPxPerStep(blurPerStep);
+        cam.SetFocusPositionProvider([&focuser](int& pos) {
+            pos = focuser.GetPosition();
+            return true;
+        });
+        Log("[INIT] Defocus emulation: true focus=%d  %.3f px/step\n",
+            trueFocus, blurPerStep);
     }
 #endif // RADUK_EMULATOR
 

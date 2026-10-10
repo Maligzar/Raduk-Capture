@@ -191,6 +191,41 @@ public:
     // Seeing-like centroid wander amplitude, arcsec.
     void SetSeeingJitterArcsec(float amp) { m_jitterAs = amp; }
 
+    // ── Defocus (Phase 73) ────────────────────────────────────
+    // Until this existed the synthetic planet was equally sharp at every
+    // focuser position, so an autofocus sweep fitted a parabola to noise
+    // and no autofocus change could be verified on the bench at all.
+    //
+    // Provider returns the focuser's current step position. Like the
+    // pointing-error provider above, it must be set BEFORE
+    // StartVideoCapture() — the generator thread reads it unguarded.
+    void SetFocusPositionProvider(std::function<bool(int&)> f) {
+        m_focusProvider = std::move(f);
+    }
+    // The step position at which the image is perfectly sharp. Autofocus
+    // is correct if it lands near this value, which makes the bench test
+    // an assertion rather than an impression.
+    void SetTrueFocusPosition(int steps) { m_trueFocus = steps; }
+    // Blur diameter in EMULATOR pixels per step away from true focus.
+    //
+    // On the real rig: the EAF gives ~2000 steps/mm of focus travel (see
+    // AutofocusParams), the 8SE is f/10 so a defocus of d mm spreads a
+    // point into a disk of d/10 mm at the sensor, and the ASI678MC pixel is
+    // 2.0 um — so 1 step = 0.0005 mm of travel = 0.00005 mm of blur
+    // = 0.025 real px, at the real plate scale of 0.203"/px.
+    //
+    // But this emulator renders at EMU_PLATE_SCALE_AS_PX = 0.61"/px, three
+    // times coarser, so the same ANGULAR blur covers three times fewer
+    // pixels here:  0.025 * (0.203 / 0.61) = 0.0083 px/step.
+    //
+    // Getting this wrong matters. At the un-scaled 0.025 the planet was
+    // already destroyed 600 steps off focus, so nearly every position in
+    // autofocus's +/-3000 sweep sat on the floor of the metric and the
+    // V-curve degenerated into a ramp — a parabola fitted to that puts its
+    // vertex at one end of the scan. At 0.0083 the falloff spans the sweep:
+    // ~5 px blur at 600 steps, ~25 px at 3000.
+    void SetBlurPxPerStep(float v) { m_blurPxPerStep = v; }
+
     // ── Video capture ──────────────────────────────────────────
 
     bool StartVideoCapture() {
@@ -511,6 +546,29 @@ private:
                     backBuf[py*W+px] = (eR&&eC)?rv:(!eR&&!eC)?bv:gv;
                 }
             }
+
+            // ── Defocus (Phase 73) ────────────────────────────
+            // Soften the frame by however far the focuser is from true
+            // focus, so sharpness actually varies with EAF position and an
+            // autofocus V-curve has something real to fit.
+            int focusPos = 0;
+            if (m_focusProvider && m_focusProvider(focusPos)) {
+                float diaPx = fabsf((float)(focusPos - m_trueFocus))
+                            * m_blurPxPerStep;
+                // diaPx is the blur DIAMETER in sensor pixels; the blur
+                // radius is half that, and BlurBayer wants superpixels
+                // (2 sensor px), hence the quarter.
+                int r = (int)(diaPx * 0.25f + 0.5f);
+                if (r > 64) r = 64;        // bound the cost at 4K
+                if (r > 0) {
+                    BlurBayer(backBuf.data(), W, H, r, m_blurScratch);
+                    if ((m_frameCounter % 60) == 0)
+                        printf("[EMU] defocus: pos=%d true=%d  blur=%.1fpx "
+                               "(r=%d superpx)\n",
+                               focusPos, m_trueFocus, diaPx, r);
+                }
+            }
+
             {
                 std::lock_guard<std::mutex> lk(m_frameMutex);
                 m_frameBuffer.swap(backBuf);
@@ -549,6 +607,49 @@ private:
     std::function<bool(float&, float&)> m_errProvider;
     float                       m_camRotDeg = 0.0f;
     float                       m_jitterAs  = 0.0f;
+
+    // Phase 73 defocus — set before StartVideoCapture()
+    std::function<bool(int&)>   m_focusProvider;
+    int                         m_trueFocus     = 51200;
+    float                       m_blurPxPerStep = 0.0083f;
+    std::vector<int>            m_blurScratch;   // generator thread only
+
+    // Box-blur one strided 1-D run in place, with edge replication.
+    // Running sum, so cost is O(count) and independent of radius.
+    static void BoxBlur1D(uint8_t* p, int count, int stride, int r,
+                          std::vector<int>& scratch) {
+        if (r < 1 || count < 2) return;
+        scratch.resize(count);
+        for (int i = 0; i < count; i++)
+            scratch[i] = p[(size_t)i * stride];
+        const int win = 2 * r + 1;
+        auto clampIdx = [count](int i) {
+            return i < 0 ? 0 : (i >= count ? count - 1 : i);
+        };
+        long sum = 0;
+        for (int k = -r; k <= r; k++) sum += scratch[clampIdx(k)];
+        for (int i = 0; i < count; i++) {
+            p[(size_t)i * stride] = (uint8_t)(sum / win);
+            sum += scratch[clampIdx(i + r + 1)] - scratch[clampIdx(i - r)];
+        }
+    }
+
+    // Separable box blur over the RGGB mosaic. Both passes step by 2 so a
+    // pixel is only ever averaged with same-colour neighbours — blurring
+    // the mosaic directly would mix R, G and B and produce colour fringes
+    // rather than defocus. Radius is in superpixels (1 superpixel = 2 px).
+    static void BlurBayer(uint8_t* buf, int W, int H, int r,
+                          std::vector<int>& scratch) {
+        if (r < 1) return;
+        for (int py = 0; py < H; py++)
+            for (int c0 = 0; c0 < 2 && c0 < W; c0++)
+                BoxBlur1D(buf + (size_t)py * W + c0,
+                          (W - c0 + 1) / 2, 2, r, scratch);
+        for (int px = 0; px < W; px++)
+            for (int r0 = 0; r0 < 2 && r0 < H; r0++)
+                BoxBlur1D(buf + (size_t)r0 * W + px,
+                          (H - r0 + 1) / 2, 2 * W, r, scratch);
+    }
 
     // Phase 58: USB-drop injection window (RADUK_EMU_REMOVE_AFTER_S)
     std::chrono::steady_clock::time_point m_captureStart{};

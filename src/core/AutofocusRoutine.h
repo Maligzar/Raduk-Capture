@@ -40,6 +40,7 @@
 #include <vector>
 #include <string>
 #include <cstdio>
+#include <cstdarg>
 #include <cmath>
 #include <numeric>
 #include <algorithm>
@@ -163,6 +164,16 @@ public:
             m_focuser->Stop();
     }
 
+    // ── Diagnostic sink ──────────────────────────────────────
+    // The per-step V-curve used to go only to printf, which this app sends
+    // to an AllocConsole window — so the one piece of data needed to tell a
+    // good focus run from a bad one vanished when the console closed, and
+    // could not be read back from any log. Point this at main.cpp's Log()
+    // and the whole curve lands in raduk_log.txt.
+    void SetLogger(std::function<void(const char*)> f) {
+        m_logSink = std::move(f);
+    }
+
     // ── Sharpness feed (called from render loop, main thread) ─
     // Submit the latest sharpness score for the current position.
     // The scan thread accumulates these while at each step.
@@ -221,7 +232,7 @@ private:
         int range = endPos - startPos;
         int n     = m_params.nSteps;
 
-        printf("[AF] Scan: %d → %d  (%d steps, %d positions)\n",
+        Emit("[AF] Scan: %d → %d  (%d steps, %d positions)\n",
                startPos, endPos, range, n);
         SetStatus("Scanning...");
 
@@ -287,7 +298,7 @@ private:
             // would quietly truncate the average back to a couple of frames —
             // the very thing the freshness gate exists to prevent.
             if (!WaitForSamples(fp, 12000)) {
-                printf("[AF] Sample timeout at pos %d — averaging fewer than "
+                Emit("[AF] Sample timeout at pos %d — averaging fewer than "
                        "%d frames, V-curve point is noisier than intended\n",
                        pos, fp);
             }
@@ -322,7 +333,7 @@ private:
             }
 
             m_samples.push_back({pos, meanSharp});
-            printf("[AF] Step %d/%d  pos=%d  sharp=%.1f%%  (%d samples, %d distinct)\n",
+            Emit("[AF] Step %d/%d  pos=%d  sharp=%.1f%%  (%d samples, %d distinct)\n",
                    i + 1, n, pos, meanSharp, nSamples, nDistinct);
         }
 
@@ -406,9 +417,9 @@ private:
         // re-measure back at the start position; that is a larger change.
         const float REGRESSION_FRAC = 0.50f;
         if (startSharpness > 0.0f && finalSharp < startSharpness * REGRESSION_FRAC) {
-            printf("[AF] Fit made focus WORSE (%.1f%% -> %.1f%%) — returning "
-                   "to start pos=%d\n", startSharpness, finalSharp,
-                   m_startPosition);
+            Emit("[AF] Fit chose pos=%d; measured %.1f%% there vs %.1f%% at "
+                 "start pos=%d - WORSE, returning to start\n",
+                 finalPos, finalSharp, startSharpness, m_startPosition);
             SetStatus("Focus got worse — returning to start");
             m_focuser->MoveTo(m_startPosition);
             if (!WaitForMove())
@@ -590,6 +601,16 @@ private:
         }
     }
 
+    // printf for the console, plus the sink so it reaches the log file.
+    void Emit(const char* fmt, ...) {
+        char buf[320];
+        va_list a; va_start(a, fmt);
+        vsnprintf(buf, sizeof(buf), fmt, a);
+        va_end(a);
+        printf("%s", buf);
+        if (m_logSink) m_logSink(buf);
+    }
+
     void SetStatus(const char* msg) {
         std::lock_guard<std::mutex> lk(m_statusMutex);
         m_statusText = msg;
@@ -627,6 +648,7 @@ private:
     EAFFocuser*      m_focuser   = nullptr;
     AutofocusParams  m_params;
 
+    std::function<void(const char*)> m_logSink;
     std::thread      m_thread;
     std::atomic<bool>      m_abortFlag{false};
     std::atomic<AFState>   m_state{AFState::Idle};

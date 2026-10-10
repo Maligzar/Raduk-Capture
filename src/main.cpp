@@ -1106,6 +1106,23 @@ static int RunApp(bool useEmulator) {
         }
     };
 
+    // ── Keep the two jog-rate selectors in step ────────────────
+    // The main panel and the floating Mount Controller each have their own
+    // 9 / FAST / MED / FINE row, and until v1.2.0 each owned a separate
+    // rate variable, both starting at 9. Picking FINE in the floating panel
+    // left the main panel's value at 9 - and the ARROW KEYS read that one,
+    // so they kept slewing at full speed while the button showed FINE.
+    // Mirror each change into the other; the setters do not notify back, so
+    // this cannot loop.
+    mountCtrl.SetRateChangeCallback([&](int r) {
+        controls.SetJogRate(r);
+        slog.Mount("Jog rate %dx (from mount controller)", r);
+    });
+    controls.SetJogRateChangeCallback([&](int r) {
+        mountCtrl.SetJogRate(r);
+        slog.Mount("Jog rate %dx (from main panel)", r);
+    });
+
     mountCtrl.SetJogCallback([&](int axis, int dir, bool start, int rate) {
         if (!mount) return;
         if (start) {
@@ -2405,6 +2422,8 @@ static int RunApp(bool useEmulator) {
             if (!mount->IsConnected()) return;
             mount->SlewFixed(axis, dir, controls.JogRate());
             suspendTrackerForJog(true);
+            slog.Mount("Arrow jog axis=%d dir=%d rate=%dx start",
+                       axis, dir, controls.JogRate());
         } else {
             // Stop unconditionally — see MountController jog callback.
             mount->StopSlew(axis);
@@ -2671,6 +2690,20 @@ static int RunApp(bool useEmulator) {
         // Phase 25a: push sharpness sample to quality bar graph
         if (lastAnalysis.valid)
             preview.PushQualitySample(lastAnalysis.sharpnessPct);
+
+        // Phase 75: camera source for the motion plot. The planet centroid
+        // resolves a few arcseconds of mount movement that the 500ms alt/az
+        // poll cannot see at all, which is the whole point at FINE rate.
+        // Only on a FRESH analysis - re-pushing the same centroid every
+        // render tick would fake a stationary trail.
+        if (freshAnalysis && lastAnalysis.valid && lastAnalysis.centroidValid) {
+            mountCtrl.FeedCameraMotion(
+                lastAnalysis.centroidX, lastAnalysis.centroidY,
+                raduk::core::RigConfig::Get().plateScaleArcsecPx,
+                std::chrono::duration<double>(
+                    std::chrono::steady_clock::now()
+                        .time_since_epoch()).count());
+        }
 
         // Phase 23: sync manual offset slider → preview each frame
         if (preview.RGBAlignEnabled())
@@ -2998,6 +3031,16 @@ static int RunApp(bool useEmulator) {
                     }
                     float alt = cachedAlt.load();
                     float az  = cachedAz.load();
+                    // Phase 75: mount source for the motion plot. This is
+                    // the 500ms poll (2s while capturing), so it is the
+                    // coarse fallback - MotionMonitor ignores it whenever
+                    // fresh centroid samples are arriving.
+                    if (az >= 0.0f)
+                        mountCtrl.FeedMountMotion(
+                            alt, az,
+                            std::chrono::duration<double>(
+                                std::chrono::steady_clock::now()
+                                    .time_since_epoch()).count());
                     if (az >= 0.0f) {
                         cordWrap.Sample(az);
                         controls.SetMountAltAz(alt, az, true,
@@ -3199,6 +3242,16 @@ static int RunApp(bool useEmulator) {
                 wsServer.Broadcast(telemetry.ToJSON());
                 telemetry.session_events.clear();
             }
+
+            // Phase 75: log the motion plot only while something is
+            // actually moving. Logging every 500ms regardless would
+            // bury the rest of the session log, and a line here is only
+            // interesting as after-the-fact evidence that a command did
+            // something - which is the whole question this answers.
+            if (mountCtrl.MotionSpeed() > 0.5f)
+                Log("[MOTION] src=%s  %.2f arcsec/s  samples=%d\n",
+                    mountCtrl.MotionSourceName(), mountCtrl.MotionSpeed(),
+                    mountCtrl.MotionSamples());
 
             // Phase 74: quick-look stacker. Both numbers come from the same
             // metric over the same window, so STACK above LIVE means the

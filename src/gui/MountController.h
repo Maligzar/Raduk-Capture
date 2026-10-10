@@ -22,6 +22,7 @@
 #include <atomic>
 #include "core/IMount.h"
 #include "core/RigConfig.h"
+#include "MotionMonitor.h"
 
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -42,6 +43,17 @@ public:
     // rate is the panel's selected jog rate (5/7/8/9) at press time.
     void SetJogCallback(std::function<void(int axis, int dir, bool start, int rate)> cb) {
         m_onJog = cb;
+    }
+    // Mirror a rate chosen on the main panel, without notifying back.
+    void SetJogRate(int r) {
+        if (r != 5 && r != 7 && r != 8 && r != 9) return;
+        m_jogRate = r;
+        UpdateRateButtons();
+    }
+    int  JogRate() const { return m_jogRate; }
+    // Fired when the user picks a rate on THIS panel.
+    void SetRateChangeCallback(std::function<void(int)> cb) {
+        m_onRateChange = std::move(cb);
     }
     void SetEmergencyStopCallback(std::function<void()> cb) {
         m_onEmergencyStop = cb;
@@ -140,7 +152,11 @@ public:
 private:
     // ── Layout constants ──────────────────────────────────────
     static constexpr int W      = 210;
-    static constexpr int H      = 300;
+    // Layout ends with the motion plot at y=226..282 in CLIENT space;
+    // this is the WINDOW height, so it must also cover the caption and
+    // borders (~32px) or the plot's readout line is clipped off the
+    // bottom edge - which it was at 312.
+    static constexpr int H      = 326;
     static constexpr int MARGIN = 8;
     static constexpr int TIMER_READOUT = 1;
 
@@ -150,6 +166,7 @@ private:
         ID_BTN_N, ID_BTN_S, ID_BTN_E, ID_BTN_W,
         ID_BTN_RATE9, ID_BTN_RATE8, ID_BTN_RATE7, ID_BTN_RATE5,
         ID_BTN_ALIGN,
+        ID_CANVAS_MOTION,
         ID_LBL_RA, ID_LBL_DEC, ID_LBL_TRK,
         // Align popup
         ID_ALIGN_LIST   = 200,
@@ -596,6 +613,71 @@ private:
         // Align button — full width, gold accent
         m_btnAlign = MakeBtn(L"\u2605  ALIGN", x, y, w, 24, ID_BTN_ALIGN);
         SetWindowTheme(m_btnAlign, L"", L"");
+        y += 28;
+
+        // Motion plot. Owner-drawn STATIC: at FINE rate a short press
+        // moves the scope a few arcseconds, and without this there was no
+        // way to tell a command that did nothing from one that did
+        // something small.
+        m_canvasMotion = CreateWindowExW(
+            0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_OWNERDRAW,
+            x, y, w, 56, m_hwnd, (HMENU)(INT_PTR)ID_CANVAS_MOTION,
+            GetModuleHandleW(nullptr), nullptr);
+        SetWindowSubclass(m_canvasMotion, MotionProc, 1, (DWORD_PTR)this);
+    }
+
+    // ── Motion plot ───────────────────────────────────────────
+public:
+    // Feed from the render loop: the planet centroid when one is
+    // detected, otherwise the polled mount position. MotionMonitor
+    // decides which wins and says which on the plot.
+    void FeedCameraMotion(float px, float py, float arcsecPerPx, double tt) {
+        m_motion.PushCamera(px, py, arcsecPerPx, tt);
+        if (m_canvasMotion) InvalidateRect(m_canvasMotion, nullptr, FALSE);
+    }
+    void FeedMountMotion(double altDeg, double azDeg, double tt) {
+        m_motion.PushMount(altDeg, azDeg, tt);
+        if (m_canvasMotion) InvalidateRect(m_canvasMotion, nullptr, FALSE);
+    }
+    const char* MotionSourceName() const {
+        switch (m_motion.Source()) {
+        case MotionSource::Camera: return "CAMERA";
+        case MotionSource::Mount:  return "MOUNT";
+        default:                   return "NONE";
+        }
+    }
+    float MotionSpeed() const { return m_motion.SpeedArcsecPerSec(); }
+    int   MotionSamples() const { return m_motion.SampleCount(); }
+    void ResetMotion() {
+        m_motion.Reset();
+        if (m_canvasMotion) InvalidateRect(m_canvasMotion, nullptr, FALSE);
+    }
+private:
+    static LRESULT CALLBACK MotionProc(HWND h, UINT m, WPARAM wp,
+                                       LPARAM lp, UINT_PTR, DWORD_PTR ref) {
+        auto* self = reinterpret_cast<MountController*>(ref);
+        if (m == WM_PAINT && self) {
+            PAINTSTRUCT ps;
+            HDC dc = BeginPaint(h, &ps);
+            RECT rc; GetClientRect(h, &rc);
+            // Double-buffered: repaints as fast as frames arrive and
+            // would otherwise flicker badly.
+            HDC     mem = CreateCompatibleDC(dc);
+            HBITMAP bmp = CreateCompatibleBitmap(dc, rc.right, rc.bottom);
+            HGDIOBJ old = SelectObject(mem, bmp);
+            HGDIOBJ oldF = SelectObject(mem,
+                               (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+            self->m_motion.Draw(mem, rc);
+            BitBlt(dc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY);
+            SelectObject(mem, oldF);
+            SelectObject(mem, old);
+            DeleteObject(bmp);
+            DeleteDC(mem);
+            EndPaint(h, &ps);
+            return 0;
+        }
+        if (m == WM_ERASEBKGND) return 1;   // handled in WM_PAINT
+        return DefSubclassProc(h, m, wp, lp);
     }
 
     // ── Jog subclass ──────────────────────────────────────────
@@ -703,10 +785,12 @@ private:
                 }
                 if (self->m_onEmergencyStop) self->m_onEmergencyStop();
                 return 0;
-            case ID_BTN_RATE9: self->m_jogRate=9; self->UpdateRateButtons(); return 0;
-            case ID_BTN_RATE8: self->m_jogRate=8; self->UpdateRateButtons(); return 0;
-            case ID_BTN_RATE7: self->m_jogRate=7; self->UpdateRateButtons(); return 0;
-            case ID_BTN_RATE5: self->m_jogRate=5; self->UpdateRateButtons(); return 0;
+            // Notify, so the main panel and the ARROW KEYS follow - see the
+            // note on ControlPanel's rate buttons.
+            case ID_BTN_RATE9: self->SetJogRate(9); if (self->m_onRateChange) self->m_onRateChange(9); return 0;
+            case ID_BTN_RATE8: self->SetJogRate(8); if (self->m_onRateChange) self->m_onRateChange(8); return 0;
+            case ID_BTN_RATE7: self->SetJogRate(7); if (self->m_onRateChange) self->m_onRateChange(7); return 0;
+            case ID_BTN_RATE5: self->SetJogRate(5); if (self->m_onRateChange) self->m_onRateChange(5); return 0;
             case ID_BTN_ALIGN: self->ShowAlignPopup(); return 0;
             }
             return 0;
@@ -798,6 +882,8 @@ private:
     HWND m_hwnd    = nullptr;
     raduk::core::IMount* m_mount = nullptr;
     int  m_jogRate = 9;
+    HWND m_canvasMotion = nullptr;
+    MotionMonitor m_motion;
     int  m_activeJogAxis = -1;  // axis of in-progress button jog, -1 = none
     int  m_activeJogDir  = 0;
 
@@ -817,6 +903,7 @@ private:
 
     std::function<void(int, int, bool, int)>                 m_onJog;
     std::function<void()>                                    m_onEmergencyStop;
+    std::function<void(int)>                                 m_onRateChange;
     std::function<void(double, double, const std::string&)>  m_onAlign;
 };
 

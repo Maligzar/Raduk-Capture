@@ -998,10 +998,21 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
             if (m_onMountCtrl) m_onMountCtrl();
             return true;
 
-        case ID_BTN_RATE_9: m_jogRate = 9; UpdateJogRateButtons(); return true;
-        case ID_BTN_RATE_8: m_jogRate = 8; UpdateJogRateButtons(); return true;
-        case ID_BTN_RATE_7: m_jogRate = 7; UpdateJogRateButtons(); return true;
-        case ID_BTN_RATE_5: m_jogRate = 5; UpdateJogRateButtons(); return true;
+        // NOTE: these four buttons are never actually created - see
+        // UpdateJogRateButtons, whose table skips null handles - so these
+        // cases are unreachable today and the rate UI lives only in the
+        // floating Mount Controller. That is precisely why the arrow keys
+        // were stuck: they read m_jogRate, and nothing could change it.
+        // SetJogRate below is the live path, called from the sync wiring.
+        // Notify, so the floating Mount Controller follows. Until v1.2.0
+        // the two panels each owned a SEPARATE m_jogRate, both starting at
+        // 9: picking FINE on one left the other - and the ARROW KEYS, which
+        // read this one - still slewing at 9. The button highlighted, so it
+        // looked applied and was not.
+        case ID_BTN_RATE_9: SetJogRate(9); if (m_onJogRateChange) m_onJogRateChange(9); return true;
+        case ID_BTN_RATE_8: SetJogRate(8); if (m_onJogRateChange) m_onJogRateChange(8); return true;
+        case ID_BTN_RATE_7: SetJogRate(7); if (m_onJogRateChange) m_onJogRateChange(7); return true;
+        case ID_BTN_RATE_5: SetJogRate(5); if (m_onJogRateChange) m_onJogRateChange(5); return true;
 
         case ID_BTN_MOUNT_STOP:
             if (m_mount && m_mount->IsConnected()) {
@@ -1129,6 +1140,13 @@ bool ControlPanel::HandleScroll(WPARAM wParam, LPARAM lParam) {
 }
 
 // ── UpdateReadouts ─────────────────────────────────────────────
+
+void ControlPanel::SetJogRate(int r) {
+    if (r != 5 && r != 7 && r != 8 && r != 9) return;
+    m_jogRate = r;
+    UpdateJogRateButtons();
+    printf("[ControlPanel] Jog rate = %d\n", r);
+}
 
 void ControlPanel::UpdateJogRateButtons() {
     // Visually highlight the active speed button using WM_SETTEXT trick

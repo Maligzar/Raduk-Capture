@@ -352,6 +352,14 @@ public:
     bool        GetLimitByFrames() const;
 
     int  JogRate()        const { return m_jogRate; }
+    // Set the rate WITHOUT firing the change callback - used to mirror a
+    // change made in the floating Mount Controller, which keeps the two
+    // panels in step without bouncing the notification back and forth.
+    void SetJogRate(int r);
+    // Fired when the user picks a rate on THIS panel.
+    void SetJogRateChangeCallback(std::function<void(int)> cb) {
+        m_onJogRateChange = std::move(cb);
+    }
     bool IsRCInControl()  const { return m_rcInControl; }
     bool IsPlanetLocked() const { return m_planetLock; }
 
@@ -361,6 +369,7 @@ private:
     bool m_planetLock   = false;
     bool m_inMountSwap  = false;
     int  m_jogRate      = 9;
+    std::function<void(int)> m_onJogRateChange;
     bool m_afRunning    = false;
     bool m_gateActive   = false;       // true = gate is holding (waiting for good seeing)
     std::wstring m_afStatusMsg;

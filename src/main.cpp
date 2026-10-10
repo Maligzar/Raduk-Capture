@@ -902,36 +902,6 @@ static int RunApp(bool useEmulator) {
         return raduk::core::EvaluateReadiness(ri);
     };
 
-    {
-        auto report = gatherReadiness();
-        Log("[READY] %s\n", report.Summary().c_str());
-        for (const auto& it : report.items) {
-            // Only the things that need attention. Listing the passes
-            // every launch buries them.
-            if (it.state == raduk::core::ReadyState::Pass) continue;
-            if (it.state == raduk::core::ReadyState::Manual) continue;
-            Log("[READY]   %-10s %-5s %s\n", it.name.c_str(),
-                raduk::core::ReadyStateName(it.state), it.detail.c_str());
-        }
-        if (report.AnyFailed())
-            slog.System("Not ready: %s", report.Summary().c_str());
-
-        // Phase 68 step 3: interrupt only when something is actually
-        // wrong. Manual items never qualify on their own -- they are
-        // reminders, and a dialog raised for them every launch is what
-        // teaches people to dismiss it unread.
-        if (report.WorthShowing() &&
-            raduk::core::RigConfig::Get().showReadinessCheck) {
-            bool allTicked = raduk::gui::ShowReadinessDialog(
-                window.Handle(), controls.PanelHwnd(), gatherReadiness);
-            if (allTicked) {
-                // They confirmed the cables among the rest, so the wrap
-                // count should start from here rather than from connect.
-                cordWrap.CablesDressed();
-                Log("[READY] All manual items ticked - cord wrap reset\n");
-            }
-        }
-    }
 
     gotoPanel.SetLocation(raduk::core::RigConfig::Get().siteLatDeg,
                           raduk::core::RigConfig::Get().siteLonDeg);
@@ -1145,6 +1115,40 @@ static int RunApp(bool useEmulator) {
         notifBar.SnapToMainWindow();
     });
     Log("[INIT] Notification bar ready\n");
+
+    {
+        auto report = gatherReadiness();
+        Log("[READY] %s\n", report.Summary().c_str());
+        for (const auto& it : report.items) {
+            // Only the things that need attention. Listing the passes
+            // every launch buries them.
+            if (it.state == raduk::core::ReadyState::Pass) continue;
+            if (it.state == raduk::core::ReadyState::Manual) continue;
+            Log("[READY]   %-10s %-5s %s\n", it.name.c_str(),
+                raduk::core::ReadyStateName(it.state), it.detail.c_str());
+        }
+        if (report.AnyFailed())
+            slog.System("Not ready: %s", report.Summary().c_str());
+
+        // Phase 68 step 3: interrupt only when something is actually
+        // wrong. Manual items never qualify on their own -- they are
+        // reminders, and a dialog raised for them every launch is what
+        // teaches people to dismiss it unread.
+        if (report.WorthShowing() &&
+            raduk::core::RigConfig::Get().showReadinessCheck) {
+            bool allTicked = raduk::gui::ShowReadinessDialog(
+                window.Handle(), controls.PanelHwnd(), gatherReadiness,
+                [&](const std::string& section) {
+                    helpWindow.ShowSection(section);
+                });
+            if (allTicked) {
+                // They confirmed the cables among the rest, so the wrap
+                // count should start from here rather than from connect.
+                cordWrap.CablesDressed();
+                Log("[READY] All manual items ticked - cord wrap reset\n");
+            }
+        }
+    }
 
     // Phase 67: the only legitimate way to zero the cord-wrap total.
     // The app cannot see a cable, so it has to be told when one has

@@ -71,6 +71,20 @@ public:
     }
 
     void Show()    { if (m_hwnd) { ShowWindow(m_hwnd, SW_SHOW); SetForegroundWindow(m_hwnd); } }
+
+    // Phase 68 step 6: open filtered to a section, so a failed
+    // readiness row can send the reader straight to the explanation
+    // rather than naming a heading they then have to hunt for.
+    void ShowSection(const std::string& heading) {
+        if (!m_hwnd) return;
+        if (m_editSearch && !heading.empty()) {
+            wchar_t w[256] = {};
+            MultiByteToWideChar(CP_UTF8, 0, heading.c_str(), -1, w, 255);
+            SetWindowTextW(m_editSearch, w);
+            ApplyFilter();
+        }
+        Show();
+    }
     void Hide()    { if (m_hwnd) ShowWindow(m_hwnd, SW_HIDE); }
     void Toggle()  { if (!m_hwnd) return; IsVisible() ? Hide() : Show(); }
     bool IsVisible() const { return m_hwnd && IsWindowVisible(m_hwnd); }

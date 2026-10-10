@@ -37,7 +37,8 @@ namespace raduk::gui {
 // caller may use to reset the cord-wrap count.
 inline bool ShowReadinessDialog(
         HWND owner, HWND panel,
-        std::function<raduk::core::ReadyReport()> reevaluate) {
+        std::function<raduk::core::ReadyReport()> reevaluate,
+        std::function<void(const std::string&)> openHelp = nullptr) {
 
     using namespace raduk::core;
 
@@ -72,7 +73,7 @@ inline bool ShowReadinessDialog(
                                owner, nullptr, GetModuleHandleW(nullptr), nullptr);
     if (!dlg) return false;
 
-    enum { ID_LIST = 4001, ID_CONTINUE, ID_RECHECK, ID_TICK0 };
+    enum { ID_LIST = 4001, ID_CONTINUE, ID_RECHECK, ID_HELP, ID_TICK0 };
     const UINT_PTR TIMER_ID = 1;
 
     auto mk = [&](const wchar_t* cls, const wchar_t* text, DWORD style,
@@ -112,6 +113,11 @@ inline bool ShowReadinessDialog(
         manualIdx++;
     }
 
+    // Opens the Help section for the first failing row. Naming a
+    // heading is only half the job if the reader then has to find it.
+    if (openHelp)
+        mk(L"BUTTON", L"Explain this", BS_PUSHBUTTON, 14, DH - 72, 110, 26,
+           ID_HELP);
     mk(L"BUTTON", L"Re-check now", BS_PUSHBUTTON, DW - 260, DH - 72, 110, 26,
        ID_RECHECK);
     mk(L"BUTTON", L"Continue", BS_DEFPUSHBUTTON, DW - 140, DH - 72, 110, 26,
@@ -121,8 +127,24 @@ inline bool ShowReadinessDialog(
         bool done = false;
         HWND list = nullptr;
         std::function<ReadyReport()>* reeval = nullptr;
+        std::function<void()> onHelp;
     };
     State st; st.list = list; st.reeval = &reevaluate;
+    if (openHelp) {
+        st.onHelp = [&openHelp, &reevaluate]() {
+            ReadyReport cur = reevaluate();
+            for (const auto& it : cur.items)
+                if (it.state == ReadyState::Fail && !it.helpAnchor.empty()) {
+                    openHelp(it.helpAnchor);
+                    return;
+                }
+            for (const auto& it : cur.items)
+                if (it.state != ReadyState::Pass && !it.helpAnchor.empty()) {
+                    openHelp(it.helpAnchor);
+                    return;
+                }
+        };
+    }
     SetWindowLongPtrW(dlg, GWLP_USERDATA, (LONG_PTR)&st);
 
     auto render = [](HWND listCtl, const ReadyReport& rep) {
@@ -156,6 +178,7 @@ inline bool ShowReadinessDialog(
             if (m == WM_COMMAND) {
                 int id = LOWORD(wp);
                 if (id == ID_RECHECK)  { if (rf) (*rf)(); return 0; }
+                if (id == ID_HELP)     { if (s->onHelp) s->onHelp(); return 0; }
                 if (id == ID_CONTINUE) { s->done = true; return 0; }
             }
             if (m == WM_CLOSE) { s->done = true; return 0; }

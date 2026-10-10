@@ -167,7 +167,15 @@ public:
     // Submit the latest sharpness score for the current position.
     // The scan thread accumulates these while at each step.
     void SubmitSharpness(float sharpness) {
-        if (m_state.load() != AFState::Scanning) return;
+        // Gate on m_samplesNeeded, not on state == Scanning. The final
+        // verification after the move runs in state Moving (set before it),
+        // so a Scanning-only gate collected NOTHING there: finalSharp was
+        // always 0.0 and the reported "improvement" was always about -100%.
+        // m_samplesNeeded is the real signal — it is non-zero only inside a
+        // collection window — so the state test was both redundant during
+        // the sweep and wrong afterwards.
+        AFState st = m_state.load();
+        if (st != AFState::Scanning && st != AFState::Moving) return;
         int needed = m_samplesNeeded.load();
         if (needed <= 0) return;
         // Accumulate in a small local buffer
@@ -223,7 +231,7 @@ private:
             // Take a quick 3-frame sample at current position before moving
             m_samplesNeeded.store(3);
             m_sharpnessSamples.clear();
-            WaitForSamples(3, 3000);
+            WaitForSamples(3, 6000);   // 3 fresh analyses at ~2Hz = ~1.5s
             m_sharpnessMutex.lock();
             if (!m_sharpnessSamples.empty()) {
                 float sum = 0;
@@ -273,27 +281,49 @@ private:
             m_sharpnessSamples.clear();
             m_samplesNeeded.store(fp);
 
-            if (!WaitForSamples(fp, 5000)) {
-                // Timeout — use whatever we have
-                printf("[AF] Sample timeout at pos %d\n", pos);
+            // Timeout budget: samples now arrive only on a FRESH analyzer
+            // result (~2Hz), not on every render tick, so framesPerStep=8
+            // needs ~4s here rather than ~130ms. 5000ms left no headroom and
+            // would quietly truncate the average back to a couple of frames —
+            // the very thing the freshness gate exists to prevent.
+            if (!WaitForSamples(fp, 12000)) {
+                printf("[AF] Sample timeout at pos %d — averaging fewer than "
+                       "%d frames, V-curve point is noisier than intended\n",
+                       pos, fp);
             }
             m_samplesNeeded.store(0);
 
             // Compute mean sharpness at this position
             float meanSharp = 0.0f;
+            int   nSamples = 0, nDistinct = 0;
             {
                 m_sharpnessMutex.lock();
                 if (!m_sharpnessSamples.empty()) {
                     float sum = 0;
                     for (float s : m_sharpnessSamples) sum += s;
                     meanSharp = sum / m_sharpnessSamples.size();
+                    // DIAGNOSTIC: framesPerStep promises an average over N
+                    // INDEPENDENT frames. It used to be fed on every render
+                    // tick (~60Hz) with whatever lastAnalysis held, while the
+                    // analyzer produces results far slower, so 8 "samples"
+                    // were 8 copies of one measurement and every V-curve
+                    // point carried full single-frame seeing noise. The feed
+                    // in main.cpp is now gated on freshAnalysis, so distinct
+                    // should equal samples; if distinct << samples that
+                    // regression is back, and this line is how you see it.
+                    std::vector<float> uniq = m_sharpnessSamples;
+                    std::sort(uniq.begin(), uniq.end());
+                    uniq.erase(std::unique(uniq.begin(), uniq.end()),
+                               uniq.end());
+                    nSamples  = (int)m_sharpnessSamples.size();
+                    nDistinct = (int)uniq.size();
                 }
                 m_sharpnessMutex.unlock();
             }
 
             m_samples.push_back({pos, meanSharp});
-            printf("[AF] Step %d/%d  pos=%d  sharp=%.1f%%\n",
-                   i + 1, n, pos, meanSharp);
+            printf("[AF] Step %d/%d  pos=%d  sharp=%.1f%%  (%d samples, %d distinct)\n",
+                   i + 1, n, pos, meanSharp, nSamples, nDistinct);
         }
 
         // ── Fit parabola to find best position ────────────────
@@ -340,10 +370,11 @@ private:
             printf("[AF] final move to %d did not complete - focus may be off\n", finalPos);
         Sleep(m_params.settleMs);
 
-        // Verify final sharpness
+        // Verify final sharpness. 8000ms, not 4000: samples now arrive only
+        // on a fresh analyzer result (~2Hz), so 5 of them take ~2.5s.
         m_sharpnessSamples.clear();
         m_samplesNeeded.store(5);
-        WaitForSamples(5, 4000);
+        WaitForSamples(5, 8000);
         m_samplesNeeded.store(0);
 
         float finalSharp = 0.0f;
@@ -355,6 +386,42 @@ private:
                 finalSharp = sum / m_sharpnessSamples.size();
             }
             m_sharpnessMutex.unlock();
+        }
+
+        // ── Did the sweep actually help? ──────────────────────
+        // Finish(true, ...) used to be unconditional: improvement was
+        // computed, logged and then ignored, so a parabola fitted to noise
+        // could drive the focuser somewhere visibly worse and still report
+        // "AF done". Observed on the bench: start 11.3%, final 0.0%,
+        // reported as success. minSharpness does not catch this because it
+        // tests the sweep's PEAK, not the outcome.
+        //
+        // The 0.50 margin is deliberately loose. startSharpness and
+        // finalSharp are measured ~45-60s apart (the whole sweep sits
+        // between them), and seeing varies on exactly that timescale — so a
+        // tight threshold would revert a genuinely better focus just because
+        // the sky got worse meanwhile. Requiring the sharpness to HALVE
+        // catches a fit that landed somewhere bad while leaving ordinary
+        // seeing variation alone. A fair same-moment A/B would need a
+        // re-measure back at the start position; that is a larger change.
+        const float REGRESSION_FRAC = 0.50f;
+        if (startSharpness > 0.0f && finalSharp < startSharpness * REGRESSION_FRAC) {
+            printf("[AF] Fit made focus WORSE (%.1f%% -> %.1f%%) — returning "
+                   "to start pos=%d\n", startSharpness, finalSharp,
+                   m_startPosition);
+            SetStatus("Focus got worse — returning to start");
+            m_focuser->MoveTo(m_startPosition);
+            if (!WaitForMove())
+                printf("[AF] return to start pos=%d did not complete\n",
+                       m_startPosition);
+            m_bestPosition.store(m_startPosition);
+            m_bestSharpness.store(startSharpness);
+            char msg[128];
+            sprintf_s(msg, "Focus got worse (%.1f%% -> %.1f%%) — reverted to "
+                           "start; try a wider sweep or check the target",
+                      startSharpness, finalSharp);
+            Finish(false, m_startPosition, startSharpness, startSharpness, msg);
+            return;
         }
 
         m_bestPosition.store(finalPos);

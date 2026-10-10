@@ -658,9 +658,14 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             std::vector<uint8_t> rgba(n * 4);
             const uint8_t* src = frame->data;
             bool flashOn = m_showClip && ((m_clipFlash / 8) % 2 == 0);
+            // ASI RAW16 is left-aligned in the 16-bit word (full 0-65535
+            // range), so reducing to 8 bits needs >> 8. The previous >> 4
+            // left 0-4095, which the uint8_t cast wrapped (4096 -> 0), so
+            // every pixel brighter than 4095 came out dark. FrameAnalyzer
+            // fixed this same bug; the renderer never got the fix.
             for (size_t i = 0; i < n; i++) {
                 uint8_t v = (frame->bitDepth == 16)
-                    ? (uint8_t)(reinterpret_cast<const uint16_t*>(src)[i] >> 4)
+                    ? (uint8_t)(reinterpret_cast<const uint16_t*>(src)[i] >> 8)
                     : src[i];
                 if (flashOn && v == 255) {
                     rgba[i*4+0] = 220; rgba[i*4+1] = 10; rgba[i*4+2] = 10;
@@ -1393,9 +1398,12 @@ void PreviewRenderer::DebayerRGGB(const uint8_t* raw, uint8_t* rgb,
     if (bitDepth == 16) {
         const uint16_t* r16 = reinterpret_cast<const uint16_t*>(raw);
         for (int y=0; y<height-1; y+=2) for (int x=0; x<width-1; x+=2) {
-            uint8_t r8=(uint8_t)(r16[y*width+x]>>4);
-            uint8_t g8=(uint8_t)(((r16[y*width+x+1]+r16[(y+1)*width+x])/2)>>4);
-            uint8_t b8=(uint8_t)(r16[(y+1)*width+x+1]>>4);
+            // >> 8, not >> 4 - see the RAW16 note in RenderFrame. A >> 4
+            // here wrapped every value above 4095 to near-black, which
+            // also corrupts anything reading m_rgbBuffer downstream.
+            uint8_t r8=(uint8_t)(r16[y*width+x]>>8);
+            uint8_t g8=(uint8_t)(((r16[y*width+x+1]+r16[(y+1)*width+x])/2)>>8);
+            uint8_t b8=(uint8_t)(r16[(y+1)*width+x+1]>>8);
             int i00=(y*width+x)*3,i01=(y*width+x+1)*3,i10=((y+1)*width+x)*3,i11=((y+1)*width+x+1)*3;
             rgb[i00]=rgb[i01]=rgb[i10]=rgb[i11]=r8;
             rgb[i00+1]=rgb[i01+1]=rgb[i10+1]=rgb[i11+1]=g8;

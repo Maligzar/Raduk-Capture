@@ -2612,7 +2612,15 @@ static int RunApp(bool useEmulator) {
             preview.SetRGBAlignManual(controls.GetRGBManual());
 
         // Phase 9: feed sharpness to autofocus scan if running
-        if (lastAnalysis.valid && autofocus.IsRunning())
+        // Submit ONLY on a fresh analyzer result — the same fix the tracker
+        // got below, which autofocus never received. Submitting every render
+        // tick (~60Hz) pushed the SAME stale sharpnessPct repeatedly, and
+        // AutofocusRoutine counts pushes, not distinct measurements: its
+        // framesPerStep=8 was satisfied in ~8 ticks (~130ms) by 8 copies of
+        // one analysis. So each V-curve point carried full single-frame
+        // seeing noise instead of an 8-frame average — exactly why the fit
+        // is unreliable in poor seeing.
+        if (freshAnalysis && lastAnalysis.valid && autofocus.IsRunning())
             autofocus.SubmitSharpness(lastAnalysis.sharpnessPct);
 
         // Feed centroid to tracker for all active stages

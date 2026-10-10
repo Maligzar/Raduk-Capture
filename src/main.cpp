@@ -1853,14 +1853,28 @@ static int RunApp(bool useEmulator) {
     autofocus.SetOnComplete([&](raduk::core::AFResult result) {
         controls.SetAutofocusRunning(false);
         if (result.success) {
-            wchar_t buf[128];
-            swprintf(buf, 128, L"AF done: pos=%d  sharp=%.1f%%  +%.1f%%",
-                     result.bestPosition, result.bestSharpness, result.improvement);
+            // A caveat on the success path still has to reach the user. When
+            // the sweep did not bracket focus the routine lands on whichever
+            // end it stopped at, which is the best it saw but probably not
+            // focus — reporting only "AF done" there reads as a clean result.
+            wchar_t buf[192];
+            wchar_t note[128] = L"";
+            if (!result.message.empty())
+                MultiByteToWideChar(CP_UTF8, 0, result.message.c_str(), -1,
+                                    note, 127);
+            swprintf(buf, 192, L"AF done: pos=%d  sharp=%.1f%%  +%.1f%%%s%s",
+                     result.bestPosition, result.bestSharpness,
+                     result.improvement,
+                     note[0] ? L" — " : L"", note);
             controls.SetAutofocusStatus(buf);
-            slog.Focuser("AutoFocus: pos=%d  sharp=%.1f%%  +%.1f%%",
-                         result.bestPosition, result.bestSharpness, result.improvement);
-            Log("[AF] Complete: pos=%d  sharp=%.1f%%  improvement=+%.1f%%\n",
-                result.bestPosition, result.bestSharpness, result.improvement);
+            slog.Focuser("AutoFocus: pos=%d  sharp=%.1f%%  +%.1f%%%s%s",
+                         result.bestPosition, result.bestSharpness,
+                         result.improvement,
+                         result.message.empty() ? "" : " — ",
+                         result.message.c_str());
+            Log("[AF] Complete: pos=%d  sharp=%.1f%%  improvement=+%.1f%%%s%s\n",
+                result.bestPosition, result.bestSharpness, result.improvement,
+                result.message.empty() ? "" : " — ", result.message.c_str());
         } else {
             wchar_t buf[128];
             MultiByteToWideChar(CP_UTF8, 0, result.message.c_str(), -1, buf, 128);

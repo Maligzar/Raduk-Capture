@@ -239,6 +239,19 @@ public:
     // what makes a bench focus run repeatable.
     void SetFreezeSurface(bool on) { m_freezeSurface = on; }
 
+    // Per-pixel sensor noise, peak amplitude in DN (0 = off).
+    //
+    // The planet is rendered analytically, so without this every frame
+    // is identically sharp and perfectly clean - which makes the whole
+    // point of lucky imaging unmeasurable on the bench. Averaging N
+    // aligned frames cuts independent noise by sqrt(N), and that gain
+    // is most of what a quick-look stack buys; with no noise present a
+    // perfect stack can at best EQUAL a single frame.
+    //
+    // Deterministic hash of (x, y, frame) rather than rand(): no
+    // shared state on the generator thread, and runs are repeatable.
+    void SetNoiseAmplitude(int dn) { m_noiseAmp = dn < 0 ? 0 : dn; }
+
     // ── Video capture ──────────────────────────────────────────
 
     bool StartVideoCapture() {
@@ -559,7 +572,26 @@ private:
                         if (mdx*mdx+mdy*mdy < mr*mr) { rv=moonPos[m].r8; gv=moonPos[m].g8; bv=moonPos[m].b8; }
                     }
                     bool eR=(py%2==0), eC=(px%2==0);
-                    backBuf[py*W+px] = (eR&&eC)?rv:(!eR&&!eC)?bv:gv;
+                    uint8_t mv = (eR&&eC)?rv:(!eR&&!eC)?bv:gv;
+                    if (m_noiseAmp > 0) {
+                        uint32_t hh = (uint32_t)px * 73856093u
+                                    ^ (uint32_t)py * 19349663u
+                                    ^ (uint32_t)m_frameCounter * 83492791u;
+                        hh ^= hh >> 13; hh *= 0x5bd1e995u; hh ^= hh >> 15;
+                        const int nz = (int)(hh & 1023u) - 512;   // -512..511
+                        // The +m_noiseAmp pedestal stands in for a sensor
+                        // bias offset, and is not cosmetic. This emulator's
+                        // sky sits near 4 DN, so without it the negative
+                        // half of the noise clips at zero, the background
+                        // noise measures about half its true amplitude, and
+                        // any estimator calibrated on the background
+                        // under-corrects. Real sensors carry an offset for
+                        // exactly this reason.
+                        int val = (int)mv + m_noiseAmp
+                                + (nz * m_noiseAmp) / 512;
+                        mv = (uint8_t)(val < 0 ? 0 : (val > 255 ? 255 : val));
+                    }
+                    backBuf[py*W+px] = mv;
                 }
             }
 
@@ -651,6 +683,7 @@ private:
     int                         m_trueFocus     = 51200;
     float                       m_blurPxPerStep = 0.0083f;
     bool                        m_freezeSurface = false;
+    int                         m_noiseAmp      = 0;
     std::vector<int>            m_blurScratch;   // generator thread only
     std::vector<uint8_t>        m_blurTmp;       // generator thread only
 

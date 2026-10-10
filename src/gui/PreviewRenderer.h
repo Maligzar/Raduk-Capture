@@ -18,6 +18,7 @@
 #include <functional>
 #include "../core/FrameSlot.h"
 #include "../core/FrameAnalyzer.h"
+#include "../core/QuickLookStacker.h"
 
 namespace raduk::gui {
 
@@ -29,9 +30,13 @@ enum class DisplayFX {
     Normal,    // no modification
     Boost2x,   // multiply channels ×2, clamp 255
     Boost4x,   // multiply channels ×4, clamp 255
-    Stack3,    // rolling average of last 3 debayered frames
-    Stack5,    // rolling average of last 5 frames
-    Stack10,   // rolling average of last 10 frames
+    // Phase 74: quality-gated, centroid-aligned stacks of the last N
+    // ADMITTED frames. Previously these were an unaligned mean over
+    // every recent frame, which smeared the planet by the 10-25 px of
+    // seeing jitter and made the result softer than a single frame.
+    Stack3,    // best-of-recent, 3 admitted frames, aligned
+    Stack5,    // best-of-recent, 5 admitted frames, aligned
+    Stack10,   // best-of-recent, 10 admitted frames, aligned
 };
 
 class PreviewRenderer {
@@ -219,12 +224,21 @@ public:
         switch (m_displayFX) {
             case DisplayFX::Boost2x:  return L"BOOST ×2";
             case DisplayFX::Boost4x:  return L"BOOST ×4";
-            case DisplayFX::Stack3:   return L"STACK 3f";
-            case DisplayFX::Stack5:   return L"STACK 5f";
-            case DisplayFX::Stack10:  return L"STACK 10f";
+            case DisplayFX::Stack3:   return L"STACK 3 BEST";
+            case DisplayFX::Stack5:   return L"STACK 5 BEST";
+            case DisplayFX::Stack10:  return L"STACK 10 BEST";
             default:                  return L"NORMAL";
         }
     }
+
+    // Phase 74: quick-look stacker readout, for the HUD and the log.
+    float       QuickLookLive()   const { return m_qlLive;  }
+    float       QuickLookStack()  const { return m_qlStack; }
+    int         QuickLookDepth()  const { return m_fxFilled; }
+    bool        QuickLookActive() const { return m_fxN > 0; }
+    bool        QuickLookLearning() const { return m_ql.Learning(); }
+    int         QuickLookAdmitted() const { return m_ql.Admitted(); }
+    const char* QuickLookReason() const { return m_qlReason; }
 
     // Phase 26: Night Vision Mode — red tint for dark adaptation
     void SetNightVision(bool on)   { m_nightVision = on; }
@@ -349,6 +363,13 @@ private:
     int                     m_fxHead        = 0;           // next slot to write
     int                     m_fxFilled      = 0;           // how many slots valid
     int                     m_fxN           = 0;           // current stack depth (3/5/10)
+    // Phase 74 quick-look stacker. The stacker owns no pixels; these
+    // buffers and their teardown stay here, in SetFrameSize.
+    raduk::core::QuickLookStacker m_ql;
+    std::vector<uint8_t>    m_fxStackBuf;                  // last composed stack
+    float                   m_qlLive        = 0.0f;        // live frame score
+    float                   m_qlStack       = 0.0f;        // composed stack score
+    const char*             m_qlReason      = "";          // why a frame was skipped
 
     // Night Vision Mode (Phase 26)
     bool                    m_nightVision   = false;

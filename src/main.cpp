@@ -730,6 +730,14 @@ static int RunApp(bool useEmulator) {
         bool freezeSurface = false;
         if (GetEnvironmentVariableA("RADUK_EMU_FREEZE_SURFACE", fb, 32))
             freezeSurface = (atoi(fb) != 0);
+        // RADUK_EMU_NOISE=N adds +/-N DN of per-pixel sensor noise. Needed
+        // to exercise anything that averages frames: with the planet
+        // rendered analytically and noiseless, a perfect aligned stack can
+        // at best equal a single frame, so the gain is unmeasurable.
+        int noiseDn = 0;
+        if (GetEnvironmentVariableA("RADUK_EMU_NOISE", fb, 32))
+            noiseDn = atoi(fb);
+        cam.SetNoiseAmplitude(noiseDn);
         cam.SetFreezeSurface(freezeSurface);
         cam.SetTrueFocusPosition(trueFocus);
         cam.SetBlurPxPerStep(blurPerStep);
@@ -3190,6 +3198,23 @@ static int RunApp(bool useEmulator) {
 
                 wsServer.Broadcast(telemetry.ToJSON());
                 telemetry.session_events.clear();
+            }
+
+            // Phase 74: quick-look stacker. Both numbers come from the same
+            // metric over the same window, so STACK above LIVE means the
+            // alignment and the quality gate are genuinely buying detail.
+            // Before this, the stack was an unaligned mean of every frame
+            // and read BELOW the live frame — it was smearing, not stacking.
+            if (preview.QuickLookActive()) {
+                if (preview.QuickLookLearning())
+                    Log("[QL] live=%.3f  learning (%d admitted)\n",
+                        preview.QuickLookLive(), preview.QuickLookAdmitted());
+                else
+                    Log("[QL] live=%.3f  stack=%.3f  depth=%d  admitted=%d%s%s\n",
+                        preview.QuickLookLive(), preview.QuickLookStack(),
+                        preview.QuickLookDepth(), preview.QuickLookAdmitted(),
+                        preview.QuickLookReason()[0] ? "  skip: " : "",
+                        preview.QuickLookReason());
             }
 
             lastReadout = now;

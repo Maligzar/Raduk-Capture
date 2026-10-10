@@ -125,6 +125,12 @@ bool PreviewRenderer::SetFrameSize(int width, int height) {
         delete[] m_fxAccum;
         m_fxAccum  = nullptr;
         m_fxHead = m_fxFilled = 0;
+        // Phase 74: the stacker caches a reference position and a score
+        // history in the OLD geometry; both are meaningless at a new
+        // frame size, and a stale reference would shift every frame.
+        m_ql.Reset();
+        m_fxStackBuf.clear();
+        m_qlLive = m_qlStack = 0.0f; m_qlReason = "";
         if (m_fxN > 0) { // stack mode still active — rebuild at new size
             size_t frameBytes = (size_t)width * height * 3;
             for (int i = 0; i < m_fxN; i++)
@@ -445,6 +451,30 @@ void PreviewRenderer::EndFrame() {
 
 // ── RenderFrame ───────────────────────────────────────────────
 
+// ── Phase 74: shifted copy for the quick-look stacker ─────────
+// Writes src into dst displaced by (dx, dy) buffer pixels, zero-filling
+// the margin that shifts in. Row-wise memcpy over the overlapping span,
+// so there are no per-pixel branches. dx/dy are always even, which keeps
+// the debayer 2x2 block phase intact - an odd shift would only move that
+// phase and add nothing, since each block is four identical values.
+static void ShiftCopyRGB(uint8_t* dst, const uint8_t* src,
+                         int w, int h, int dx, int dy) {
+    const size_t rowBytes = (size_t)w * 3;
+    memset(dst, 0, rowBytes * (size_t)h);
+    // dst(x,y) = src(x-dx, y-dy); clamp to where a source exists.
+    const int y0 = dy > 0 ? dy : 0;
+    const int y1 = dy > 0 ? h  : h + dy;   // exclusive
+    const int x0 = dx > 0 ? dx : 0;
+    const int x1 = dx > 0 ? w  : w + dx;
+    if (y1 <= y0 || x1 <= x0) return;
+    const size_t span = (size_t)(x1 - x0) * 3;
+    for (int y = y0; y < y1; y++) {
+        const uint8_t* s = src + ((size_t)(y - dy) * w + (size_t)(x0 - dx)) * 3;
+        uint8_t*       d = dst + ((size_t)y * w + (size_t)x0) * 3;
+        memcpy(d, s, span);
+    }
+}
+
 void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                                    int previewX, int previewWidth, int windowHeight,
                                    int statusBarHeight,
@@ -459,7 +489,12 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
     // masked it). Redraw the held copy instead; NO SIGNAL only appears
     // after HOLD_TIMEOUT_MS with no frames at all (real signal loss).
     raduk::core::FrameSlot holdShim;
+    // Phase 74: whether THIS tick carries a genuinely new camera frame.
+    // Everything below also runs on held redraws, so anything that
+    // accumulates has to ask first.
+    bool isNewFrame = false;
     if (frame && frame->data && frame->width > 0 && frame->height > 0) {
+        isNewFrame = true;
         size_t bytes = (size_t)frame->width * frame->height
                      * (frame->bitDepth == 16 ? 2 : 1);
         m_holdBuf.assign(frame->data, frame->data + bytes);
@@ -528,27 +563,54 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                         m_displayFX == DisplayFX::Stack5  ||
                         m_displayFX == DisplayFX::Stack10) &&
                        m_fxAccum && m_fxFrames[0] && m_fxN > 0) {
-                // Rolling sum: subtract oldest slot, add new frame, divide by filled count
-                int oldest = m_fxHead % m_fxN;
-                uint8_t* oldSlot = m_fxFrames[oldest];
-                // Subtract oldest from accumulator
-                if (m_fxFilled >= m_fxN) {
-                    for (size_t i = 0; i < n * 3; i++)
-                        m_fxAccum[i] -= oldSlot[i];
+                // Quality-gated, centroid-aligned stack of the last N
+                // ADMITTED frames.
+                //
+                // Offer() only on a new frame. RenderFrame also runs on
+                // held redraws between camera frames, and the old code
+                // re-accumulated the held copy on every tick - so at any
+                // exposure longer than a render tick "STACK 10f" was a few
+                // distinct frames counted many times over.
+                if (isNewFrame) {
+                    auto v = m_ql.Offer(m_rgbBuffer,
+                                        (int)frame->width, (int)frame->height);
+                    m_qlLive   = v.score;
+                    m_qlReason = v.reason;
+                    if (v.admit) {
+                        int oldest = m_fxHead % m_fxN;
+                        uint8_t* oldSlot = m_fxFrames[oldest];
+                        if (m_fxFilled >= m_fxN) {
+                            for (size_t i = 0; i < n * 3; i++)
+                                m_fxAccum[i] -= oldSlot[i];
+                        }
+                        // The slot stores the SHIFTED bytes, which is what
+                        // keeps subtract-oldest above consistent with the
+                        // accumulator. Storing the unshifted frame and
+                        // shifting on the way in would desynchronise them.
+                        ShiftCopyRGB(oldSlot, m_rgbBuffer,
+                                     (int)frame->width, (int)frame->height,
+                                     v.dx, v.dy);
+                        for (size_t i = 0; i < n * 3; i++)
+                            m_fxAccum[i] += oldSlot[i];
+                        m_fxHead = (m_fxHead + 1) % m_fxN;
+                        if (m_fxFilled < m_fxN) m_fxFilled++;
+
+                        m_fxStackBuf.resize(n * 3);
+                        uint32_t div = (uint32_t)m_fxFilled;
+                        for (size_t i = 0; i < n * 3; i++)
+                            m_fxStackBuf[i] = (uint8_t)(m_fxAccum[i] / div);
+                        // Same metric, same window size, same feature: that
+                        // is what makes the stack number comparable with the
+                        // live one rather than merely adjacent to it.
+                        m_qlStack = raduk::core::QuickLookStacker::ScoreWindow(
+                            m_fxStackBuf.data(), (int)frame->width,
+                            (int)frame->height, m_ql.RefX(), m_ql.RefY());
+                    }
                 }
-                // Copy new frame into oldest slot and add to accumulator
-                memcpy(oldSlot, m_rgbBuffer, n * 3);
-                for (size_t i = 0; i < n * 3; i++)
-                    m_fxAccum[i] += m_rgbBuffer[i];
-                m_fxHead = (m_fxHead + 1) % m_fxN;
-                if (m_fxFilled < m_fxN) m_fxFilled++;
-                // Divide to get average into temp buffer
-                static thread_local std::vector<uint8_t> stackBuf;
-                stackBuf.resize(n * 3);
-                uint32_t div = (uint32_t)m_fxFilled;
-                for (size_t i = 0; i < n * 3; i++)
-                    stackBuf[i] = (uint8_t)(m_fxAccum[i] / div);
-                fxSrc = stackBuf.data();
+                // Hold the last composed stack on skipped frames and held
+                // redraws, so the display does not flicker back to raw.
+                if (m_fxFilled > 0 && m_fxStackBuf.size() == n * 3)
+                    fxSrc = m_fxStackBuf.data();
             }
             // ── Phase 29: Ghost Frame Overlay ─────────────────
             // Blend stored ghost at 50% over fxSrc into a temp buffer.
@@ -781,6 +843,23 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
             m_renderTarget->DrawText(fxLbl, (UINT32)wcslen(fxLbl),
                                      m_hudFont, fxRect, m_amberBrush);
+        }
+
+        // Phase 74: quick-look stacker readout. Two numbers from the
+        // SAME metric over the same window, so they can be compared:
+        // the live frame and the aligned stack of the best recent ones.
+        if (m_fxN > 0 && m_amberBrush) {
+            wchar_t qb[96];
+            if (m_ql.Learning()) {
+                swprintf(qb, 96, L"LIVE %.2f  learning...", m_qlLive);
+            } else {
+                swprintf(qb, 96, L"LIVE %.2f  STACK %.2f  (%d)",
+                         m_qlLive, m_qlStack, m_fxFilled);
+            }
+            D2D1_RECT_F qRect = D2D1::RectF(px+pw-220, 154, px+pw-8, 168);
+            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+            m_renderTarget->DrawText(qb, (UINT32)wcslen(qb),
+                                     m_hudFont, qRect, m_amberBrush);
         }
 
         // Phase 26: Night Vision HUD label
@@ -1136,6 +1215,13 @@ void PreviewRenderer::SetDisplayFX(DisplayFX fx) {
 
     m_displayFX = fx;
 
+    // Phase 74: the stacker caches a reference position and a score
+    // history; both belong to the mode being left. Cold start refills
+    // in under a second, so resetting costs nothing.
+    m_ql.Reset();
+    m_fxStackBuf.clear();
+    m_qlLive = m_qlStack = 0.0f; m_qlReason = "";
+
     if (isStack(fx) && m_frameWidth > 0 && m_frameHeight > 0) {
         m_fxN = (fx == DisplayFX::Stack3) ? 3 :
                 (fx == DisplayFX::Stack5) ? 5 : 10;
@@ -1149,6 +1235,13 @@ void PreviewRenderer::SetDisplayFX(DisplayFX fx) {
         }
         if (!m_fxAccum) {
             m_fxAccum = new uint32_t[m_frameWidth * m_frameHeight * 3]();
+        } else {
+            // Switching depth (3 -> 5 -> 10) REUSES the accumulator but
+            // resets m_fxFilled below, so the old sums would be divided
+            // by a small count and the display saturated white until the
+            // ring refilled. Zero it with the ring.
+            memset(m_fxAccum, 0,
+                   (size_t)m_frameWidth * m_frameHeight * 3 * sizeof(uint32_t));
         }
         m_fxHead   = 0;
         m_fxFilled = 0;

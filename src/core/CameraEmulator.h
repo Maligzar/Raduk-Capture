@@ -226,6 +226,19 @@ public:
     // ~5 px blur at 600 steps, ~25 px at 3000.
     void SetBlurPxPerStep(float v) { m_blurPxPerStep = v; }
 
+    // Freeze the planet's surface, rotation and moons, so the ONLY thing
+    // varying between frames is defocus (plus jitter/drift if enabled).
+    //
+    // Needed because an autofocus sweep takes ~45s, over which the
+    // emulator's Jupiter rotates and its belt turbulence and Great Red Spot
+    // move — and that changes Laplacian variance by about as much as one
+    // 600-step blur increment does. Measured: position 47600 at blur
+    // radius 3 superpixels scored 6.4% while 48800 at radius 0 — no blur
+    // whatsoever — scored 5.5%, which no pure blur model can produce. With
+    // the surface frozen the V-curve is a function of focus alone, which is
+    // what makes a bench focus run repeatable.
+    void SetFreezeSurface(bool on) { m_freezeSurface = on; }
+
     // ── Video capture ──────────────────────────────────────────
 
     bool StartVideoCapture() {
@@ -462,7 +475,10 @@ private:
             // still responding to gain/exposure above the floor.
             if (brightness < 0.35f) brightness = 0.35f;
             if (brightness > 3.5f) brightness = 3.5f;
-            float rotPhase = fmodf(timeS/ROT, 1.0f);
+            // Frozen surface clock: see SetFreezeSurface. Only defocus
+            // (and jitter/drift) should move while a focus sweep runs.
+            const float tSurf = m_freezeSurface ? 0.0f : timeS;
+            float rotPhase = fmodf(tSurf/ROT, 1.0f);
             float midLon = fmodf(0.5f + rotPhase, 1.0f);
 
             // Phase 52: planet centre = frame centre + pointing error.
@@ -491,7 +507,7 @@ private:
             for (int i = 0; i < LUT_N; i++) {
                 float sinLat = (i/(float)(LUT_N-1))*2.0f - 1.0f;
                 float lat_deg = (180.0f/PI)*asinf(sinLat);
-                RGB col = JupiterSurfaceColor(lat_deg, midLon, timeS);
+                RGB col = JupiterSurfaceColor(lat_deg, midLon, tSurf);
                 latLUT[i] = {(uint8_t)(col.r*255.f>255?255:col.r*255.f),
                              (uint8_t)(col.g*255.f>255?255:col.g*255.f),
                              (uint8_t)(col.b*255.f>255?255:col.b*255.f)};
@@ -500,7 +516,7 @@ private:
             // Precompute moon positions once per frame
             for (int m = 0; m < NUM_JUP_MOONS; m++) {
                 const JupMoon& moon = JUP_MOONS[m];
-                float angle = (2.f*PI*timeS/(moon.period_d*86400.f)) + m*1.1f;
+                float angle = (2.f*PI*tSurf/(moon.period_d*86400.f)) + m*1.1f;
                 moonPos[m].x  = PCX + JR*moon.dist*cosf(angle);
                 moonPos[m].y  = PCY + JRy*0.15f*sinf(angle);
                 moonPos[m].r  = moon.radius_px_base;
@@ -553,19 +569,41 @@ private:
             // autofocus V-curve has something real to fit.
             int focusPos = 0;
             if (m_focusProvider && m_focusProvider(focusPos)) {
-                float diaPx = fabsf((float)(focusPos - m_trueFocus))
-                            * m_blurPxPerStep;
-                // diaPx is the blur DIAMETER in sensor pixels; the blur
-                // radius is half that, and BlurBayer wants superpixels
-                // (2 sensor px), hence the quarter.
-                int r = (int)(diaPx * 0.25f + 0.5f);
-                if (r > 64) r = 64;        // bound the cost at 4K
-                if (r > 0) {
-                    BlurBayer(backBuf.data(), W, H, r, m_blurScratch);
+                const float diaPx = fabsf((float)(focusPos - m_trueFocus))
+                                  * m_blurPxPerStep;
+                // diaPx is the blur DIAMETER in sensor pixels. Three box
+                // passes of radius r superpixels add variance, giving an
+                // equivalent Gaussian sigma of sqrt((2r+1)^2-1)/2
+                // superpixels; wanting dia ~ 4 sigma and 1 superpixel = 2
+                // sensor px inverts to:
+                float rf = (sqrtf(diaPx * diaPx / 16.0f + 1.0f) - 1.0f) * 0.5f;
+                if (rf > 64.0f) rf = 64.0f;     // bound the cost at 4K
+
+                // Fractional radius by blending two integer blur levels.
+                // Integer superpixel radii alone are far too coarse here:
+                // r stays 0 until ~800 steps off focus, so the whole middle
+                // of autofocus's sweep would measure identically sharp and
+                // the fit could not locate focus to better than +/-800
+                // steps. Blending r and r+1 makes defocus continuous, which
+                // is what gives the V-curve a findable vertex.
+                const int   r0   = (int)rf;
+                const float frac = rf - (float)r0;
+                if (r0 >= 1 || frac > 0.01f) {
+                    if (m_blurTmp.size() != backBuf.size())
+                        m_blurTmp.resize(backBuf.size());
+                    memcpy(m_blurTmp.data(), backBuf.data(), backBuf.size());
+                    BlurBayer(backBuf.data(),   W, H, r0,     m_blurScratch);
+                    BlurBayer(m_blurTmp.data(), W, H, r0 + 1, m_blurScratch);
+                    const int fx = (int)(frac * 256.0f + 0.5f);
+                    uint8_t* a = backBuf.data();
+                    const uint8_t* b = m_blurTmp.data();
+                    for (size_t i = 0; i < backBuf.size(); i++)
+                        a[i] = (uint8_t)(((int)a[i] * (256 - fx)
+                                        + (int)b[i] * fx) >> 8);
                     if ((m_frameCounter % 60) == 0)
-                        printf("[EMU] defocus: pos=%d true=%d  blur=%.1fpx "
-                               "(r=%d superpx)\n",
-                               focusPos, m_trueFocus, diaPx, r);
+                        printf("[EMU] defocus: pos=%d true=%d  dia=%.1fpx "
+                               "(rf=%.2f superpx)\n",
+                               focusPos, m_trueFocus, diaPx, rf);
                 }
             }
 
@@ -612,7 +650,9 @@ private:
     std::function<bool(int&)>   m_focusProvider;
     int                         m_trueFocus     = 51200;
     float                       m_blurPxPerStep = 0.0083f;
+    bool                        m_freezeSurface = false;
     std::vector<int>            m_blurScratch;   // generator thread only
+    std::vector<uint8_t>        m_blurTmp;       // generator thread only
 
     // Box-blur one strided 1-D run in place, with edge replication.
     // Running sum, so cost is O(count) and independent of radius.
@@ -634,13 +674,23 @@ private:
         }
     }
 
-    // Separable box blur over the RGGB mosaic. Both passes step by 2 so a
-    // pixel is only ever averaged with same-colour neighbours — blurring
-    // the mosaic directly would mix R, G and B and produce colour fringes
+    // Separable blur over the RGGB mosaic. Both passes step by 2 so a pixel
+    // is only ever averaged with same-colour neighbours — blurring the
+    // mosaic directly would mix R, G and B and produce colour fringes
     // rather than defocus. Radius is in superpixels (1 superpixel = 2 px).
-    static void BlurBayer(uint8_t* buf, int W, int H, int r,
-                          std::vector<int>& scratch) {
-        if (r < 1) return;
+    //
+    // THREE box passes, not one. A single box filter's transfer function is
+    // a sinc: it has zeros and sidelobes, so it does not attenuate high
+    // spatial frequencies monotonically, and at some radii it lets aliased
+    // detail through amplified. Against FrameAnalyzer's 4-superpixel
+    // sampling lattice that produced a sharpness curve where blur radius 1
+    // measured 24.9% and radius 0 — no blur at all — measured 4.9%, which
+    // made the V-curve unusable. Three box passes approximate a Gaussian,
+    // whose response is monotonic with no sidelobes, so more defocus always
+    // measures softer. Cost is 3x an O(pixels) pass, which is acceptable
+    // for a 20fps emulator and only runs when out of focus.
+    static void BlurBayerBoxPass(uint8_t* buf, int W, int H, int r,
+                                 std::vector<int>& scratch) {
         for (int py = 0; py < H; py++)
             for (int c0 = 0; c0 < 2 && c0 < W; c0++)
                 BoxBlur1D(buf + (size_t)py * W + c0,
@@ -649,6 +699,13 @@ private:
             for (int r0 = 0; r0 < 2 && r0 < H; r0++)
                 BoxBlur1D(buf + (size_t)r0 * W + px,
                           (H - r0 + 1) / 2, 2 * W, r, scratch);
+    }
+
+    static void BlurBayer(uint8_t* buf, int W, int H, int r,
+                          std::vector<int>& scratch) {
+        if (r < 1) return;
+        for (int pass = 0; pass < 3; pass++)
+            BlurBayerBoxPass(buf, W, H, r, scratch);
     }
 
     // Phase 58: USB-drop injection window (RADUK_EMU_REMOVE_AFTER_S)

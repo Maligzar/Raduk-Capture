@@ -723,14 +723,23 @@ static int RunApp(bool useEmulator) {
             trueFocus = atoi(fb);
         if (GetEnvironmentVariableA("RADUK_EMU_BLUR_PX_STEP", fb, 32))
             blurPerStep = (float)atof(fb);
+        // RADUK_EMU_FREEZE_SURFACE=1 stops planet rotation, belt turbulence,
+        // the Great Red Spot and the moons, so an autofocus sweep measures
+        // defocus and nothing else. Off by default: a static planet is
+        // wrong for everything except a focus test.
+        bool freezeSurface = false;
+        if (GetEnvironmentVariableA("RADUK_EMU_FREEZE_SURFACE", fb, 32))
+            freezeSurface = (atoi(fb) != 0);
+        cam.SetFreezeSurface(freezeSurface);
         cam.SetTrueFocusPosition(trueFocus);
         cam.SetBlurPxPerStep(blurPerStep);
         cam.SetFocusPositionProvider([&focuser](int& pos) {
             pos = focuser.GetPosition();
             return true;
         });
-        Log("[INIT] Defocus emulation: true focus=%d  %.3f px/step\n",
-            trueFocus, blurPerStep);
+        Log("[INIT] Defocus emulation: true focus=%d  %.4f px/step  "
+            "surface=%s\n", trueFocus, blurPerStep,
+            freezeSurface ? "FROZEN" : "live");
     }
 #endif // RADUK_EMULATOR
 

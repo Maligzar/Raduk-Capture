@@ -148,6 +148,21 @@ if(NOT RADUK_EMULATOR)
     )
 endif()
 
+# ── Help file (both builds) ────────────────────────────────────
+# AIContextBuilder loads RadukCapture-Help.md as the AI assistant's whole
+# app reference, looking next to the exe first and only then in the current
+# directory. Without this copy, launching the exe from anywhere other than
+# the project root left the assistant with
+# "(Help file not found — limited app reference available)" — it answered
+# anyway, just without knowing anything about the application.
+
+add_custom_command(TARGET RadukCapture POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/RadukCapture-Help.md"
+        "$<TARGET_FILE_DIR:RadukCapture>"
+    COMMENT "Copying help file (AI assistant app reference) next to the exe"
+)
+
 # ── Create output directories ──────────────────────────────────
 
 add_custom_command(TARGET RadukCapture POST_BUILD

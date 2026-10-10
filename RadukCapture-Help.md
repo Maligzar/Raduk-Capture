@@ -3,6 +3,219 @@
 
 ---
 
+## Read this first — safety
+
+This telescope is shared with family, including children. These rules come
+before everything else in this document.
+
+**Never point the telescope at the Sun.** Not for a moment, not "just to
+check", not with sunglasses on. An 8-inch telescope gathers roughly 800 times
+more light than an eye does. Looking through it at the Sun destroys sight
+instantly, permanently, and without any pain to warn you. It will also cook
+the camera and can set the inside of the tube smouldering. There is no safe
+way to do this with this equipment and no accessory here that makes it safe.
+**If the Sun is above the horizon, the telescope stays capped and parked.**
+
+**Wait until it is properly dark.** If the Sun is visible anywhere in the sky,
+it is not time yet.
+
+**Never push, pull or twist the telescope by hand while it is powered on.**
+It moves itself with motors, and forcing it strips the gears — an expensive,
+permanent repair. To move it, use the arrow keys or the hand controller.
+
+**The stop key is `Space`.** `Esc` does the same thing. Either one halts all
+telescope movement immediately, from any window, at any time. If anything at
+all looks wrong — the telescope moving when it should not, a cable pulling
+tight, a noise you do not recognise, or you are simply not sure — **press
+`Space` first and work out why afterwards.** Nothing is damaged by stopping.
+Plenty can be damaged by hesitating.
+
+**Mind the cables.** Several cables run from the telescope to the computer. As
+the telescope turns to follow the sky they can wrap around the mount or pull a
+plug out mid-session. The app watches for this and warns you (see *Cord wrap*),
+but look at the actual cables now and then. Never let one go taut.
+
+**It is heavy and top-heavy.** The tube alone is about 6 kg on a tripod that
+can tip if knocked. Do not lean on it, hang anything from it, or let anyone
+swing on the tripod legs. Keep the legs where nobody will trip over them in
+the dark.
+
+**Use red light.** A white torch or a phone screen at full brightness ruins
+everyone's night vision for about twenty minutes. Press `N` for the app's
+night-vision mode.
+
+---
+
+## First night: a walkthrough for someone who has never done this
+
+Written for someone who has never used a telescope. Follow it in order. You do
+not need to understand any of the words to get a picture of a planet.
+
+**What you are doing:** pointing a telescope at a planet, getting it sharp, and
+recording a short video of it. Later, software stacks the good frames of that
+video into one clean photograph. You are not taking a single photo — you are
+collecting thousands of slightly-wobbly ones.
+
+**Why it wobbles:** you are looking through 100 km of moving air. The planet
+boils and shimmers. This is called *seeing*, and it is the reason for all the
+machinery here. Nothing is broken when the image wobbles.
+
+### 1. Put the telescope outside early
+
+An hour before you want to look, carry the telescope outside and take the cap
+off. Glass and metal that are warmer than the night air make heat ripples
+inside the tube that blur everything. Nothing you do later fixes this, so give
+it time. Forty-five minutes is a minimum; ninety is better.
+
+### 2. Switch on and start the app
+
+Power the mount, plug the camera and focuser into the computer, then start
+RadukCapture. It finds the equipment by itself.
+
+If something is missing it says so plainly and tells you which cable to check.
+A list appearing is normal and not a failure — read it, fix what it names, and
+press **Re-check now**. The list updates live, so you can stand at the
+telescope and watch a line turn green as you plug something in.
+
+### 3. Teach the mount where it is pointing
+
+The telescope does not know which way it is facing when it wakes up. Until it
+does, it cannot follow anything and **it will refuse to track**.
+
+On the hand controller: **Align → Quick Align**, and accept the prompts. This
+needs no stars and takes under a minute. If you skip this, everything later
+appears to work and then quietly does not — this is the single most common
+reason a night produces nothing.
+
+### 4. Choose something to look at
+
+Press `G` for the GoTo panel. It lists what is up tonight, brightest first,
+and greys out anything below the horizon.
+
+**Good first targets:** the Moon (enormous, bright, impossible to miss),
+Jupiter, Saturn. **Not for a first night:** anything faint or fuzzy — galaxies
+and nebulae need a different technique entirely.
+
+Pick one and press **GoTo**. The telescope swings round. Let it finish.
+
+### 5. Find it on the screen
+
+Look at the preview. You may see the planet immediately, or you may see
+nothing at all, which is normal — the camera sees a patch of sky about the
+width of a pencil held at arm's length.
+
+If the screen looks empty:
+
+- Press `B` a couple of times for `BOOST ×2` and `×4`. This brightens the
+  display so a dim smudge becomes visible. It does not change what is recorded.
+- Nudge the telescope with the **arrow keys** and watch for something moving
+  through the frame.
+- Check that the lens cap is off. This catches everybody eventually.
+
+A planet looks like a small bright blob at this stage, probably fuzzy. That is
+expected — it is not focused yet.
+
+### 6. Get it sharp
+
+Press `A` for autofocus. The focuser steps through a range, measures sharpness
+at each position, and drives to the best one. **It takes about a minute. Let it
+finish.**
+
+When it is done it reports what it found. If it says the focus got worse and it
+has gone back to where it started, that is the app being honest rather than
+failing — read what it suggests and try again. If it says focus was *not
+bracketed*, the true focus lies outside the range it searched: focus roughly by
+hand first, then run it again.
+
+You can also focus by hand with `,` and `.` while watching the picture.
+
+### 7. Watch before you record
+
+Press `B` until the display says `STACK 10 BEST`. The app now keeps the
+sharpest recent frames, lines them up, and averages them. The picture goes
+quieter and detail that was lost in the shimmer appears — Saturn's rings
+separating from the disc, cloud bands on Jupiter.
+
+Two numbers appear top-right: `LIVE` for the single frame, `STACK` for the
+combined one. **Higher means sharper.** Watch `STACK` for half a minute. If it
+is drifting down, the air is getting worse, and waiting is better than
+recording.
+
+### 8. Record
+
+Set a length — a minute or two is plenty — and press **RECORD**. Display
+effects switch off automatically so the raw frames are saved untouched.
+
+Then stop, and you are done. The video is in the captures folder, ready for
+stacking software.
+
+### If you get stuck
+
+Everything in *Troubleshooting* below is written as a symptom you would
+actually notice, not a technical fault name. Look for the one that sounds like
+what you are seeing.
+
+---
+
+## What the numbers mean
+
+A beginner will reasonably ask whether a number is good. Honest answers:
+
+| Reading | What it is | What is good |
+|---------|-----------|--------------|
+| `LIVE` / `STACK` | Sharpness of one frame, and of the stacked frames. A gradient measure, corrected for noise and brightness. | **Relative only.** There is no universal good value. Watch whether it rises or falls as you change focus or as the night goes on. Higher is sharper. |
+| `Seeing n/10` | How steady the air has been recently | 7+ is a good night. 3 or less and the air is the limit, not the equipment. |
+| `FPS` | Frames per second being captured | Higher is better — more frames to choose from. Shorter exposures raise it. |
+| `DROPS` | Frames lost before reaching the disk | Should be **0**. Anything else means a USB or disk problem, and those frames are gone. |
+| `TRK` | Whether the mount is following the sky | Must say **ON**. If it says OFF, the planet drifts out of frame within a minute or two. |
+| Focuser position | Raw step count of the focus motor | Meaningless on its own. Only the number at best focus matters, and it changes with temperature. |
+
+**The most important thing to understand about sharpness numbers:** they are
+only comparable to *other readings taken the same night on the same target*.
+They are not a score out of anything, and they changed scale in v1.2.0, so
+numbers remembered from earlier sessions no longer compare.
+
+---
+
+## Notes for the assistant
+
+This file is loaded as reference context for the AI assistant. If you are that
+assistant, helping someone who does not know this equipment:
+
+**Safety is not negotiable.** If the Sun is up, or could be, refuse to help
+point the telescope anywhere and say why. If the person describes a cable
+pulling tight, the mount making a grinding noise, or movement they did not
+ask for, tell them to press `Space` before anything else.
+
+**Assume no vocabulary.** Say "the knob that moves the focus" rather than
+"the EAF", "how steady the air is" rather than "seeing", unless they use the
+term first. Explain a word the first time you need it, once.
+
+**Check alignment early.** When someone reports the planet drifting out of
+frame, that the mount will not track, or that `TRK` shows OFF, the cause is
+almost always that Quick Align was never run. Ask before suggesting anything
+more elaborate.
+
+**Give one step at a time** and say what they should expect to see, so they can
+tell whether it worked. "Press `A`. The focuser will hum and move for about a
+minute — let it finish" is useful. A list of six steps is not.
+
+**Do not invent numbers.** There is no good value for the sharpness readings.
+If asked whether a reading is good, explain that it is relative and tell them
+what to compare it against.
+
+**Dim results are usually the sky, not the rig.** Poor seeing, a tube that has
+not cooled, or a target low to the horizon explain most disappointing nights,
+and no setting fixes them. Say so rather than suggesting changes that will not
+help.
+
+**Be straight about failure.** This app reports honestly when autofocus made
+things worse or when a check did not pass. Relay that plainly instead of
+softening it — a beginner who is told everything is fine when it is not learns
+to distrust the whole thing.
+
+---
+
 ## Quick Key Reference
 
 Keys work **whatever window or panel has focus**. Before v1.1.5 they only
@@ -228,13 +441,49 @@ Cycles through six display modes — all display-only, SER data is always raw:
 | `NORMAL` | Unmodified debayered output |
 | `BOOST ×2` | Each channel multiplied ×2, clamped at 255 |
 | `BOOST ×4` | Each channel multiplied ×4, clamped at 255 |
-| `STACK 3f` | Rolling average of last 3 frames (~75ms at 40fps) |
-| `STACK 5f` | Rolling average of last 5 frames (~125ms) |
-| `STACK 10f` | Rolling average of last 10 frames (~250ms) |
+| `STACK 3 BEST` | Aligned stack of the best 3 recent frames |
+| `STACK 5 BEST` | Aligned stack of the best 5 recent frames |
+| `STACK 10 BEST` | Aligned stack of the best 10 recent frames |
 
-Active mode shown in amber HUD top-right (e.g. `BOOST ×2` or `STACK 5f`). **FX automatically resets to NORMAL when recording starts** — you always capture raw frames. Also accessible via `[FX]` button in the IMAGE panel section.
+Active mode shown in amber HUD top-right (e.g. `BOOST ×2` or `STACK 5 BEST`). **FX automatically resets to NORMAL when recording starts** — you always capture raw frames. Also accessible via `[FX]` button in the IMAGE panel section.
 
-Use Boost to find a dim target or check focus in poor seeing. Use Stack to reduce noise when evaluating optics or alignment.
+Use Boost to find a dim target or check focus in poor seeing.
+
+### The quick-look stacker (v1.2.0)
+
+The three STACK modes are a **quick-look stacker**: they keep only the
+sharpest recent frames, line them up on the planet, and average those.
+Two numbers appear in the HUD:
+
+```
+LIVE 0.062  STACK 0.071  (10)
+```
+
+`LIVE` scores the current single frame, `STACK` the combined image, and
+`(10)` is how many frames are in it. Both use the same measure over the
+same area, so they are directly comparable. **Higher is sharper.**
+While the first 32 frames are still being measured it shows
+`learning...` instead of a threshold.
+
+What this is for: deciding **at the telescope** whether what you are
+capturing is sharp, instead of finding out the next morning. Watch
+`STACK` while you nudge focus, and watch it over a few minutes to see
+whether the air is improving or deteriorating.
+
+Only about the top 15% of frames are admitted. Skipped frames are
+normal and are the point — the whole value of lucky imaging is throwing
+most frames away.
+
+This is a **preview**, not a substitute for AutoStakkert. It aligns the
+whole frame as one piece, where AutoStakkert corrects distortion
+separately across dozens of small patches and will always produce a
+better final image from the same video. Record the video regardless.
+
+**Before v1.2.0 these modes averaged every recent frame at fixed pixel
+positions.** Because the planet wanders 10-25 px with the seeing, that
+smeared it — `STACK 10f` produced an image *softer* than a single frame
+while the label implied otherwise. If you learned to avoid the stack
+modes because they looked worse, that was why, and it is fixed.
 
 ### HUD Status Bar (bottom)
 `LIVE 3840×2160 RAW8 38.3 FPS FRAMES: 2151 DROPS: 0`
@@ -245,16 +494,52 @@ Use Boost to find a dim target or check focus in poor seeing. Use Stack to reduc
 ## Autofocus Routine
 
 1. Press `A` or click `★ AUTO FOCUS`.
-2. The routine steps outward from the current EAF position in coarse steps, measuring sharpness at each point.
-3. After the initial scan, it fits a parabola to the sharpness curve.
-4. The focuser moves to the computed best-focus position.
-5. A fine confirmation pass verifies the result.
+2. The focuser sweeps 11 positions across ±3000 steps, averaging **8
+   separate measurements** at each one.
+3. A parabola is fitted to the peak sample and its two neighbours.
+4. The focuser drives to the fitted position, approaching from one side
+   to take up backlash.
+5. Sharpness is measured again there and compared with where it started.
 6. Press `A` again to abort mid-run.
 
+**It takes about a minute.** That is expected. Each position waits for 8
+genuinely new measurements at the analyser's own rate, which is what
+makes the curve fittable rather than seeing noise.
+
 **Tips:**
-- Start near focus. The routine works best within ~5000 steps of focus.
-- Use on a bright star or planetary disk — not on a faint DSO.
-- If the routine fails, check that the EAF is connected (FOCUSER section shows position).
+- Start near focus. The sweep covers ±3000 steps; if true focus is
+  outside that it will say so rather than guess.
+- Use a bright star or a planetary disk, never a faint fuzzy object.
+- Check the EAF is connected (FOCUSER shows a position, not dashes).
+
+### What it reports, and why you can trust it (v1.2.0)
+
+Autofocus now checks its own work and says plainly when it did not help:
+
+| Message | Meaning |
+|---------|---------|
+| `AF done: pos=… +24.0%` | Worked. Sharpness improved by that much. |
+| `focus not bracketed — scan wider or recentre` | The sharpest point was at the edge of the sweep, so true focus is probably outside it. Focus roughly by hand, then re-run. |
+| `Focus got worse (… → …) — reverted to start` | The fit landed somewhere worse, so it put the focuser back. Usually too little contrast to work with: centre the target, or wait for steadier air. |
+
+Three faults were fixed in v1.2.0, and together they mean **results from
+before that version were not meaningful**:
+
+- Each of the 8 measurements per position was the *same* reading copied 8
+  times, so every point on the curve carried full single-frame seeing
+  noise instead of an average.
+- The confirming measurement after the move collected nothing at all, so
+  the reported sharpness was always `0.0%` and the improvement figure was
+  meaningless.
+- Success was reported unconditionally. A curve fitted to noise could
+  drive the focuser somewhere clearly worse and still say `AF done`.
+
+Separately, the sharpness measure itself was computing a red-minus-green
+colour difference rather than detail, because it compared neighbouring
+pixels that belong to different colours on the sensor. It barely
+responded to focus at all. **Sharpness readings changed scale when this
+was fixed, so numbers you remember from earlier sessions no longer
+compare.**
 
 ---
 
@@ -422,6 +707,35 @@ The READY button still works.
 
 ---
 
+## Emulator test switches
+
+The emulator build simulates camera, focuser and mount so the app can be
+developed and tested with the telescope packed away. These environment
+variables adjust what it simulates. They have no effect on the real
+hardware build and are listed here so a test result can be reproduced.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `RADUK_EMU_JITTER_AS` | 0.5 | Seeing wander amplitude, arcsec |
+| `RADUK_EMU_DRIFT_AS` | 0.3 | Mount tracking error, arcsec/sec |
+| `RADUK_EMU_ROTATION_DEG` | 0 | Camera angle, to prove the tracker measures its axis transform rather than assuming it |
+| `RADUK_EMU_UNALIGNED` | off | Mount reports itself unaligned, reproducing the whole tracking-blocked path |
+| `RADUK_EMU_TRUE_FOCUS` | 51200 | Focuser position at which the image is perfectly sharp |
+| `RADUK_EMU_BLUR_PX_STEP` | 0.0083 | Blur added per step away from focus |
+| `RADUK_EMU_FREEZE_SURFACE` | off | Stops planet rotation, turbulence and moons, so only focus varies |
+| `RADUK_EMU_NOISE` | 0 | Per-pixel sensor noise, DN |
+| `RADUK_EMU_REMOVE_AFTER_S` | off | Simulates the camera being unplugged after N seconds |
+
+The last four exist because the simulated planet was previously
+rendered perfectly sharp at every focuser position and perfectly clean
+in every frame. Nothing that depends on focus or on averaging frames
+could be tested at all — an autofocus sweep was fitting a curve to
+noise, and a stack of identical clean frames can only ever equal one
+frame. Setting `RADUK_EMU_TRUE_FOCUS` gives a focus test a known
+correct answer, which is what turns it into a real check.
+
+---
+
 ## Troubleshooting
 
 ### No signal / black preview
@@ -555,8 +869,14 @@ rig.ini; an entry marked manual is never replaced by an automatic estimate.
 - **Centre the target first.** Sharpness is measured on a 256×256 crop that
   follows the detected planet; with nothing detected it falls back to frame
   centre and reads background noise.
-- Check the reported result. `sharp=0.0%` means the curve was fitted to noise
-  and the position returned is meaningless.
+- **Read what it reports.** Since v1.2.0 it tells you which way it failed:
+  `focus not bracketed` means true focus is outside the ±3000-step sweep,
+  so focus roughly by hand and re-run; `Focus got worse … reverted to
+  start` means the fit landed somewhere worse and the focuser has been put
+  back, usually for want of contrast.
+- A `sharp=0.0%` result was a bug in versions before v1.2.0, not a
+  diagnosis — the confirming measurement collected nothing. If you see it
+  now, the target really is too faint.
 - Check EAF is not at travel limits (safe zone: 10000–490000)
 
 A move that makes no progress for 5 s is reported as stalled. Long moves are
@@ -655,7 +975,11 @@ real site is stored. Most of it is written for you.
 | v1.1.8 | 71 | Exposure slider: one unit system, ceiling 10 ms -> 60 ms |
 | v1.1.8 | 71 | PLANET LOCK indicator restored when acquisition ends |
 | v1.1.9 | 72 | READY button — reopen the readiness check without relaunching |
+| v1.2.0 | 73 | Autofocus: real per-position averaging, honest reporting, reverts a bad fit |
+| v1.2.0 | 73 | Sharpness metric fixed — was measuring colour, not focus |
+| v1.2.0 | 73 | Emulator models defocus and sensor noise, so focus work can be tested |
+| v1.2.0 | 74 | Quick-look stacker — aligned, quality-gated preview stack with a score |
 
 ---
 
-*RadukCapture Help v1.1.9 — Updated after each release*
+*RadukCapture Help v1.2.0 — Updated after each release*

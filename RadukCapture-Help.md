@@ -110,6 +110,10 @@ If the screen looks empty:
   display so a dim smudge becomes visible. It does not change what is recorded.
 - Nudge the telescope with the **arrow keys** and watch for something moving
   through the frame.
+- Open `MOUNT CTRL` and watch the motion plot at the bottom while you
+  press an arrow key. If the trail does not move, the telescope is not
+  moving — which is a different problem from being pointed at the wrong
+  patch of sky, and worth knowing before you hunt any further.
 - Check that the lens cap is off. This catches everybody eventually.
 
 A planet looks like a small bright blob at this stage, probably fuzzy. That is
@@ -169,6 +173,7 @@ A beginner will reasonably ask whether a number is good. Honest answers:
 | `DROPS` | Frames lost before reaching the disk | Should be **0**. Anything else means a USB or disk problem, and those frames are gone. |
 | `TRK` | Whether the mount is following the sky | Must say **ON**. If it says OFF, the planet drifts out of frame within a minute or two. |
 | Focuser position | Raw step count of the focus motor | Meaningless on its own. Only the number at best focus matters, and it changes with temperature. |
+| Motion plot `"/s` | How fast the telescope is moving right now | Zero when parked with tracking off. Any non-zero value while you hold an arrow key means the command is getting through. |
 
 **The most important thing to understand about sharpness numbers:** they are
 only comparable to *other readings taken the same night on the same target*.
@@ -372,7 +377,13 @@ are set through the profile editor, which accepts up to 60 s.
 Open with `MOUNT CTRL` button or from the TELESCOPE section. Always stays on top.
 
 - **N / S / E / W** — Hold to slew. Release to stop.
-- **9× / FAST / MED / FINE** — Slew rate selector.
+- **9× / FAST / MED / FINE** — Slew rate selector. **This also sets the
+  speed of the arrow keys**, and it is currently the only place the rate
+  can be changed — the main panel has no rate row. Before v1.2.1 the two
+  panels each kept their own copy of the rate and never told each other,
+  so picking FINE here highlighted the button but left the arrow keys
+  slewing at 9×. If you tried to slow the arrow keys down and nothing
+  happened, that was why.
 - **STOP** — Immediately halt all movement (also `Space` key).
 - **★ ALIGN** — One-point align on a centred object: syncs the mount to the
   object's computed position **and** switches tracking on. Pick the target from
@@ -380,6 +391,42 @@ Open with `MOUNT CTRL` button or from the TELESCOPE section. Always stays on top
   "Aligned ... tracking ALT-AZ", "Synced ... mount refused tracking", or
   "Mount refused the sync".
 - **RA / Dec readout** — Live coordinates updated every 500ms.
+- **Motion plot** (bottom) — see below.
+
+### Motion plot (v1.2.1)
+
+A trail at the bottom of the panel showing where the telescope has
+actually moved over the last ten seconds, with the current speed:
+
+```
+CAMERA  4.8"/s   ±8"
+```
+
+The number turns green while something is moving. ±8" is the width of
+the plot in arcseconds — it rescales itself, so read the scale before
+judging how far the trail has travelled.
+
+**What it is for.** At FINE rate a short press moves the telescope a few
+arcseconds. Nothing on screen changes enough to notice, so a command that
+did nothing and a command that did something small look identical. This
+tells them apart: press an arrow key and either the trail moves or it
+does not.
+
+**The two sources are not equivalent, which is why the plot says which
+one it is using:**
+
+| Source | Where it comes from | Resolution |
+|--------|--------------------|------------|
+| `CAMERA` | The planet's position in the image, every analysed frame | Fractions of an arcsecond, effectively instant. Preferred. |
+| `MOUNT` | Alt/az read back from the mount over the cable | Polled every 500ms, or 2s while recording — a short nudge appears as one jump, not a line. |
+
+`CAMERA` is used whenever a planet is being detected; the plot falls back
+to `MOUNT` otherwise. A switch to `MOUNT` is itself useful: it usually
+means the planet has left the frame, which is worth knowing at once
+rather than a minute later.
+
+A trail drifting steadily with no input from you is normal when tracking
+is off, and is exactly what tracking exists to cancel.
 
 ---
 
@@ -773,6 +820,21 @@ MountPort=COM4
 A pinned port is tried first; if it does not answer, the scan continues anyway,
 so a stale entry falls back to auto-detect instead of breaking the connection.
 
+### Small moves seem to do nothing
+
+- **Check the rate is what you think it is.** The rate buttons live only
+  in the floating `MOUNT CTRL` panel, and they set the arrow keys too.
+  Before v1.2.1 the two did not talk to each other, and the arrow keys
+  stayed at 9× whatever the panel showed.
+- **Watch the motion plot** at the bottom of `MOUNT CTRL` while pressing.
+  A moving trail means the command is reaching the mount and the move is
+  simply too small to see in the preview. A flat trail means it is not.
+- At `FINE` a quarter-second press is a few arcseconds. That is intended
+  — it is for centring a planet, not finding one. Use `9×` to travel.
+- If the plot reads `MOUNT` rather than `CAMERA` it is only updating
+  twice a second, so a brief nudge shows as one step rather than a smooth
+  line. That is the readout being coarse, not the mount being stuck.
+
 ### Frames dropping (LOST > 0)
 - Reduce USB bandwidth slider in CAMERA section
 - Close other USB-intensive applications
@@ -979,7 +1041,9 @@ real site is stored. Most of it is written for you.
 | v1.2.0 | 73 | Sharpness metric fixed — was measuring colour, not focus |
 | v1.2.0 | 73 | Emulator models defocus and sensor noise, so focus work can be tested |
 | v1.2.0 | 74 | Quick-look stacker — aligned, quality-gated preview stack with a score |
+| v1.2.1 | 75 | Jog rate now reaches the arrow keys; both rate selectors stay in step |
+| v1.2.1 | 75 | Motion plot on the Mount Controller — camera or mount source, labelled |
 
 ---
 
-*RadukCapture Help v1.2.0 — Updated after each release*
+*RadukCapture Help v1.2.1 — Updated after each release*

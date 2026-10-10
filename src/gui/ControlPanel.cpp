@@ -64,15 +64,13 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
             }
             break;
 
-        case WM_KEYDOWN:
-        case WM_KEYUP:
-            // Forward arrow keys to main window — works even when panel has focus
-            switch (wParam) {
-                case VK_UP: case VK_DOWN: case VK_LEFT: case VK_RIGHT:
-                    SendMessage(self->m_mainHwnd, msg, wParam, lParam);
-                    return 0;
-            }
-            break;
+        // Phase 71 (review): the arrow-forwarding that used to live here
+        // is gone. Phase 60 routes keys from the message pump before
+        // dispatch, so arrows destined for this panel are consumed and
+        // this proc never sees them -- the forward had become
+        // unreachable. Left in place it would have been a second path
+        // to the jog handler waiting to double-fire the moment the
+        // routing rules changed.
 
         case WM_SIZE: {
             if (!self || !self->m_panelHwnd) break;
@@ -2173,12 +2171,24 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     int initGain = 100, initExp = 80, initGamma = 50, initUSB = 80;
     wchar_t gainBuf[16], expBuf[16], gammaBuf[16], usbBuf[16];
     swprintf(gainBuf,  16, L"%d",    initGain);
-    swprintf(expBuf,   16, L"%.2fms",(float)initExp * 0.01f);
+    // Phase 71 (review): the slider is in MICROSECONDS, as the move
+    // handler and its comment have always said. This line used 0.01
+    // (hundredths of a millisecond), so the same slider position was
+    // labelled one way at startup and ten times differently the
+    // moment it was touched -- and the startup label was the wrong
+    // one, since the camera follows the move handler.
+    swprintf(expBuf,   16, L"%.2fms",(float)initExp / 1000.0f);
     swprintf(gammaBuf, 16, L"%d",    initGamma);
     swprintf(usbBuf,   16, L"%d%%",  initUSB);
 
     makeSliderRow(L"Gain",     0, 570,   initGain,  ID_SLIDER_GAIN,  ID_LBL_GAIN_VAL,  m_sliderGain,     m_lblGainVal,  gainBuf);
-    makeSliderRow(L"Exposure", 1, 10000, initExp,   ID_SLIDER_EXP,   ID_LBL_EXP_VAL,   m_sliderExposure, m_lblExpVal,   expBuf);
+    // Range in microseconds. Was 1-10000, i.e. a 10 ms ceiling -- below
+    // the 20-30 ms the help recommends for Saturn and the 50 ms the
+    // auto-exposure assistant is allowed to reach, so neither could be
+    // dialled in by hand and touching the slider would drag a correct
+    // exposure back down. 60000 us = 60 ms covers both. Longer
+    // exposures are set through the profile editor.
+    makeSliderRow(L"Exposure", 1, 60000, initExp,   ID_SLIDER_EXP,   ID_LBL_EXP_VAL,   m_sliderExposure, m_lblExpVal,   expBuf);
     makeSliderRow(L"Gamma",    1, 100,   initGamma, ID_SLIDER_GAMMA, ID_LBL_GAMMA_VAL, m_sliderGamma,    m_lblGammaVal, gammaBuf);
 
     // WB row — two half-width sliders, tighter geometry

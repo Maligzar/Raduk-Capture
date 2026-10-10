@@ -264,15 +264,28 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
 
     switch (wParam) {
         case VK_ESCAPE:
-            if (firstPress) {
-                if (m_fullscreen) {
-                    // ESC exits fullscreen first
-                    if (m_onFullscreenToggle) m_onFullscreenToggle();
-                } else {
-                    // ESC outside fullscreen = emergency stop
-                    if (m_onEmergencyStop) m_onEmergencyStop();
-                }
-            }
+            // Phase 71 (review): ESC always stops the mount, including
+            // in fullscreen. It used to exit fullscreen *instead*, which
+            // meant that while fullscreen there was no emergency stop
+            // key at all -- and fullscreen is exactly when someone is
+            // watching the preview rather than the panel. An emergency
+            // stop that is conditional on a display mode is not one.
+            // F11 toggles fullscreen and is unaffected.
+            if (firstPress && m_onEmergencyStop) m_onEmergencyStop();
+            return true;
+
+        case VK_SPACE:
+            // Documented in the help as the emergency stop but never
+            // bound to anything. Someone reaching for the key the
+            // manual names, with the mount running away, got nothing.
+            if (firstPress && m_onEmergencyStop) m_onEmergencyStop();
+            return true;
+
+        case 'A':
+            // Likewise documented, and SetAutofocusToggleHandler was
+            // registered in main, but no case ever invoked it -- the
+            // handler had been dead since it was written.
+            if (firstPress && m_onAutofocusToggle) m_onAutofocusToggle();
             return true;
         case 'R':
             if (firstPress && m_onReticleToggle) m_onReticleToggle();

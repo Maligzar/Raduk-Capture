@@ -134,7 +134,14 @@ public:
         if (text == m_acqStatus) return;        // avoid needless repaints
         m_acqStatus = text;
         if (m_lblMountControl) {
-            SetWindowTextW(m_lblMountControl, m_acqStatus.c_str());
+            // Phase 71 (review): when acquisition ends the status goes
+            // empty, and the label was simply blanked -- so an active
+            // PLANET LOCK stopped being indicated until something else
+            // happened to call UpdatePlanetLockUI. Hand the label back
+            // to the other writer rather than leaving it blank.
+            const wchar_t* shown = !m_acqStatus.empty() ? m_acqStatus.c_str()
+                                 : (m_planetLock ? L"PLANET LOCK ACTIVE" : L"");
+            SetWindowTextW(m_lblMountControl, shown);
             InvalidateRect(m_lblMountControl, nullptr, TRUE);
         }
     }

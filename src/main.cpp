@@ -45,6 +45,7 @@
 #include "core/SiteLocator.h"
 #include "core/CordWrap.h"
 #include "core/SkyMath.h"
+#include "core/Readiness.h"
 #include "gui/SiteDialog.h"
 #include "gui/AlignHelperDialog.h"
 #include "core/Timestamp.h"
@@ -861,6 +862,54 @@ static int RunApp(bool useEmulator) {
                 Log("[ALIGN] Helper suppressed at user request\n");
             }
         }
+    }
+
+    // Phase 68: say plainly whether the rig is ready. The device check
+    // at startup answers "is it plugged in" and runs before the camera
+    // or mount exist; this runs where alignment, tracking and the site
+    // are all knowable.
+    //
+    // Logged every launch, shown to nobody. A list that appears each
+    // time becomes a speed bump within a week, and the three manual
+    // items are reminders rather than faults - they must never be the
+    // reason for an interruption. The dialog is step 3.
+    {
+        raduk::core::ReadyInputs ri;
+        ri.camOpen        = cam.IsOpen();
+        ri.framesSeen     = (long long)capture.Stats().framesCaptured.load();
+        ri.droppedFrames  = capture.Stats().droppedFrames.load();
+        ri.focuserOpen    = focuser.IsOpen();
+        ri.focusPos       = focuser.IsOpen() ? focuser.GetPosition() : 0;
+        ri.mountConnected = mount && mount->IsConnected();
+        ri.mountAligned   = ri.mountConnected && mount->IsAligned();
+        ri.trackingKnown  = ri.mountConnected && mount->TrackingModeKnown();
+        ri.trackingOn     = ri.trackingKnown &&
+                            mount->GetTrackingMode() != IMount::OFF;
+        ri.siteSet        = raduk::core::RigConfig::Get().SiteIsSet();
+        ri.profileLoaded  = profiles.Active() != nullptr;
+        {
+            ULARGE_INTEGER avail = {}, total = {}, dummy = {};
+            // The directory actually in use, not a literal - the user
+            // can point captures anywhere, and checking the wrong
+            // volume is worse than not checking.
+            std::string capDir = controls.GetOutputDir();
+            if (!capDir.empty() &&
+                GetDiskFreeSpaceExA(capDir.c_str(), &avail, &total, &dummy))
+                ri.diskFreeGB = (double)avail.QuadPart / 1073741824.0;
+        }
+
+        auto report = raduk::core::EvaluateReadiness(ri);
+        Log("[READY] %s\n", report.Summary().c_str());
+        for (const auto& it : report.items) {
+            // Only the things that need attention. Listing the passes
+            // every launch buries them.
+            if (it.state == raduk::core::ReadyState::Pass) continue;
+            if (it.state == raduk::core::ReadyState::Manual) continue;
+            Log("[READY]   %-10s %-5s %s\n", it.name.c_str(),
+                raduk::core::ReadyStateName(it.state), it.detail.c_str());
+        }
+        if (report.AnyFailed())
+            slog.System("Not ready: %s", report.Summary().c_str());
     }
 
     gotoPanel.SetLocation(raduk::core::RigConfig::Get().siteLatDeg,

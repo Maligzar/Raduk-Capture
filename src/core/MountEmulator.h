@@ -40,7 +40,7 @@ namespace raduk::core {
 
 // Note: this class was previously named NexStarMount, colliding with the
 // real serial backend's class name (ODR landmine if both headers were ever
-// included). The alias below keeps existing emulator-build code compiling.
+// included). It is now only ever referred to as MountEmulator.
 class MountEmulator : public IMount {
 public:
     MountEmulator()  = default;
@@ -410,10 +410,5 @@ private:
     std::mutex  m_mutex;
     std::thread m_simThread;
 };
-
-// Emulator builds historically instantiated this class as NexStarMount
-// (DeviceFactory swaps headers, main.cpp code is shared). Keep that name
-// working without the ODR hazard of two classes sharing it.
-using NexStarMount = MountEmulator;
 
 } // namespace raduk::core

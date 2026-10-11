@@ -47,8 +47,44 @@
 //     frames) and simple impatience (a small file was given 5 min
 //     against a 50 s standalone run)
 //
-// So it is something environmental about being a child of this
-// process, and that is where the investigation stopped. AutoStackOnStop
+// UPDATE - bisected, and it is NOT this application.
+//
+// A bare console program making the identical CreateProcessW call
+// fails the same way, and so does the exact Start-Process invocation
+// that succeeded earlier the same day. AutoStakkert's own log
+// (debug_data\log.txt) shows why: in BOTH the working and the
+// failing runs it parses every switch correctly -
+//
+//   command line place ap in grid
+//   command line processing mode activated
+//   command line do not show interface
+//   command line exit when done
+//   command line output directory: ...
+//   AutoStakkert! 4.0.13 (x64) started...
+//
+// - and the working run then logs "Processing started" 0.46 s later
+// while the failing ones never do. Same command, same file, same
+// settings. So the switches arrive and are understood, and AS simply
+// does not begin.
+//
+// That points at AutoStakkert's own state on the machine rather than
+// at the launch. It was force-killed many times while this was being
+// investigated, which is exactly how a Delphi application ends up
+// stuck. Before debugging this code any further, launch AutoStakkert
+// interactively once, let it finish starting, close it cleanly, and
+// retry - and check debug_data\log.txt for "Processing started",
+// which is the line that distinguishes the two cases in one glance.
+//
+// Ruled out along the way, each by measurement:
+//   - the command string, logged and compared character for character
+//   - argument form, array versus single string
+//   - CREATE_NO_WINDOW, and separately STARTF_USESHOWWINDOW/SW_HIDE
+//   - working directory, main thread versus worker thread
+//   - a truncated recording, and plain impatience
+//
+// Previously assumed, now disproved: that it was something about being
+// a child of this
+// process. AutoStackOnStop
 // therefore defaults to OFF and should stay off until this is
 // understood. The timeout bounds the damage - a stuck run is killed
 // and reported rather than hanging - but a feature that does not work

@@ -58,6 +58,37 @@ struct RigConfig {
 
     bool SiteIsSet() const { return siteValid; }
 
+    // Known filters and the band each passes, nm. Edges are the
+    // practical limits of the filter AND the sensor together - the
+    // IMX678 still responds past 1000nm but weakly enough that it
+    // contributes little to where the dispersion extremes sit.
+    struct FilterPreset { const char* name; float lowNm; float highNm; };
+    static const FilterPreset* Presets(int& count) {
+        static const FilterPreset kP[] = {
+            { "UV/IR cut",     400.0f,  700.0f },
+            { "None",          380.0f, 1000.0f },
+            { "IR pass 685",   685.0f, 1000.0f },
+            { "Methane 889",   880.0f,  900.0f },
+        };
+        count = (int)(sizeof(kP)/sizeof(kP[0]));
+        return kP;
+    }
+    // Set the band from a preset name. Returns false and leaves the
+    // band alone if the name is unknown, so a hand-edited rig.ini
+    // with custom edges is not silently overwritten.
+    bool ApplyFilterPreset(const std::string& name) {
+        int n = 0; const FilterPreset* p = Presets(n);
+        for (int i = 0; i < n; i++) {
+            if (_stricmp(name.c_str(), p[i].name) == 0) {
+                filterName   = p[i].name;
+                filterLowNm  = p[i].lowNm;
+                filterHighNm = p[i].highNm;
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Phase 66: accept a site derived at runtime (mount, Windows
     // Location, GPS). Refuses to overwrite one the user set by hand --
     // a surveyed coordinate must not be replaced by a WiFi estimate.
@@ -106,6 +137,24 @@ struct RigConfig {
     // Phase 77: hand each finished recording to AutoStakkert
     // automatically. Off by default - stacking is minutes of CPU and
     // should be opted into, not sprung on someone mid-session.
+    // ── Optical bandpass (Phase 82) ───────────────────────────
+    //
+    // Which filter is physically on the camera, and the band it
+    // passes. This is not bookkeeping: ADCAssistant computes
+    // atmospheric dispersion between the band edges, and it used to
+    // hardcode 450-700nm - which IS a UV/IR cut passband. So the
+    // dispersion model silently assumed the filter was fitted. Take
+    // it off and the IMX678 sees past 1000nm, the real extremes are
+    // much further apart, and the ADC advice is understated in the
+    // unsafe direction.
+    //
+    // Persisted, unlike the readiness check's manual ticks. A dust
+    // cap being off last night says nothing about tonight; a filter
+    // stays on the camera until it is deliberately changed.
+    std::string filterName   = "UV/IR cut";
+    float       filterLowNm  = 400.0f;
+    float       filterHighNm = 700.0f;
+
     bool        autoStackOnStop = false;
     std::string autoStakkertPath;       // blank = probe the usual places
 
@@ -166,6 +215,9 @@ struct RigConfig {
         wf("SiteLatDeg", siteLatDeg);
         wf("SiteLonDeg", siteLonDeg);
         wf("PlateScaleArcsecPx", plateScaleArcsecPx);
+        ws("FilterName", filterName);
+        wf("FilterLowNm",  filterLowNm);
+        wf("FilterHighNm", filterHighNm);
         ws("AutoStackOnStop", autoStackOnStop ? "1" : "0");
         ws("AutoStakkertPath", autoStakkertPath);
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
@@ -238,6 +290,9 @@ private:
             cfg.siteSource = sbuf[0] ? sbuf : (cfg.siteValid ? "manual" : "");
         }
         cfg.plateScaleArcsecPx    = (float)rf("PlateScaleArcsecPx", cfg.plateScaleArcsecPx);
+        cfg.filterName            = rs("FilterName", cfg.filterName);
+        cfg.filterLowNm           = (float)rf("FilterLowNm",  cfg.filterLowNm);
+        cfg.filterHighNm          = (float)rf("FilterHighNm", cfg.filterHighNm);
         cfg.autoStackOnStop       = rs("AutoStackOnStop", cfg.autoStackOnStop ? "1" : "0") == "1";
         cfg.autoStakkertPath      = rs("AutoStakkertPath", cfg.autoStakkertPath);
         cfg.guideRateArcsecPerSec = (float)rf("GuideRateArcsecPerSec", cfg.guideRateArcsecPerSec);
@@ -267,6 +322,18 @@ private:
             cfg.plateScaleArcsecPx = 0.203f;
         if (cfg.guideRateArcsecPerSec < 0.5f || cfg.guideRateArcsecPerSec > 60.0f)
             cfg.guideRateArcsecPerSec = 7.5f;
+        // A nonsense band would feed the Edlen expansion values outside
+        // its domain and produce a dispersion figure that looks
+        // authoritative and is meaningless. Fall back to the UV/IR cut
+        // passband, which is what the model assumed before it was
+        // configurable at all.
+        if (cfg.filterLowNm  < 300.0f || cfg.filterLowNm  > 1200.0f ||
+            cfg.filterHighNm < 300.0f || cfg.filterHighNm > 1200.0f ||
+            cfg.filterHighNm <= cfg.filterLowNm + 10.0f) {
+            cfg.filterName   = "UV/IR cut";
+            cfg.filterLowNm  = 400.0f;
+            cfg.filterHighNm = 700.0f;
+        }
 
         // Phase 66: cross-check longitude against the OS timezone. The UTC
         // offset implies a longitude band (offset x 15 deg); real borders

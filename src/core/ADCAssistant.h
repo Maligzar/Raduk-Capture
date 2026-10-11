@@ -33,6 +33,11 @@ struct ADCResult {
     float altitudeDeg      = 0.0f; // altitude at which this was computed
     bool  adcRecommended   = false;// true if separation > threshold
     bool  adcRequired      = false;// true if separation > critical threshold
+    // The band the figure was computed over. Without this the same
+    // reading means different things with and without a filter, and
+    // nothing on screen says which.
+    float bandLowNm        = 400.0f;
+    float bandHighNm       = 700.0f;
 
     // Severity label for UI display
     const char* SeverityLabel() const {
@@ -112,9 +117,23 @@ public:
             return n1_stp * (P / 1013.25) * (288.15 / T);
         };
 
-        // R at 700nm (red), B at 450nm (blue)
-        double n1_red  = refractivity(0.700);
-        double n1_blue = refractivity(0.450);
+        // Dispersion is computed between the edges of the band the
+        // camera actually sees, which is the FILTER's passband.
+        //
+        // These were hardcoded at 450 and 700nm - and 400-700 is
+        // precisely a UV/IR cut passband, so the model silently assumed
+        // that filter was fitted. Remove it and the IMX678 responds out
+        // past 1000nm: the true extremes are much further apart, real
+        // dispersion is larger, and the advice was understated in the
+        // unsafe direction. The reverse matters too - an IR-pass filter
+        // spans far less refractivity than the visible band, which is
+        // part of why IR imaging suffers less dispersion, and the old
+        // fixed figure overstated it badly.
+        const auto& rigf = RigConfig::Get();
+        r.bandLowNm  = rigf.filterLowNm;
+        r.bandHighNm = rigf.filterHighNm;
+        double n1_red  = refractivity(rigf.filterHighNm / 1000.0);
+        double n1_blue = refractivity(rigf.filterLowNm  / 1000.0);
 
         // Refraction in radians → arcseconds: R = (n-1) * tan(z)
         // Delta dispersion = (n_blue - n_red) * tan(z) * 206265 arcsec/rad

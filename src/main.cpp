@@ -3188,6 +3188,14 @@ static int RunApp(bool useEmulator) {
                         wchar_t adcBuf[64];
                         MultiByteToWideChar(CP_UTF8, 0, adcText.c_str(), -1, adcBuf, 64);
                         controls.SetADCStatus(adcBuf);
+                        // Log the band with the figure. The same
+                        // number means different things through
+                        // different filters, and nothing else on
+                        // screen says which one is fitted.
+                        Log("[ADC] alt=%.1f  %.2f arcsec  band %.0f-%.0fnm (%s)\n",
+                            alt, adcResult.separationArcsec,
+                            adcResult.bandLowNm, adcResult.bandHighNm,
+                            raduk::core::RigConfig::Get().filterName.c_str());
                     }
                 }
             }

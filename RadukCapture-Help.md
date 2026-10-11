@@ -231,6 +231,12 @@ steps around wherever the focuser already is. If someone is far out of focus,
 they need to get roughly sharp by hand first, or it will report `focus not
 bracketed` — which is it working correctly, not failing.
 
+**Do not promise what is not built.** There is no dark-frame subtraction, no
+flat-field correction, no FITS or AVI output, no polar-alignment assistant, no
+Bahtinov or FWHM focus aid, and no click-to-recentre. The section "What is not
+built yet" is the list. Say it plainly and say what to do instead — darks
+belong in the stacker afterwards, not here.
+
 **A crop is recoverable; say so.** If someone says the view has gone narrow,
 or that they cropped and cannot get back, the answer is the `FULL` button on
 the top bar. Do not suggest restarting the app. If they ask about data rate or
@@ -905,8 +911,8 @@ here would.
 ends normally - you press stop, or it reaches its frame or time limit. An
 emergency stop never triggers it.
 
-**Known problem as of v1.2.2: this does not currently work on this
-machine.** AutoStakkert starts, parses every option correctly, then never
+**Known problem, still unresolved as of v1.2.3: this does not work on
+this machine.** AutoStakkert starts, parses every option correctly, then never
 begins processing. It is not RadukCapture - the identical command fails
 from a plain command prompt too, and so does the exact command that worked
 earlier the same day. `AutoStackOnStop` is off by default because of it.
@@ -1198,6 +1204,47 @@ a SER file cannot change format part-way through. Set the format first.
   this is the most likely cause. Fix it in SETUP; see [Filters](#filters).
 - ADC uses cached mount altitude — verify mount is tracking and RA/Dec updating in TELESCOPE section
 - Ensure mount is polar-aligned (single-arm mount errors compound at low altitude)
+
+---
+
+## What is not built yet
+
+Listed so nobody goes looking for it, and so the assistant does not promise
+it. These are planned, not missing by accident — see
+`RadukCapture-Architecture.md` for the full roadmap.
+
+**Calibration frames.** No dark-frame subtraction and no flat-field
+correction. Take darks at the same gain and temperature and apply them in
+your stacker afterwards.
+
+**Output formats.** SER only, plus PNG snapshots. No AVI, and no FITS — the
+plate solver reads FITS but nothing here writes it.
+
+**Focus aids beyond autofocus.** No multi-star FWHM score and no Bahtinov
+mask assistant. Autofocus plus the sharpness readout is what there is.
+
+**Polar alignment assistant.** Nothing guides a polar align. The align
+helper covers mount orientation and the keep-out sector, which is a
+different job.
+
+**Alignment and framing helpers.** No push-to assistant, no click-on-the-
+preview to recentre, no multi-reticle overlays, no framing-shot button, and
+no "go to previous image" framing recall.
+
+**Display extras.** No single-channel (R/G/B only) view, no mini-histogram
+display stretch, no night-vision colour scheme, no two-monitor mode.
+
+**Analysis extras.** No sensor-analysis or smart-histogram tooling, no
+stellar photometry, no multi-session statistics dashboard, no solar/lunar
+framing assistant, and no image annotation overlay on the preview.
+
+**ADC alignment tool.** The ADC *advisor* tells you how much dispersion
+there is and whether a corrector is worth fitting (see [Filters](#filters)).
+It does not help you dial one in.
+
+**Stacking.** Deliberately not built. The quick-look stacker is a preview so
+you know that night whether a capture was soft; AutoStakkert does the real
+work, and nothing here would beat it.
 
 ---
 

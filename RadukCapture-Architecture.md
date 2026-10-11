@@ -1436,16 +1436,16 @@ RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS M
 | 44 | Frame Type Labels + App Icon | 1 | Easy | ✅ v1.0.9 |
 | 23 | RGB Align Display Mode | 1 | Easy-Med | ✅ v1.0.10 |
 | 24 | Pixel Value Readout | 1 | Easy | ✅ v1.0.11 |
-| 49 | Help System | 1 | Medium | 🔲 |
+| 49 | Help System | 1 | Medium | ✅ v1.0.x (gui/HelpWindow.h) |
 | 25 | Image Boost / Frame Stack FX | 1 | Medium | ✅ v1.0.12 |
-| 26 | Night Vision Mode | 2 | Easy | 🔲 Next |
+| 26 | Night Vision Mode | 2 | Easy | 🔲 |
 | 38 | Single-Channel Display Mode | 2 | Easy | 🔲 |
-| 40 | Notification Bar | 2 | Easy | 🔲 |
+| 40 | Notification Bar | 2 | Easy | ✅ (gui/NotificationBar.h) |
 | 45 | Multi-Reticle Overlays | 2 | Easy-Med | 🔲 |
 | 39 | Framing Shot | 2 | Easy-Med | 🔲 |
-| 29 | Ghosted Image Overlay | 2 | Easy | 🔲 |
-| 13 | Sky Survey / Pointing Model | 2 | Medium | 🔲 |
-| 14 | Session Planner | 2 | Medium | 🔲 |
+| 29 | Ghosted Image Overlay | 2 | Easy | ✅ ([GH] button) |
+| 13 | Sky Survey / Pointing Model | 2 | Medium | ✅ (sky/PointingModel.h) |
+| 14 | Session Planner | 2 | Medium | ✅ (GoToPanel planner rows) |
 | 37 | Display Stretch Mini Histogram | 2 | Medium | 🔲 |
 | 46 | Connect/Disconnect All HW | 2 | Medium | 🔲 |
 | 27 | Dark Frame Subtraction | 2 | Medium | 🔲 |
@@ -1454,11 +1454,11 @@ RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS M
 | 35 | ADC Alignment Tool | 2 | Medium | 🔲 |
 | 47 | Pixel Position / Click to Recentre | 2 | Medium | 🔲 |
 | 48 | Goto Previous Image | 2 | Medium | 🔲 |
-| 6.6 | GoTo Map Learning | 2 | Med-Hard | 🔲 |
+| 6.6 | GoTo Map Learning | 2 | Med-Hard | ◑ partial — auto solve+sync on lock ships; the accumulating map does not |
 | 42 | Two Monitor Mode | 2 | Hard | 🔲 |
 | 16 | Polar Alignment Assistant | 2 | Hard | 🔲 |
 | 43 | Deep Sky Image Annotation | 3 | Hard | 🔲 |
-| 17 | Live Stacking Preview | 3 | Hard | 🔲 |
+| 17 | Live Stacking Preview | 3 | Hard | ◑ superseded by the quick-look stacker (Phase 74) |
 | 31 | Multi-Star FWHM Focus | 3 | Hard | 🔲 |
 | 32 | Bahtinov Mask Focus | 3 | Hard | 🔲 |
 | 18 | AVI/FITS Output | 3 | Medium | 🔲 |
@@ -1470,9 +1470,18 @@ RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS M
 | 20 | Distribution / ASCOM | 3 | Very Hard | 🔲 |
 | — | OBS Streaming | — | Hard | 🚫 Deferred |
 
+**Phases 60-84 are not in this table.** They were reactive work -- reviews,
+defect fixes and things the rig turned out to need -- rather than items from
+this plan, and they are recorded in the Phase History table in
+`RadukCapture-Help.md`. This table remains the roadmap of *planned* features;
+the help file is the record of what shipped.
+
+The 🔲 rows above are the outstanding plan. Nothing in them is
+half-built: each is unstarted.
+
 ---
 
-*RadukCapture v1.0.12 — Built for the stars, from the observing site*
+*RadukCapture v1.2.3 — Built for the stars, from the observing site*
 ### 6.3 Fault Tolerance & Auto-Recovery (Self-Healing)
 Planetary imaging requires high-bandwidth USB stability. To prevent session loss during I/O stalls (e.g., drive swaps, OS bus contention), RadukCapture implements a hardware-level auto-reset state machine.
 

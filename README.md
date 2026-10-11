@@ -74,6 +74,20 @@ Full key reference, panel-by-panel documentation and a first-night
 walkthrough are in [RadukCapture-Help.md](RadukCapture-Help.md), which the
 app also loads as reference context for the AI assistant.
 
+## Status and roadmap
+
+Built and in use: capture, tracking, GoTo, autofocus, the ADC advisor, the
+quick-look stacker, the readiness check and the device emulators.
+
+Not built yet, in rough priority order: calibration frames (darks, flats),
+display extras (single-channel view, histogram stretch, night vision),
+framing helpers (click-to-recentre, push-to, multi-reticle), focus aids
+beyond autofocus (FWHM, Bahtinov), AVI/FITS output, and a polar-alignment
+assistant. Full stacking is deliberately out of scope — AutoStakkert does
+that better. See **What is not built yet** in
+[RadukCapture-Help.md](RadukCapture-Help.md) and the phase table in
+[RadukCapture-Architecture.md](RadukCapture-Architecture.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the

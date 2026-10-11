@@ -1,73 +1,125 @@
 # Next session — outstanding work
 
-Written 2026-10-09 when a usage limit cut the session short. Everything
-below is unstarted; nothing is half-finished in the working tree.
+Rewritten 2026-10-11 at Phase 84. The previous version was written at
+Phase 70 and ended with "Nothing else is planned", which stopped being
+true the same week.
 
-## 1. Code review: sliders, buttons and hotkeys (DONE - Phase 71)
+Nothing below is half-finished in the working tree. Everything is either
+unstarted or waiting on a clear night.
 
-Completed 2026-10-09. Five defects found and fixed; see commit
-a2ded88 and docs/Control-Review-2026-10-09.md. The original scope
-notes are kept below for the record.
+---
 
-### Original scope
+## 1. The real outstanding item is still a clear night
 
-The one task from the last request that was not reached. Goal: confirm
-nothing added across Phases 60-70 conflicts with existing controls.
+This has not changed since the last version of this file, and it has
+grown. Phases 60–84 are almost entirely bench-verified.
 
-Specifically worth checking:
+Verified against hardware: serial port auto-detect, the mount accepting
+its site and clock.
 
-- **Hotkey collisions.** Phase 60 routes keys from the message pump
-  thread-wide, so a key that previously only reached the main window
-  now reaches every window. Confirm nothing double-fires, and that the
-  `WM_GETDLGCODE` exemption really does leave arrows to the GoTo and
-  align list boxes. Letters currently bound: R C S Q P V X B N H Z G M
-  F T A, plus Space, arrows, F11, `?`, `/`, `o`.
-- **New control IDs.** Several were added in separate phases and never
-  cross-checked in one place: `ID_BTN_CABLES`, `ID_BTN_RIGSETUP`
-  (ControlPanel, 1500 block); site dialog 2001+; align helper 3001+;
-  readiness dialog 4001+; rig setup 5001+. Confirm no overlap inside a
-  shared parent.
-- **The TELESCOPE row now holds three buttons** where it held one
-  (`MOUNT CTRL | CABLES OK | SETUP`, width `(w-4)/3`). Check it does
-  not clip at the minimum panel width.
-- **Two writers on one label.** `m_lblMountControl` is written by both
-  `UpdatePlanetLockUI` and `SetAcquisitionStatus`; Phase 70 made the
-  former defer, but confirm there is no path where it still wins.
-- **Slider ranges** against the profile editor's clamps, which were
-  never re-checked after the SAVE fix started writing live values back.
+Verified in the emulator only: the acquisition loop, the align helper,
+the readiness dialog, rig setup, cord-wrap tracking, autofocus
+(including a full slew → manual focus → autofocus run on Mars), the
+quick-look stacker, the motion plot, the filter/ADC band model, and the
+capture-format bar.
 
-## 2. Nothing else is planned
+Three things specifically cannot be checked without sky or hardware:
 
-Phases 60-70 are complete and pushed. The plan documents for 66, 67
-and 68 have no unimplemented steps left.
+- **`SHARP_CEIL = 1000`** in `core/Sharpness.h`. The sharpness percentage
+  is scaled against this ceiling, and the value was chosen from emulator
+  frames. If real frames run much hotter or colder, the capture gate
+  moves with them.
+- **The motion plot's camera source through a real FINE nudge.** The
+  mount source is proven; the camera source needs a real planet to track.
+- **`FULL` at the true 3840×2160.** The emulator streams at most
+  1280×960, so the full-sensor path is exercised only by its clamp
+  logic. On the real camera FULL should give the whole sensor at origin
+  (0,0).
 
-## 3. The real outstanding item is a clear night
+## 2. Decisions waiting on the owner, not on code
 
-Almost everything from Phase 60 onward is bench-verified only. Verified
-against hardware: serial port auto-detect, and the mount accepting its
-site and clock. Verified in the emulator: the acquisition loop, the
-align helper, the readiness dialog, the rig setup view, cord-wrap
-tracking and reset. Everything else compiles and is unit-tested but
-has not met the sky.
+- **Should a profile own the capture format?** `TargetProfile` stores
+  `roiWidth`, `roiHeight`, `binning` and `imgType`; `ApplyProfile()`
+  applies none of them. Wiring them up would make the active profile
+  authority over resolution, and since profile 0 is Jupiter at 640×480
+  the app would stop starting at full frame — the opposite of what was
+  asked for in Phase 84. Left as a decision.
+- **Phase 35, the ADC alignment tool.** The advisor now knows the filter
+  band and reports dispersion honestly. Whether a tool to help dial a
+  corrector in is worth building depends on whether a corrector gets
+  bought.
 
-Suggested first session back:
+## 3. Known broken, not ours
 
-1. Hand control -> Align -> Quick Align (needs no stars).
-2. Launch. Expect `Site adopted from windows`, `Mount reports
-   ALIGNED`, and a readiness line with no failures.
-3. Centre a planet, press `[CENTROID]` once.
+**AutoStakkert will not start on this machine.** It parses every option
+correctly and then never begins processing. Proven not to be
+RadukCapture: the identical command fails from a bare command prompt,
+and so does the exact command that worked earlier the same day.
+`AutoStackOnStop` ships off because of it. Next steps are reboot, then
+reinstall. See the Stacking section of the help file for how to tell a
+healthy run from a stuck one.
 
-If anything refuses it should now name the precondition rather than
-doing nothing silently. That reporting is the part most worth hearing
-about.
+## 4. Review pass 2 was cut short
 
-## Testing notes worth keeping
+A 20-agent review ran on 2026-10-10; 6 agents finished and 14
+verification passes died on a usage limit. One finding was confirmed and
+fixed. **Twelve findings remain unverified** — they are suspicions, not
+defects, and should be re-verified rather than fixed on sight. Locations
+as of that run (line numbers have since moved):
 
-- `RADUK_EMU_UNALIGNED=1` makes the emulator report itself unaligned,
-  which reproduces the whole tracking-blocked path on the bench.
+`AutoStakkertRunner.h` (2 — one of these turned out to be the wchar_t
+narrowing fixed in Phase 83, found independently by the compiler),
+`ControlPanel.h` (2), `ControlPanel.cpp` (1), `main.cpp` (2),
+`QuickLookStacker.h` (1), `CaptureManager.h` (1), `CameraEmulator.h` (2),
+`MotionMonitor.h` (2).
+
+A fourth review dimension is worth adding next time: **"a periodic
+update silently overwrites or invalidates something the user set."**
+Three instances of exactly that were found by hand in one day — the
+focuser GoTo field being overwritten mid-keystroke, the toolbar state
+cache discarding active markers after a resize, and the ADC figure
+silently assuming a filter band.
+
+## 5. The planned feature roadmap
+
+26 planned phases remain unstarted. They live in the Phase Priority
+Summary table in `RadukCapture-Architecture.md`, which was corrected on
+2026-10-11 — seven phases that had shipped were still showing as
+outstanding.
+
+The ones that would most change a night's results:
+
+| Phase | Feature | Why it matters |
+|-------|---------|----------------|
+| 27/28 | Dark + flat frames | The only calibration gap; currently a stacker's job |
+| 47 | Click the preview to recentre | Removes the jog-and-guess loop when a planet is off-centre |
+| 37 | Display stretch (mini histogram) | See faint detail without touching capture settings |
+| 46 | Connect/disconnect all hardware | One button instead of three, and a clean teardown |
+| 31/32 | FWHM / Bahtinov focus | Star focus; autofocus is tuned for a planetary disc |
+| 16 | Polar alignment assistant | Alt-az tracking drift is the ceiling on exposure length |
+
+Tier 3 (18/19/33/34/36, 12b, 20) is nice-to-have. Full stacking
+(Phase 17) is deliberately out of scope: AutoStakkert does it better,
+and the quick-look stacker already answers the question that mattered —
+"was that capture soft?" — the same night.
+
+## 6. Testing notes worth keeping
+
+- `RADUK_EMU_UNALIGNED=1` reproduces the whole tracking-blocked path.
+- `RADUK_EMU_TRUE_FOCUS` defaults to **168000**, and the emulated EAF
+  opens at **166500**, 1500 steps soft. Autofocus searches ±3000, so a
+  start further out than that fails by design.
 - `GetWindowText`/`SetWindowText` do **not** reach an EDIT control's
-  buffer across a process boundary. STATIC and BUTTON text works
-  because it is stored as the window title. Drive dialogs through
-  rig.ini and a restart, or capture the window with `PrintWindow`.
-- `SendMessage` with `BM_CLICK` on a button that opens a modal will
-  block the caller. Use `PostMessage`.
+  buffer across a process boundary. STATIC and BUTTON text works,
+  because it is stored as the window title — which is how the Phase 84
+  format buttons were verified from outside the process.
+- `SendMessage` with `BM_CLICK` on a button that opens a modal blocks
+  the caller. Use `PostMessage`.
+- **`printf` does not reach a redirected stdout in this GUI build.** Two
+  separate attempts to capture emulator diagnostics that way produced
+  147 bytes. Use `Log()`, which writes `raduk_log.txt` and flushes.
+- **The startup readiness dialog is modal and blocks everything after
+  it.** It cost most of an afternoon in Phase 84: the format buttons
+  appeared to be unwired when in fact `main()` had not yet reached the
+  line that wires them. If the app seems to ignore new wiring, check
+  whether a dialog is sitting open first.

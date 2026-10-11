@@ -268,6 +268,23 @@ public:
     // and not an arbitrary one.
     void SetSeeingBlurArcsec(float as) { m_seeingBlurAs = as < 0 ? 0 : as; }
 
+    // Expose the synthetic disc to a given peak level, 0 = leave the
+    // gain/exposure result alone.
+    //
+    // brightness = (gain/100)*(exposureUs/8000) clamped to [0.35, 3.5]
+    // puts the disc at 230-254 DN under most profiles - effectively
+    // saturated. A real planetary imager deliberately exposes to about
+    // 70-80% to keep headroom, so the emulator was reproducing an
+    // exposure nobody would actually use.
+    //
+    // That is not cosmetic. A clipped disc has its NOISE clipped away
+    // too while the sky keeps all of it, so any noise floor measured on
+    // the sky is too high for the frame as a whole. Two attempts at
+    // subtracting a noise floor from the sharpness metric over-corrected
+    // to zero because of exactly this, and the question of whether that
+    // subtraction is sound could not be answered on the bench at all.
+    void SetPeakTargetDn(int dn) { m_peakTargetDn = dn < 0 ? 0 : dn; }
+
     // ── Video capture ──────────────────────────────────────────
 
     bool StartVideoCapture() {
@@ -542,6 +559,20 @@ private:
                              (uint8_t)(col.b*255.f>255?255:col.b*255.f)};
             }
 
+            // Expose to the requested peak. The LUT above does not depend
+            // on brightness, so its maximum is the disc's brightest
+            // surface value and scaling against it lands the peak exactly.
+            if (m_peakTargetDn > 0) {
+                int lutMax = 1;
+                for (int i = 0; i < LUT_N; i++) {
+                    const LUTEntry& e = latLUT[i];
+                    if (e.r > lutMax) lutMax = e.r;
+                    if (e.g > lutMax) lutMax = e.g;
+                    if (e.b > lutMax) lutMax = e.b;
+                }
+                brightness = (float)m_peakTargetDn / (float)lutMax;
+            }
+
             // Precompute moon positions once per frame
             for (int m = 0; m < NUM_JUP_MOONS; m++) {
                 const JupMoon& moon = JUP_MOONS[m];
@@ -712,6 +743,7 @@ private:
     bool                        m_freezeSurface = false;
     int                         m_noiseAmp      = 0;
     float                       m_seeingBlurAs  = 0.0f;
+    int                         m_peakTargetDn  = 0;
     std::vector<int>            m_blurScratch;   // generator thread only
     std::vector<uint8_t>        m_blurTmp;       // generator thread only
 

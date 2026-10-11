@@ -116,7 +116,37 @@ inline double BayerLaplacianVariance(const uint8_t* buf,
     // the raw variance pinned the gauge at 100% across three consecutive
     // autofocus samples. The peak became a plateau with no curvature to
     // fit, and the result went from 19 steps off true focus to 500.
-    // The sky noise level is MEASURED and reported, but deliberately NOT
+    // THE SKY-NOISE IDEA DOES NOT WORK HERE, and the reason is worth
+    // keeping so nobody tries it a fourth time.
+    //
+    // The crop is 256x256 centred on the planet. A planetary target
+    // routinely FILLS that - the emulated disc is 422 px across - so
+    // there is no sky inside the crop at all. What gets measured as
+    // 'background' is then the darkest decile of the DISC, whose
+    // gradients are real surface structure, and subtracting it removes
+    // signal rather than noise.
+    //
+    // Measured, frozen scene, properly exposed to 200 DN peak:
+    //
+    //   noise  0 DN   raw   32.5   floor   35.2   net    -2.7
+    //   noise  6 DN   raw  216.2   floor  266.0   net   -49.7
+    //   noise 14 DN   raw 1201.8   floor 1723.3   net  -521.4
+    //
+    // The zero-noise row is the proof: a frame with no noise whatsoever
+    // still yields a 'noise floor' larger than its entire variance.
+    // Clipping was the earlier suspicion and it was wrong - exposing
+    // the disc properly changed nothing.
+    //
+    // The right method for a target that fills the frame is TEMPORAL:
+    // noise is what differs between consecutive frames at the same
+    // pixel, while structure does not. That needs frame history, which
+    // this function does not have, so it belongs in FrameAnalyzer if it
+    // is ever wanted.
+    //
+    // Until then the figure below is reported as a DIAGNOSTIC only and
+    // never subtracted. It is the darkest-decile gradient level, not a
+    // noise floor, and the [SHARP] log line names it 'noise' only
+    // because that is what it was built to estimate.
     // subtracted. Two attempts at subtracting it both over-corrected and
     // drove every frame to zero, and the reason is worth recording: the
     // bright planet clips, so noise is suppressed there but not on the

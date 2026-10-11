@@ -748,6 +748,14 @@ static int RunApp(bool useEmulator) {
         if (GetEnvironmentVariableA("RADUK_EMU_SEEING_AS", fb, 32))
             seeingAs = (float)atof(fb);
         cam.SetSeeingBlurArcsec(seeingAs);
+        // RADUK_EMU_PEAK_DN exposes the disc to a given peak level.
+        // Default 0 keeps the old gain/exposure behaviour; set ~200 for
+        // a realistically exposed frame with headroom, which is what
+        // anything measuring a noise floor needs.
+        int peakDn = 0;
+        if (GetEnvironmentVariableA("RADUK_EMU_PEAK_DN", fb, 32))
+            peakDn = atoi(fb);
+        cam.SetPeakTargetDn(peakDn);
         cam.SetFreezeSurface(freezeSurface);
         cam.SetTrueFocusPosition(trueFocus);
         cam.SetBlurPxPerStep(blurPerStep);

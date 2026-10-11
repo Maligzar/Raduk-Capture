@@ -1206,9 +1206,19 @@ void ControlPanel::UpdateReadouts() {
         int pos = m_focuser->GetPosition();
         swprintf(buf, 64, L"%d", pos);
         SetWindowTextW(m_lblFocusPos, buf);
-        // Keep GoTo box synced — user always sees current position,
-        // preventing accidental GO to a stale value
-        if (m_editFocusGoto) SetWindowTextW(m_editFocusGoto, buf);
+        // Keep the GoTo box showing the live position so GO TO never
+        // fires at a stale target - but NEVER while the user is typing
+        // in it.
+        //
+        // This ran unconditionally on every readout tick (~500ms), so
+        // a typed target was overwritten within half a second and the
+        // field could not be edited at all: the only way to reach a
+        // position was the fixed +/-10 and +/-1K buttons. Gating on
+        // focus keeps the original intent - the box reads the current
+        // position whenever you are not editing it - while letting a
+        // value actually be typed.
+        if (m_editFocusGoto && GetFocus() != m_editFocusGoto)
+            SetWindowTextW(m_editFocusGoto, buf);
         swprintf(buf, 64, L"%.1f C", m_focuser->GetTemperature());
         SetWindowTextW(m_lblFocusTemp, buf);
     }

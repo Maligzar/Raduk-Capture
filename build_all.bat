@@ -22,6 +22,11 @@ if not exist %CMAKE% set CMAKE=cmake
 pushd "%~dp0"
 set FAILED=
 
+REM A running instance holds the exe and the link fails with LNK1104,
+REM which reads as BUILD FAILED even though the code is fine. This gate
+REM is only useful if a failure means a real failure.
+taskkill /IM RadukCapture.exe /F >nul 2>&1
+
 echo.
 echo ============================================================
 echo  1/2  HARDWARE build (real camera, focuser, mount)

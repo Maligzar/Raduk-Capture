@@ -168,7 +168,7 @@ A beginner will reasonably ask whether a number is good. Honest answers:
 | Reading | What it is | What is good |
 |---------|-----------|--------------|
 | `LIVE` / `STACK` | Sharpness of one frame, and of the stacked frames. A gradient measure, corrected for noise and brightness. | **Relative only.** There is no universal good value. Watch whether it rises or falls as you change focus or as the night goes on. Higher is sharper. |
-| `Seeing n/10` | How steady the air has been recently | 7+ is a good night. 3 or less and the air is the limit, not the equipment. |
+| `Seeing n/10` | How this moment compares with the best frame of the last few seconds | **Relative, not absolute (v1.2.2).** It touches 10 whenever a frame is the best seen recently, so it does NOT say whether tonight is a good night - it says whether right now is a good moment. Watch how far it DIPS: steady air stays near 9-10, poor air swings down to 5 or below. |
 | `FPS` | Frames per second being captured | Higher is better — more frames to choose from. Shorter exposures raise it. |
 | `DROPS` | Frames lost before reaching the disk | Should be **0**. Anything else means a USB or disk problem, and those frames are gone. |
 | `TRK` | Whether the mount is following the sky | Must say **ON**. If it says OFF, the planet drifts out of frame within a minute or two. |
@@ -253,6 +253,7 @@ fullscreen.
 | `V` | Toggle RGB Align |
 | `X` | Toggle Pixel Value Readout |
 | `Z` | Cycle Zoom (FIT → 50% → 100% → 200%) |
+| `K` | Stac**K** the last finished recording in AutoStakkert |
 | `↑↓←→` | Jog mount (hold to slew) |
 | `+` / `-` | Fine focus step |
 | `[` / `]` | Coarse focus step |
@@ -754,6 +755,53 @@ The READY button still works.
 
 ---
 
+## Stacking a finished capture
+
+RadukCapture does not produce the final image. It records the video and
+shows a quick-look stack so you can judge sharpness at the telescope;
+**AutoStakkert** does the real work afterwards, and better than anything
+here would.
+
+`K` hands the last finished recording to AutoStakkert. Setting
+`AutoStackOnStop=1` in `rig.ini` does it automatically whenever a capture
+ends normally - you press stop, or it reaches its frame or time limit. An
+emergency stop never triggers it.
+
+**Known problem as of v1.2.2: this does not currently work on this
+machine.** AutoStakkert starts, parses every option correctly, then never
+begins processing. It is not RadukCapture - the identical command fails
+from a plain command prompt too, and so does the exact command that worked
+earlier the same day. `AutoStackOnStop` is off by default because of it.
+
+The command is sound and works when AutoStakkert is healthy, so you can
+always run it yourself:
+
+```
+AutoStakkert.exe "<file>.ser" /apgrid /process /hide /exit
+                 /outputdirectory "<folder>"
+```
+
+To tell a healthy run from a stuck one, open AutoStakkert's own log at
+`debug_data\log.txt`. A working run prints `Processing started` about
+half a second after `started...`; a stuck one never does. If it is stuck:
+reboot, then reinstall AutoStakkert if that does not help.
+
+### The `_quality.txt` file
+
+Every recording gets one, listing a sharpness score per frame.
+
+**AutoStakkert does not read it.** It measures quality itself, and does so
+separately around each alignment point, so a single score per frame could
+not drive its choices anyway. The file is for you: it records how the
+seeing ran across a capture, and it is what tells you the next morning
+which runs were worth keeping.
+
+Before v1.2.2 it held whichever score the analyser happened to have last,
+repeated across long runs of frames, and could not rank anything. It is now
+measured per frame.
+
+---
+
 ## Emulator test switches
 
 The emulator build simulates camera, focuser and mount so the app can be
@@ -771,6 +819,7 @@ hardware build and are listed here so a test result can be reproduced.
 | `RADUK_EMU_BLUR_PX_STEP` | 0.0083 | Blur added per step away from focus |
 | `RADUK_EMU_FREEZE_SURFACE` | off | Stops planet rotation, turbulence and moons, so only focus varies |
 | `RADUK_EMU_NOISE` | 0 | Per-pixel sensor noise, DN |
+| `RADUK_EMU_SEEING_AS` | 0 | Per-frame atmospheric blur, arcsec. Without it every simulated frame is equally sharp, so the seeing score, the capture gate and the stacker's frame selection have nothing to choose between |
 | `RADUK_EMU_REMOVE_AFTER_S` | off | Simulates the camera being unplugged after N seconds |
 
 The last four exist because the simulated planet was previously
@@ -834,6 +883,17 @@ so a stale entry falls back to auto-detect instead of breaking the connection.
 - If the plot reads `MOUNT` rather than `CAMERA` it is only updating
   twice a second, so a brief nudge shows as one step rather than a smooth
   line. That is the readout being coarse, not the mount being stuck.
+
+### Nothing is being recorded, or almost nothing
+
+Check the **GATE** threshold first. The gate only records frames whose
+seeing score beats it, and **the meaning of that number changed in v1.2.2**
+- the score is now relative to the best recent frame rather than an
+absolute scale. A threshold set before then will not behave as you remember.
+
+Re-pick it against the live readout: watch the seeing number for a minute,
+note how low it dips, and set the gate a little above that. Set too high it
+records nothing at all, which looks exactly like a broken capture.
 
 ### Frames dropping (LOST > 0)
 - Reduce USB bandwidth slider in CAMERA section
@@ -1043,7 +1103,11 @@ real site is stored. Most of it is written for you.
 | v1.2.0 | 74 | Quick-look stacker — aligned, quality-gated preview stack with a score |
 | v1.2.1 | 75 | Jog rate now reaches the arrow keys; both rate selectors stay in step |
 | v1.2.1 | 75 | Motion plot on the Mount Controller — camera or mount source, labelled |
+| v1.2.2 | 76 | Per-frame quality scores; one shared sharpness definition; a ceiling that survives sensor noise |
+| v1.2.2 | 77 | AutoStakkert handoff — `K` and AutoStackOnStop (launch currently blocked, see above) |
+| v1.2.2 | 78 | Emulator jog rates follow the real NexStar curve |
+| v1.2.2 | 79 | Capture gate fixed; emulator can vary frame quality |
 
 ---
 
-*RadukCapture Help v1.2.1 — Updated after each release*
+*RadukCapture Help v1.2.2 — Updated after each release*

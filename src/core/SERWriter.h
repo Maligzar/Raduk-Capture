@@ -210,8 +210,11 @@ public:
 
             FILE* qf = nullptr;
             if (fopen_s(&qf, qualPath.c_str(), "w") == 0 && qf) {
-                // Header comment
-                fprintf(qf, "# RadukCapture quality scores — sharpness 0-100\n");
+                // Header comment. ASCII ONLY: this file is read by text
+                // editors and spreadsheets that assume the system codepage,
+                // and the UTF-8 em-dash that used to be here showed up as
+                // mojibake in every one of them.
+                fprintf(qf, "# RadukCapture quality scores - sharpness, one per frame\n");
                 fprintf(qf, "# Frames: %u\n", m_framesWritten);
                 fprintf(qf, "# Format: one score per line, frame order\n");
 

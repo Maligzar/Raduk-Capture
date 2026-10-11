@@ -156,12 +156,18 @@ endif()
 # "(Help file not found — limited app reference available)" — it answered
 # anyway, just without knowing anything about the application.
 
-add_custom_command(TARGET RadukCapture POST_BUILD
+# A POST_BUILD step on the exe only fires when the exe RELINKS, so
+# editing the help alone left the deployed copies stale - and those
+# are the ones the assistant actually reads. A custom target with ALL
+# runs on every build regardless of whether any source changed.
+add_custom_target(copy_help ALL
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/RadukCapture-Help.md"
         "$<TARGET_FILE_DIR:RadukCapture>"
+    DEPENDS "${CMAKE_SOURCE_DIR}/RadukCapture-Help.md"
     COMMENT "Copying help file (AI assistant app reference) next to the exe"
 )
+add_dependencies(copy_help RadukCapture)
 
 # ── Create output directories ──────────────────────────────────
 

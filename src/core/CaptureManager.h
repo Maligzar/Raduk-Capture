@@ -23,6 +23,7 @@
 #include <atomic>
 #include <mutex>
 #include <chrono>
+#include <functional>   // SetOnComplete
 #include <cstdio>
 #include <ctime>
 #include <windows.h>

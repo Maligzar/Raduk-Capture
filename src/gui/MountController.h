@@ -648,10 +648,9 @@ public:
     }
     float MotionSpeed() const { return m_motion.SpeedArcsecPerSec(); }
     int   MotionSamples() const { return m_motion.SampleCount(); }
-    void ResetMotion() {
-        m_motion.Reset();
-        if (m_canvasMotion) InvalidateRect(m_canvasMotion, nullptr, FALSE);
-    }
+    // No ResetMotion(): it never had a caller, which is this codebase's
+    // commonest defect. MotionMonitor re-anchors itself once the trail
+    // runs past RE_ANCHOR_AS, so nothing has to remember to call it.
 private:
     static LRESULT CALLBACK MotionProc(HWND h, UINT m, WPARAM wp,
                                        LPARAM lp, UINT_PTR, DWORD_PTR ref) {

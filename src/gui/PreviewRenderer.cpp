@@ -848,7 +848,13 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
         // Phase 74: quick-look stacker readout. Two numbers from the
         // SAME metric over the same window, so they can be compared:
         // the live frame and the aligned stack of the best recent ones.
-        if (m_fxN > 0 && m_amberBrush) {
+        // Gated on the stacker having actually been FED, not merely on a
+        // stack mode being selected. The stacker only runs in the Color
+        // debayer branch, so in RAW mode this used to sit there reading
+        // "LIVE 0.00 learning..." next to an FX label saying
+        // "STACK 10 BEST" while nothing was being stacked at all.
+        if (m_fxN > 0 && m_amberBrush &&
+            m_debayerMode == DebayerMode::Color) {
             wchar_t qb[96];
             if (m_ql.Learning()) {
                 swprintf(qb, 96, L"LIVE %.2f  learning...", m_qlLive);

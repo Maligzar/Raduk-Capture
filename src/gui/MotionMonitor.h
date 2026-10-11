@@ -43,6 +43,18 @@ public:
     // Rolling window. Long enough to see a jog and the drift after it,
     // short enough that the plot reflects now rather than the session.
     static constexpr double WINDOW_S   = 10.0;
+    // Speed is measured over a SHORTER window than the trail. It has to
+    // be long enough to contain the mount feed, whose samples arrive
+    // >= 2s apart, but short enough that a jog is not averaged away
+    // across the whole 10s trail.
+    static constexpr double SPEED_WINDOW_S = 2.5;
+    // NOTE on scaling: the plot frames the TRAIL'S OWN BOUNDING BOX,
+    // never distance from the origin. The origin is fixed at the first
+    // sample, so after a GoTo of a few degrees every later point sits
+    // ~100000 arcsec away from it and an origin-based scale would be
+    // wrong by orders of magnitude forever after, leaving the few-arcsec
+    // moves this exists to show as a sub-pixel dot. Framing the trail
+    // instead is self-correcting and needs nothing reset.
     // Never auto-scale tighter than this, or a stationary mount fills the
     // plot with seeing jitter and looks like it is running away.
     static constexpr float  MIN_SPAN_AS = 6.0f;
@@ -96,14 +108,35 @@ public:
     float SpeedArcsecPerSec() const {
         if (m_pts.size() < 2) return 0.0f;
         const double tEnd = m_pts.back().t;
-        double path = 0.0, t0 = tEnd;
-        for (size_t i = m_pts.size() - 1; i > 0; i--) {
-            if (tEnd - m_pts[i - 1].t > 1.0) break;
-            path += Dist(m_pts[i], m_pts[i - 1]);
-            t0 = m_pts[i - 1].t;
-        }
-        const double dt = tEnd - t0;
-        return dt > 1e-3 ? (float)(path / dt) : 0.0f;
+
+        // ALWAYS include the newest segment, however long it spans.
+        //
+        // This used to skip any segment older than a fixed 1.0s, which made
+        // the figure permanently 0.0 on the MOUNT source: that feed is
+        // gated by `++mountTick % 4` on top of a 500ms poll, so its samples
+        // are >= 2s apart (8s while recording) and the very first loop test
+        // broke before accumulating anything. The widget printed
+        // MOUNT 0.0"/s, in the grey not-moving colour, during a full 3 deg/s
+        // slew - the exact false conclusion it exists to prevent.
+        // Walk back by INDEX, not by tracking a timestamp separately - the
+        // two get out of step at the loop boundary.
+        size_t first = m_pts.size() - 2;          // newest segment, always in
+        while (first > 0 && (tEnd - m_pts[first - 1].t) <= SPEED_WINDOW_S)
+            first--;
+        const double dt = tEnd - m_pts[first].t;
+        if (dt <= 1e-3) return 0.0f;
+
+        // NET DISPLACEMENT over the window, not path length along it.
+        //
+        // Path length counts seeing jitter, which is oscillatory: the planet
+        // wanders several arcsec and returns, so a stationary mount still
+        // accumulated metres of path and read ~5"/s - above both the green
+        // "moving" colour and main.cpp's logging gate. Net displacement
+        // cancels the wander and leaves the commanded motion, which is the
+        // only thing this number is asked about.
+        const double dx = m_pts.back().x - m_pts[first].x;
+        const double dy = m_pts.back().y - m_pts[first].y;
+        return (float)(std::sqrt(dx * dx + dy * dy) / dt);
     }
 
     void Draw(HDC hdc, const RECT& rc) const {
@@ -133,11 +166,15 @@ public:
 
         // Auto-scale to the window's own extent, floored so a still mount
         // does not get magnified into apparent chaos.
-        float span = MIN_SPAN_AS;
+        float loX = m_pts[0].x, hiX = loX, loY = m_pts[0].y, hiY = loY;
         for (const auto& p : m_pts) {
-            span = (std::fabs(p.x) * 2.2f > span) ? std::fabs(p.x) * 2.2f : span;
-            span = (std::fabs(p.y) * 2.2f > span) ? std::fabs(p.y) * 2.2f : span;
+            if (p.x < loX) loX = p.x;  if (p.x > hiX) hiX = p.x;
+            if (p.y < loY) loY = p.y;  if (p.y > hiY) hiY = p.y;
         }
+        const float midX = (loX + hiX) * 0.5f, midY = (loY + hiY) * 0.5f;
+        float span = (hiX - loX) > (hiY - loY) ? (hiX - loX) : (hiY - loY);
+        span *= 1.2f;                       // a little margin
+        if (span < MIN_SPAN_AS) span = MIN_SPAN_AS;
         const int   plotH = h - 14;                  // leave a text strip
         const float cx = rc.left + w * 0.5f;
         const float cy = rc.top  + plotH * 0.5f;
@@ -161,17 +198,17 @@ public:
             const int   g = 60 + (int)(150.0f * f);
             HPEN seg = CreatePen(PS_SOLID, 1, RGB(20 + g / 3, g, 60 + g / 3));
             oldPen = SelectObject(hdc, seg);
-            MoveToEx(hdc, (int)(cx + m_pts[i-1].x * sc),
-                          (int)(cy - m_pts[i-1].y * sc), nullptr);
-            LineTo(hdc,   (int)(cx + m_pts[i].x   * sc),
-                          (int)(cy - m_pts[i].y   * sc));
+            MoveToEx(hdc, (int)(cx + (m_pts[i-1].x - midX) * sc),
+                          (int)(cy - (m_pts[i-1].y - midY) * sc), nullptr);
+            LineTo(hdc,   (int)(cx + (m_pts[i].x   - midX) * sc),
+                          (int)(cy - (m_pts[i].y   - midY) * sc));
             SelectObject(hdc, oldPen);
             DeleteObject(seg);
         }
 
         // Current position
-        const int px = (int)(cx + m_pts.back().x * sc);
-        const int py = (int)(cy - m_pts.back().y * sc);
+        const int px = (int)(cx + (m_pts.back().x - midX) * sc);
+        const int py = (int)(cy - (m_pts.back().y - midY) * sc);
         HBRUSH dot = CreateSolidBrush(RGB(120, 230, 170));
         RECT d = { px - 2, py - 2, px + 3, py + 3 };
         FillRect(hdc, &d, dot);

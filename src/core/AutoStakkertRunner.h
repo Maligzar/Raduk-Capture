@@ -220,6 +220,8 @@ private:
         si.wShowWindow = SW_HIDE;
         PROCESS_INFORMATION pi = {};
 
+        FILETIME ftLaunch = {};
+        GetSystemTimeAsFileTime(&ftLaunch);
         const auto t0 = std::chrono::steady_clock::now();
         // SW_HIDE via STARTUPINFO, and deliberately NOT
         // CREATE_NO_WINDOW. ASTAPSolver uses that flag because astap
@@ -255,7 +257,7 @@ private:
             WaitForSingleObject(pi.hProcess, 5000);
         }
         DWORD exitCode = 1;
-        GetExitCodeProcess(pi.hProcess, &exitCode);
+        GetExitCodeProcess(pi.hProcess, &exitCode);   // and it IS checked below
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
 
@@ -267,10 +269,23 @@ private:
             return r;
         }
 
+        // A non-zero exit means AS itself reported failure. This was
+        // fetched and then discarded, so a failed run was judged purely
+        // on leftover files.
+        if (exitCode != 0) {
+            char buf[96];
+            sprintf_s(buf, "AutoStakkert exited with code %lu", exitCode);
+            r.error = buf;
+            return r;
+        }
+
         // Which percentages and which image format appear depend on AS's
         // own saved settings, so count what actually landed rather than
-        // predicting a filename.
-        r.filesProduced = CountStacks(r.outputDir);
+        // predicting a filename. Count only files written SINCE launch:
+        // the output directory is created but never cleared, so a rerun
+        // that produced nothing would otherwise be reported as success
+        // on the strength of the previous run's images.
+        r.filesProduced = CountStacks(r.outputDir, ftLaunch);
         if (r.filesProduced == 0) {
             r.error = "AutoStakkert produced no output - open the recording "
                       "in AS once to set it up, then retry";
@@ -280,7 +295,11 @@ private:
         return r;
     }
 
-    static int CountStacks(const std::wstring& dir) {
+    static bool NewerThan(const FILETIME& a, const FILETIME& b) {
+        return CompareFileTime(&a, &b) >= 0;
+    }
+
+    static int CountStacks(const std::wstring& dir, const FILETIME& since) {
         int n = 0;
         WIN32_FIND_DATAW fd = {};
         HANDLE h = FindFirstFileW((dir + L"\\*").c_str(), &fd);
@@ -298,7 +317,9 @@ private:
                 if (d == std::wstring::npos) continue;
                 std::wstring ext = nm.substr(d);
                 for (auto& c : ext) c = (wchar_t)towlower(c);
-                if (ext == L".tif" || ext == L".tiff" || ext == L".png") n++;
+                if (ext != L".tif" && ext != L".tiff" && ext != L".png") continue;
+                if (!NewerThan(f2.ftLastWriteTime, since)) continue;
+                n++;
             } while (FindNextFileW(h2, &f2));
             FindClose(h2);
         } while (FindNextFileW(h, &fd));

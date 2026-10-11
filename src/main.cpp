@@ -1880,7 +1880,20 @@ static int RunApp(bool useEmulator) {
         }
         slog.System("Stacking %s", serPath.c_str());
         notifBar.NotifyInfo(L"Stacking in AutoStakkert...");
-        stacker.StackAsync(std::wstring(serPath.begin(), serPath.end()),
+        // MultiByteToWideChar, not an iterator copy: a byte-for-byte widen
+        // mangles any non-ASCII character in the path and the stack then
+        // fails on a file that plainly exists.
+        std::wstring serW;
+        {
+            int need = MultiByteToWideChar(CP_UTF8, 0, serPath.c_str(),
+                                           -1, nullptr, 0);
+            if (need > 0) {
+                serW.resize(need - 1);
+                MultiByteToWideChar(CP_UTF8, 0, serPath.c_str(), -1,
+                                    &serW[0], need);
+            }
+        }
+        stacker.StackAsync(serW,
             [&](raduk::core::StackResult r) {
                 // Worker thread: log only, no UI calls from here.
                 if (r.ok)
@@ -3241,9 +3254,15 @@ static int RunApp(bool useEmulator) {
                 }
             }
             summaryWasRecording = nowRecording;
-            // Accumulate seeing score continuously (used for session avg)
-            if (lastAnalysis.valid && lastAnalysis.seeingScore > 0.0f) {
-                summarySeeingAcc += lastAnalysis.seeingScore;
+            // Session average uses sharpnessPct, NOT seeingScore.
+            // seeingScore became relative to the best recent frame, so it
+            // self-normalises: averaging it yields roughly the same figure
+            // every session whatever the conditions, which is worse than
+            // useless in a summary someone compares across nights.
+            // sharpnessPct is the absolute measure and is what belongs
+            // here.
+            if (lastAnalysis.valid && lastAnalysis.sharpnessPct > 0.0f) {
+                summarySeeingAcc += lastAnalysis.sharpnessPct;
                 ++summarySeeingCount;
             }
 

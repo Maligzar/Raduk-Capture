@@ -46,6 +46,7 @@ public:
     void SetRGBAlignHandler(std::function<void()> h)          { m_onRGBAlign           = h; }
     void SetPixelReadoutHandler(std::function<void()> h)      { m_onPixelReadout        = h; }
     void SetFXCycleHandler(std::function<void()> h)           { m_onFXCycle             = h; }
+    void SetStackLastHandler(std::function<void()> h)         { m_onStackLast           = h; }
     void SetNightVisionHandler(std::function<void()> h)       { m_onNightVision         = h; }
     void SetChannelCycleHandler(std::function<void()> h)      { m_onChannelCycle        = h; }  // H key
     void SetHelpToggleHandler(std::function<void()> h)        { m_onHelpToggle          = h; }  // ? key
@@ -179,6 +180,7 @@ private:
     std::function<void()>               m_onRGBAlign;
     std::function<void()>               m_onPixelReadout;
     std::function<void()>               m_onFXCycle;
+    std::function<void()>               m_onStackLast;
     std::function<void()>               m_onNightVision;
     std::function<void()>               m_onChannelCycle;
     std::function<void()>               m_onHelpToggle;

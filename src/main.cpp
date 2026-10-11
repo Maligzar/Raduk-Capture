@@ -67,6 +67,7 @@
 #include "gui/NotificationBar.h"
 #include "gui/ObjectInfoPanel.h"
 #include "core/AIContextBuilder.h"
+#include "core/AutoStakkertRunner.h"
 #include "profiles/TargetProfile.h"
 #include "profiles/ProfileManager.h"
 #include "core/AutofocusRoutine.h"
@@ -1771,7 +1772,7 @@ static int RunApp(bool useEmulator) {
 
         bool wasRecording = capturer.IsRecording();
         if (wasRecording) {
-            capturer.StopRecording();
+            capturer.StopRecording(false);  // ROI change - do not auto-stack
             usbMgr.SetCapturing(false);
         }
 
@@ -1831,6 +1832,48 @@ static int RunApp(bool useEmulator) {
     auto doZoomStep = [&](int dir) { preview.ZoomStep(dir); controls.SetZoomLabel(preview.ZoomLabel()); };
     auto doFullscreen = [&]() { window.ToggleFullscreen(); };
 
+    // ── Phase 77: hand a finished recording to AutoStakkert ────
+    // AS does multi-point alignment and drizzle well and is free;
+    // nothing here would beat it. What was missing was the handoff.
+    static raduk::core::AutoStakkertRunner stacker;
+    {
+        auto& rg = raduk::core::RigConfig::Get();
+        if (!rg.autoStakkertPath.empty())
+            stacker.SetPath(std::wstring(rg.autoStakkertPath.begin(),
+                                         rg.autoStakkertPath.end()));
+        stacker.SetLogger([](const std::string& s) {
+            Log("[STACK] %s\n", s.c_str());
+        });
+        Log("[STACK] AutoStakkert %s\n",
+            stacker.IsAvailable() ? "found" : "NOT found");
+    }
+    auto doStackFile = [&](const std::string& serPath) {
+        if (serPath.empty()) {
+            notifBar.NotifyInfo(L"No finished recording to stack yet");
+            return;
+        }
+        if (!stacker.IsAvailable()) {
+            notifBar.NotifyWarn(L"AutoStakkert not found - set "
+                                L"AutoStakkertPath in rig.ini");
+            return;
+        }
+        if (stacker.IsRunning()) {
+            notifBar.NotifyInfo(L"A stack is already running");
+            return;
+        }
+        slog.System("Stacking %s", serPath.c_str());
+        notifBar.NotifyInfo(L"Stacking in AutoStakkert...");
+        stacker.StackAsync(std::wstring(serPath.begin(), serPath.end()),
+            [&](raduk::core::StackResult r) {
+                // Worker thread: log only, no UI calls from here.
+                if (r.ok)
+                    Log("[STACK] done: %d image(s) in %.0fs\n",
+                        r.filesProduced, r.seconds);
+                else
+                    Log("[STACK] failed: %s\n", r.error.c_str());
+            });
+    };
+
     // ── Record toggle — also notifies USB manager ──────────────
     auto doRecord = [&]() {
         if (capturer.IsRecording()) {
@@ -1871,6 +1914,21 @@ static int RunApp(bool useEmulator) {
     controls.SetZoomCycleCallback(doZoom);
     controls.SetFullscreenToggleCallback(doFullscreen);
     controls.SetRecordStartCallback(doRecord);
+
+    // Auto-stack hangs off the recording COMPLETING, not off the button.
+    // A planned capture ends by reaching its frame limit inside
+    // SubmitFrame, so a button hook would almost never fire. 'normal' is
+    // false for an emergency stop or an ROI change, and neither should
+    // launch minutes of CPU work.
+    capturer.SetOnComplete([&](const std::string& path, bool normal) {
+        Log("[STACK] recording complete: normal=%d  autoStack=%d  path=%s\n",
+            normal ? 1 : 0,
+            raduk::core::RigConfig::Get().autoStackOnStop ? 1 : 0,
+            path.empty() ? "(empty)" : path.c_str());
+        if (!normal) return;
+        if (!raduk::core::RigConfig::Get().autoStackOnStop) return;
+        doStackFile(path);
+    });
     controls.SetDockToggleCallback([&]() {});
 
     // ── Phase 9: Autofocus ────────────────────────────────────
@@ -2038,7 +2096,8 @@ static int RunApp(bool useEmulator) {
                 slog.System("ROI: %dx%d centred on planet", newW, newH);
 
                 bool wasRecording = capturer.IsRecording();
-                if (wasRecording) { capturer.StopRecording(); usbMgr.SetCapturing(false); }
+                // ROI change - not a normal finish, do not auto-stack
+                if (wasRecording) { capturer.StopRecording(false); usbMgr.SetCapturing(false); }
                 capture.Stop();
                 cam.SetROI(newW, newH, 1, ASI_IMG_RAW8);
                 cam.SetStartPos(startX, startY);
@@ -2141,7 +2200,7 @@ static int RunApp(bool useEmulator) {
     // user pressing STOP.
     auto doEmergencyStop = [&]() {
         if (capturer.IsRecording()) {
-            capturer.StopRecording();
+            capturer.StopRecording(false);  // emergency stop - do not auto-stack
             usbMgr.SetCapturing(false);
         }
         autofocus.Abort();                // Phase 9: stop any running AF scan
@@ -2195,6 +2254,7 @@ static int RunApp(bool useEmulator) {
         Log("[FX] %ls\n", lbl);
     };
     window.SetFXCycleHandler([&]() { doFXCycle(); });
+    window.SetStackLastHandler([&]() { doStackFile(capturer.LastFilePath()); });
     controls.SetFXCycleCallback([&]() { doFXCycle(); });
 
     // Phase 26: N key and panel button toggle Night Vision Mode
@@ -2371,7 +2431,7 @@ static int RunApp(bool useEmulator) {
                 L"RadukCapture — Exit",
                 MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
             if (choice != IDYES) return;
-            capturer.StopRecording();
+            capturer.StopRecording(false);  // app exiting - do not auto-stack
         }
         // Shut down floating windows and AI gracefully before message loop exits
         aiChat.Destroy();
@@ -3328,7 +3388,7 @@ static int RunApp(bool useEmulator) {
     // Shut down Phase 50 AI before hardware teardown
     aiChat.Destroy();
 
-    if (capturer.IsRecording()) capturer.StopRecording();
+    if (capturer.IsRecording()) capturer.StopRecording(false);  // app shutting down - do not auto-stack
     tracker.Reset();
     analyzer.Stop();
     statusBar.Release();

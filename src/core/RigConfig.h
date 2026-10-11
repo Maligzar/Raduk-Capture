@@ -103,6 +103,11 @@ struct RigConfig {
 
     // Optics / sensor (nominal)
     float  plateScaleArcsecPx = 0.203f;  // 8SE 2032mm + 2.0um pixels
+    // Phase 77: hand each finished recording to AutoStakkert
+    // automatically. Off by default - stacking is minutes of CPU and
+    // should be opted into, not sprung on someone mid-session.
+    bool        autoStackOnStop = false;
+    std::string autoStakkertPath;       // blank = probe the usual places
 
     // Mount guide rate behind PulseGuide, on-sky arcsec/second
     float  guideRateArcsecPerSec = 7.5f;
@@ -155,9 +160,14 @@ struct RigConfig {
             snprintf(buf, sizeof(buf), "%.6f", v);
             WritePrivateProfileStringA("Rig", key, buf, p.c_str());
         };
+        auto ws = [&](const char* key, const std::string& v) {
+            WritePrivateProfileStringA("Rig", key, v.c_str(), p.c_str());
+        };
         wf("SiteLatDeg", siteLatDeg);
         wf("SiteLonDeg", siteLonDeg);
         wf("PlateScaleArcsecPx", plateScaleArcsecPx);
+        ws("AutoStackOnStop", autoStackOnStop ? "1" : "0");
+        ws("AutoStakkertPath", autoStakkertPath);
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
         wf("SiteElevationM", siteElevationM);
         wf("WrapLimitDeg", wrapLimitDeg);
@@ -187,6 +197,11 @@ private:
     static RigConfig LoadFromDisk() {
         RigConfig cfg;
         std::string p = IniPath();
+        auto rs = [&](const char* key, const std::string& def) -> std::string {
+            char buf[512] = {};
+            GetPrivateProfileStringA("Rig", key, "", buf, sizeof(buf), p.c_str());
+            return buf[0] ? std::string(buf) : def;
+        };
         auto rf = [&](const char* key, double def) -> double {
             char buf[64] = {};
             GetPrivateProfileStringA("Rig", key, "", buf, sizeof(buf), p.c_str());
@@ -223,6 +238,8 @@ private:
             cfg.siteSource = sbuf[0] ? sbuf : (cfg.siteValid ? "manual" : "");
         }
         cfg.plateScaleArcsecPx    = (float)rf("PlateScaleArcsecPx", cfg.plateScaleArcsecPx);
+        cfg.autoStackOnStop       = rs("AutoStackOnStop", cfg.autoStackOnStop ? "1" : "0") == "1";
+        cfg.autoStakkertPath      = rs("AutoStakkertPath", cfg.autoStakkertPath);
         cfg.guideRateArcsecPerSec = (float)rf("GuideRateArcsecPerSec", cfg.guideRateArcsecPerSec);
 
         // Optional explicit mount port. Read as a raw string: blank

@@ -140,7 +140,7 @@ public:
     }
 
     // Stop recording. Drains remaining write buffer, closes SER file.
-    void StopRecording() {
+    void StopRecording(bool normal = true) {
         if (!m_status.recording.load()) return;
 
         m_status.recording.store(false);
@@ -148,6 +148,10 @@ public:
         // Signal writer thread to finish draining and exit
         m_writerRunning.store(false);
         if (m_writerThread.joinable()) m_writerThread.join();
+
+        // Remember the finished file before closing, so the caller can
+        // hand it straight to AutoStakkert without reconstructing a path.
+        m_lastPath = m_writer.Path();
 
         // Close SER writer (writes timestamp trailer, patches frame count)
         m_writer.Close();
@@ -162,12 +166,35 @@ public:
 
         if (m_log) m_log->Capture("Recording stopped: %u frames  %u drops  %.1f MB  %.1fs",
                                    frames, drops, mb, secs);
+
+        // Fires on EVERY path out of a recording, including the frame/time
+        // limit inside SubmitFrame - which is how a planned capture
+        // normally ends. Callers distinguish by the flag.
+        if (m_onComplete) m_onComplete(m_lastPath, normal);
     }
 
     // ── Frame submission ───────────────────────────────────────
 
     // Called from the render loop for each preview frame when recording.
     // sharpness: current FrameAnalyzer sharpnessPct (0-100), 0 = no analysis yet.
+    // Path of the most recently FINISHED recording, empty before the
+    // first one completes.
+    const std::string& LastFilePath() const { return m_lastPath; }
+
+    // Fired once a recording has fully closed, with the finished path and
+    // whether it ended NORMALLY. 'Normal' means the user pressed stop or
+    // the configured frame/time limit was reached; it is false for an
+    // emergency stop or an ROI change. Anything expensive hung off the
+    // end of a capture must only run on a normal finish.
+    //
+    // This exists because the limit path matters most: a planned capture
+    // ends by hitting its frame count inside SubmitFrame, not by anyone
+    // pressing a button, so a hook on the button alone would almost never
+    // fire in real use.
+    void SetOnComplete(std::function<void(const std::string&, bool)> cb) {
+        m_onComplete = std::move(cb);
+    }
+
     bool SubmitFrame(const FrameSlot* slot, float sharpness = 0.0f,
                      uint32_t cropCX = 0, uint32_t cropCY = 0) {
         if (!m_status.recording.load()) return false;
@@ -304,6 +331,8 @@ private:
         }
     }
 
+    std::string     m_lastPath;      // most recently finished recording
+    std::function<void(const std::string&, bool)> m_onComplete;
     CaptureConfig   m_config;
     WriteBuffer     m_writeBuffer;
     SERWriter       m_writer;

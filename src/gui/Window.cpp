@@ -311,6 +311,9 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
         case 'B':
             if (firstPress && m_onFXCycle) m_onFXCycle();
             return true;
+        case 'K':   // stacK the last recording in AutoStakkert
+            if (firstPress && m_onStackLast) m_onStackLast();
+            return true;
         case 'N':
             if (firstPress && m_onNightVision) m_onNightVision();
             return true;

@@ -75,12 +75,27 @@
 // retry - and check debug_data\log.txt for "Processing started",
 // which is the line that distinguishes the two cases in one glance.
 //
+// The decisive observation: the EXACT invocation that succeeded at
+// 13:52 no longer succeeds, with nothing else running, on the same
+// file, with the same switches. Whatever changed is in AutoStakkert's
+// own persistent state, and it survives a process restart, a clean
+// settings file and an interactive launch.
+//
 // Ruled out along the way, each by measurement:
 //   - the command string, logged and compared character for character
 //   - argument form, array versus single string
 //   - CREATE_NO_WINDOW, and separately STARTF_USESHOWWINDOW/SW_HIDE
 //   - working directory, main thread versus worker thread
 //   - a truncated recording, and plain impatience
+//   - a second AS instance holding a single-instance lock
+//   - AS's settings, via a clean file passed with /inifile
+//   - disk and memory headroom (340+ GB free, 55 GB RAM free)
+//   - launching AS interactively first to clear a stuck state
+//
+// Next steps are outside this code: reboot, then reinstall or update
+// AutoStakkert. Its log is the one-glance test either way - a working
+// run prints "Processing started" about half a second after
+// "started...", and a broken one never does.
 //
 // Previously assumed, now disproved: that it was something about being
 // a child of this

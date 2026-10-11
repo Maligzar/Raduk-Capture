@@ -739,6 +739,15 @@ static int RunApp(bool useEmulator) {
         if (GetEnvironmentVariableA("RADUK_EMU_NOISE", fb, 32))
             noiseDn = atoi(fb);
         cam.SetNoiseAmplitude(noiseDn);
+        // RADUK_EMU_SEEING_AS gives frames a per-frame atmospheric
+        // blur, so frame QUALITY varies and not just position. Without
+        // it every frame is equally sharp and the seeing score, the
+        // capture gate and the stacker's selection have nothing to
+        // choose between.
+        float seeingAs = 0.0f;
+        if (GetEnvironmentVariableA("RADUK_EMU_SEEING_AS", fb, 32))
+            seeingAs = (float)atof(fb);
+        cam.SetSeeingBlurArcsec(seeingAs);
         cam.SetFreezeSurface(freezeSurface);
         cam.SetTrueFocusPosition(trueFocus);
         cam.SetBlurPxPerStep(blurPerStep);
@@ -3317,9 +3326,9 @@ static int RunApp(bool useEmulator) {
             // interesting as after-the-fact evidence that a command did
             // something - which is the whole question this answers.
             if (lastAnalysis.valid)
-                Log("[SHARP] pct=%.2f  raw=%.1f  noise=%.1f  net=%.1f\n",
-                    lastAnalysis.sharpnessPct, lastAnalysis.sharpRaw,
-                    lastAnalysis.sharpNoise,
+                Log("[SHARP] pct=%.2f  seeing=%.1f/10  raw=%.1f  noise=%.1f  net=%.1f\n",
+                    lastAnalysis.sharpnessPct, lastAnalysis.seeingScore,
+                    lastAnalysis.sharpRaw, lastAnalysis.sharpNoise,
                     lastAnalysis.sharpRaw - lastAnalysis.sharpNoise);
 
             if (mountCtrl.MotionSpeed() > 0.5f)

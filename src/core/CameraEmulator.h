@@ -252,6 +252,22 @@ public:
     // shared state on the generator thread, and runs are repeatable.
     void SetNoiseAmplitude(int dn) { m_noiseAmp = dn < 0 ? 0 : dn; }
 
+    // Atmospheric blur, arcsec FWHM-ish, varying frame to frame.
+    //
+    // SetSeeingJitterArcsec only MOVES the planet - it never softens it,
+    // so every emulated frame was equally sharp. That left nothing for
+    // the parts of this app whose whole job is telling good frames from
+    // bad: the rolling seeing score, the capture quality gate, and the
+    // quick-look stacker's top-15% selection all had a flat distribution
+    // to work on and could not be exercised at all.
+    //
+    // Deliberately skewed rather than symmetric, because that is the
+    // premise lucky imaging rests on: most frames are mushy and a few
+    // are sharp. Blur runs from 0.25x to 1.0x of the set amount, biased
+    // toward the blurry end, so selecting the best 15% is a real choice
+    // and not an arbitrary one.
+    void SetSeeingBlurArcsec(float as) { m_seeingBlurAs = as < 0 ? 0 : as; }
+
     // ── Video capture ──────────────────────────────────────────
 
     bool StartVideoCapture() {
@@ -601,8 +617,19 @@ private:
             // autofocus V-curve has something real to fit.
             int focusPos = 0;
             if (m_focusProvider && m_focusProvider(focusPos)) {
-                const float diaPx = fabsf((float)(focusPos - m_trueFocus))
-                                  * m_blurPxPerStep;
+                float diaPx = fabsf((float)(focusPos - m_trueFocus))
+                            * m_blurPxPerStep;
+                if (m_seeingBlurAs > 0.0f) {
+                    // Per-frame seeing draw, skewed toward blurry.
+                    uint32_t sh = (uint32_t)m_frameCounter * 2654435761u;
+                    sh ^= sh >> 15; sh *= 0x2545f491u; sh ^= sh >> 13;
+                    const float u = (float)(sh & 0xFFFFu) / 65535.0f;
+                    const float draw = 0.25f + 0.75f * u * u;  // skewed
+                    const float seeingPx = m_seeingBlurAs
+                                         / EMU_PLATE_SCALE_AS_PX * draw;
+                    // Independent blurs add in quadrature, not linearly.
+                    diaPx = sqrtf(diaPx * diaPx + seeingPx * seeingPx);
+                }
                 // diaPx is the blur DIAMETER in sensor pixels. Three box
                 // passes of radius r superpixels add variance, giving an
                 // equivalent Gaussian sigma of sqrt((2r+1)^2-1)/2
@@ -684,6 +711,7 @@ private:
     float                       m_blurPxPerStep = 0.0083f;
     bool                        m_freezeSurface = false;
     int                         m_noiseAmp      = 0;
+    float                       m_seeingBlurAs  = 0.0f;
     std::vector<int>            m_blurScratch;   // generator thread only
     std::vector<uint8_t>        m_blurTmp;       // generator thread only
 

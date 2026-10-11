@@ -284,8 +284,39 @@ private:
                 double avg = 0;
                 for (float v : m_sharpHistory) avg += v;
                 avg /= m_sharpHistory.size();
-                // Map 0-100% sharpness to 1-10 seeing scale
-                r.seeingScore = 1.0f + (float)(avg / 100.0 * 9.0);
+                // Seeing score, 1-10, RELATIVE to the best frame seen
+                // recently rather than to an absolute sharpness.
+                //
+                // It used to be 1 + pct/100*9, which tied it to
+                // SHARP_CEIL. When that ceiling was recalibrated the
+                // score silently collapsed into a 2.5-2.9 band - it
+                // can only reach 10 if sharpness reaches 100%, which
+                // a real in-focus frame does not - and the capture
+                // GATE compares against this number. A gate set to 6
+                // would have rejected every frame.
+                //
+                // Relative is also the more honest definition. What
+                // the gate wants to know is 'is this frame good
+                // compared with what this target is currently giving
+                // me', which is scale-free: immune to the next
+                // recalibration, to the target's brightness, and to
+                // how noisy the camera is. The cost is that a
+                // uniformly poor night still reaches 10 at its best
+                // moments - correct for gating, since you cannot
+                // record frames better than the sky is offering, but
+                // it means the score is NOT a measure of how good the
+                // night is in absolute terms. Read sharpnessPct for
+                // that.
+                double best = 0.0;
+                for (float v : m_sharpHistory) if (v > best) best = v;
+                if (best > 1e-3) {
+                    double rel = r.sharpnessPct / best;
+                    if (rel > 1.0) rel = 1.0;
+                    r.seeingScore = 1.0f + (float)(rel * 9.0);
+                } else {
+                    r.seeingScore = 1.0f;
+                }
+                (void)avg;
             }
 
             // ── Centroid: brightness-weighted centre of mass ────────

@@ -231,6 +231,13 @@ steps around wherever the focuser already is. If someone is far out of focus,
 they need to get roughly sharp by hand first, or it will report `focus not
 bracketed` — which is it working correctly, not failing.
 
+**A crop is recoverable; say so.** If someone says the view has gone narrow,
+or that they cropped and cannot get back, the answer is the `FULL` button on
+the top bar. Do not suggest restarting the app. If they ask about data rate or
+file size, the controls are the resolution buttons and `8b`/`16b`; the USB
+slider in the CAMERA section is a different thing and does not change what a
+frame contains.
+
 ---
 
 ## Quick Key Reference
@@ -277,7 +284,8 @@ fullscreen.
 ## Panels Overview
 
 ### Toolbar (top strip)
-Nine buttons across the top of the preview window:
+Across the top of the preview window, in three groups: acquisition, view, and
+capture format.
 
 | Button | Key | Function |
 |--------|-----|----------|
@@ -289,9 +297,46 @@ Nine buttons across the top of the preview window:
 | `[I] GOTO` | `G` | Open GoTo panel |
 | `[+] RETICLE` | `R` | Toggle crosshair reticle overlay |
 | `[CLIP]` | `C` | Toggle clipping warning (red flash on saturated pixels) |
+| `[GH]` | — | Ghost/frame-stack display FX |
 | `[?]` | `?` | Toggle this Help window |
+| `[AI]` | — | Toggle the AI assistant chat panel |
+| `FULL` | — | **Whole sensor, 3840x2160** - the widest field, and the way back from any crop |
+| `1920` | — | 1920x1080 |
+| `1280` | — | 1280x960 - what `[ROI]` crops to |
+| `640` | — | 640x480 - smallest frame, highest frame rate |
+| `8b` | — | 8-bit capture (RAW8). Half the data; the normal choice for planets |
+| `16b` | — | 16-bit capture (RAW16). Headroom for stacking, twice the data rate |
+| `EXIT` | — | Graceful shutdown (confirms if recording) |
 
-Buttons highlight (bold) when their feature is active.
+Buttons highlight (bold) when their feature is active. The live resolution and
+bit depth each carry a dot, so you can see at a glance what you are recording.
+
+### Getting the field back (capture format)
+
+`FULL` exists because a crop used to be a one-way door. `[ROI]` and a dragged
+box both narrow the sensor read-out, and until v1.2.3 nothing widened it
+again - the only way back to a full field was to restart the app. Press
+`FULL` and you are back.
+
+Resolution changes keep whatever is in the **middle** of the frame in the
+middle of the frame, so widening the field to find a planet that has drifted
+out does not also move the field somewhere else.
+
+Changing either setting **closes the current recording**, because a SER file
+cannot change format part-way through and the rest of it would be unreadable.
+Set the format before you start, not during. If you were recording, a new
+file is opened at the new format.
+
+**Which bit depth?** 8-bit for planets: the frames are half the size, so the
+disk and USB keep up at high frame rates, and stacking hundreds of frames
+recovers the precision anyway. 16-bit when a single frame has to carry the
+detail - long exposures, faint targets, or anything you intend to stretch
+hard afterwards. The data rate doubles, so watch `LOST` in the status bar.
+
+**Not the same as USB bandwidth.** That is a separate slider in the CAMERA
+section of the control panel (40-100%), and it controls how hard the camera
+pushes the USB bus, not how much data each frame holds. Lower it if frames
+are dropping.
 
 ---
 
@@ -812,6 +857,12 @@ actually image and writes one line to the log either way:
 every launch would be dismissed unread within a week, so a ready rig gets
 silence.
 
+The check waits up to **two seconds** for the camera's first frame before it
+runs. Without that it raced the capture thread it was checking, reported
+`Camera FAIL — open but no frames have arrived` on a camera that was about to
+work, and then blocked the launch with a modal dialog about it. A re-check you
+ask for yourself does not wait, because by then no frames means no frames.
+
 What it verifies for itself: camera streaming, dropped frames, focuser
 present, mount connected, **mount aligned**, **tracking actually driving**,
 observing site known, disk space, profile loaded. The two in bold are the
@@ -910,6 +961,14 @@ hardware build and are listed here so a test result can be reproduced.
 | `RADUK_EMU_PEAK_DN` | 0 | Exposes the simulated disc to this peak level. 0 keeps the plain gain/exposure behaviour; ~200 gives a realistically exposed frame with headroom, which is what anything measuring a noise floor needs |
 | `RADUK_EMU_TARGET` | *active profile* | Which planet to render. Normally the emulator renders whatever profile is selected and follows every later switch; this pins one for bench work |
 | `RADUK_EMU_REMOVE_AFTER_S` | off | Simulates the camera being unplugged after N seconds |
+
+The emulated camera reports the real 3840x2160 sensor but will only **stream
+up to 1280x960**. Larger requests are clamped and logged, the way a real
+camera reports a mode it cannot deliver — and because every caller reads the
+granted size back, the app follows along correctly. So `FULL` and `1920` both
+land on 1280x960 in the emulator while `1280` and `640` are exact. Above that
+cap the software render plus a 64-slot ring stops delivering frames inside the
+capture timeout altogether, which is a dead emulator rather than a slow one.
 
 ### Why the focuser starts at 166500
 
@@ -1113,6 +1172,25 @@ it needs.
 - Run `POINT SOLVE → SYNC` to correct mount model at current position
 - Ensure StarSense alignment was performed before session
 
+### The view has gone narrow / I cropped and cannot get back
+Press **`FULL`** on the top bar. `[ROI]` and dragging a box on the preview
+both narrow the sensor read-out, and before v1.2.3 nothing widened it again,
+so restarting the app was the only way back. It no longer is.
+
+If `FULL` gives you less than 3840x2160, the camera clamped the request and
+the app is showing you what it actually got — in the emulator that is always
+the case, by design.
+
+### I cannot change the data rate / file size
+Two controls, both on the top bar: the resolution buttons and `8b`/`16b`.
+A SER file is uncompressed, so the rate is simply width x height x depth x
+frame rate — there is no separate bitrate to set. The **USB Bandwidth**
+slider in the CAMERA section is a different thing: it limits how hard the
+camera pushes the bus, and is what to lower when `LOST` starts climbing.
+
+Both the resolution and bit-depth buttons close the current recording, since
+a SER file cannot change format part-way through. Set the format first.
+
 ### ADC reading seems wrong
 - **Check the filter first.** The `Filter:` line directly under the ADC
   readout says which band the figure was computed over. If that does not match
@@ -1226,6 +1304,10 @@ real site is stored. Most of it is written for you.
 | v1.2.3 | 81 | Autofocus pass 2: sample vectors cleared before arming, not after, closing a race |
 | v1.2.3 | 82 | ADC dispersion computed across the fitted filter's band instead of a hardcoded 450–700nm |
 | v1.2.3 | 83 | Filter stated in the focuser panel, the readiness list and the assistant's context; picker in SETUP |
+| v1.2.3 | 84 | Resolution and bit-depth buttons on the toolbar — a crop is recoverable, and 16-bit is reachable |
+| v1.2.3 | 84 | One shared capture-format path replaces three divergent copies; ROI placed by centre, not origin |
+| v1.2.3 | 84 | Startup readiness check no longer races the first frame and false-fails the camera |
+| v1.2.3 | 84 | Emulator honours requested ROI up to 1280x960; its FrameSize() no longer ignores its arguments |
 
 ---
 

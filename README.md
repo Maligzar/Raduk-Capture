@@ -8,6 +8,9 @@ Direct2D — no frameworks.
 
 - **SER v3 recording** with capture-time trailer timestamps (WinJUPOS-ready),
   RAM-first write buffering, lucky-imaging quality scores per frame
+- **Capture format on the toolbar** — resolution presets from full sensor down
+  to 640x480 and 8/16-bit depth, applied through one shared reconfigure path,
+  so an ROI crop is always recoverable
 - **Closed-loop planet tracking** — three-stage centroid acquisition with
   PHD2-style measured guide calibration (camera rotation, plate scale, and
   guide rate are measured, never assumed)

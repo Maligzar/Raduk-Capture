@@ -23,6 +23,7 @@
 #include <string>
 #include <cstdint>
 #include <cmath>
+#include <algorithm>
 #include <cstring>
 #include <cstdio>
 #include <thread>
@@ -129,7 +130,8 @@ public:
         // — prevents 8MP render at 20fps which causes frame drops
         m_roiW = 1280; m_roiH = 960;
         m_binning = 1; m_imgType = ASI_IMG_RAW8;
-        printf("[CameraEmulator] Opened: %s (fixed 1280x960 render)\n", m_info.Name);
+        printf("[CameraEmulator] Opened: %s (%dx%d, ROI changeable up to %dx%d)\n",
+               m_info.Name, m_roiW, m_roiH, EMU_MAX_ROI_W, EMU_MAX_ROI_H);
         return true;
     }
 
@@ -145,17 +147,46 @@ public:
 
     // ── Configuration ──────────────────────────────────────────
 
-    bool SetROI(int /*width*/, int /*height*/, int binning, ASI_IMG_TYPE imgType) {
+    // The widest mode the emulator will stream. MaxWidth/MaxHeight still
+    // report the real 3840x2160, because that is what the app uses to
+    // place an ROI on the sensor -- this is only the streaming limit,
+    // which is a real property of a software renderer. Measured: above
+    // this, the per-pixel shade plus a 64-slot ring of multi-megabyte
+    // frames stops delivering frames inside the capture timeout at all,
+    // so a larger cap would trade a testable emulator for a dead one.
+    static constexpr int EMU_MAX_ROI_W = 1280;
+    static constexpr int EMU_MAX_ROI_H = 960;
+
+    bool SetROI(int width, int height, int binning, ASI_IMG_TYPE imgType) {
         if (!m_isOpen) return false;
-        // Emulator always renders 1280x960 — ignore requested dimensions
-        // m_roiW / m_roiH stay at 1280x960 set in Open()
+        // This used to ignore the requested size entirely and hold
+        // 1280x960, which made every resolution control untestable
+        // without the real camera -- and a switcher whose effect cannot
+        // be observed is one that cannot be trusted. Sizes up to the cap
+        // are now honoured exactly, and anything larger is clamped and
+        // reported, which is what a real camera does with a mode it
+        // cannot deliver. Every caller here already reads the result
+        // back, so the clamp propagates correctly.
+        //
+        // Alignment matches the ASI SDK requirement: width %8, height %2.
+        int w = std::clamp(width,  8, EMU_MAX_ROI_W);
+        int h = std::clamp(height, 2, EMU_MAX_ROI_H);
+        w = (w / 8) * 8;
+        h = (h / 2) * 2;
+        if (w < 8 || h < 2) return false;
+
+        const bool changed = (w != m_roiW || h != m_roiH);
+        m_roiW = w; m_roiH = h;
         m_binning = binning; m_imgType = imgType;
-        printf("[CameraEmulator] SetROI: locked to 1280x960 (emulator)\n");
+        if (changed || width > EMU_MAX_ROI_W || height > EMU_MAX_ROI_H)
+            printf("[CameraEmulator] SetROI %dx%d -> %dx%d %s\n",
+                   width, height, w, h,
+                   imgType == ASI_IMG_RAW16 ? "RAW16" : "RAW8");
         return true;
     }
 
     bool GetROI(int& width, int& height, int& binning, ASI_IMG_TYPE& imgType) const {
-        width = m_roiW; height = m_roiH;  // already capped
+        width = m_roiW; height = m_roiH;
         binning = m_binning; imgType = m_imgType;
         return true;
     }
@@ -464,9 +495,15 @@ public:
     float Temperature() const { return m_sensorTemp; }
     std::string Name()  const { return std::string(m_info.Name); }
 
-    static int FrameSize(int /*width*/, int /*height*/, ASI_IMG_TYPE imgType) {
-        // Emulator always produces 1280x960 frames
-        constexpr int W = 1280, H = 960;
+    static int FrameSize(int width, int height, ASI_IMG_TYPE imgType) {
+        // This used to ignore its arguments and answer 1280x960 always,
+        // which was true while the ROI was locked there. Once the ROI can
+        // change it is a lie that happens to be safe -- it over-allocates
+        // the ring for a smaller ROI rather than under-allocating it --
+        // but it also made every byte count the app reported wrong, which
+        // is exactly the figure used to judge whether a format change
+        // did what was asked.
+        const int W = width, H = height;
         switch (imgType) {
             case ASI_IMG_RAW8:  return W * H;
             case ASI_IMG_RAW16: return W * H * 2;

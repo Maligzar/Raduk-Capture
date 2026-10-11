@@ -46,8 +46,36 @@ enum ToolbarCmd : int {
     ID_TB_AI        = 3009,
     ID_TB_EXIT      = 3010,
     ID_TB_GHOST     = 3011,
-    ID_TB_LAST      = 3011,
+    // Capture format group. Resolution had no control at all: once the
+    // ROI was cropped, by [ROI] or by dragging a box, nothing could widen
+    // it again short of restarting. Bit depth was hardcoded RAW8 in every
+    // call site, so the 16-bit the DSO profile asks for never happened.
+    ID_TB_RES_FULL  = 3012,
+    ID_TB_RES_1920  = 3013,
+    ID_TB_RES_1280  = 3014,
+    ID_TB_RES_640   = 3015,
+    ID_TB_BIT8      = 3016,
+    ID_TB_BIT16     = 3017,
+    ID_TB_LAST      = 3017,
 };
+
+// One resolution preset. FULL is first because it is the default and the
+// widest field -- the one to come back to when a crop went wrong.
+struct ResPreset { const wchar_t* label; int w; int h; };
+static constexpr ResPreset kResPresets[] = {
+    { L"FULL", 3840, 2160 },   // whole sensor, widest FOV
+    { L"1920", 1920, 1080 },
+    { L"1280", 1280,  960 },   // what [ROI] crops to
+    { L"640",   640,  480 },   // high frame rate
+};
+static constexpr int kResPresetCount =
+    (int)(sizeof(kResPresets) / sizeof(kResPresets[0]));
+
+// HandleCommand turns a button id into a preset index by subtracting
+// ID_TB_RES_FULL, so the ids and the table must stay the same length.
+// Adding a preset without adding an id would index past the table.
+static_assert(ID_TB_RES_640 - ID_TB_RES_FULL + 1 == kResPresetCount,
+              "resolution button ids and kResPresets have drifted apart");
 
 static constexpr int TOOLBAR_HEIGHT = 30; // physical pixels
 
@@ -134,6 +162,52 @@ public:
     void SetAICallback      (std::function<void()> cb) { m_onAI       = cb; }
     void SetExitCallback    (std::function<void()> cb) { m_onExit     = cb; }
     void SetGhostCallback   (std::function<void()> cb) { m_onGhost    = cb; }
+    // Resolution: called with the preset's sensor dimensions.
+    void SetResolutionCallback(std::function<void(int,int)> cb) { m_onRes = cb; }
+    // Bit depth: called with 8 or 16.
+    void SetBitDepthCallback  (std::function<void(int)> cb)     { m_onBits = cb; }
+
+    // Phase 84: show which format is live. Separate from UpdateStates
+    // because the format changes on a camera reconfigure rather than
+    // every render tick, and reusing that already-eleven-argument
+    // signature to carry it would have made both harder to read.
+    void UpdateFormat(int roiW, int roiH, int bits) {
+        if (!m_hwnd) return;
+        if (roiW == m_lastResW && roiH == m_lastResH && bits == m_lastBits)
+            return;
+        m_lastResW = roiW; m_lastResH = roiH; m_lastBits = bits;
+
+        HWND resBtns[kResPresetCount] = {
+            m_btnResFull, m_btnRes1920, m_btnRes1280, m_btnRes640
+        };
+        for (int i = 0; i < kResPresetCount; i++) {
+            if (!resBtns[i]) continue;
+            const bool active = (kResPresets[i].w == roiW &&
+                                 kResPresets[i].h == roiH);
+            wchar_t lbl[16];
+            // A dot rather than a different colour: these are plain
+            // BS_PUSHBUTTONs, and the bold font alone is too subtle to
+            // read at a glance on a dark strip at night.
+            swprintf(lbl, 16, active ? L"%s●" : L"%s",
+                     kResPresets[i].label);
+            SetWindowTextW(resBtns[i], lbl);
+            SendMessage(resBtns[i], WM_SETFONT,
+                        (WPARAM)(active ? m_fontActive : m_font), TRUE);
+        }
+        // A size no preset matches -- a dragged box, or a crop from
+        // [ROI] that is not 1280x960 because the sensor clamped it.
+        // Every preset reads inactive, which is correct: none is live.
+        if (m_btnBit8) {
+            SetWindowTextW(m_btnBit8, bits == 8 ? L"8b●" : L"8b");
+            SendMessage(m_btnBit8, WM_SETFONT,
+                        (WPARAM)(bits == 8 ? m_fontActive : m_font), TRUE);
+        }
+        if (m_btnBit16) {
+            SetWindowTextW(m_btnBit16, bits == 16 ? L"16b●" : L"16b");
+            SendMessage(m_btnBit16, WM_SETFONT,
+                        (WPARAM)(bits == 16 ? m_fontActive : m_font), TRUE);
+        }
+    }
 
     // Update button labels to reflect active state — only repaints when changed
     void UpdateStates(int acqStage, bool lockReady, bool roiReady,
@@ -222,6 +296,17 @@ public:
             case ID_TB_AI:       if (m_onAI)       m_onAI();       return true;
             case ID_TB_GHOST:    if (m_onGhost)    m_onGhost();    return true;
             case ID_TB_EXIT:     if (m_onExit)     m_onExit();     return true;
+            case ID_TB_RES_FULL:
+            case ID_TB_RES_1920:
+            case ID_TB_RES_1280:
+            case ID_TB_RES_640: {
+                const int i = id - ID_TB_RES_FULL;
+                if (m_onRes && i >= 0 && i < kResPresetCount)
+                    m_onRes(kResPresets[i].w, kResPresets[i].h);
+                return true;
+            }
+            case ID_TB_BIT8:     if (m_onBits)     m_onBits(8);    return true;
+            case ID_TB_BIT16:    if (m_onBits)     m_onBits(16);   return true;
         }
         return false;
     }
@@ -250,8 +335,17 @@ private:
             { ID_TB_GHOST,    L"[GH]",        40, &m_btnGhost    },
             { ID_TB_HELP,     L"[?]",         36, &m_btnHelp     },
             { ID_TB_AI,       L"[AI]",        40, &m_btnAI       },
+            // gap at i==12 — capture format group
+            { ID_TB_RES_FULL, L"FULL",        46, &m_btnResFull  },
+            { ID_TB_RES_1920, L"1920",        46, &m_btnRes1920  },
+            { ID_TB_RES_1280, L"1280",        46, &m_btnRes1280  },
+            { ID_TB_RES_640,  L"640",         40, &m_btnRes640   },
+            { ID_TB_BIT8,     L"8b",          32, &m_btnBit8     },
+            { ID_TB_BIT16,    L"16b",         36, &m_btnBit16    },
+            // gap at i==18
             { ID_TB_EXIT,     L"EXIT",        44, &m_btnExit     },
         };
+        const int nDefs = (int)(sizeof(defs) / sizeof(defs[0]));
 
         const int pad  = 4;
         const int sep  = 12;
@@ -259,10 +353,11 @@ private:
         const int btnY = 3;
         int x = 4;
 
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < nDefs; i++) {
             auto& d = defs[i];
             if (i == 3)  x += sep;   // gap before view buttons
-            if (i == 11) x += sep;   // gap before EXIT
+            if (i == 12) x += sep;   // gap before the format group
+            if (i == 18) x += sep;   // gap before EXIT
 
             HWND btn = CreateWindowExW(
                 0, L"BUTTON", d.label,
@@ -293,7 +388,36 @@ private:
         if (m_btnAI)       { DestroyWindow(m_btnAI);       m_btnAI       = nullptr; }
         if (m_btnGhost)    { DestroyWindow(m_btnGhost);    m_btnGhost    = nullptr; }
         if (m_btnExit)     { DestroyWindow(m_btnExit);     m_btnExit     = nullptr; }
+        if (m_btnResFull)  { DestroyWindow(m_btnResFull);  m_btnResFull  = nullptr; }
+        if (m_btnRes1920)  { DestroyWindow(m_btnRes1920);  m_btnRes1920  = nullptr; }
+        if (m_btnRes1280)  { DestroyWindow(m_btnRes1280);  m_btnRes1280  = nullptr; }
+        if (m_btnRes640)   { DestroyWindow(m_btnRes640);   m_btnRes640   = nullptr; }
+        if (m_btnBit8)     { DestroyWindow(m_btnBit8);     m_btnBit8     = nullptr; }
+        if (m_btnBit16)    { DestroyWindow(m_btnBit16);    m_btnBit16    = nullptr; }
         BuildButtons(w, h);
+        // The new buttons carry their plain BuildButtons labels, but the
+        // caches still hold the states those labels used to show, so every
+        // Update* call would early-return and the window would come back
+        // from a resize with every active marker gone. Clearing the caches
+        // makes the next tick repaint. This applies to the acquisition and
+        // view buttons too -- they had the same hole before the format
+        // group was added.
+        ResetStateCache();
+    }
+
+    void ResetStateCache() {
+        m_lastAcqStage    = -1;
+        m_lastLockReady   = false;
+        m_lastRoiReady    = false;
+        m_lastColorActive = false;
+        m_lastMapVisible  = false;
+        m_lastGotoVisible = false;
+        m_lastReticleVis  = false;
+        m_lastClipVis     = false;
+        m_lastHelpVis     = false;
+        m_lastAIVis       = false;
+        m_lastGhostActive = false;
+        m_lastResW = m_lastResH = m_lastBits = -1;
     }
 
     static LRESULT CALLBACK ToolbarWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -352,6 +476,18 @@ private:
     HWND  m_btnAI       = nullptr;
     HWND  m_btnGhost    = nullptr;
     HWND  m_btnExit     = nullptr;
+    HWND  m_btnResFull  = nullptr;
+    HWND  m_btnRes1920  = nullptr;
+    HWND  m_btnRes1280  = nullptr;
+    HWND  m_btnRes640   = nullptr;
+    HWND  m_btnBit8     = nullptr;
+    HWND  m_btnBit16    = nullptr;
+
+    // -1 so the first UpdateFormat always paints, and so ResetStateCache()
+    // can force a repaint after the buttons are recreated.
+    int  m_lastResW = -1;
+    int  m_lastResH = -1;
+    int  m_lastBits = -1;
 
     // State cache — UpdateStates skips SetWindowTextW when unchanged (prevents flash)
     int  m_lastAcqStage    = -1;
@@ -378,6 +514,8 @@ private:
     std::function<void()> m_onAI;
     std::function<void()> m_onGhost;
     std::function<void()> m_onExit;
+    std::function<void(int,int)> m_onRes;
+    std::function<void(int)>     m_onBits;
 };
 
 } // namespace raduk::gui

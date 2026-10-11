@@ -569,13 +569,21 @@ static int RunApp(bool useEmulator) {
         slog.Camera("Opened: %s", cam.Name().c_str());
     }
 
-    int roiWidth = 3840, roiHeight = 2160;
+    // Full sensor at startup: the widest field, and the one to come back
+    // to. roiBits tracks what the camera actually gave us -- before this
+    // was tracked, every call site simply asserted RAW8, and the 16-bit
+    // the DSO profile asks for was silently discarded.
+    int roiWidth = 3840, roiHeight = 2160, roiBits = 8;
     cam.SetROI(roiWidth, roiHeight, 1, ASI_IMG_RAW8);
-    // Read back actual ROI — emulator caps to 1280x960
+    // Read back what the camera accepted rather than trusting the request.
     {
         int aW=roiWidth,aH=roiHeight,aB=1; ASI_IMG_TYPE aT=ASI_IMG_RAW8;
-        cam.GetROI(aW,aH,aB,aT); roiWidth=aW; roiHeight=aH;
+        cam.GetROI(aW,aH,aB,aT);
+        roiWidth=aW; roiHeight=aH;
+        roiBits = (aT == ASI_IMG_RAW16) ? 16 : 8;
     }
+    Log("[FORMAT] startup -> %dx%d %d-bit (requested 3840x2160 8-bit)\n",
+        roiWidth, roiHeight, roiBits);
     // Sensor-absolute origin of the current ROI. Centroids and rubber-band
     // selections are ROI-relative, so every crop must add this offset —
     // without it, a second acquisition cycle (ROI still cropped from the
@@ -1249,6 +1257,18 @@ static int RunApp(bool useEmulator) {
     });
 
     {
+        // The capture thread started moments ago. At startup the first
+        // frame can easily arrive after this check would have run, and a
+        // check that races the pipeline it is checking reports a failure
+        // that is not real -- then blocks the launch with a modal dialog
+        // about it, before any of the wiring below has happened. Give the
+        // first frame a bounded chance to appear.
+        //
+        // The user-requested re-check deliberately does not wait: by then
+        // the app has been running, and no frames means no frames.
+        for (int i = 0; i < 40 && capture.Stats().framesCaptured.load() == 0; i++)
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
         auto report = gatherReadiness();
         Log("[READY] %s\n", report.Summary().c_str());
         for (const auto& it : report.items) {
@@ -1801,69 +1821,97 @@ static int RunApp(bool useEmulator) {
         preview.HandleMouseUp(x, y);
     });
 
-    // ROI change — stop capture, apply new ROI, restart everything.
-    // startX/startY arrive ROI-RELATIVE (PreviewRenderer computes them within
-    // the currently displayed frame) — convert to sensor-absolute here.
-    preview.SetROIChangeCallback([&](int newW, int newH, int startX, int startY) {
-        int absX = roiStartX + startX;
-        int absY = roiStartY + startY;
-        absX = std::max(0, std::min(absX, cam.MaxWidth()  - newW));
-        absY = std::max(0, std::min(absY, cam.MaxHeight() - newH));
-        absX = (absX / 8) * 8;  // ASI start-pos alignment
-        absY = (absY / 2) * 2;
-        Log("[ROI] Applying %dx%d at sensor (%d,%d)\n", newW, newH, absX, absY);
-        slog.System("ROI: %dx%d  origin:(%d,%d)", newW, newH, absX, absY);
+    // ── Phase 84: the one place the capture format changes ────
+    // Three paths reconfigured the camera -- startup, a dragged box and
+    // the [ROI] crop -- each carrying its own copy of the
+    // stop/apply/read-back/reallocate/restart sequence, and each
+    // hardcoding RAW8. Nothing could widen an ROI again, so a crop was
+    // permanent until restart. This is the sequence they now share and
+    // the only place bit depth is decided.
+    auto applyFormat = [&](int reqW, int reqH, int bits,
+                           int wantCx, int wantCy, const char* why) -> bool {
+        if (!cam.IsOpen()) return false;
 
-        bool wasRecording = capturer.IsRecording();
+        // ASI alignment: width %8, height %2. Enforced here rather than
+        // at each call site, so a preset and a dragged box cannot
+        // disagree about what is legal.
+        int w = std::max(8, std::min(reqW, cam.MaxWidth()));
+        int h = std::max(2, std::min(reqH, cam.MaxHeight()));
+        w = (w / 8) * 8;
+        h = (h / 2) * 2;
+        const ASI_IMG_TYPE type = (bits == 16) ? ASI_IMG_RAW16 : ASI_IMG_RAW8;
+
+        // The origin is NOT computed here. The camera may grant a
+        // smaller mode than was asked for, and an origin clamped against
+        // the requested size then leaves the ROI somewhere it was never
+        // meant to be -- asking for the full sensor and being given less
+        // used to pin it to the top-left corner instead of the centre.
+        // So callers say where they want the ROI CENTRED, and the origin
+        // is derived below from the size actually granted.
+
+        const bool wasRecording = capturer.IsRecording();
         if (wasRecording) {
-            capturer.StopRecording(false);  // ROI change - do not auto-stack
+            // A format change mid-file would leave the rest of the SER
+            // unreadable, so the file is closed. Not a normal finish,
+            // so it must not auto-stack.
+            capturer.StopRecording(false);
             usbMgr.SetCapturing(false);
         }
 
-        // Stop capture thread — required before SetROI
-        capture.Stop();
+        capture.Stop();                      // required before SetROI
+        cam.SetROI(w, h, 1, type);
 
-        // Apply new ROI size then start position
-        cam.SetROI(newW, newH, 1, ASI_IMG_RAW8);
-        cam.SetStartPos(absX, absY);
-        roiStartX = absX;
-        roiStartY = absY;
-        // Read back actual ROI — emulator may cap dimensions
+        // Believe the camera, not the request. Both the real SDK and the
+        // emulator clamp, and trusting the request is how the ring buffer
+        // ends up sized for a frame that never arrives.
         {
-            int actualW = newW, actualH = newH, actualBin = 1;
-            ASI_IMG_TYPE actualType = ASI_IMG_RAW8;
-            cam.GetROI(actualW, actualH, actualBin, actualType);
-            newW = actualW; newH = actualH;
+            int aW = w, aH = h, aB = 1;
+            ASI_IMG_TYPE aT = type;
+            cam.GetROI(aW, aH, aB, aT);
+            w = aW; h = aH;
+            bits = (aT == ASI_IMG_RAW16) ? 16 : 8;
         }
-        roiWidth  = newW;
-        roiHeight = newH;
 
-        // Reallocate ring buffer for new frame size
-        int newFrameBytes = ASICamera::FrameSize(newW, newH, ASI_IMG_RAW8);
-        ring.Allocate(DEFAULT_RING_SIZE, newFrameBytes);
+        // Now that the real size is known, place it. Centre-in, origin-out:
+        // the ROI ends up where it was asked to be whatever the camera
+        // decided to grant.
+        int absX = wantCx - w / 2;
+        int absY = wantCy - h / 2;
+        absX = std::max(0, std::min(absX, cam.MaxWidth()  - w));
+        absY = std::max(0, std::min(absY, cam.MaxHeight() - h));
+        absX = (absX / 8) * 8;
+        absY = (absY / 2) * 2;
+        cam.SetStartPos(absX, absY);
 
-        // Restart capture
+        roiWidth  = w; roiHeight = h; roiBits = bits;
+        roiStartX = absX; roiStartY = absY;
+
+        const int bytes = ASICamera::FrameSize(
+            w, h, (bits == 16) ? ASI_IMG_RAW16 : ASI_IMG_RAW8);
+        ring.Allocate(DEFAULT_RING_SIZE, bytes);
         capture.Start(cam, ring, 8.0);
 
-        // Resize preview and GPU textures
-        preview.SetFrameSize(newW, newH);
-        preview.SetSensorROI(newW, newH);
+        preview.SetFrameSize(w, h);
+        preview.SetSensorROI(w, h);
+        statusBar.SetCameraStats(0.0, 0, cam.Temperature(), w, h, bits);
+        toolbar.UpdateFormat(w, h, bits);
 
-        // Update status bar
-        statusBar.SetCameraStats(0.0, 0, cam.IsOpen() ? cam.Temperature() : 0.0f,
-                                  newW, newH, 8);
+        Log("[FORMAT] %s -> %dx%d @ (%d,%d)  %d-bit  %d bytes/frame\n",
+            why ? why : "change", w, h, absX, absY, bits, bytes);
+        slog.System("Format: %dx%d %d-bit (%s)", w, h, bits,
+                    why ? why : "change");
 
-        Log("[ROI] Applied — %dx%d@(%d,%d)  %d bytes/frame\n",
-            newW, newH, absX, absY, newFrameBytes);
+        if (wasRecording && capturer.StartRecording(w, h, bits))
+            usbMgr.SetCapturing(true);
+        return true;
+    };
 
-        // Resume recording if it was active (new file at new ROI)
-        if (wasRecording) {
-            CaptureConfig cfg = capturer.Config();
-            capturer.SetConfig(cfg);
-            if (capturer.StartRecording(newW, newH, 8)) {
-                usbMgr.SetCapturing(true);
-            }
-        }
+    // startX/startY arrive ROI-RELATIVE (PreviewRenderer computes them
+    // within the currently displayed frame) -- convert to sensor-absolute.
+    preview.SetROIChangeCallback([&](int newW, int newH, int startX, int startY) {
+        applyFormat(newW, newH, roiBits,
+                    roiStartX + startX + newW / 2,
+                    roiStartY + startY + newH / 2, "dragged box");
     });
 
     // Reticle toggle — now lives on the frame bar. Keyboard R key still works.
@@ -2139,42 +2187,19 @@ static int RunApp(bool useEmulator) {
             float cx = tracker.LastCentroidX();
             float cy = tracker.LastCentroidY();
             if (tracker.LastCentroidValid() && cx > 0 && cy > 0) {
-                int newW = 1280, newH = 960;
-                // Centroid is ROI-relative — convert to sensor-absolute via
-                // the tracked ROI origin, and clamp against the real sensor
-                // size (was hardcoded 3840x2160).
-                int startX = roiStartX + (int)(cx - newW * 0.5f);
-                int startY = roiStartY + (int)(cy - newH * 0.5f);
-                startX = std::max(0, std::min(startX, cam.MaxWidth()  - newW));
-                startY = std::max(0, std::min(startY, cam.MaxHeight() - newH));
-                startX = (startX / 8) * 8;
-                startY = (startY / 2) * 2;
-                Log("[ACQ] ROI crop -> %dx%d @ sensor (%d,%d)\n", newW, newH, startX, startY);
+                const int newW = 1280, newH = 960;
+                // The centroid is ROI-relative, so the tracked origin has
+                // to be added back to get a sensor-absolute position.
+                // applyFormat does the alignment, clamping, read-back and
+                // restart from there. This used to be a hand-copied
+                // duplicate of that sequence, and the copy kept bit depth
+                // pinned to 8 whatever the toolbar said -- so a 16-bit
+                // session silently dropped to 8-bit the moment the planet
+                // locked.
                 slog.System("ROI: %dx%d centred on planet", newW, newH);
-
-                bool wasRecording = capturer.IsRecording();
-                // ROI change - not a normal finish, do not auto-stack
-                if (wasRecording) { capturer.StopRecording(false); usbMgr.SetCapturing(false); }
-                capture.Stop();
-                cam.SetROI(newW, newH, 1, ASI_IMG_RAW8);
-                cam.SetStartPos(startX, startY);
-                roiStartX = startX;
-                roiStartY = startY;
-                // Read back actual ROI — emulator may cap dimensions
-                {
-                    int aW=newW,aH=newH,aB=1; ASI_IMG_TYPE aT=ASI_IMG_RAW8;
-                    cam.GetROI(aW,aH,aB,aT); newW=aW; newH=aH;
-                }
-                roiWidth = newW; roiHeight = newH;
-                int newBytes = ASICamera::FrameSize(newW, newH, ASI_IMG_RAW8);
-                ring.Allocate(DEFAULT_RING_SIZE, newBytes);
-                capture.Start(cam, ring, 8.0);
-                preview.SetFrameSize(newW, newH);
-                preview.SetSensorROI(newW, newH);
-                statusBar.SetCameraStats(0.0, 0, cam.Temperature(), newW, newH, 8);
-                if (wasRecording) {
-                    if (capturer.StartRecording(newW, newH, 8)) usbMgr.SetCapturing(true);
-                }
+                applyFormat(newW, newH, roiBits,
+                            roiStartX + (int)cx, roiStartY + (int)cy,
+                            "[ROI] crop on planet");
 
                 if (!lastFrameForSolve.empty() && lastFrameSolveW > 0) {
                     const TargetProfile* active = profiles.Active();
@@ -2467,6 +2492,23 @@ static int RunApp(bool useEmulator) {
         }
     });
     toolbar.SetROICallback([&]()   { doROILock(); });
+    // Phase 84: resolution and bit depth. FULL is the way back from a
+    // crop -- before this there was none, and a bad [ROI] or a dragged
+    // box meant restarting the app to recover the field.
+    toolbar.SetResolutionCallback([&](int w, int h) {
+        // Keep whatever is in the middle of the frame in the middle of
+        // the frame. Widening the field to find a planet that drifted
+        // out should not also move the field somewhere else.
+        const int cx = roiStartX + roiWidth  / 2;
+        const int cy = roiStartY + roiHeight / 2;
+        applyFormat(w, h, roiBits, cx, cy, "resolution button");
+    });
+    toolbar.SetBitDepthCallback([&](int bits) {
+        applyFormat(roiWidth, roiHeight, bits,
+                    roiStartX + roiWidth / 2, roiStartY + roiHeight / 2,
+                    "bit depth button");
+    });
+    toolbar.UpdateFormat(roiWidth, roiHeight, roiBits);
     toolbar.SetColorCallback([&]() { preview.CycleDebayer(); });
     toolbar.SetMapCallback([&]()   { skyMap.Toggle(); });
     toolbar.SetGoToCallback([&]()  { gotoPanel.ShowCentered(); });
@@ -2925,6 +2967,11 @@ static int RunApp(bool useEmulator) {
                 helpWindow.IsVisible(),
                 aiChat.IsVisible(),
                 preview.GhostEnabled());
+            // Cheap: returns immediately unless the format actually
+            // changed. Called every tick so a window resize, which
+            // rebuilds the buttons with plain labels, gets its active
+            // markers back.
+            toolbar.UpdateFormat(roiWidth, roiHeight, roiBits);
 
             // Phase 50: Update AI session state every frame
             {

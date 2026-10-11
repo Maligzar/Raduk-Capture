@@ -451,6 +451,12 @@ static void ApplyProfile(const TargetProfile& p,
                           IMount* mount, SessionLog& slog) {
     Log("[PROFILE] Applying: %s\n", p.name.c_str());
     slog.Profile("Applied: %s", p.name.c_str());
+#ifdef RADUK_EMULATOR
+    // Render what the profile actually names. Every profile change
+    // funnels through here, so this covers the startup load and every
+    // later switch without a second wiring point to forget.
+    if (cam) cam->SetTargetName(p.name);
+#endif
     if (cam && cam->IsOpen()) {
         cam->SetGain(p.gain); cam->SetExposure(p.exposureMs);
         cam->SetGamma(p.gamma); cam->SetWhiteBalance(p.wbRed, p.wbBlue);
@@ -709,15 +715,16 @@ static int RunApp(bool useEmulator) {
     // autofocus change could be verified on the bench at all. With it the
     // correct answer is a known number, so the bench test is an assertion.
     //   RADUK_EMU_TRUE_FOCUS   — step position of perfect focus
-    //                            (default 51200; the EAF opens at 50000,
-    //                            so the default sits 1200 steps away and
-    //                            is comfortably inside the +/-3000 sweep)
+    //                            (default 168000, matching this rig's
+    //                            measured ~168187; the EAF opens at
+    //                            166500, so it starts 1500 steps out,
+    //                            inside the +/-3000 sweep)
     //   RADUK_EMU_BLUR_PX_STEP — blur px per step off focus (default 0.0083,
     //                            2000 steps/mm at f/10 on 2.0um pixels,
     //                            rescaled to the emulator's 0.61"/px — see
     //                            CameraEmulator::SetBlurPxPerStep)
     {
-        int   trueFocus   = 51200;
+        int   trueFocus   = 168000;
         float blurPerStep = 0.0083f;
         char  fb[32];
         if (GetEnvironmentVariableA("RADUK_EMU_TRUE_FOCUS", fb, 32))
@@ -757,6 +764,15 @@ static int RunApp(bool useEmulator) {
             peakDn = atoi(fb);
         cam.SetPeakTargetDn(peakDn);
         cam.SetFreezeSurface(freezeSurface);
+        // Render what is actually selected, not always Jupiter.
+        // ApplyProfile keeps this in step on every later switch; this
+        // covers launch, when no profile has been applied yet but one
+        // is already active (ProfileManager defaults to index 0).
+        // RADUK_EMU_TARGET overrides it for bench work.
+        if (GetEnvironmentVariableA("RADUK_EMU_TARGET", fb, 32))
+            cam.SetTargetName(fb);
+        else if (const auto* ap = profiles.Active())
+            cam.SetTargetName(ap->name);
         cam.SetTrueFocusPosition(trueFocus);
         cam.SetBlurPxPerStep(blurPerStep);
         cam.SetFocusPositionProvider([&focuser](int& pos) {

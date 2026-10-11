@@ -38,8 +38,13 @@ public:
 
     bool Open(int /*index*/) {
         if (m_isOpen) return false;
-        m_position = 50000;   // Safe default test position
-        m_target   = 50000;
+        // Start where this rig's focuser actually lives. The 8SE with the
+        // EAF comes to focus around 150-175k - a measured run landed at
+        // 168187 - so the old 50000 was nowhere near reality and made
+        // every emulated focus figure meaningless to compare against a
+        // real night's log.
+        m_position = 166500;
+        m_target   = 166500;
         m_isOpen   = true;
         m_moving   = false;
         // Start the motor simulation thread
@@ -143,8 +148,8 @@ private:
     }
 
     bool                m_isOpen   = false;
-    std::atomic<int>    m_position{50000};
-    int                 m_target   = 50000;
+    std::atomic<int>    m_position{166500};
+    int                 m_target   = 166500;
     std::atomic<bool>   m_moving{false};
     bool                m_reversed = false;
     int                 m_backlash = 0;

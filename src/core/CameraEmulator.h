@@ -38,6 +38,38 @@ namespace raduk::core {
 struct JupBelt { float lat, hw, r, g, b; };
 struct JupMoon { float dist, period_d, radius_px_base, r, g, b; };
 
+// ── What the emulator is actually pointed at (Phase 81) ──────────
+//
+// The generator rendered Jupiter unconditionally, whatever profile was
+// loaded, so a Saturn session showed Jupiter - and Saturn is the one
+// that matters most here, because its rings are the high-contrast
+// detail focus and sharpness get judged on.
+//
+// Sizes are relative to Jupiter at its existing 0.22 of frame height,
+// scaled by true apparent diameter (Jupiter 45", Saturn 18" disc with
+// rings to 42", Mars 15", Venus 25"). Jupiter keeps its old size so
+// every existing bench result stays comparable.
+struct EmuTargetDef {
+    const char* name;
+    float radiusFrac;      // disc radius as a fraction of frame height
+    float oblate;          // polar flattening
+    float r, g, b;         // base tint
+    bool  belts;           // Jupiter-style banding and Red Spot
+    bool  moons;           // Galilean moons
+    float ringInner;       // in disc radii; 0 = no rings
+    float ringOuter;
+};
+static const EmuTargetDef EMU_TARGETS[] = {
+    // name        rad     oblate  r     g     b     belt  moon  rIn   rOut
+    { "Jupiter", 0.220f, 0.0649f, 0.93f,0.86f,0.68f, true,  true, 0.0f, 0.0f },
+    { "Saturn",  0.088f, 0.0980f, 0.94f,0.87f,0.66f, false, false,1.24f,2.33f },
+    { "Mars",    0.073f, 0.0059f, 0.86f,0.45f,0.28f, false, false,0.0f, 0.0f },
+    { "Venus",   0.122f, 0.0000f, 0.98f,0.96f,0.90f, false, false,0.0f, 0.0f },
+    { "Moon",    0.820f, 0.0000f, 0.80f,0.78f,0.74f, false, false,0.0f, 0.0f },
+};
+static const int NUM_EMU_TARGETS =
+    (int)(sizeof(EMU_TARGETS)/sizeof(EMU_TARGETS[0]));
+
 static const JupBelt JUP_BELTS[] = {
     {  60.0f,  8.0f, 0.55f, 0.40f, 0.30f }, // North Polar Region
     {  38.0f,  5.0f, 0.72f, 0.58f, 0.42f }, // North Temperate Belt
@@ -285,6 +317,24 @@ public:
     // subtraction is sound could not be answered on the bench at all.
     void SetPeakTargetDn(int dn) { m_peakTargetDn = dn < 0 ? 0 : dn; }
 
+    // Render the named target instead of always Jupiter. Matched on a
+    // leading substring so profile names like "Jupiter" and target
+    // names like "Jupiter (Io transit)" both resolve; anything
+    // unrecognised stays on Jupiter, which is the useful default for a
+    // generic planetary test.
+    void SetTargetName(const std::string& name) {
+        for (int i = 0; i < NUM_EMU_TARGETS; i++) {
+            const char* n = EMU_TARGETS[i].name;
+            if (_strnicmp(name.c_str(), n, strlen(n)) == 0) {
+                m_target = i;
+                printf("[CameraEmulator] Target: %s\n", n);
+                return;
+            }
+        }
+        m_target = 0;
+    }
+    const char* TargetName() const { return EMU_TARGETS[m_target].name; }
+
     // ── Video capture ──────────────────────────────────────────
 
     bool StartVideoCapture() {
@@ -448,6 +498,42 @@ private:
     static constexpr float GRS_LAT=-23.0f,GRS_LON=180.0f;
     static constexpr float GRS_RLAT=7.0f, GRS_RLON=12.0f;
 
+    // Saturn's rings: a tilted annulus with the Cassini division.
+    //
+    // Worth rendering properly rather than as a blank band, because the
+    // division and the A/B brightness step are the highest-contrast detail
+    // on the target and are exactly what focus and the sharpness metric
+    // get judged on in a real Saturn session.
+    static bool RingSample(int px, int py, float cx, float cy, float JR,
+                           const EmuTargetDef& tg, float brightness,
+                           uint8_t& r8, uint8_t& g8, uint8_t& b8) {
+        const float RING_TILT = 0.44f;          // ~26 deg ring opening
+        const float outR = JR * tg.ringOuter;
+        const float dx   = (px - cx) / outR;
+        const float dy   = (py - cy) / (outR * RING_TILT);
+        const float rr   = sqrtf(dx*dx + dy*dy);
+        const float inFrac = tg.ringInner / tg.ringOuter;
+        if (rr > 1.0f || rr < inFrac) return false;
+
+        // Cassini division at ~0.72 of the way out, then the brighter B
+        // ring inside it and the fainter A ring outside.
+        const float band = (rr - inFrac) / (1.0f - inFrac);   // 0 in, 1 out
+        float lum;
+        if (band > 0.70f && band < 0.78f)      lum = 0.18f;   // Cassini
+        else if (band < 0.70f)                 lum = 0.92f;   // B ring
+        else                                   lum = 0.60f;   // A ring
+
+        const float v = lum * brightness;
+        auto clamp8 = [](float f) -> uint8_t {
+            const float s = f * 255.0f;
+            return (uint8_t)(s > 255.0f ? 255.0f : (s < 0.0f ? 0.0f : s));
+        };
+        r8 = clamp8(v * tg.r);
+        g8 = clamp8(v * tg.g);
+        b8 = clamp8(v * tg.b);
+        return true;
+    }
+
     static RGB JupiterSurfaceColor(float lat_deg, float lon_phase, float timeS) {
         RGB color = {ZONE_R, ZONE_G, ZONE_B};
         float maxCov = 0.0f;
@@ -496,7 +582,8 @@ private:
     void GenerateFrames() {
         const int   W  = m_roiW, H = m_roiH;
         const float CX = W*0.5f, CY = H*0.5f;
-        const float JR = H*0.22f, JRy = JR*(1.0f-0.0649f);
+        const EmuTargetDef& TG = EMU_TARGETS[m_target];
+        const float JR = H*TG.radiusFrac, JRy = JR*(1.0f-TG.oblate);
         const float ROT = 9.9f*3600.0f, PI = 3.14159265f;
         const float iR = 1.0f/JR, iRy = 1.0f/JRy;
         static const int LUT_N = 512;
@@ -553,7 +640,18 @@ private:
             for (int i = 0; i < LUT_N; i++) {
                 float sinLat = (i/(float)(LUT_N-1))*2.0f - 1.0f;
                 float lat_deg = (180.0f/PI)*asinf(sinLat);
-                RGB col = JupiterSurfaceColor(lat_deg, midLon, tSurf);
+                RGB col;
+                if (TG.belts) {
+                    col = JupiterSurfaceColor(lat_deg, midLon, tSurf);
+                } else {
+                    // Flat tint with a faint latitude banding so there
+                    // is still some detail for the sharpness metric to
+                    // bite on - a perfectly smooth disc would make every
+                    // focus position measure identically.
+                    const float band =
+                        1.0f + 0.05f * sinf(lat_deg * 0.18f + midLon*6.2832f);
+                    col = { TG.r*band, TG.g*band, TG.b*band };
+                }
                 latLUT[i] = {(uint8_t)(col.r*255.f>255?255:col.r*255.f),
                              (uint8_t)(col.g*255.f>255?255:col.g*255.f),
                              (uint8_t)(col.b*255.f>255?255:col.b*255.f)};
@@ -574,7 +672,7 @@ private:
             }
 
             // Precompute moon positions once per frame
-            for (int m = 0; m < NUM_JUP_MOONS; m++) {
+            for (int m = 0; m < (TG.moons ? NUM_JUP_MOONS : 0); m++) {
                 const JupMoon& moon = JUP_MOONS[m];
                 float angle = (2.f*PI*tSurf/(moon.period_d*86400.f)) + m*1.1f;
                 moonPos[m].x  = PCX + JR*moon.dist*cosf(angle);
@@ -607,6 +705,10 @@ private:
                         rv = (uint8_t)(e.r*br>255?255:e.r*br);
                         gv = (uint8_t)(e.g*br>255?255:e.g*br);
                         bv = (uint8_t)(e.b*br>255?255:e.b*br);
+                    } else if (TG.ringOuter > 0.0f &&
+                               RingSample(px, py, PCX, PCY, JR, TG,
+                                          brightness, rv, gv, bv)) {
+                        // On the ring system - RingSample filled rv/gv/bv.
                     } else {
                         uint32_t h = (uint32_t)(px*7919+py*6271);
                         h^=h>>16; h*=0x45d9f3b; h^=h>>16;
@@ -614,7 +716,7 @@ private:
                             (uint8_t)(((h%200)/200.f)*brightness*255.f) : bgVal;
                         rv=gv=bv=sv;
                     }
-                    for (int m=0; m<NUM_JUP_MOONS; m++) {
+                    for (int m=0; m<(TG.moons ? NUM_JUP_MOONS : 0); m++) {
                         float mdx=px-moonPos[m].x, mdy=py-moonPos[m].y, mr=moonPos[m].r;
                         if (mdx*mdx+mdy*mdy < mr*mr) { rv=moonPos[m].r8; gv=moonPos[m].g8; bv=moonPos[m].b8; }
                     }
@@ -738,12 +840,17 @@ private:
 
     // Phase 73 defocus — set before StartVideoCapture()
     std::function<bool(int&)>   m_focusProvider;
-    int                         m_trueFocus     = 51200;
+    // Real focus for this rig, measured at 168187 on a good night. The
+    // focuser starts at 166500, so the default sits 1500 steps out -
+    // comfortably inside autofocus's +/-3000 sweep and close to what a
+    // real session starts from.
+    int                         m_trueFocus     = 168000;
     float                       m_blurPxPerStep = 0.0083f;
     bool                        m_freezeSurface = false;
     int                         m_noiseAmp      = 0;
     float                       m_seeingBlurAs  = 0.0f;
     int                         m_peakTargetDn  = 0;
+    int                         m_target        = 0;   // index into EMU_TARGETS
     std::vector<int>            m_blurScratch;   // generator thread only
     std::vector<uint8_t>        m_blurTmp;       // generator thread only
 

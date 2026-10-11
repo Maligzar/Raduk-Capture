@@ -978,6 +978,9 @@ static int RunApp(bool useEmulator) {
                             mount->GetTrackingMode() != IMount::OFF;
         ri.siteSet        = raduk::core::RigConfig::Get().SiteIsSet();
         ri.profileLoaded  = profiles.Active() != nullptr;
+        ri.filterName     = raduk::core::RigConfig::Get().filterName;
+        ri.filterLowNm    = raduk::core::RigConfig::Get().filterLowNm;
+        ri.filterHighNm   = raduk::core::RigConfig::Get().filterHighNm;
         {
             ULARGE_INTEGER avail = {}, total = {}, dummy = {};
             // The directory actually in use, not a literal - the user
@@ -1359,6 +1362,10 @@ static int RunApp(bool useEmulator) {
             [&]() -> double {
                 return cordWrap.LastAz();   // -1 when not yet known
             });
+        // The dialog can change the filter band, and the focuser panel
+        // states it. Without this the label keeps naming the old filter
+        // while the ADC figure beside it already uses the new band.
+        controls.RefreshFilterLabel();
     });
 
     controls.SetCablesDressedCallback([&]() {

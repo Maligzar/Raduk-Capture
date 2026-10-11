@@ -114,6 +114,12 @@ struct ReadyInputs {
     bool   siteSet        = false;
     double diskFreeGB     = -1.0;
     bool   profileLoaded  = false;
+    // Phase 83: passed in rather than read from RigConfig so this
+    // header stays dependency-free and testable, as the rest of
+    // these inputs are.
+    std::string filterName;          // empty = not supplied
+    float  filterLowNm    = 0.0f;
+    float  filterHighNm   = 0.0f;
 };
 
 inline ReadyReport EvaluateReadiness(const ReadyInputs& in) {
@@ -221,6 +227,20 @@ inline ReadyReport EvaluateReadiness(const ReadyInputs& in) {
           "an 8-inch SCT wants 45-90 min; tube currents cap detail");
     r.Add("Cables", ReadyState::Manual,
           "dressed and free to rotate? press CABLES OK if so");
+
+    // The filter is the fourth unobservable thing, but it changes only
+    // when the camera comes off the scope -- far more rarely than a
+    // dust cap. So it is stated, not asked: Manual never sets
+    // WorthShowing(), so this row is silent on a good night and is
+    // there to be read on a night the list already opened for some
+    // other reason. The band matters because it drives the ADC figure.
+    if (!in.filterName.empty()) {
+        char fb[128];
+        snprintf(fb, sizeof(fb),
+                 "%s (%.0f-%.0fnm) - still on the camera? drives the ADC figure",
+                 in.filterName.c_str(), in.filterLowNm, in.filterHighNm);
+        r.Add("Filter", ReadyState::Manual, fb, "adc");
+    }
 
     return r;
 }

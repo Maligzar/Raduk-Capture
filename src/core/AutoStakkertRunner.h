@@ -193,6 +193,20 @@ public:
     }
 
 private:
+    // UTF-8, not CP_ACP: these strings go into a log file that is read
+    // back as text, and the capture tree can sit under a user name the
+    // active code page cannot represent.
+    static std::string ToUtf8(const std::wstring& w) {
+        if (w.empty()) return std::string();
+        int n = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(),
+                                    nullptr, 0, nullptr, nullptr);
+        if (n <= 0) return std::string();
+        std::string out((size_t)n, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(),
+                            &out[0], n, nullptr, nullptr);
+        return out;
+    }
+
     StackResult Run(const std::wstring& serPath) {
         StackResult r;
 
@@ -208,8 +222,12 @@ private:
                            L" /apgrid /process /hide /exit"
                            L" /outputdirectory \"" + r.outputDir + L"\"";
         if (m_log) {
-            std::string narrow(cmd.begin(), cmd.end());
-            m_log("cmd: " + narrow);
+            // The iterator-pair construction this replaced truncated each
+            // wchar_t to one byte, so any non-ASCII character in the path
+            // reached the log as garbage -- and the log is the only record
+            // of what was actually launched. A line that misreports the
+            // path is worse than no line when a launch is being diagnosed.
+            m_log("cmd: " + ToUtf8(cmd));
         }
         std::vector<wchar_t> buf(cmd.begin(), cmd.end());
         buf.push_back(L'\0');

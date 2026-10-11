@@ -119,6 +119,16 @@ public:
            << "Equipment: Celestron 8SE SCT (f/10, 2032mm FL), ZWO ASI678MC "
               "(Sony IMX678, 3840x2160, 2.9um), ZWO EAF, NexStar mount.\n"
            << "Plate scale: 0.203 arcsec/pixel. HCG threshold: gain 182.\n"
+           // The filter is removable hardware the app cannot detect, and
+           // it moves the atmospheric dispersion figure by up to 4x. An
+           // assistant answering "do I need the ADC tonight" has to know
+           // which band is in front of the sensor.
+           << "Filter fitted: " << RigConfig::Get().filterName << " ("
+           << (int)RigConfig::Get().filterLowNm << "-"
+           << (int)RigConfig::Get().filterHighNm
+           << "nm). This is set in rig.ini / SETUP, not detected - if the "
+              "user says they changed filters, tell them to update it, "
+              "because every dispersion figure depends on it.\n"
            << "Answer concisely and practically. If unsure, say so. "
               "Never invent equipment specs or sky positions.\n\n";
 

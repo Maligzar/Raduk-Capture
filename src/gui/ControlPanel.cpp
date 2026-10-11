@@ -7,6 +7,7 @@
 
 #include "ControlPanel.h"
 #include "Theme.h"
+#include "core/RigConfig.h"
 #include <windowsx.h>
 #include <cstdio>
 #include <cstring>
@@ -1442,6 +1443,19 @@ void ControlPanel::MakeSectionLabel(const char* text, int x, int y, int w, int h
     MakeLabel(buf, x, y, w, h);
 }
 
+void ControlPanel::RefreshFilterLabel() {
+    if (!m_lblFilter) return;
+    const auto& rig = raduk::core::RigConfig::Get();
+    wchar_t buf[96];
+    // Name and band together: the name is what the user recognises on
+    // the camera, the band is what the dispersion model actually used.
+    // Showing only the name would hide a hand-edited rig.ini whose
+    // edges no longer match the preset it is still called after.
+    swprintf(buf, 96, L"Filter: %hs (%.0f-%.0fnm)",
+             rig.filterName.c_str(), rig.filterLowNm, rig.filterHighNm);
+    SetWindowTextW(m_lblFilter, buf);
+}
+
 HWND ControlPanel::MakeValueLabel(const wchar_t* text, int x, int y, int w, int h, int id) {
     // Right-aligned, like FC's value readouts
     return CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_RIGHT,
@@ -2349,6 +2363,17 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // ADC dispersion readout — updates live from mount altitude
     m_lblADCStatus = MakeValueLabel(L"ADC: --", x, y, w, SH, ID_LBL_ADC_STATUS);
     TagControl(m_lblADCStatus, Section::EAF);
+    y += SH + 2;
+
+    // Phase 83: the band the figure above was computed over. The ADC
+    // number is meaningless without it — the same altitude disperses
+    // 1.6" through a UV/IR cut and 0.4" through an IR pass filter —
+    // and the filter is a physical part that leaves with the camera,
+    // so the app cannot observe which one is fitted. Naming it beside
+    // the figure it drives is what makes a wrong setting visible.
+    m_lblFilter = MakeValueLabel(L"", x, y, w, SH, ID_LBL_FILTER);
+    TagControl(m_lblFilter, Section::EAF);
+    RefreshFilterLabel();
     y += SH + 2;
     } // end Focuser
 

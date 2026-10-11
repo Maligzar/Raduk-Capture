@@ -237,6 +237,10 @@ public:
     void SetADCStatus(const wchar_t* msg) {
         if (m_lblADCStatus) SetWindowTextW(m_lblADCStatus, msg ? msg : L"");
     }
+    // Phase 83: restate the filter the ADC figure was computed over.
+    // Call after anything that can change the band (rig setup, a
+    // reloaded rig.ini) so the label can never outlive the setting.
+    void RefreshFilterLabel();
 
     // GoTo status label — safe to call from any thread via SendMessage
     void SetGoToStatus(const std::wstring& status) {
@@ -570,6 +574,7 @@ private:
     HWND m_btnAutofocus = nullptr;
     HWND m_lblAFStatus  = nullptr;
     HWND m_lblADCStatus = nullptr;  // ADC dispersion readout in FOCUSER section
+    HWND m_lblFilter    = nullptr;  // Phase 83: the band that readout assumes
 
     // ── Mount controls ─────────────────────────────────────────
     HWND m_lblMountConnected = nullptr;  // "● Device Name  Connected" status line
@@ -670,6 +675,7 @@ private:
         ID_BTN_AUTOFOCUS,
         ID_LBL_AF_STATUS,
         ID_LBL_ADC_STATUS,
+        ID_LBL_FILTER,
         ID_LBL_MOUNT_RA = 1400, ID_LBL_MOUNT_DEC, ID_LBL_MOUNT_TRACK,
         ID_LBL_MOUNT_AZ, ID_LBL_MOUNT_ALT, ID_LBL_MOUNT_HA,
         ID_LBL_MOUNT_CONNECTED,

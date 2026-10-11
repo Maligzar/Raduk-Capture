@@ -171,7 +171,7 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
                                GetModuleHandleW(nullptr), nullptr);
     if (!dlg) return;
 
-    enum { ID_OBS = 5001, ID_KOS, ID_KOE, ID_WRAP, ID_SAVE, ID_CANCEL };
+    enum { ID_OBS = 5001, ID_KOS, ID_KOE, ID_WRAP, ID_FILTER, ID_SAVE, ID_CANCEL };
 
     auto mk = [&](const wchar_t* cls, const wchar_t* text, DWORD style,
                   int x, int y, int w, int h, int id) -> HWND {
@@ -220,6 +220,41 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
     mk(L"EDIT", b, WS_BORDER | WS_TABSTOP, fx, fy, 80, 22, ID_WRAP);
     fy += 32;
 
+    // Phase 83: the filter is a physical part the software cannot see.
+    // It lives here rather than behind a launch prompt because it only
+    // changes when the camera comes off the scope -- asking nightly
+    // about a yearly event is the speed bump Readiness.h warns about.
+    label(L"Filter fitted to the camera:");
+    {
+        HWND cb = mk(L"COMBOBOX", L"",
+                     CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP,
+                     fx, fy, 200, 24, ID_FILTER);
+        int pn = 0;
+        const auto* pp = RigConfig::Presets(pn);
+        int sel = -1;
+        for (int i = 0; i < pn; i++) {
+            wchar_t wn[64];
+            swprintf(wn, 64, L"%hs (%.0f-%.0fnm)",
+                     pp[i].name, pp[i].lowNm, pp[i].highNm);
+            SendMessageW(cb, CB_ADDSTRING, 0, (LPARAM)wn);
+            if (_stricmp(pp[i].name, RigConfig::Get().filterName.c_str()) == 0)
+                sel = i;
+        }
+        // A rig.ini with hand-edited band edges matches no preset. Leave
+        // the box blank rather than showing a preset the model is not
+        // using, and leave the band alone unless one is chosen.
+        if (sel >= 0) SendMessageW(cb, CB_SETCURSEL, sel, 0);
+    }
+    fy += 30;
+    {
+        wchar_t cur[80];
+        swprintf(cur, 80, L"(in use: %hs, %.0f-%.0fnm)",
+                 RigConfig::Get().filterName.c_str(),
+                 RigConfig::Get().filterLowNm, RigConfig::Get().filterHighNm);
+        label(cur, 16);
+    }
+    fy += 10;
+
     mk(L"BUTTON", L"Save", BS_DEFPUSHBUTTON, DW - 230, DH - 70, 100, 26, ID_SAVE);
     mk(L"BUTTON", L"Cancel", BS_PUSHBUTTON,  DW - 122, DH - 70, 100, 26, ID_CANCEL);
 
@@ -263,10 +298,23 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
                     r.keepOutStartDeg    = NormDeg360(s->koStart);
                     r.keepOutEndDeg      = NormDeg360(s->koEnd);
                     if (s->wrapLim > 10.0) r.wrapLimitDeg = s->wrapLim;
+                    // CB_ERR means nothing was picked -- a hand-edited
+                    // band, left alone on purpose. Only an explicit
+                    // choice overwrites the edges.
+                    HWND cb = GetDlgItem(h, ID_FILTER);
+                    LRESULT ci = cb ? SendMessageW(cb, CB_GETCURSEL, 0, 0)
+                                    : CB_ERR;
+                    if (ci != CB_ERR) {
+                        int pn = 0;
+                        const auto* pp = RigConfig::Presets(pn);
+                        if (ci >= 0 && ci < pn) r.ApplyFilterPreset(pp[ci].name);
+                    }
                     r.Save();
                     printf("[RigSetup] Saved: observer %.0f, keep-out %.0f-%.0f, "
-                           "wrap limit %.0f\n", r.observerBearingDeg,
-                           r.keepOutStartDeg, r.keepOutEndDeg, r.wrapLimitDeg);
+                           "wrap limit %.0f, filter %s (%.0f-%.0fnm)\n",
+                           r.observerBearingDeg,
+                           r.keepOutStartDeg, r.keepOutEndDeg, r.wrapLimitDeg,
+                           r.filterName.c_str(), r.filterLowNm, r.filterHighNm);
                     s->done = true;
                     return 0;
                 }

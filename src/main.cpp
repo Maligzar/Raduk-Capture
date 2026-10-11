@@ -98,7 +98,11 @@ static void Log(const char* fmt, ...) {
 // ── Global mount pointer for crash/exit emergency stop ────────
 // Set after mount connects, cleared on disconnect.
 // Used by CrashHandler and atexit to stop mount on fatal exit.
+#ifdef RADUK_EMULATOR
+static raduk::core::MountEmulator* g_mountForCrash = nullptr;
+#else
 static raduk::core::NexStarMount* g_mountForCrash = nullptr;
+#endif
 
 static void EmergencyStopOnExit() {
     if (g_mountForCrash && g_mountForCrash->IsConnected()) {
@@ -609,7 +613,7 @@ static int RunApp(bool useEmulator) {
 
 #ifdef RADUK_EMULATOR
     {
-        auto* em = new raduk::core::NexStarMount();
+        auto* em = new raduk::core::MountEmulator();
         em->Connect("EMU");
         mountPtr.reset(em);
         startInRCControl = true;

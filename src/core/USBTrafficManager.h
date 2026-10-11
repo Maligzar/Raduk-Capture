@@ -30,60 +30,24 @@ public:
     static constexpr int MOUNT_POLL_NORMAL_MS    =  500;
     static constexpr int MOUNT_POLL_CAPTURE_MS   = 2000;
 
-    USBTrafficManager() {
-        auto now = Clock::now();
-        m_lastFocuserPoll = now;
-        m_lastMountPoll   = now;
-    }
+    USBTrafficManager();
 
     // Call when recording starts or stops
-    void SetCapturing(bool capturing) {
-        if (m_capturing == capturing) return;
-        m_capturing = capturing;
-        printf("[USBTrafficMgr] Capture mode %s — "
-               "EAF poll: %dms, Mount poll: %dms\n",
-               capturing ? "ON" : "OFF",
-               capturing ? FOCUSER_POLL_CAPTURE_MS : FOCUSER_POLL_NORMAL_MS,
-               capturing ? MOUNT_POLL_CAPTURE_MS   : MOUNT_POLL_NORMAL_MS);
-    }
+    void SetCapturing(bool capturing);
 
     bool IsCapturing() const { return m_capturing; }
 
     // Returns true if the focuser should be polled this tick
-    bool ShouldPollFocuser() {
-        auto now = Clock::now();
-        int interval = m_capturing ? FOCUSER_POLL_CAPTURE_MS : FOCUSER_POLL_NORMAL_MS;
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                      now - m_lastFocuserPoll).count();
-        if (ms >= interval) {
-            m_lastFocuserPoll = now;
-            return true;
-        }
-        return false;
-    }
+    bool ShouldPollFocuser();
 
     // Returns true if the mount should be polled this tick
-    bool ShouldPollMount() {
-        auto now = Clock::now();
-        int interval = m_capturing ? MOUNT_POLL_CAPTURE_MS : MOUNT_POLL_NORMAL_MS;
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                      now - m_lastMountPoll).count();
-        if (ms >= interval) {
-            m_lastMountPoll = now;
-            return true;
-        }
-        return false;
-    }
+    bool ShouldPollMount();
 
     // Camera is always allowed — it owns the bus during capture
     bool ShouldPollCamera() const { return true; }
 
     // Human-readable status for session log
-    const char* StatusString() const {
-        return m_capturing
-            ? "CAPTURE — EAF:10s  Mount:2s"
-            : "IDLE — EAF:0.5s  Mount:0.5s";
-    }
+    const char* StatusString() const;
 
 private:
     using Clock = std::chrono::steady_clock;

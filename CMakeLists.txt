@@ -54,42 +54,21 @@ add_executable(RadukCapture WIN32
     # Core
     ${DEVICE_SOURCES}
     src/core/CaptureThread.cpp
+    src/core/CaptureManager.cpp
+    src/core/SERWriter.cpp
+    src/core/WriteBuffer.cpp
+    src/core/FrameAnalyzer.cpp
+    src/core/CentroidTracker.cpp
+    src/core/USBTrafficManager.cpp
 
     # GUI
     src/gui/Window.cpp
     src/gui/PreviewRenderer.cpp
     src/gui/ControlPanel.cpp
 
-    # Phase 1 header-only (no .cpp)
-    # SessionLog.h, StatusBar.h, TargetProfile.h, ProfileManager.h
-
-    # Phase 2 header-only (no .cpp)
-    # SERWriter.h, WriteBuffer.h, CaptureManager.h
-
-    # Phase 2 M7 header-only (no .cpp)
-    # USBTrafficManager.h
-
-    # Phase 3 M9 header-only (no .cpp)
-    # FrameAnalyzer.h
-
-    # Phase 3 M10 header-only (no .cpp)
-    # gpu/GPUDebayer.h — D3D11 compute shader debayer
-
-    # Phase 4 M12 header-only (no .cpp)
-    # net/WebSocketServer.h — RFC 6455 WS server, Winsock2
-    # net/APEXTelemetry.h  — JSON telemetry builder + command parser
-
-    # Phase 4 M8 header-only (no .cpp)
-    # core/IMount.h        — abstract mount interface (ITelescopeV3 surface + PulseGuide)
-
-    # Phase 5 header-only (no .cpp)
-    # core/CentroidTracker.h — planet centroid tracking, NexStar PulseGuide corrections
-
-    # Phase 6 header-only (no .cpp)
-    # sky/SkyObject.h      — planet ephemeris (VSOP87 simplified) + Messier catalog
-    # sky/ASTAPSolver.h    — plate solving via ASTAP process
-    # gui/GoToPanel.h      — GoTo tab: catalog, search, GoTo, plate solve, sync
-    # core/ASCOMMount.h    — IMount via ASCOM IDispatch COM (talks to CPWI)
+    # Net
+    src/net/WebSocketServer.cpp
+    src/net/APEXTelemetry.cpp
 )
 
 # ── Include directories ────────────────────────────────────────

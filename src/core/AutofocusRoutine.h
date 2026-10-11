@@ -146,7 +146,8 @@ public:
         m_samples.clear();
         m_pendingSharpness.store(-1.0f);
         m_sharpnessSamples.clear();
-            m_centValidSamples.clear(); m_centPeakSamples.clear();
+        m_centValidSamples.clear();
+        m_centPeakSamples.clear();
         m_samplesNeeded.store(0);
         SetStatus("Autofocus starting...");
 
@@ -247,10 +248,20 @@ private:
         // Record sharpness at start position for improvement calculation
         float startSharpness = 0.0f;
         {
-            // Take a quick 3-frame sample at current position before moving
-            m_samplesNeeded.store(3);
+            // Take a quick 3-frame sample at current position before moving.
+            //
+            // Clear BEFORE arming m_samplesNeeded, never after. That
+            // counter is the gate SubmitSharpness checks before taking
+            // the mutex and pushing, and SubmitSharpness runs on the
+            // render thread. Arming first opened the gate while these
+            // three clears were still running unlocked, so a push_back
+            // could reallocate underneath a clear() - a data race on
+            // the vector's internal pointers. The two other collection
+            // points below already order it this way.
             m_sharpnessSamples.clear();
-            m_centValidSamples.clear(); m_centPeakSamples.clear();
+            m_centValidSamples.clear();
+            m_centPeakSamples.clear();
+            m_samplesNeeded.store(3);
             WaitForSamples(3, 6000);   // 3 fresh analyses at ~2Hz = ~1.5s
             m_sharpnessMutex.lock();
             if (!m_sharpnessSamples.empty()) {
@@ -299,7 +310,8 @@ private:
             // Collect sharpness samples
             int fp = m_params.framesPerStep;
             m_sharpnessSamples.clear();
-            m_centValidSamples.clear(); m_centPeakSamples.clear();
+            m_centValidSamples.clear();
+            m_centPeakSamples.clear();
             m_samplesNeeded.store(fp);
 
             // Timeout budget: samples now arrive only on a FRESH analyzer
@@ -412,7 +424,8 @@ private:
         // Verify final sharpness. 8000ms, not 4000: samples now arrive only
         // on a fresh analyzer result (~2Hz), so 5 of them take ~2.5s.
         m_sharpnessSamples.clear();
-            m_centValidSamples.clear(); m_centPeakSamples.clear();
+        m_centValidSamples.clear();
+        m_centPeakSamples.clear();
         m_samplesNeeded.store(5);
         WaitForSamples(5, 8000);
         m_samplesNeeded.store(0);

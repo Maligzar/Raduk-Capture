@@ -613,6 +613,12 @@ bool ControlPanel::Create(HWND mainHwnd,
     m_mount    = mount;
     m_docked   = true;  // always docked as a child window
 
+    // Every collapsible section starts collapsed, so the panel opens
+    // as a short list of headers rather than a long scroll. Must run
+    // before the first RebuildControls, which reads this map to decide
+    // which controls to create at all.
+    InitCollapsed();
+
     WNDCLASSEXW wc = {};
     wc.cbSize        = sizeof(wc);
     wc.lpfnWndProc   = PanelWndProc;
@@ -2022,8 +2028,59 @@ void ControlPanel::PaintTemperature(HDC hdc, int panX, int panY, int panW, int p
 // Destroys all child controls and rebuilds at the given client width.
 // Called from Create() and WM_SIZE so the layout reflows on resize.
 
+// Only records a field whose control currently EXISTS. A collapsed
+// section has no controls, and reading one would otherwise overwrite a
+// good saved value with an empty string.
+void ControlPanel::SnapshotUi() {
+    auto grab = [](HWND h, std::wstring& dst) {
+        if (!h) return;
+        int len = GetWindowTextLengthW(h);
+        std::wstring s;
+        s.resize((size_t)len + 1);
+        GetWindowTextW(h, &s[0], len + 1);
+        s.resize((size_t)len);
+        dst = s;
+    };
+    grab(m_editFilePrefix,    m_ui.filePrefix);
+    grab(m_editOutputDir,     m_ui.outputDir);
+    grab(m_editLimitFrames,   m_ui.limitFrames);
+    grab(m_editLimitTime,     m_ui.limitTime);
+    grab(m_editNotes,         m_ui.notes);
+    grab(m_editGateThreshold, m_ui.gateThreshold);
+    if (m_comboFrameType)
+        m_ui.frameType = (int)SendMessage(m_comboFrameType, CB_GETCURSEL, 0, 0);
+    if (m_radioFrames)
+        m_ui.limitByFrames =
+            (SendMessage(m_radioFrames, BM_GETCHECK, 0, 0) == BST_CHECKED) ? 1 : 0;
+}
+
+void ControlPanel::RestoreUi() {
+    auto put = [](HWND h, const std::wstring& v) {
+        if (h && !v.empty()) SetWindowTextW(h, v.c_str());
+    };
+    put(m_editFilePrefix,    m_ui.filePrefix);
+    put(m_editOutputDir,     m_ui.outputDir);
+    put(m_editLimitFrames,   m_ui.limitFrames);
+    put(m_editLimitTime,     m_ui.limitTime);
+    put(m_editNotes,         m_ui.notes);
+    put(m_editGateThreshold, m_ui.gateThreshold);
+    if (m_comboFrameType && m_ui.frameType >= 0)
+        SendMessage(m_comboFrameType, CB_SETCURSEL, m_ui.frameType, 0);
+    if (m_ui.limitByFrames >= 0) {
+        if (m_radioFrames)
+            SendMessage(m_radioFrames, BM_SETCHECK,
+                        m_ui.limitByFrames ? BST_CHECKED : BST_UNCHECKED, 0);
+        if (m_radioTime)
+            SendMessage(m_radioTime, BM_SETCHECK,
+                        m_ui.limitByFrames ? BST_UNCHECKED : BST_CHECKED, 0);
+    }
+}
+
 void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     if (!m_panelHwnd) return;
+
+    // Keep what the user typed before the windows holding it are gone.
+    SnapshotUi();
 
     // Destroy all existing children
     m_ctrlSection.clear();
@@ -2572,6 +2629,10 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
             SendMessageA(m_comboProfile, CB_ADDSTRING, 0, (LPARAM)n.c_str());
         SendMessage(m_comboProfile, CB_SETCURSEL, (WPARAM)m_cachedProfileIndex, 0);
     }
+
+    // Same idea as the cached status strings above, for everything the
+    // user typed or chose. Must come last: the controls have to exist.
+    RestoreUi();
 }
 
 } // namespace raduk::gui

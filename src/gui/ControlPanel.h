@@ -458,8 +458,36 @@ private:
         for (auto h : hs) TagControl(h, s);
     }
 
-    // Collapse state — Camera, EAF, Mount are collapsible
+    // Collapse state. Every collapsible section starts COLLAPSED - see
+    // InitCollapsed(), called from Create().
     std::unordered_map<Section, bool> m_collapsed;
+    void InitCollapsed() {
+        for (Section s : { Section::Image, Section::Profile,
+                           Section::Camera, Section::EAF, Section::Mount,
+                           Section::Capture, Section::Notes,
+                           Section::Status, Section::Histogram,
+                           Section::Temperature })
+            m_collapsed[s] = true;
+    }
+
+    // Values the user has typed or chosen, kept ACROSS a rebuild.
+    //
+    // RebuildControls destroys every child window and recreates it, and
+    // it runs on every collapse toggle - so without this, expanding any
+    // one section reset the capture prefix to "Jupiter", the output
+    // directory, the frame limits and the session notes. The controls
+    // are the only store for those values; nothing else holds them.
+    // Harmless while sections were expanded by default and rarely
+    // toggled; a trap now that everything starts collapsed and gets
+    // opened and closed constantly.
+    struct UiValues {
+        std::wstring filePrefix, outputDir, limitFrames, limitTime;
+        std::wstring notes, gateThreshold;
+        int  frameType    = -1;
+        int  limitByFrames = -1;   // -1 unknown, 0 time, 1 frames
+    } m_ui;
+    void SnapshotUi();
+    void RestoreUi();
     std::unordered_map<HWND, Section> m_headerSection;
     bool IsCollapsed(Section s) const {
         auto it = m_collapsed.find(s);

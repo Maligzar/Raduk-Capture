@@ -257,13 +257,39 @@ public:
 
 private:
     // Simulation loop — runs at 10 Hz
+    // Celestron NexStar fixed slew rates, arcsec/sec.
+    //
+    // Rates 1-7 are multiples of sidereal and 8-9 are the fast slew
+    // rates, so the curve is roughly LOGARITHMIC. The emulator used to
+    // interpolate it linearly as rate * (3 deg/s / 9), which made FINE
+    // (rate 5) 1.67 deg/s instead of 241 arcsec/s - twenty-five times
+    // too fast. A fine nudge threw the planet straight out of frame, so
+    // nothing that depends on a SMALL mount move - centroid tracking
+    // through a nudge, the motion plot, guide-pulse calibration - could
+    // be tested on the bench at all.
+    static double JogArcsecPerSec(int rate) {
+        static const double kRate[10] = {
+            0.0,        // 0 = stopped
+            7.52,       // 1 = 0.5x sidereal
+            15.04,      // 2 = 1x sidereal
+            60.2,       // 3 = 4x
+            120.3,      // 4 = 8x
+            240.7,      // 5 = 16x    <- FINE
+            481.3,      // 6 = 32x
+            962.6,      // 7 = 64x    <- MED
+            3600.0,     // 8 = 1 deg/s  <- FAST
+            10800.0     // 9 = 3 deg/s  <- max slew
+        };
+        int r = rate < 0 ? -rate : rate;
+        if (r > 9) r = 9;
+        return kRate[r];
+    }
+
     // Handles: sidereal drift, GoTo slewing, manual jog
     void SimLoop() {
         // Degrees per arcsecond per tick (10Hz)
         // Sidereal rate: 15 arcsec/sec = 15/3600 deg/sec = 0.0015 deg/tick at 10Hz
         const double SIDEREAL_DEG_PER_TICK = 15.0 / 3600.0 / 10.0;
-        // Manual jog: rate 9 ≈ 3 deg/sec = 0.3 deg/tick at 10Hz
-        const double JOG_DEG_PER_TICK_PER_RATE = 3.0 / 9.0 / 10.0;
         // GoTo slew speed: ~2 deg/sec
         const double GOTO_DEG_PER_TICK = 2.0 / 10.0;
 
@@ -310,13 +336,17 @@ private:
                         m_decDeg  -= (m_trackErrDec / 3600.0)        * 0.1;
                     }
 
-                    // Manual jog
+                    // Manual jog, on the real rate curve. 0.1 = one 10Hz
+                    // tick; sign comes from the stored signed rate.
                     if (m_slewRateRA != 0) {
-                        double jogDeg = m_slewRateRA * JOG_DEG_PER_TICK_PER_RATE;
-                        m_raHours += jogDeg / 15.0;
+                        double as = JogArcsecPerSec(m_slewRateRA) * 0.1;
+                        if (m_slewRateRA < 0) as = -as;
+                        m_raHours += (as / 3600.0) / 15.0;
                     }
                     if (m_slewRateDec != 0) {
-                        m_decDeg += m_slewRateDec * JOG_DEG_PER_TICK_PER_RATE;
+                        double as = JogArcsecPerSec(m_slewRateDec) * 0.1;
+                        if (m_slewRateDec < 0) as = -as;
+                        m_decDeg += as / 3600.0;
                     }
                 }
 

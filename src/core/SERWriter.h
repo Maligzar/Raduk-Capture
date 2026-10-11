@@ -73,198 +73,28 @@ public:
               bool bayerRGGB = true,
               const char* observer   = "Raduk",
               const char* instrument = "ZWO ASI678MC",
-              const char* telescope  = "Celestron 8SE") {
-
-        if (m_file) Close();
-
-        m_file = fopen(path.c_str(), "wb");
-        if (!m_file) {
-            printf("[SERWriter] Failed to open: %s\n", path.c_str());
-            return false;
-        }
-
-        m_path         = path;
-        m_width        = width;
-        m_height       = height;
-        m_bitDepth     = bitDepth;
-        m_framesWritten = 0;
-        m_bytesWritten  = 0;
-
-        // Phase 59 (review C2): correlate the QPC clock (FrameSlot capture
-        // stamps) with wall time ONCE, here. Each trailer entry is then
-        // derived from the frame's capture QPC — not from when the writer
-        // thread drained it, which lagged up to ~10s with a full 512-slot
-        // backlog and made the trailer useless for WinJUPOS derotation.
-        m_qpcBaseUs = Timestamp::Now();
-        m_ftBase    = CurrentFileTimeUTC();
-
-        // Build header
-        SERHeader hdr = {};
-        memcpy(hdr.FileID, "LUCAM-RECORDER", 14);
-        hdr.LuID              = 0;
-        hdr.ColorID           = (int32_t)(bayerRGGB
-                                    ? SERColorId::BAYER_RGGB
-                                    : SERColorId::MONO);
-        hdr.LittleEndian      = 1;
-        hdr.ImageWidth        = width;
-        hdr.ImageHeight       = height;
-        hdr.PixelDepthPerPlane = bitDepth;
-        hdr.FrameCount        = 0;  // filled at Close()
-        ZeroFill(hdr.Observer,   observer,   sizeof(hdr.Observer));
-        ZeroFill(hdr.Instrument, instrument, sizeof(hdr.Instrument));
-        ZeroFill(hdr.Telescope,  telescope,  sizeof(hdr.Telescope));
-        hdr.DateTime    = CurrentFileTime();
-        hdr.DateTimeUTC = CurrentFileTimeUTC();
-
-        if (fwrite(&hdr, sizeof(hdr), 1, m_file) != 1) {
-            printf("[SERWriter] Failed to write header\n");
-            fclose(m_file); m_file = nullptr;
-            return false;
-        }
-        m_bytesWritten += sizeof(hdr);
-
-        printf("[SERWriter] Opened: %s  %dx%d  %d-bit\n",
-               path.c_str(), width, height, bitDepth);
-        return true;
-    }
+              const char* telescope  = "Celestron 8SE");
 
     // Write one frame with optional sharpness score (Phase 11 lucky imaging).
     // timestampUs: the frame's CAPTURE time (QPC microseconds, FrameSlot
     // convention) — converted to wall clock via the Open()-time correlation.
     // sharpness: 0-100 from FrameAnalyzer::sharpnessPct. 0 = unknown.
     bool WriteFrame(const uint8_t* data, size_t sizeBytes,
-                    uint64_t timestampUs, float sharpness = 0.0f) {
-        if (!m_file || !data || sizeBytes == 0) return false;
-
-        size_t written = fwrite(data, 1, sizeBytes, m_file);
-        if (written != sizeBytes) {
-            printf("[SERWriter] Write error: only %zu of %zu bytes written\n",
-                   written, sizeBytes);
-            return false;
-        }
-
-        m_framesWritten++;
-        m_bytesWritten += sizeBytes;
-        // Capture-time trailer entry (100ns ticks): base + (qpc − qpcBase).
-        // A zero timestamp (no capture stamp available) falls back to now.
-        int64_t ts = (timestampUs != 0)
-            ? m_ftBase + ((int64_t)timestampUs - (int64_t)m_qpcBaseUs) * 10
-            : CurrentFileTimeUTC();
-        m_timestamps.push_back(ts);
-        m_sharpnessScores.push_back(sharpness);  // Phase 11
-
-        return true;
-    }
+                    uint64_t timestampUs, float sharpness = 0.0f);
 
     // Finalize: write timestamp trailer, patch frame count, write quality file.
-    bool Close() {
-        if (!m_file) return false;
-
-        // Write timestamp trailer (one int64 per frame)
-        if (!m_timestamps.empty()) {
-            fwrite(m_timestamps.data(),
-                   sizeof(int64_t), m_timestamps.size(), m_file);
-        }
-
-        // Patch frame count in header (offset 38 into the struct)
-        static constexpr long FRAME_COUNT_OFFSET = 38;
-        fseek(m_file, FRAME_COUNT_OFFSET, SEEK_SET);
-        int32_t fc = (int32_t)m_framesWritten;
-        fwrite(&fc, sizeof(fc), 1, m_file);
-
-        fclose(m_file);
-        m_file = nullptr;
-
-        printf("[SERWriter] Closed: %s  %u frames  %.1f MB\n",
-               m_path.c_str(), m_framesWritten,
-               m_bytesWritten / (1024.0 * 1024.0));
-
-        // ── Per-frame quality sidecar ─────────────────────────
-        // One sharpness score per line, frame order.
-        //
-        // AutoStakkert does NOT read this. The claim that it did stood
-        // here since Phase 11 and is false: AS!4 was tested directly
-        // against a recording with this sidecar beside it, and it ran
-        // its own BufferAndAnalyze and never opened the file. No
-        // external-quality import exists anywhere in the binary, and
-        // its accepted inputs are avi/ser/as3/dat and image formats -
-        // no .txt input path at all. A single global score could not
-        // drive its selection regardless, because AS grades quality
-        // per alignment point and each AP stacks a different subset.
-        //
-        // The file is kept because it is useful HERE: it is a record of
-        // how the seeing ran across a capture, and it is what a
-        // morning-after review reads to decide which runs are worth
-        // stacking. Scores are produced per frame on the writer thread
-        // (Phase 76) - before that they were whatever the ~2Hz analyser
-        // last happened to emit, repeated across long runs of frames,
-        // which could not rank anything.
-        // File: same name as SER but with _quality.txt extension.
-        if (!m_sharpnessScores.empty()) {
-            std::string qualPath = m_path;
-            // Replace .ser extension with _quality.txt
-            auto dotPos = qualPath.rfind('.');
-            if (dotPos != std::string::npos)
-                qualPath = qualPath.substr(0, dotPos);
-            qualPath += "_quality.txt";
-
-            FILE* qf = nullptr;
-            if (fopen_s(&qf, qualPath.c_str(), "w") == 0 && qf) {
-                // Header comment. ASCII ONLY: this file is read by text
-                // editors and spreadsheets that assume the system codepage,
-                // and the UTF-8 em-dash that used to be here showed up as
-                // mojibake in every one of them.
-                fprintf(qf, "# RadukCapture quality scores - sharpness, one per frame\n");
-                fprintf(qf, "# Frames: %u\n", m_framesWritten);
-                fprintf(qf, "# Format: one score per line, frame order\n");
-
-                float sum = 0, peak = 0;
-                for (float s : m_sharpnessScores) {
-                    fprintf(qf, "%.2f\n", s);
-                    sum += s;
-                    if (s > peak) peak = s;
-                }
-                float mean = m_framesWritten > 0 ? sum / m_framesWritten : 0;
-                fprintf(qf, "# Mean: %.2f  Peak: %.2f\n", mean, peak);
-                fclose(qf);
-                printf("[SERWriter] Quality file: %s  mean=%.1f peak=%.1f\n",
-                       qualPath.c_str(), mean, peak);
-            }
-        }
-
-        m_timestamps.clear();
-        m_sharpnessScores.clear();
-        return true;
-    }
+    bool Close();
 
 private:
-    static void ZeroFill(char* dst, const char* src, size_t dstSize) {
-        memset(dst, 0, dstSize);
-        if (src) strncpy_s(dst, dstSize, src, dstSize - 1);
-    }
+    static void ZeroFill(char* dst, const char* src, size_t dstSize);
 
     // Windows FILETIME: 100-nanosecond ticks since 1601-01-01.
     // SER uses ticks since 0001-01-01, which is 504911232000000000 ticks earlier.
     static constexpr int64_t EPOCH_OFFSET = 504911232000000000LL;
 
-    static int64_t CurrentFileTimeUTC() {
-        FILETIME ft;
-        GetSystemTimeAsFileTime(&ft);
-        ULARGE_INTEGER ul;
-        ul.LowPart  = ft.dwLowDateTime;
-        ul.HighPart = ft.dwHighDateTime;
-        return (int64_t)ul.QuadPart + EPOCH_OFFSET;
-    }
+    static int64_t CurrentFileTimeUTC();
 
-    static int64_t CurrentFileTime() {
-        FILETIME ft, local;
-        GetSystemTimeAsFileTime(&ft);
-        FileTimeToLocalFileTime(&ft, &local);
-        ULARGE_INTEGER ul;
-        ul.LowPart  = local.dwLowDateTime;
-        ul.HighPart = local.dwHighDateTime;
-        return (int64_t)ul.QuadPart + EPOCH_OFFSET;
-    }
+    static int64_t CurrentFileTime();
 
     FILE*                 m_file         = nullptr;
     std::string           m_path;

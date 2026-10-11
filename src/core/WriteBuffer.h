@@ -53,49 +53,9 @@ public:
     // numSlots should be large enough to absorb disk write bursts.
     // At 47fps x 1.2MB/frame = ~56MB/s sustained. With 512 slots
     // (~600MB) we can absorb ~10 seconds of stall before overrun.
-    bool Allocate(int numSlots, size_t frameSizeBytes) {
-        Deallocate();
-        m_numSlots = numSlots;
-        m_slots = new (std::nothrow) WriteSlot[numSlots];
-        if (!m_slots) return false;
+    bool Allocate(int numSlots, size_t frameSizeBytes);
 
-        for (int i = 0; i < numSlots; i++) {
-            m_slots[i].data = static_cast<uint8_t*>(
-                VirtualAlloc(nullptr, frameSizeBytes,
-                             MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
-            if (!m_slots[i].data) {
-                printf("[WriteBuffer] VirtualAlloc failed slot %d\n", i);
-                Deallocate(); return false;
-            }
-            m_slots[i].bufferCapacity = frameSizeBytes;
-            m_slots[i].ready.store(false, std::memory_order_relaxed);
-        }
-
-        m_writePos.store(0, std::memory_order_relaxed);
-        m_readPos.store(0, std::memory_order_relaxed);
-        m_overruns.store(0, std::memory_order_relaxed);
-        m_allocated = true;
-
-        double mb = (numSlots * frameSizeBytes) / (1024.0 * 1024.0);
-        printf("[WriteBuffer] Allocated %d slots x %zu bytes = %.0f MB\n",
-               numSlots, frameSizeBytes, mb);
-        return true;
-    }
-
-    void Deallocate() {
-        if (m_slots) {
-            for (int i = 0; i < m_numSlots; i++) {
-                if (m_slots[i].data) {
-                    VirtualFree(m_slots[i].data, 0, MEM_RELEASE);
-                    m_slots[i].data = nullptr;
-                }
-            }
-            delete[] m_slots;
-            m_slots = nullptr;
-        }
-        m_numSlots  = 0;
-        m_allocated = false;
-    }
+    void Deallocate();
 
     bool IsAllocated() const { return m_allocated; }
 
@@ -113,40 +73,7 @@ public:
               uint64_t timestampUs,
               uint32_t width, uint32_t height, uint8_t bitDepth,
               float sharpness = 0.0f,
-              uint32_t cropCX = 0, uint32_t cropCY = 0) {
-
-        uint64_t wp = m_writePos.load(std::memory_order_relaxed);
-        uint64_t rp = m_readPos.load(std::memory_order_acquire);
-
-        // Full check: if write is numSlots ahead of read, buffer is full
-        if ((wp - rp) >= (uint64_t)m_numSlots) {
-            m_overruns.fetch_add(1, std::memory_order_relaxed);
-            return false;
-        }
-
-        int idx = (int)(wp % m_numSlots);
-        WriteSlot& slot = m_slots[idx];
-
-        if (sizeBytes > slot.bufferCapacity) {
-            printf("[WriteBuffer] Frame too large: %zu > %zu\n",
-                   sizeBytes, slot.bufferCapacity);
-            return false;
-        }
-
-        memcpy(slot.data, data, sizeBytes);
-        slot.dataSize    = sizeBytes;
-        slot.timestampUs = timestampUs;
-        slot.width       = width;
-        slot.height      = height;
-        slot.bitDepth    = bitDepth;
-        slot.sharpness   = sharpness;
-        slot.cropCX      = cropCX;
-        slot.cropCY      = cropCY;
-        slot.ready.store(true, std::memory_order_release);
-
-        m_writePos.fetch_add(1, std::memory_order_release);
-        return true;
-    }
+              uint32_t cropCX = 0, uint32_t cropCY = 0);
 
     // ── Consumer (writer thread) ───────────────────────────────
 

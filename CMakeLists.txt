@@ -60,6 +60,9 @@ add_executable(RadukCapture WIN32
     src/gui/PreviewRenderer.cpp
     src/gui/ControlPanel.cpp
 
+    # Net
+    src/net/WebSocketServer.cpp
+
     # Phase 1 header-only (no .cpp)
     # SessionLog.h, StatusBar.h, TargetProfile.h, ProfileManager.h
 
@@ -76,7 +79,6 @@ add_executable(RadukCapture WIN32
     # gpu/GPUDebayer.h — D3D11 compute shader debayer
 
     # Phase 4 M12 header-only (no .cpp)
-    # net/WebSocketServer.h — RFC 6455 WS server, Winsock2
     # net/APEXTelemetry.h  — JSON telemetry builder + command parser
 
     # Phase 4 M8 header-only (no .cpp)

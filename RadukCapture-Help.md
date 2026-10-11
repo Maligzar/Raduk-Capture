@@ -219,6 +219,18 @@ things worse or when a check did not pass. Relay that plainly instead of
 softening it — a beginner who is told everything is fine when it is not learns
 to distrust the whole thing.
 
+**Know what the app cannot see.** It has no way to detect which filter is on
+the camera, whether the dust cap is off, or whether the tube has cooled. The
+filter is the one that silently changes a number: every dispersion figure
+assumes the configured band. If someone says they changed or removed a
+filter, tell them to set it in SETUP before trusting any ADC reading. Do not
+guess a band from the target or the season.
+
+**Autofocus is not a find-focus-from-anywhere button.** It searches ±3000
+steps around wherever the focuser already is. If someone is far out of focus,
+they need to get roughly sharp by hand first, or it will report `focus not
+bracketed` — which is it working correctly, not failing.
+
 ---
 
 ## Quick Key Reference
@@ -322,6 +334,7 @@ are set through the profile editor, which accepts up to 60 s.
 - **TEMP** — Current EAF temperature in °C.
 - **AUTO FOCUS** — Runs the built-in V-curve autofocus routine. Steps outward, measures sharpness at each position, fits a parabola, moves to the computed best focus. Abortable mid-run.
 - **ADC: severity (N.N")** — Live atmospheric dispersion measurement. Computed from mount altitude using the Edlen 1966 model, with air pressure derived from your site elevation (T=288K). Shows NONE / MINOR / MODERATE / SIGNIFICANT / SEVERE. Use as a guide for when to apply an ADC or use RGB Align.
+- **Filter: name (low–high nm)** — The filter the line above assumes is on the camera, and the wavelength band it computed the dispersion across. This is **configured, not detected** — the app has no way to see what is screwed onto the camera. If it is wrong, the ADC figure above is wrong with it, by up to 4×. Change it in **SETUP**. See [Filters](#filters).
 
 ### TELESCOPE
 - **Mount name / COM port** — Celestron 8SE over the NexStar serial protocol
@@ -454,6 +467,9 @@ Shown automatically when mount altitude > 0°. Bottom-right corner box showing:
 - Dispersion in arcseconds
 - Severity level (color-coded)
 - Blue upward arrow indicating the direction of dispersion
+
+The number depends on which filter is fitted — see [Filters](#filters). The
+FOCUSER section states the band in use directly beneath the ADC readout.
 
 ### Quality Bar Graph (`Q` key)
 Rolling 200-frame sharpness history shown bottom-left, above the status bar.
@@ -652,6 +668,71 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 
 ---
 
+## Filters
+
+A filter is a piece of glass in front of the sensor that only lets certain
+colours through. This rig normally has a **UV/IR cut** filter fitted — it
+blocks the invisible light either side of what the eye can see, which the
+camera is otherwise sensitive to and which arrives out of focus with
+everything else.
+
+The app **cannot detect** which filter is fitted. Nothing in the camera
+reports it. So you tell it once, in **SETUP → Filter fitted to the camera**,
+and it remembers in `rig.ini`. You only need to touch it when you physically
+change filters, which on this rig means taking the camera off the scope.
+
+### Why it matters
+
+Atmospheric dispersion is the sky splitting a planet into a faint red and
+blue fringe, worse the lower the target sits. How much depends entirely on
+**which wavelengths reach the sensor** — so the same night, at the same
+altitude, gives wildly different answers depending on the filter:
+
+| Filter | 50° alt | 40° alt | 30° alt | Verdict at 40° |
+|--------|---------|---------|---------|----------------|
+| UV/IR cut (400–700nm) | 1.13″ | 1.61″ | 2.33″ | recommended |
+| None (380–1000nm) | 1.59″ | 2.25″ | 3.28″ | **REQUIRED** |
+| IR pass 685 (685–1000nm) | 0.29″ | 0.41″ | 0.60″ | not needed |
+| Methane 889 (880–900nm) | 0.01″ | 0.02″ | 0.03″ | not needed |
+
+A narrow band disperses almost nothing — that is part of why IR imaging
+punches through poor seeing. A wide-open sensor with no filter disperses
+most of all.
+
+So a wrong setting is wrong in both directions that cost you something.
+Told "UV/IR cut" when the camera is actually bare, the app under-warns at
+40° — it says *recommended* where the truth crosses into *required*. Told
+"UV/IR cut" when you are actually shooting IR-pass, it overstates by 4×,
+and you would fit a corrector for a problem four times smaller than
+reported.
+
+### Where it shows up
+
+- **FOCUSER section** — `Filter: name (low–high nm)`, directly under the ADC
+  readout, so the assumption sits beside the figure it drives
+- **SETUP** — the picker. An unrecognised band (because you hand-edited
+  `rig.ini` with your own edges) leaves the box blank and is left alone
+- **Readiness check** — a `Filter` row, listed as CHECK. It never makes the
+  dialog appear on its own; it is there to be read on a night the list
+  already opened for some other reason
+- **AI assistant** — knows the fitted filter and that it is configured rather
+  than detected
+
+### Presets
+
+| Name | Band | Use |
+|------|------|-----|
+| `UV/IR cut` | 400–700nm | Normal colour planetary. The default. |
+| `None` | 380–1000nm | Bare sensor. Widest dispersion; an ADC matters most here. |
+| `IR pass 685` | 685–1000nm | Cuts through poor seeing; mono-ish detail on Jupiter and Mars. |
+| `Methane 889` | 880–900nm | Narrowband Jupiter/Saturn cloud structure. Very dim — long exposures. |
+
+The upper edges are the practical limit of filter **and** sensor together.
+The IMX678 still responds past 1000nm, but weakly enough that it moves the
+dispersion extremes very little.
+
+---
+
 ## Cord wrap
 
 An alt-az fork turns in azimuth with the camera, focuser, power and serial
@@ -741,6 +822,12 @@ ambient, cables dressed. These are reminders and **never** cause the dialog to
 appear on their own. Ticking all three also resets the cord-wrap count, since
 that is what confirming the cables means.
 
+A fourth row, **Filter**, is stated rather than asked — it names the filter
+the app believes is fitted and the band it uses for the ADC figure. It changes
+only when the camera comes off the scope, so being asked about it nightly
+would be noise; it is there to be read on a night the list already opened.
+See [Filters](#filters).
+
 While the dialog is open the rows **refresh every two seconds**. Walk to the
 mount, run Quick Align, and watch the row turn green without restarting
 anything. **Explain this** opens the Help section for the first failing row,
@@ -815,16 +902,33 @@ hardware build and are listed here so a test result can be reproduced.
 | `RADUK_EMU_DRIFT_AS` | 0.3 | Mount tracking error, arcsec/sec |
 | `RADUK_EMU_ROTATION_DEG` | 0 | Camera angle, to prove the tracker measures its axis transform rather than assuming it |
 | `RADUK_EMU_UNALIGNED` | off | Mount reports itself unaligned, reproducing the whole tracking-blocked path |
-| `RADUK_EMU_TRUE_FOCUS` | 51200 | Focuser position at which the image is perfectly sharp |
+| `RADUK_EMU_TRUE_FOCUS` | 168000 | Focuser position at which the image is perfectly sharp |
 | `RADUK_EMU_BLUR_PX_STEP` | 0.0083 | Blur added per step away from focus |
 | `RADUK_EMU_FREEZE_SURFACE` | off | Stops planet rotation, turbulence and moons, so only focus varies |
 | `RADUK_EMU_NOISE` | 0 | Per-pixel sensor noise, DN |
 | `RADUK_EMU_SEEING_AS` | 0 | Per-frame atmospheric blur, arcsec. Without it every simulated frame is equally sharp, so the seeing score, the capture gate and the stacker's frame selection have nothing to choose between |
+| `RADUK_EMU_PEAK_DN` | 0 | Exposes the simulated disc to this peak level. 0 keeps the plain gain/exposure behaviour; ~200 gives a realistically exposed frame with headroom, which is what anything measuring a noise floor needs |
+| `RADUK_EMU_TARGET` | *active profile* | Which planet to render. Normally the emulator renders whatever profile is selected and follows every later switch; this pins one for bench work |
 | `RADUK_EMU_REMOVE_AFTER_S` | off | Simulates the camera being unplugged after N seconds |
 
-The last four exist because the simulated planet was previously
-rendered perfectly sharp at every focuser position and perfectly clean
-in every frame. Nothing that depends on focus or on averaging frames
+### Why the focuser starts at 166500
+
+The simulated EAF opens at **166500**, 1500 steps short of the 168000 default
+true focus. Both numbers matter, and they are not arbitrary:
+
+- The real rig focuses near **168187**, so the emulator starts in the same
+  part of the range. It used to start at 50000, which was nowhere near
+  anything real.
+- Autofocus searches **±3000 steps** from wherever it starts. From 50000 it
+  swept 47000–53000 — about 115,000 steps away from focus — so it could
+  never bracket focus from a fresh launch, failed every time, and looked
+  broken when it was behaving correctly.
+- The 1500-step offset means the emulator opens slightly **soft**. Starting
+  exactly at focus would make an autofocus run a no-op that proves nothing.
+
+The focus, noise and seeing switches exist because the simulated planet was
+previously rendered perfectly sharp at every focuser position and perfectly
+clean in every frame. Nothing that depends on focus or on averaging frames
 could be tested at all — an autofocus sweep was fitting a curve to
 noise, and a stack of identical clean frames can only ever equal one
 frame. Setting `RADUK_EMU_TRUE_FOCUS` gives a focus test a known
@@ -1010,6 +1114,10 @@ it needs.
 - Ensure StarSense alignment was performed before session
 
 ### ADC reading seems wrong
+- **Check the filter first.** The `Filter:` line directly under the ADC
+  readout says which band the figure was computed over. If that does not match
+  the glass actually on the camera, the number is wrong by as much as 4× —
+  this is the most likely cause. Fix it in SETUP; see [Filters](#filters).
 - ADC uses cached mount altitude — verify mount is tracking and RA/Dec updating in TELESCOPE section
 - Ensure mount is polar-aligned (single-arm mount errors compound at low altitude)
 
@@ -1033,6 +1141,8 @@ real site is stored. Most of it is written for you.
 | `ObserverBearingDeg` | Mount to observer, degrees true. Used by the align helper. |
 | `ShowAlignHelper` | `0` suppresses the align helper. |
 | `ShowReadinessCheck` | `0` suppresses the readiness dialog (the log line remains). |
+| `FilterName` | Filter fitted to the camera. One of the presets, or your own label. |
+| `FilterLowNm` / `FilterHighNm` | Band edges in nanometres; these are what the ADC model actually uses. Edit them for a filter that is not a preset — the SETUP picker will then show blank rather than overwrite them. Both are reset to the UV/IR cut default if either falls outside 300–1200nm, or the band is narrower than 10nm, because a nonsense band would push the Edlen model outside its domain and return an authoritative-looking meaningless figure. |
 
 ---
 
@@ -1107,7 +1217,16 @@ real site is stored. Most of it is written for you.
 | v1.2.2 | 77 | AutoStakkert handoff — `K` and AutoStackOnStop (launch currently blocked, see above) |
 | v1.2.2 | 78 | Emulator jog rates follow the real NexStar curve |
 | v1.2.2 | 79 | Capture gate fixed; emulator can vary frame quality |
+| v1.2.3 | 80 | Both configurations build from one script — the hardware build had silently been broken for four phases |
+| v1.2.3 | 80 | Emulator exposure control (`RADUK_EMU_PEAK_DN`); the noise-floor theory tested and disproved |
+| v1.2.3 | 80 | Review pass: eight confirmed defects fixed |
+| v1.2.3 | 80 | Control panel opens with every section collapsed |
+| v1.2.3 | 80 | Focuser GoTo field can be typed into again — a periodic refresh was overwriting it mid-keystroke |
+| v1.2.3 | 81 | Emulator renders the selected target, and the focuser starts where the real rig actually focuses |
+| v1.2.3 | 81 | Autofocus pass 2: sample vectors cleared before arming, not after, closing a race |
+| v1.2.3 | 82 | ADC dispersion computed across the fitted filter's band instead of a hardcoded 450–700nm |
+| v1.2.3 | 83 | Filter stated in the focuser panel, the readiness list and the assistant's context; picker in SETUP |
 
 ---
 
-*RadukCapture Help v1.2.2 — Updated after each release*
+*RadukCapture Help v1.2.3 — Updated after each release*

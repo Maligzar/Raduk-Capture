@@ -13,11 +13,20 @@ Direct2D — no frameworks.
   guide rate are measured, never assumed)
 - **GoTo + sky map + plate solving** — Messier/planet catalog, D2D polar sky
   map, ASTAP plate-solve → mount sync
-- **EAF V-curve autofocus**, auto-exposure assistant, atmospheric-dispersion
-  (ADC) advisor, capture quality gating
+- **EAF V-curve autofocus** — real per-position averaging, a parabola fit it
+  will reject, and an honest report when it made focus worse
+- **Quick-look stacker** — aligned, quality-gated preview stack while you
+  record, so you know that night whether a capture was soft
+- **Atmospheric-dispersion advisor** — Edlen 1966 model over the band of the
+  filter you actually have fitted, plus auto-exposure and capture quality
+  gating
 - **Full device emulators** — camera, mount, and focuser simulate the real
-  SDK semantics (including a closed tracking loop and fault injection), so
-  the entire app runs with no hardware attached
+  SDK semantics (closed tracking loop, fault injection, defocus and sensor
+  noise, NexStar slew-rate curve, per-planet rendering), so the entire app
+  runs with no hardware attached and focus work can be tested indoors
+- **Guidance for non-experts** — a readiness check that stays silent when the
+  rig is fine, and a help file that doubles as reference context for a local
+  AI assistant
 - **WebSocket telemetry** + browser dashboard for remote monitoring
   (loopback-only by default; `RADUK_WS_LAN=1` to expose on a trusted LAN)
 
@@ -38,16 +47,29 @@ cmake --build build --config Release
 
 ## Configuration
 
-Set your observing site in `rig.ini` next to the executable (created on
-first save; defaults to latitude/longitude 0,0 until you do):
+`rig.ini` sits next to the executable, is **not tracked by git**, and is the
+only place your observing site is stored. It is created on first save and
+defaults to latitude/longitude 0,0 until you set it (the app can also
+auto-detect, and will refuse to overwrite a site you entered by hand).
 
 ```ini
 [Rig]
 SiteLatDeg=0.0
 SiteLonDeg=0.0
+SiteElevationM=0.0
 PlateScaleArcsecPx=0.203
 GuideRateArcsecPerSec=7.5
+; The filter physically fitted to the camera. Not detectable --
+; the dispersion model computes across this band, so a wrong
+; value moves the ADC figure by up to 4x.
+FilterName=UV/IR cut
+FilterLowNm=400
+FilterHighNm=700
 ```
+
+Full key reference, panel-by-panel documentation and a first-night
+walkthrough are in [RadukCapture-Help.md](RadukCapture-Help.md), which the
+app also loads as reference context for the AI assistant.
 
 ## License
 

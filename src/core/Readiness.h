@@ -239,7 +239,10 @@ inline ReadyReport EvaluateReadiness(const ReadyInputs& in) {
         snprintf(fb, sizeof(fb),
                  "%s (%.0f-%.0fnm) - still on the camera? drives the ADC figure",
                  in.filterName.c_str(), in.filterLowNm, in.filterHighNm);
-        r.Add("Filter", ReadyState::Manual, fb, "adc");
+        // The anchor is a help search term, not a markdown anchor --
+        // "Filters" lands on the section that explains the band and why
+        // a wrong one moves the ADC figure.
+        r.Add("Filter", ReadyState::Manual, fb, "Filters");
     }
 
     return r;

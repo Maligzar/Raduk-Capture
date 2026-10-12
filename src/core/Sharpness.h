@@ -145,10 +145,11 @@ inline double BayerLaplacianVariance(const uint8_t* buf,
     //
     // Until then the figure below is reported as a DIAGNOSTIC only and
     // never subtracted. It is the darkest-decile gradient level, not a
-    // noise floor, and the [SHARP] log line names it 'noise' only
-    // because that is what it was built to estimate.
-    // subtracted. Two attempts at subtracting it both over-corrected and
-    // drove every frame to zero, and the reason is worth recording: the
+    // noise floor; the [SHARP] log line now says so rather than calling
+    // it "noise", which was only ever what it had been built to estimate.
+    //
+    // Two attempts at subtracting it both over-corrected and drove every
+    // frame to zero, and the reason is worth recording: the
     // bright planet clips, so noise is suppressed there but not on the
     // sky, and a sky-derived floor is therefore too high for the crop as
     // a whole. Judging whether that is an emulator artefact (its

@@ -83,11 +83,19 @@ public:
 
     // ── Quality gate accessors (Phase 10) ─────────────────────
     bool  GateEnabled()   const {
-        if (!m_btnGateEnable) return false;
+        // Falls back to the cache, not to false. The checkbox does not
+        // exist while CAPTURE is collapsed, and answering false there
+        // silently disabled the gate for the whole session.
+        if (!m_btnGateEnable) return m_ui.gateEnabled == 1;
         return SendMessage(m_btnGateEnable, BM_GETCHECK, 0, 0) == BST_CHECKED;
     }
     float GateThreshold() const {
-        if (!m_editGateThreshold) return 0.0f;
+        // Same reasoning as GateEnabled: a collapsed section must not
+        // report 0, which with the gate on would admit every frame and
+        // look like the gate had stopped working.
+        if (!m_editGateThreshold)
+            return m_ui.gateThreshold.empty()
+                 ? 0.0f : (float)_wtof(m_ui.gateThreshold.c_str());
         wchar_t buf[16] = {};
         GetWindowTextW(m_editGateThreshold, buf, 16);
         return (float)_wtof(buf);
@@ -502,6 +510,13 @@ private:
         std::wstring notes, gateThreshold;
         int  frameType    = -1;
         int  limitByFrames = -1;   // -1 unknown, 0 time, 1 frames
+        // Review pass 2: the capture quality gate lived ONLY in its
+        // checkbox, which exists only while CAPTURE is expanded. Since
+        // every section now starts collapsed, GateEnabled() found a null
+        // handle and answered false -- so the gate was off at every
+        // launch, and ticking it then collapsing the section turned it
+        // back off without saying so. -1 = never set.
+        int  gateEnabled  = -1;
     } m_ui;
     void SnapshotUi();
     void RestoreUi();

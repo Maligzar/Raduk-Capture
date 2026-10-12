@@ -2071,9 +2071,25 @@ static int RunApp(bool useEmulator) {
     static raduk::core::AutoStakkertRunner stacker;
     {
         auto& rg = raduk::core::RigConfig::Get();
-        if (!rg.autoStakkertPath.empty())
-            stacker.SetPath(std::wstring(rg.autoStakkertPath.begin(),
-                                         rg.autoStakkertPath.end()));
+        if (!rg.autoStakkertPath.empty()) {
+            // Review pass 2: this was an iterator-pair widening, which
+            // promotes each BYTE to a wchar_t. Phase 83 fixed the same
+            // mistake in the other direction, but that one only spoiled
+            // a log line -- this is the path used to launch the program,
+            // so a non-ASCII character anywhere in it produced a path
+            // that cannot exist and a launch that silently never starts.
+            // Worth noting given how long AutoStakkert has been refusing
+            // to run: it is not the cause for an ASCII path, but it
+            // would be an invisible one for any other.
+            const std::string& p = rg.autoStakkertPath;
+            int need = MultiByteToWideChar(CP_UTF8, 0, p.c_str(), -1,
+                                           nullptr, 0);
+            if (need > 0) {
+                std::wstring w((size_t)need - 1, L'\0');
+                MultiByteToWideChar(CP_UTF8, 0, p.c_str(), -1, &w[0], need);
+                stacker.SetPath(w);
+            }
+        }
         stacker.SetLogger([](const std::string& s) {
             Log("[STACK] %s\n", s.c_str());
         });
@@ -3649,11 +3665,20 @@ static int RunApp(bool useEmulator) {
             // bury the rest of the session log, and a line here is only
             // interesting as after-the-fact evidence that a command did
             // something - which is the whole question this answers.
+            // Review pass 2: this used to print a fourth figure,
+            // net = raw - noise, which Sharpness.h documents at length as
+            // meaningless here and deliberately never subtracts: the crop
+            // is filled by the planet, so the "noise floor" is the
+            // darkest decile of the DISC and net comes out negative. It
+            // was printed beside the real numbers as though it were the
+            // answer, which is an invitation to try subtracting it a
+            // fourth time. The diagnostic itself stays, renamed to what
+            // it actually measures.
             if (lastAnalysis.valid)
-                Log("[SHARP] pct=%.2f  seeing=%.1f/10  raw=%.1f  noise=%.1f  net=%.1f\n",
+                Log("[SHARP] pct=%.2f  seeing=%.1f/10  raw=%.1f  "
+                    "darkest-decile-gradient=%.1f (diagnostic, not subtracted)\n",
                     lastAnalysis.sharpnessPct, lastAnalysis.seeingScore,
-                    lastAnalysis.sharpRaw, lastAnalysis.sharpNoise,
-                    lastAnalysis.sharpRaw - lastAnalysis.sharpNoise);
+                    lastAnalysis.sharpRaw, lastAnalysis.sharpNoise);
 
             if (mountCtrl.MotionSpeed() > 0.5f)
                 Log("[MOTION] src=%s  %.2f arcsec/s  samples=%d\n",

@@ -2151,6 +2151,12 @@ void ControlPanel::SnapshotUi() {
     grab(m_editLimitTime,     m_ui.limitTime);
     grab(m_editNotes,         m_ui.notes);
     grab(m_editGateThreshold, m_ui.gateThreshold);
+    // The gate tick, which was the one value with no store outside its
+    // own control -- so collapsing CAPTURE lost it and turned the gate
+    // off at the same time.
+    if (m_btnGateEnable)
+        m_ui.gateEnabled =
+            (SendMessage(m_btnGateEnable, BM_GETCHECK, 0, 0) == BST_CHECKED) ? 1 : 0;
     if (m_comboFrameType)
         m_ui.frameType = (int)SendMessage(m_comboFrameType, CB_GETCURSEL, 0, 0);
     if (m_radioFrames)
@@ -2168,6 +2174,9 @@ void ControlPanel::RestoreUi() {
     put(m_editLimitTime,     m_ui.limitTime);
     put(m_editNotes,         m_ui.notes);
     put(m_editGateThreshold, m_ui.gateThreshold);
+    if (m_btnGateEnable && m_ui.gateEnabled >= 0)
+        SendMessage(m_btnGateEnable, BM_SETCHECK,
+                    m_ui.gateEnabled == 1 ? BST_CHECKED : BST_UNCHECKED, 0);
     if (m_comboFrameType && m_ui.frameType >= 0)
         SendMessage(m_comboFrameType, CB_SETCURSEL, m_ui.frameType, 0);
     if (m_ui.limitByFrames >= 0) {

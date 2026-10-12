@@ -180,7 +180,12 @@ public:
         const float cy = rc.top  + plotH * 0.5f;
         const float sc = (plotH < w ? plotH : w) * 0.45f / (span * 0.5f);
 
-        // Crosshair at the origin — where things were when this view started
+        // Crosshair at the MIDDLE OF THE TRAIL, not at the origin. It
+        // used to be the origin, and the comment here still said so
+        // after the scaling changed to frame the trail's bounding box —
+        // so the line a reader would trust described a plot that had not
+        // existed for two phases. What it marks now is the centre of
+        // whatever range is on screen.
         HPEN axis = CreatePen(PS_SOLID, 1, RGB(34, 46, 64));
         oldPen = SelectObject(hdc, axis);
         MoveToEx(hdc, rc.left + 2, (int)cy, nullptr);

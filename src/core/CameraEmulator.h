@@ -794,7 +794,16 @@ private:
                     uint32_t sh = (uint32_t)m_frameCounter * 2654435761u;
                     sh ^= sh >> 15; sh *= 0x2545f491u; sh ^= sh >> 13;
                     const float u = (float)(sh & 0xFFFFu) / 65535.0f;
-                    const float draw = 0.25f + 0.75f * u * u;  // skewed
+                    // Review pass 2: this was 0.25 + 0.75*u*u, commented
+                    // "skewed toward blurry" while doing the opposite --
+                    // u*u pushes the draw toward its 0.25 floor, so 71%
+                    // of frames came out on the SHARP side of the range.
+                    // That is backwards for simulating seeing, and it
+                    // flatters exactly the features the switch exists to
+                    // test: lucky imaging works because most frames are
+                    // mediocre and a few are excellent. sqrt(u) skews the
+                    // other way, so a good frame is the exception.
+                    const float draw = 0.25f + 0.75f * sqrtf(u);
                     const float seeingPx = m_seeingBlurAs
                                          / EMU_PLATE_SCALE_AS_PX * draw;
                     // Independent blurs add in quadrature, not linearly.

@@ -68,6 +68,7 @@
 #include "gui/ObjectInfoPanel.h"
 #include "core/AIContextBuilder.h"
 #include "core/AdvisoryLoop.h"
+#include "core/CalibrationFrames.h"
 #include "core/AutoStakkertRunner.h"
 #include "profiles/TargetProfile.h"
 #include "profiles/ProfileManager.h"
@@ -2618,6 +2619,128 @@ static int RunApp(bool useEmulator) {
     };
     window.SetAdvisoryToggleHandler([&]() { doAdvisoryToggle(); });
 
+    // ── Phases 27 & 28: dark and flat frames ──────────
+    // Masters are built here from the live camera rather than loaded
+    // from a PNG as the specs suggested: a PNG is debayered 8-bit RGB,
+    // which has already been through the pass this correction has to
+    // happen before. See CalibrationFrames.h.
+    static raduk::core::CalibrationFrames calib;
+    preview.SetCalibration(&calib);
+
+    // Kept beside the captures, so a master found next launch is the
+    // one belonging to this rig rather than a stale file in AppData.
+    auto calPath = [&](bool dark) {
+        std::string d = controls.GetOutputDir();
+        if (!d.empty() && d.back() != '\\' && d.back() != '/') d += "\\";
+        return d + (dark ? "master_dark.cal" : "master_flat.cal");
+    };
+
+    auto calStatus = [&]() {
+        wchar_t buf[160];
+        if (calib.Building()) {
+            swprintf(buf, 160, L"Cal: averaging %d/%d frames",
+                     calib.BuildProgress(), calib.BuildTarget());
+            controls.SetCalStatus(buf);
+            return;
+        }
+        // Says which masters exist AND whether they are actually being
+        // applied. A master that does not fit the current format is
+        // loaded but doing nothing, and reporting that as "on" is the
+        // one thing this label must never do.
+        const char* dp = calib.DarkProblem(roiWidth, roiHeight, roiBits,
+                                           (int)cam.GetControl(ASI_GAIN),
+                                           cam.GetControl(ASI_EXPOSURE) / 1000.0);
+        const char* fp = calib.FlatProblem(roiWidth, roiHeight, roiBits);
+        if (!calib.HasDark() && !calib.HasFlat()) {
+            controls.SetCalStatus(L"Cal: none - DARK or FLAT to build");
+            return;
+        }
+        // "ON" means the correction is running; a reason in brackets is a
+        // warning that it is running anyway. "off" means it is not. The
+        // first version printed the warning alone, which read as off.
+        const bool dOn = calib.DarkApplies(roiWidth, roiHeight, roiBits);
+        const bool fOn = calib.FlatApplies(roiWidth, roiHeight, roiBits);
+        auto part = [](const wchar_t* name, bool have, bool on,
+                       const char* why) -> std::wstring {
+            if (!have) return L"";
+            std::wstring t = L" "; t += name;
+            if (on) {
+                t += L" ON";
+                // Geometry fits, so it is applied, but something else
+                // differs and the result will be imperfect.
+                if (why) { t += L"("; t += std::wstring(why, why + strlen(why));
+                           t += L")"; }
+            } else {
+                t += L" off(";
+                t += why ? std::wstring(why, why + strlen(why)) : L"unusable";
+                t += L")";
+            }
+            return t;
+        };
+        std::wstring t = L"Cal:";
+        t += part(L"dark", calib.HasDark(), dOn, dp);
+        t += part(L"flat", calib.HasFlat(), fOn, fp);
+        controls.SetCalStatus(t);
+        // Logged as well as shown: the label lives in a section that
+        // starts collapsed, and "loaded but not applied" is the state
+        // most worth knowing, because the picture is uncorrected while
+        // a master exists.
+        Log("[CAL] dark=%s%s%s flat=%s  (format %dx%d %d-bit)\n",
+            !calib.HasDark() ? "none"
+                : (dOn ? (dp ? "APPLIED-with-warning" : "APPLIED")
+                       : "NOT-APPLIED"),
+            dp ? " - " : "", dp ? dp : "",
+            !calib.HasFlat() ? "none"
+                : (fOn ? (fp ? "APPLIED-with-warning" : "APPLIED")
+                       : "NOT-APPLIED"),
+            roiWidth, roiHeight, roiBits);
+    };
+
+    // A dark needs the light blocked and a flat needs an evenly lit
+    // field; neither can be checked from here, so both say what they
+    // need rather than assuming the user knew.
+    auto beginCal = [&](bool dark) {
+        if (!cam.IsOpen()) return;
+        if (capturer.IsRecording()) {
+            notifBar.NotifyWarn(L"Finish the recording before building a master");
+            return;
+        }
+        if (calib.Building()) { calib.Abort();
+            notifBar.NotifyInfo(L"Master build cancelled"); calStatus(); return; }
+        calib.Begin(dark, roiWidth, roiHeight, roiBits,
+                    (int)cam.GetControl(ASI_GAIN),
+                    cam.GetControl(ASI_EXPOSURE) / 1000.0,
+                    cam.Temperature(), 32);
+        notifBar.NotifyInfo(dark
+            ? L"Building master dark - cover the telescope now (32 frames)"
+            : L"Building master flat - point at an evenly lit surface (32 frames)");
+        Log("[CAL] Building master %s: %dx%d %d-bit gain=%d exp=%.2fms\n",
+            dark ? "dark" : "flat", roiWidth, roiHeight, roiBits,
+            (int)cam.GetControl(ASI_GAIN),
+            cam.GetControl(ASI_EXPOSURE) / 1000.0);
+        calStatus();
+    };
+    controls.SetCalDarkCallback([&]() { beginCal(true);  });
+    controls.SetCalFlatCallback([&]() { beginCal(false); });
+    controls.SetCalClearCallback([&]() {
+        calib.Abort(); calib.ClearDark(); calib.ClearFlat();
+        DeleteFileA(calPath(true).c_str());
+        DeleteFileA(calPath(false).c_str());
+        Log("[CAL] Cleared both masters\n");
+        notifBar.NotifyInfo(L"Calibration cleared");
+        calStatus();
+    });
+
+    // Whatever was built last night still applies tonight if the
+    // format and settings match, and CalibrationFrames says so.
+    if (calib.LoadMaster(calPath(true)))
+        Log("[CAL] Loaded master dark (%d frames averaged)\n",
+            calib.DarkMeta().averaged);
+    if (calib.LoadMaster(calPath(false)))
+        Log("[CAL] Loaded master flat (%d frames averaged)\n",
+            calib.FlatMeta().averaged);
+    calStatus();
+
     // Phase 26: N key and panel button toggle Night Vision Mode
     auto doNightVision = [&]() {
         preview.ToggleNightVision();
@@ -3106,6 +3229,37 @@ static int RunApp(bool useEmulator) {
 
         FrameSlot* frame = ring.GetLatestFrame();
         const auto& stats = capture.Stats();
+
+        // Phases 27 & 28: feed a master build from the live stream.
+        // Before the gate and before SubmitFrame, because a master is
+        // built from what the sensor reports and must not be filtered
+        // by a quality gate meant for pictures of planets.
+        if (frame && frame->data && calib.Building()) {
+            const bool done = calib.AddFrame(frame->data,
+                                             (int)frame->width,
+                                             (int)frame->height,
+                                             frame->bitDepth);
+            if (done) {
+                // Read which master this was BEFORE Finish clears the
+                // build flag, or the wrong file gets written.
+                const bool wasDark = calib.BuildingDark();
+                if (calib.Finish()) {
+                    calib.SaveMaster(wasDark, calPath(wasDark));
+                    Log("[CAL] Master %s built from %d frames and saved\n",
+                        wasDark ? "dark" : "flat",
+                        wasDark ? calib.DarkMeta().averaged
+                                : calib.FlatMeta().averaged);
+                    notifBar.NotifyInfo(wasDark
+                        ? L"Master dark built - uncover the telescope"
+                        : L"Master flat built");
+                } else {
+                    notifBar.NotifyWarn(L"Master build failed");
+                }
+                calStatus();
+            } else if ((calib.BuildProgress() % 8) == 0) {
+                calStatus();   // progress, not every frame
+            }
+        }
 
         // Submit to capture manager — Phase 10 quality gate
         // If GATE is enabled: only record frames meeting the seeing threshold.

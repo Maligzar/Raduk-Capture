@@ -17,6 +17,7 @@
 #include <vector>
 #include <functional>
 #include "../core/FrameSlot.h"
+#include "core/CalibrationFrames.h"
 #include "../core/FrameAnalyzer.h"
 #include "../core/QuickLookStacker.h"
 
@@ -102,6 +103,19 @@ public:
 
     // ── Debayer control ────────────────────────────────────────
     DebayerMode GetDebayerMode() const  { return m_debayerMode; }
+
+    // ── Phases 27 & 28: dark and flat correction ──────────────
+    // The renderer borrows the masters; it does not own them. Applied
+    // to the PREVIEW only: frame->data is left untouched, so the
+    // recording and the sharpness metric still see raw sensor data.
+    void SetCalibration(const raduk::core::CalibrationFrames* c) { m_cal = c; }
+    void SetCalibrationEnabled(bool on) { m_calEnabled = on; }
+    bool CalibrationEnabled() const     { return m_calEnabled; }
+    // True only if a master was actually applied to the last frame
+    // drawn -- enabled but mismatched reports false, because the
+    // picture on screen is uncorrected and saying otherwise would be
+    // the lie this flag exists to prevent.
+    bool CalibrationActive() const      { return m_calApplied; }
     void        SetDebayerMode(DebayerMode m);
     void        CycleDebayer();          // toggles Color ↔ Raw
 
@@ -412,6 +426,10 @@ private:
 
     // Night Vision Mode (Phase 26)
     bool                    m_nightVision   = false;
+    const raduk::core::CalibrationFrames* m_cal = nullptr;
+    bool                    m_calEnabled    = true;
+    bool                    m_calApplied    = false;
+    std::vector<uint8_t>    m_calBuf;
 
     // Single-Channel Display Mode (Phase 38)
     ChannelMode             m_channelMode   = ChannelMode::All;

@@ -535,13 +535,31 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
     float reticleCY = topMargin + availH / 2.0f;
     float reticleW  = availW, reticleH = availH;
 
+    // Phases 27 & 28: calibrate into a scratch buffer, once, before
+    // either debayer path reads the frame. frame->data is deliberately
+    // NOT modified -- the recording and the sharpness metric read the
+    // same pointer and must keep seeing raw sensor data.
+    const uint8_t* rawSrc = frame ? frame->data : nullptr;
+    m_calApplied = false;
+    if (hasFrame && m_calEnabled && m_cal) {
+        const size_t bytes = (size_t)frame->width * frame->height
+                           * (frame->bitDepth == 16 ? 2 : 1);
+        if (m_calBuf.size() != bytes) m_calBuf.resize(bytes);
+        if (m_cal->Apply(frame->data, m_calBuf.data(),
+                         (int)frame->width, (int)frame->height,
+                         frame->bitDepth)) {
+            rawSrc       = m_calBuf.data();
+            m_calApplied = true;
+        }
+    }
+
     if (hasFrame) {
         D2D1_RECT_F destRect = CalculateZoomedRect(
             frame->width, frame->height, previewX, previewWidth, previewHeight);
 
         // ── Draw sensor image ──────────────────────────────────
         if (m_debayerMode == DebayerMode::Color) {
-            DebayerRGGB(frame->data, m_rgbBuffer,
+            DebayerRGGB(rawSrc, m_rgbBuffer,
                         frame->width, frame->height, frame->bitDepth);
 
             // ── Phase 25: Display FX ──────────────────────────
@@ -718,7 +736,7 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
         } else { // DebayerMode::Raw — grayscale Bayer
             size_t n = (size_t)frame->width * frame->height;
             std::vector<uint8_t> rgba(n * 4);
-            const uint8_t* src = frame->data;
+            const uint8_t* src = rawSrc;
             bool flashOn = m_showClip && ((m_clipFlash / 8) % 2 == 0);
             // ASI RAW16 is left-aligned in the 16-bit word (full 0-65535
             // range), so reducing to 8 bits needs >> 8. The previous >> 4

@@ -250,6 +250,18 @@ public:
     // reloaded rig.ini) so the label can never outlive the setting.
     void RefreshFilterLabel();
 
+    // ── Phases 27 & 28: calibration frames ────────────────────
+    void SetCalDarkCallback (std::function<void()> cb) { m_onCalDark  = cb; }
+    void SetCalFlatCallback (std::function<void()> cb) { m_onCalFlat  = cb; }
+    void SetCalClearCallback(std::function<void()> cb) { m_onCalClear = cb; }
+    // Status is a sentence, not a flag: "none", "building", "applied" and
+    // "loaded but does not fit this format" need different responses from
+    // the user, and a tick would collapse all four into one.
+    void SetCalStatus(const std::wstring& text) {
+        m_calStatus = text;
+        if (m_lblCalStatus) SetWindowTextW(m_lblCalStatus, text.c_str());
+    }
+
     // GoTo status label — safe to call from any thread via SendMessage
     void SetGoToStatus(const std::wstring& status) {
         m_lastGoToStatus = status;
@@ -603,6 +615,11 @@ private:
     HWND m_lblAFStatus  = nullptr;
     HWND m_lblADCStatus = nullptr;  // ADC dispersion readout in FOCUSER section
     HWND m_lblFilter    = nullptr;  // Phase 83: the band that readout assumes
+    HWND m_btnCalDark   = nullptr;  // Phase 27
+    HWND m_btnCalFlat   = nullptr;  // Phase 28
+    HWND m_btnCalClear  = nullptr;
+    HWND m_lblCalStatus = nullptr;
+    std::wstring m_calStatus = L"Cal: none";
 
     // ── Mount controls ─────────────────────────────────────────
     HWND m_lblMountConnected = nullptr;  // "● Device Name  Connected" status line
@@ -704,6 +721,10 @@ private:
         ID_LBL_AF_STATUS,
         ID_LBL_ADC_STATUS,
         ID_LBL_FILTER,
+        ID_BTN_CAL_DARK,
+        ID_BTN_CAL_FLAT,
+        ID_BTN_CAL_CLEAR,
+        ID_LBL_CAL_STATUS,
         ID_LBL_MOUNT_RA = 1400, ID_LBL_MOUNT_DEC, ID_LBL_MOUNT_TRACK,
         ID_LBL_MOUNT_AZ, ID_LBL_MOUNT_ALT, ID_LBL_MOUNT_HA,
         ID_LBL_MOUNT_CONNECTED,
@@ -774,6 +795,9 @@ private:
     std::function<void()>                   m_onRGBAlign;
     std::function<void()>                   m_onFXCycle;
     std::function<void()>                   m_onNightVision;
+    std::function<void()>                   m_onCalDark;
+    std::function<void()>                   m_onCalFlat;
+    std::function<void()>                   m_onCalClear;
     std::function<void()>                   m_onChannelCycle;
     int                                     m_aeState = 0;  // 0=off, 1=advisory, 2=auto
 };

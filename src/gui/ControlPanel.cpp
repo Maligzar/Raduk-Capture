@@ -898,6 +898,9 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
         case ID_BTN_RGB_ALIGN:   if (m_onRGBAlign)  m_onRGBAlign();  return true;
         case ID_BTN_FX:          if (m_onFXCycle)       m_onFXCycle();       return true;
         case ID_BTN_NIGHT:       if (m_onNightVision)   m_onNightVision();   return true;
+        case ID_BTN_CAL_DARK:    if (m_onCalDark)       m_onCalDark();       return true;
+        case ID_BTN_CAL_FLAT:    if (m_onCalFlat)       m_onCalFlat();       return true;
+        case ID_BTN_CAL_CLEAR:   if (m_onCalClear)      m_onCalClear();      return true;
         case ID_BTN_CHANNEL:     if (m_onChannelCycle)  m_onChannelCycle();  return true;
         case ID_BTN_DOCK:        ToggleDock(); if (m_onDockToggle) m_onDockToggle(); return true;
 
@@ -2236,6 +2239,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_editLimitFrames = m_editLimitTime = nullptr;
     m_radioFrames = m_radioTime = nullptr;
     m_editGateThreshold = m_btnGateEnable = nullptr;
+    m_btnCalDark = m_btnCalFlat = m_btnCalClear = m_lblCalStatus = nullptr;
     m_editNotes = nullptr;
     m_btnRecord  = nullptr;
     m_lblRecStatus = m_lblRecFrames = nullptr;
@@ -2323,6 +2327,21 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_btnChannel = MakeButton(L"[H] CH: ALL", x, y, w, BH, ID_BTN_CHANNEL);
     TagControl(m_btnChannel, Section::Image);
     y += BH + 2;
+    // Phases 27 & 28: calibration frames. In IMAGE because what they
+    // change is what you SEE -- the recording stays raw.
+    {
+        const int bw = (w - 4) / 3;
+        m_btnCalDark  = MakeButton(L"DARK",  x,            y, bw, BH, ID_BTN_CAL_DARK);
+        m_btnCalFlat  = MakeButton(L"FLAT",  x+bw+2,       y, bw, BH, ID_BTN_CAL_FLAT);
+        m_btnCalClear = MakeButton(L"CLEAR", x+(bw+2)*2,   y, bw, BH, ID_BTN_CAL_CLEAR);
+        TagControls({ m_btnCalDark, m_btnCalFlat, m_btnCalClear },
+                    Section::Image);
+        y += BH + 2;
+        m_lblCalStatus = MakeValueLabel(m_calStatus.c_str(), x, y, w, SH,
+                                        ID_LBL_CAL_STATUS);
+        TagControl(m_lblCalStatus, Section::Image);
+        y += SH + 2;
+    }
     } // end Image
     m_btnDock = nullptr;
 

@@ -191,6 +191,11 @@ struct RigConfig {
     // exactly when a bright screen does the damage.
     bool nightVision = false;
 
+    // Phase 12b: unprompted advice from the local LLM. Off by default --
+    // it costs GPU time and not everyone wants a running commentary.
+    bool advisoryEnabled = false;
+    int  advisoryIntervalS = 180;
+
     // ── Last session's camera state ───────────────────────────
     // Phase 88. Startup used to write hardcoded values over whatever
     // the rig was last doing: gain 100, 8 ms, full frame, 8-bit. A
@@ -257,6 +262,8 @@ struct RigConfig {
         wf("ShowAlignHelper", showAlignHelper ? 1.0 : 0.0);
         wf("ShowReadinessCheck", showReadinessCheck ? 1.0 : 0.0);
         wf("NightVision", nightVision ? 1.0 : 0.0);
+        wf("AdvisoryEnabled",   advisoryEnabled ? 1.0 : 0.0);
+        wf("AdvisoryIntervalS", (double)advisoryIntervalS);
         wf("LastRoiWidth",   (double)lastRoiWidth);
         wf("LastRoiHeight",  (double)lastRoiHeight);
         wf("LastBitDepth",   (double)lastBitDepth);
@@ -323,6 +330,10 @@ private:
         cfg.showAlignHelper       = rf("ShowAlignHelper", 1.0) != 0.0;
         cfg.showReadinessCheck    = rf("ShowReadinessCheck", 1.0) != 0.0;
         cfg.nightVision           = rf("NightVision", 0.0) != 0.0;
+        cfg.advisoryEnabled       = rf("AdvisoryEnabled", 0.0) != 0.0;
+        cfg.advisoryIntervalS     = (int)rf("AdvisoryIntervalS", 180.0);
+        if (cfg.advisoryIntervalS < 30 || cfg.advisoryIntervalS > 3600)
+            cfg.advisoryIntervalS = 180;
         cfg.lastRoiWidth          = (int)rf("LastRoiWidth",   0.0);
         cfg.lastRoiHeight         = (int)rf("LastRoiHeight",  0.0);
         cfg.lastBitDepth          = (int)rf("LastBitDepth",   0.0);

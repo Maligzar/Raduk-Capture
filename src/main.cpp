@@ -67,6 +67,7 @@
 #include "gui/NotificationBar.h"
 #include "gui/ObjectInfoPanel.h"
 #include "core/AIContextBuilder.h"
+#include "core/AdvisoryLoop.h"
 #include "core/AutoStakkertRunner.h"
 #include "profiles/TargetProfile.h"
 #include "profiles/ProfileManager.h"
@@ -2581,6 +2582,42 @@ static int RunApp(bool useEmulator) {
     window.SetStackLastHandler([&]() { doStackFile(capturer.LastFilePath()); });
     controls.SetFXCycleCallback([&]() { doFXCycle(); });
 
+    // ── Phase 12b: the advisory loop ──────────────────────────
+    // Watches and occasionally remarks, where the chat panel answers
+    // when asked. It is handed text and gives back text: it holds no
+    // reference to the camera, mount, focuser or capturer, so it cannot
+    // act on the rig whatever the model says. Advice is surfaced in the
+    // notification bar, which is already the place transient remarks go.
+    static raduk::core::AdvisoryLoop advisory;
+    advisory.SetIntervalSeconds(raduk::core::RigConfig::Get().advisoryIntervalS);
+    advisory.SetEnabled(raduk::core::RigConfig::Get().advisoryEnabled);
+    advisory.SetLogger([](const std::string& m) {
+        Log("[ADVISORY] %s\n", m.c_str());
+    });
+    advisory.SetOnAdvice([&](const std::string& text) {
+        std::wstring w(text.begin(), text.end());   // model output is ASCII
+        notifBar.NotifyInfo(L"Advice: " + w);
+        slog.System("Advisory: %s", text.c_str());
+    });
+    if (advisory.Enabled())
+        Log("[ADVISORY] Enabled from rig.ini, every %ds\n",
+            advisory.IntervalSeconds());
+
+    auto doAdvisoryToggle = [&]() {
+        const bool on = !advisory.Enabled();
+        advisory.SetEnabled(on);
+        auto& rg = raduk::core::RigConfig::Get();
+        rg.advisoryEnabled = on;
+        rg.Save();
+        Log("[ADVISORY] %s (saved)\n", on ? "ON" : "OFF");
+        if (on && !raduk::core::AIAssistant::IsOllamaRunning())
+            notifBar.NotifyWarn(L"Advice on, but Ollama is not running");
+        else
+            notifBar.NotifyInfo(on ? L"Advice on - occasional suggestions"
+                                   : L"Advice off");
+    };
+    window.SetAdvisoryToggleHandler([&]() { doAdvisoryToggle(); });
+
     // Phase 26: N key and panel button toggle Night Vision Mode
     auto doNightVision = [&]() {
         preview.ToggleNightVision();
@@ -3352,6 +3389,69 @@ static int RunApp(bool useEmulator) {
                 aiChat.SetSessionState(aiState);
                 // Inject planner data (uses cached list — no recompute each frame)
                 aiChat.UpdatePlanner(gotoPanel.GetPlannerData());
+
+                // Phase 12b: a compact digest, deliberately NOT the full
+                // context the chat panel gets -- this runs unattended and
+                // repeatedly, and shipping the whole help file every few
+                // minutes to say "your target is low" would be absurd.
+                //
+                // Rounded on purpose. The loop only asks when the digest
+                // CHANGES, so raw altitude or FPS would differ on every
+                // tick and it would never stop talking. Rounding is what
+                // turns "changed" into "changed meaningfully".
+                if (advisory.Enabled()) {
+                    // The concerns are decided HERE, in code, because they
+                    // are deterministic and can be checked. The model is
+                    // only asked to phrase one. The first version let it
+                    // judge, and a 3B model confidently advised lowering
+                    // gain to improve dispersion -- which is nonsense, and
+                    // indistinguishable from real advice to the beginner
+                    // this is for. With no concern found, it is not asked.
+                    std::string concerns;
+                    auto add = [&](const std::string& c) {
+                        if (!concerns.empty()) concerns += "; ";
+                        concerns += c;
+                    };
+                    char cb[256];
+                    if (aiState.mountAlt > 0.5f && aiState.mountAlt < 30.0f) {
+                        snprintf(cb, sizeof(cb),
+                            "target is %.0f deg above the horizon - atmospheric "
+                            "dispersion and poor seeing both worsen fast below 30",
+                            aiState.mountAlt);
+                        add(cb);
+                    }
+                    if (aiState.framesDropped > 100) {
+                        snprintf(cb, sizeof(cb),
+                            "%u frames have been dropped - the USB bandwidth "
+                            "slider in the CAMERA section is what to lower",
+                            (unsigned)aiState.framesDropped);
+                        add(cb);
+                    }
+                    if (mount && mount->IsConnected() && !aiState.tracking)
+                        add("the mount is not tracking - the target will drift "
+                            "out of frame");
+                    if (aiState.roiWidth > 0 && aiState.sensorWidth > 0 &&
+                        aiState.roiWidth < aiState.sensorWidth / 4)
+                        add("the sensor is cropped small - press FULL on the top "
+                            "bar to get the whole field back");
+
+                    if (!concerns.empty()) {
+                        char dg[1024];
+                        snprintf(dg, sizeof(dg),
+                            "FACTS: target=%s alt=%d gain=%d exp=%.0fms "
+                            "seeing=%d/10 format=%dx%d filter=%s\n"
+                            "CONCERNS: %s",
+                            aiState.targetName.empty() ? "none"
+                                                       : aiState.targetName.c_str(),
+                            (int)(aiState.mountAlt / 5.0f) * 5,
+                            aiState.gain, (double)aiState.exposureMs,
+                            (int)aiState.seeingScore,
+                            aiState.roiWidth, aiState.roiHeight,
+                            raduk::core::RigConfig::Get().filterName.c_str(),
+                            concerns.c_str());
+                        advisory.Tick(dg, aiState.recording);
+                    }
+                }
             }
 
             // Phase 23: update RGB align label with live shift value

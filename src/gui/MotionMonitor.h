@@ -30,6 +30,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include "Theme.h"
 #include <cmath>
 #include <cstdio>
 #include <deque>
@@ -143,10 +144,10 @@ public:
         const int w = rc.right - rc.left, h = rc.bottom - rc.top;
         if (w < 40 || h < 30) return;
 
-        HBRUSH bg = CreateSolidBrush(RGB(10, 16, 26));
+        HBRUSH bg = CreateSolidBrush(Theme::NV(RGB(10, 16, 26)));
         FillRect(hdc, &rc, bg);
         DeleteObject(bg);
-        HPEN border = CreatePen(PS_SOLID, 1, RGB(40, 54, 74));
+        HPEN border = CreatePen(PS_SOLID, 1, Theme::NV(RGB(40, 54, 74)));
         HGDIOBJ oldPen = SelectObject(hdc, border);
         HGDIOBJ oldBr  = SelectObject(hdc, GetStockObject(NULL_BRUSH));
         Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
@@ -157,7 +158,7 @@ public:
         SetBkMode(hdc, TRANSPARENT);
 
         if (m_src == MotionSource::None || m_pts.empty()) {
-            SetTextColor(hdc, RGB(110, 125, 145));
+            SetTextColor(hdc, Theme::NV(RGB(110, 125, 145)));
             RECT t = rc; t.top += h / 2 - 8;
             DrawTextW(hdc, L"no motion source", -1, &t,
                       DT_CENTER | DT_SINGLELINE);
@@ -186,7 +187,7 @@ public:
         // so the line a reader would trust described a plot that had not
         // existed for two phases. What it marks now is the centre of
         // whatever range is on screen.
-        HPEN axis = CreatePen(PS_SOLID, 1, RGB(34, 46, 64));
+        HPEN axis = CreatePen(PS_SOLID, 1, Theme::NV(RGB(34, 46, 64)));
         oldPen = SelectObject(hdc, axis);
         MoveToEx(hdc, rc.left + 2, (int)cy, nullptr);
         LineTo(hdc, rc.right - 2, (int)cy);
@@ -214,7 +215,7 @@ public:
         // Current position
         const int px = (int)(cx + (m_pts.back().x - midX) * sc);
         const int py = (int)(cy - (m_pts.back().y - midY) * sc);
-        HBRUSH dot = CreateSolidBrush(RGB(120, 230, 170));
+        HBRUSH dot = CreateSolidBrush(Theme::NV(RGB(120, 230, 170)));
         RECT d = { px - 2, py - 2, px + 3, py + 3 };
         FillRect(hdc, &d, dot);
         DeleteObject(dot);
@@ -226,7 +227,7 @@ public:
         swprintf(line, 96, L"%s  %.1f\"/s   ±%.0f\"",
                  m_src == MotionSource::Camera ? L"CAMERA" : L"MOUNT",
                  sp, span * 0.5f);
-        SetTextColor(hdc, sp > 0.3f ? RGB(120, 230, 170) : RGB(120, 136, 156));
+        SetTextColor(hdc, sp > 0.3f ? Theme::NV(RGB(120, 230, 170)) : Theme::NV(RGB(120, 136, 156)));
         RECT tr = { rc.left + 3, rc.top + plotH, rc.right - 3, rc.bottom };
         DrawTextW(hdc, line, -1, &tr, DT_LEFT | DT_SINGLELINE);
     }

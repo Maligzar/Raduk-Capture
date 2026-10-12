@@ -45,7 +45,7 @@ bool Window::Create(const wchar_t* title, int width, int height) {
     wc.lpfnWndProc   = WndProc;
     wc.hInstance     = GetModuleHandle(nullptr);
     wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-    wc.hbrBackground = CreateSolidBrush(RGB(2, 5, 9));
+    wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(2, 5, 9)));
     wc.lpszClassName = L"RadukCaptureWindow";
     // Load embedded icon (IDI_RADUK=101 from RadukCapture.rc)
     // Falls back to default app icon if resource not found.
@@ -115,7 +115,7 @@ bool Window::Create(const wchar_t* title, int width, int height) {
         // click were fully implemented but never received an event.
         pwc.lpfnWndProc   = PreviewProc;
         pwc.hInstance     = GetModuleHandle(nullptr);
-        pwc.hbrBackground = CreateSolidBrush(RGB(2, 5, 9));
+        pwc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(2, 5, 9)));
         pwc.lpszClassName = L"RadukPreviewWindow";
         RegisterClassExW(&pwc);  // ignore ERROR_CLASS_ALREADY_EXISTS
 
@@ -742,7 +742,7 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             // Fill the strip between them with the panel background color.
             int previewRight = CalcPreviewW(cr.right);
             RECT gapRect = { previewRight, 0, cr.right, cr.bottom };
-            static HBRUSH hGapBr = CreateSolidBrush(RGB(7, 13, 22));
+            HBRUSH hGapBr = Theme::Brush(RGB(7, 13, 22));
             FillRect(hdc, &gapRect, hGapBr);
             EndPaint(m_hwnd, &ps);
             return 0;

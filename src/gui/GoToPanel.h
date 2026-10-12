@@ -35,6 +35,7 @@
 #include "../sky/PointingModel.h"
 #include "../core/IMount.h"
 #include "../core/FrameSlot.h"
+#include "Theme.h"
 #include "../core/SkyMath.h"
 
 #pragma comment(lib, "comctl32.lib")
@@ -90,7 +91,7 @@ public:
         wc.lpfnWndProc  = WndProc;
         wc.hInstance    = GetModuleHandle(nullptr);
         wc.hCursor      = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(RGB(10, 21, 32));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(10, 21, 32)));
         wc.lpszClassName = L"RadukGoToPanel";
         RegisterClassExW(&wc);
 
@@ -955,9 +956,9 @@ private:
             case WM_CTLCOLORBTN:
             case WM_CTLCOLORSTATIC: {
                 HDC hdc = (HDC)wp;
-                SetBkColor(hdc, RGB(10, 18, 30));
-                SetTextColor(hdc, RGB(200, 230, 245));
-                static HBRUSH bg = CreateSolidBrush(RGB(10, 18, 30));
+                SetBkColor(hdc, Theme::NV(RGB(10, 18, 30)));
+                SetTextColor(hdc, Theme::NV(RGB(200, 230, 245)));
+                HBRUSH bg = Theme::Brush(RGB(10, 18, 30));
                 return (LRESULT)bg;
             }
         }
@@ -975,7 +976,7 @@ private:
             wc.lpfnWndProc   = ActionPopupProc;
             wc.hInstance     = GetModuleHandle(nullptr);
             wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-            wc.hbrBackground = CreateSolidBrush(RGB(10, 18, 30));
+            wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(10, 18, 30)));
             wc.lpszClassName = L"RadukActionPopup";
             RegisterClassExW(&wc);
             registered = true;
@@ -1587,15 +1588,15 @@ private:
             case WM_CTLCOLOREDIT: {
                 HDC hdc = (HDC)wParam;
                 SetBkMode(hdc, OPAQUE);
-                SetBkColor(hdc, RGB(10, 21, 32));
-                SetTextColor(hdc, RGB(0, 229, 255));
-                static HBRUSH hBg = CreateSolidBrush(RGB(10, 21, 32));
+                SetBkColor(hdc, Theme::NV(RGB(10, 21, 32)));
+                SetTextColor(hdc, Theme::NV(RGB(0, 229, 255)));
+                HBRUSH hBg = Theme::Brush(RGB(10, 21, 32));
                 return (LRESULT)hBg;
             }
             case WM_ERASEBKGND: {
                 HDC hdc = (HDC)wParam;
                 RECT r; GetClientRect(hwnd, &r);
-                static HBRUSH hBg = CreateSolidBrush(RGB(10, 21, 32));
+                HBRUSH hBg = Theme::Brush(RGB(10, 21, 32));
                 FillRect(hdc, &r, hBg);
                 return 1;
             }

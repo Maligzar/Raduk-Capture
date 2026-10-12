@@ -8,6 +8,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include "Theme.h"
 #include <windows.h>
 #include <uxtheme.h>
 #include <windowsx.h>
@@ -73,7 +74,7 @@ public:
         wc.lpfnWndProc   = WndProc;
         wc.hInstance     = GetModuleHandle(nullptr);
         wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(RGB(7, 13, 22));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
         wc.lpszClassName = L"RadukMountController";
         wc.hIcon         = LoadIcon(nullptr, IDI_APPLICATION);
 
@@ -398,7 +399,7 @@ private:
             wc.lpfnWndProc   = AlignPopupProc;
             wc.hInstance     = GetModuleHandle(nullptr);
             wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-            wc.hbrBackground = CreateSolidBrush(RGB(7, 13, 22));
+            wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
             wc.lpszClassName = L"RadukAlignPopup";
             RegisterClassExW(&wc);
             registered = true;
@@ -560,9 +561,9 @@ private:
         case WM_CTLCOLORBTN:
         case WM_CTLCOLORSTATIC: {
             HDC hdc = (HDC)wp;
-            SetBkColor(hdc,   RGB(10, 18, 30));
-            SetTextColor(hdc, RGB(180, 220, 240));
-            static HBRUSH bg = CreateSolidBrush(RGB(10, 18, 30));
+            SetBkColor(hdc,   Theme::NV(RGB(10, 18, 30)));
+            SetTextColor(hdc, Theme::NV(RGB(180, 220, 240)));
+            HBRUSH bg = Theme::Brush(RGB(10, 18, 30));
             return (LRESULT)bg;
         }
         }
@@ -798,9 +799,9 @@ private:
         case WM_CTLCOLORSTATIC: {
             HDC hdc = (HDC)wParam;
             SetBkMode(hdc, OPAQUE);
-            SetBkColor(hdc,   RGB(7, 13, 22));
-            SetTextColor(hdc, RGB(0, 229, 255));
-            static HBRUSH hBg = CreateSolidBrush(RGB(7, 13, 22));
+            SetBkColor(hdc,   Theme::NV(RGB(7, 13, 22)));
+            SetTextColor(hdc, Theme::NV(RGB(0, 229, 255)));
+            HBRUSH hBg = Theme::Brush(RGB(7, 13, 22));
             return (LRESULT)hBg;
         }
 
@@ -809,21 +810,21 @@ private:
             HWND btn = (HWND)lParam;
             int id = GetDlgCtrlID(btn);
             if (id == ID_BTN_STOP) {
-                SetBkColor(hdc,   RGB(160, 10, 10));
-                SetTextColor(hdc, RGB(255, 255, 255));
-                static HBRUSH hRed = CreateSolidBrush(RGB(160, 10, 10));
+                SetBkColor(hdc,   Theme::NV(RGB(160, 10, 10)));
+                SetTextColor(hdc, Theme::NV(RGB(255, 255, 255)));
+                HBRUSH hRed = Theme::Brush(RGB(160, 10, 10));
                 return (LRESULT)hRed;
             }
             if (id==ID_BTN_N || id==ID_BTN_S || id==ID_BTN_E || id==ID_BTN_W) {
-                SetBkColor(hdc,   RGB(14, 29, 46));
-                SetTextColor(hdc, RGB(200, 232, 240));
-                static HBRUSH hJog = CreateSolidBrush(RGB(14, 29, 46));
+                SetBkColor(hdc,   Theme::NV(RGB(14, 29, 46)));
+                SetTextColor(hdc, Theme::NV(RGB(200, 232, 240)));
+                HBRUSH hJog = Theme::Brush(RGB(14, 29, 46));
                 return (LRESULT)hJog;
             }
             if (id == ID_BTN_ALIGN) {
-                SetBkColor(hdc,   RGB(40, 30, 5));
-                SetTextColor(hdc, RGB(255, 200, 60));
-                static HBRUSH hAl = CreateSolidBrush(RGB(40, 30, 5));
+                SetBkColor(hdc,   Theme::NV(RGB(40, 30, 5)));
+                SetTextColor(hdc, Theme::NV(RGB(255, 200, 60)));
+                HBRUSH hAl = Theme::Brush(RGB(40, 30, 5));
                 return (LRESULT)hAl;
             }
             // Rate buttons
@@ -831,20 +832,20 @@ private:
                        (id==ID_BTN_RATE7)?7:(id==ID_BTN_RATE5)?5:-1;
             if (rate > 0) {
                 bool active = (rate == self->m_jogRate);
-                SetBkColor(hdc,   active ? RGB(0,60,80)    : RGB(14,29,46));
-                SetTextColor(hdc, active ? RGB(0,229,255)  : RGB(140,175,190));
-                static HBRUSH hAct = CreateSolidBrush(RGB(0,60,80));
-                static HBRUSH hDim = CreateSolidBrush(RGB(14,29,46));
+                SetBkColor(hdc,   active ? Theme::NV(RGB(0,60,80))    : Theme::NV(RGB(14,29,46)));
+                SetTextColor(hdc, active ? Theme::NV(RGB(0,229,255))  : Theme::NV(RGB(140,175,190)));
+                HBRUSH hAct = Theme::Brush(RGB(0,60,80));
+                HBRUSH hDim = Theme::Brush(RGB(14,29,46));
                 return (LRESULT)(active ? hAct : hDim);
             }
-            static HBRUSH hDef = CreateSolidBrush(RGB(14,29,46));
+            HBRUSH hDef = Theme::Brush(RGB(14,29,46));
             return (LRESULT)hDef;
         }
 
         case WM_ERASEBKGND: {
             HDC hdc = (HDC)wParam;
             RECT r; GetClientRect(hwnd, &r);
-            static HBRUSH hBg = CreateSolidBrush(RGB(7,13,22));
+            HBRUSH hBg = Theme::Brush(RGB(7,13,22));
             FillRect(hdc, &r, hBg);
             return 1;
         }

@@ -33,6 +33,7 @@
 #endif
 
 #include <windows.h>
+#include "Theme.h"
 #include <shellapi.h>
 #include <functional>
 #include <string>
@@ -192,17 +193,17 @@ private:
         COLORREF bg, fg;
         switch (m_level) {
             case NotifLevel::Info:
-                bg = RGB(10, 60, 30);   // dark green
-                fg = RGB(60, 255, 120); // bright green text
+                bg = Theme::NV(RGB(10, 60, 30));   // dark green
+                fg = Theme::NV(RGB(60, 255, 120)); // bright green text
                 break;
             case NotifLevel::Warn:
-                bg = RGB(60, 42, 0);    // dark amber
-                fg = RGB(255, 185, 0);  // amber text
+                bg = Theme::NV(RGB(60, 42, 0));    // dark amber
+                fg = Theme::NV(RGB(255, 185, 0));  // amber text
                 break;
             case NotifLevel::Error:
             default:
-                bg = RGB(60, 8, 8);     // dark red
-                fg = RGB(255, 80, 80);  // red text
+                bg = Theme::NV(RGB(60, 8, 8));     // dark red
+                fg = Theme::NV(RGB(255, 80, 80));  // red text
                 break;
         }
 

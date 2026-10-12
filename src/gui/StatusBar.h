@@ -6,6 +6,7 @@
 //        mount RA/DEC + tracking, active profile name.
 // ============================================================
 
+#include "Theme.h"
 #include <d2d1.h>
 #include <dwrite.h>
 #include <cstdint>
@@ -25,35 +26,36 @@ public:
     bool Init(ID2D1HwndRenderTarget* rt, IDWriteFactory* dw) {
         m_rt = rt;
         m_dw = dw;
+        m_paletteGen = Theme::PaletteGeneration();
         if (!m_rt || !m_dw) return false;
 
         HRESULT hr;
         hr = m_rt->CreateSolidColorBrush(
-            D2D1::ColorF(0.043f, 0.082f, 0.122f), &m_bgBrush);   // --panel color
+            Theme::NVf(D2D1::ColorF(0.043f, 0.082f, 0.122f)), &m_bgBrush);   // --panel color
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            D2D1::ColorF(0.043f, 0.137f, 0.208f), &m_borderBrush); // --border color
+            Theme::NVf(D2D1::ColorF(0.043f, 0.137f, 0.208f)), &m_borderBrush); // --border color
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            D2D1::ColorF(0.0f, 0.898f, 1.0f), &m_accentBrush);    // --accent cyan
+            Theme::NVf(D2D1::ColorF(0.0f, 0.898f, 1.0f)), &m_accentBrush);    // --accent cyan
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            D2D1::ColorF(0.722f, 0.831f, 0.910f), &m_textBrush);  // --text
+            Theme::NVf(D2D1::ColorF(0.722f, 0.831f, 0.910f)), &m_textBrush);  // --text
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            D2D1::ColorF(0.550f, 0.686f, 0.745f), &m_dimBrush);   // --dim #8CAFBE
+            Theme::NVf(D2D1::ColorF(0.550f, 0.686f, 0.745f)), &m_dimBrush);   // --dim #8CAFBE
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            D2D1::ColorF(0.302f, 1.0f, 0.569f), &m_greenBrush);   // --green #4DFF91
+            Theme::NVf(D2D1::ColorF(0.302f, 1.0f, 0.569f)), &m_greenBrush);   // --green #4DFF91
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            D2D1::ColorF(1.0f, 0.725f, 0.0f), &m_amberBrush);     // --amber #FFB900
+            Theme::NVf(D2D1::ColorF(1.0f, 0.725f, 0.0f)), &m_amberBrush);     // --amber #FFB900
         if (FAILED(hr)) return false;
 
         hr = m_dw->CreateTextFormat(
@@ -116,6 +118,17 @@ public:
     // Draw the status bar — call inside BeginDraw/EndDraw
     // y = top of status bar in window coords (windowHeight - STATUS_BAR_HEIGHT)
     void Draw(int windowWidth, int windowHeight) {
+        // Phase 26: D2D brushes are COM objects built once in Init, so a
+        // palette change has to rebuild them -- tinting the colour alone
+        // would leave every existing brush holding the old one. Rebuilt
+        // here rather than from the toggle so this class does not need
+        // to be told about the mode at all.
+        if (m_rt && m_dw && m_paletteGen != Theme::PaletteGeneration()) {
+            ID2D1HwndRenderTarget* rt = m_rt;
+            IDWriteFactory*        dw = m_dw;
+            Release();
+            Init(rt, dw);
+        }
         if (!m_rt || !m_font) return;
 
         float y = (float)(windowHeight - STATUS_BAR_HEIGHT);
@@ -137,8 +150,8 @@ public:
 
         // ── Live indicator ─────────────────────────────────────
         auto dot = m_emulator
-            ? D2D1::ColorF(1.0f, 0.667f, 0.0f)   // amber = emulator
-            : D2D1::ColorF(0.302f, 1.0f, 0.569f); // green = live hardware
+            ? Theme::NVf(D2D1::ColorF(1.0f, 0.667f, 0.0f))   // amber = emulator
+            : Theme::NVf(D2D1::ColorF(0.302f, 1.0f, 0.569f)); // green = live hardware
         ID2D1SolidColorBrush* dotBrush = m_emulator ? m_amberBrush : m_greenBrush;
 
         // Draw filled circle as live dot
@@ -231,6 +244,7 @@ private:
 
     ID2D1HwndRenderTarget*  m_rt           = nullptr;
     IDWriteFactory*         m_dw           = nullptr;
+    unsigned                m_paletteGen   = 0;
     ID2D1SolidColorBrush*   m_bgBrush      = nullptr;
     ID2D1SolidColorBrush*   m_borderBrush  = nullptr;
     ID2D1SolidColorBrush*   m_accentBrush  = nullptr;

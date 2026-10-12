@@ -25,6 +25,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include "Theme.h"
 #include <windows.h>
 #include <commctrl.h>
 #include <cmath>
@@ -66,7 +67,7 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
         wc.lpfnWndProc   = DefWindowProcW;
         wc.hInstance     = GetModuleHandleW(nullptr);
         wc.hCursor       = LoadCursorW(nullptr, (LPCWSTR)IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(RGB(7, 13, 22));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
         wc.lpszClassName = kClass;
         RegisterClassExW(&wc);
 
@@ -77,7 +78,7 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
             PAINTSTRUCT ps;
             HDC dc = BeginPaint(h, &ps);
             RECT rc; GetClientRect(h, &rc);
-            HBRUSH bg = CreateSolidBrush(RGB(10, 16, 26));
+            HBRUSH bg = CreateSolidBrush(Theme::NV(RGB(10, 16, 26)));
             FillRect(dc, &rc, bg); DeleteObject(bg);
 
             int cx = (rc.right - rc.left) / 2;
@@ -95,8 +96,8 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
 
             // Keep-out wedge first, so everything else draws over it.
             if (st.koStart != st.koEnd) {
-                HBRUSH kb = CreateSolidBrush(RGB(70, 30, 30));
-                HPEN   kp = CreatePen(PS_SOLID, 1, RGB(150, 60, 60));
+                HBRUSH kb = CreateSolidBrush(Theme::NV(RGB(70, 30, 30)));
+                HPEN   kp = CreatePen(PS_SOLID, 1, Theme::NV(RGB(150, 60, 60)));
                 HGDIOBJ ob = SelectObject(dc, kb), op = SelectObject(dc, kp);
                 int sx, sy, ex, ey;
                 pt(st.koStart, R, sx, sy);
@@ -108,13 +109,13 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
                 DeleteObject(kb); DeleteObject(kp);
             }
 
-            HPEN grid = CreatePen(PS_SOLID, 1, RGB(60, 80, 100));
+            HPEN grid = CreatePen(PS_SOLID, 1, Theme::NV(RGB(60, 80, 100)));
             HGDIOBJ oldPen = SelectObject(dc, grid);
             SelectObject(dc, GetStockObject(NULL_BRUSH));
             Ellipse(dc, cx - R, cy - R, cx + R, cy + R);
             SelectObject(dc, oldPen); DeleteObject(grid);
 
-            SetTextColor(dc, RGB(150, 180, 210));
+            SetTextColor(dc, Theme::NV(RGB(150, 180, 210)));
             const wchar_t* lbl[] = {L"N", L"E", L"S", L"W"};
             for (int i = 0; i < 4; i++) {
                 int x, y; pt(i * 90.0, R + 12, x, y);
@@ -124,11 +125,11 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
             // Observer, and the line of sight to the mount.
             {
                 int x, y; pt(st.observer, R - 8, x, y);
-                HPEN p = CreatePen(PS_SOLID, 2, RGB(90, 200, 120));
+                HPEN p = CreatePen(PS_SOLID, 2, Theme::NV(RGB(90, 200, 120)));
                 HGDIOBJ o = SelectObject(dc, p);
                 MoveToEx(dc, cx, cy, nullptr); LineTo(dc, x, y);
                 SelectObject(dc, o); DeleteObject(p);
-                SetTextColor(dc, RGB(90, 200, 120));
+                SetTextColor(dc, Theme::NV(RGB(90, 200, 120)));
                 TextOutW(dc, x - 14, y - 6, L"you", 3);
             }
 
@@ -136,16 +137,16 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
             double az = st.liveAz && *st.liveAz ? (*st.liveAz)() : -1.0;
             if (az >= 0.0) {
                 int x, y; pt(az, R - 2, x, y);
-                HPEN p = CreatePen(PS_SOLID, 2, RGB(230, 180, 60));
+                HPEN p = CreatePen(PS_SOLID, 2, Theme::NV(RGB(230, 180, 60)));
                 HGDIOBJ o = SelectObject(dc, p);
                 MoveToEx(dc, cx, cy, nullptr); LineTo(dc, x, y);
                 SelectObject(dc, o); DeleteObject(p);
-                SetTextColor(dc, RGB(230, 180, 60));
+                SetTextColor(dc, Theme::NV(RGB(230, 180, 60)));
                 TextOutW(dc, x + 2, y - 6, L"scope", 5);
             }
 
             // The mount itself.
-            HBRUSH mb = CreateSolidBrush(RGB(200, 220, 240));
+            HBRUSH mb = CreateSolidBrush(Theme::NV(RGB(200, 220, 240)));
             HGDIOBJ om = SelectObject(dc, mb);
             Ellipse(dc, cx - 5, cy - 5, cx + 5, cy + 5);
             SelectObject(dc, om); DeleteObject(mb);
@@ -322,15 +323,15 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
             if (m == WM_CTLCOLORSTATIC || m == WM_CTLCOLOREDIT) {
                 // Without this the controls paint on the system default,
                 // which is white against this dialog's dark background.
-                static HBRUSH bg = CreateSolidBrush(RGB(7, 13, 22));
+                HBRUSH bg = Theme::Brush(RGB(7, 13, 22));
                 HDC dc = (HDC)wp;
                 SetBkMode(dc, TRANSPARENT);
-                SetTextColor(dc, m == WM_CTLCOLOREDIT ? RGB(230, 240, 250)
-                                                      : RGB(190, 210, 230));
+                SetTextColor(dc, m == WM_CTLCOLOREDIT ? Theme::NV(RGB(230, 240, 250))
+                                                      : Theme::NV(RGB(190, 210, 230)));
                 if (m == WM_CTLCOLOREDIT) {
-                    static HBRUSH eb = CreateSolidBrush(RGB(20, 30, 44));
+                    HBRUSH eb = Theme::Brush(RGB(20, 30, 44));
                     SetBkMode(dc, OPAQUE);
-                    SetBkColor(dc, RGB(20, 30, 44));
+                    SetBkColor(dc, Theme::NV(RGB(20, 30, 44)));
                     return (LRESULT)eb;
                 }
                 return (LRESULT)bg;

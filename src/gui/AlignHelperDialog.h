@@ -19,6 +19,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include "Theme.h"
 #include <commctrl.h>
 #include <string>
 #include "core/RigConfig.h"
@@ -38,7 +39,7 @@ inline bool ShowQuickAlignHelper(HWND owner, HWND panel) {
         wc.lpfnWndProc   = DefWindowProcW;
         wc.hInstance     = GetModuleHandleW(nullptr);
         wc.hCursor       = LoadCursorW(nullptr, (LPCWSTR)IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(RGB(7, 13, 22));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
         wc.lpszClassName = kClass;
         RegisterClassExW(&wc);
         registered = true;

@@ -42,12 +42,16 @@ namespace Theme {
 
     // ── Helper: Convert 0xAARRGGBB to D2D1::ColorF ────────────
 
+    inline D2D1_COLOR_F NVf(D2D1_COLOR_F c);   // defined below
+
     inline D2D1_COLOR_F Color(uint32_t argb) {
         float a = ((argb >> 24) & 0xFF) / 255.0f;
         float r = ((argb >> 16) & 0xFF) / 255.0f;
         float g = ((argb >> 8)  & 0xFF) / 255.0f;
         float b = ((argb)       & 0xFF) / 255.0f;
-        return D2D1::ColorF(r, g, b, a);
+        // Tinted here so every caller of the central D2D helper is
+        // covered without touching the call site.
+        return NVf(D2D1::ColorF(r, g, b, a));
     }
 
 
@@ -96,6 +100,15 @@ namespace Theme {
         // A tenth of the luminance in green keeps near-black greys from
         // reading as pure black, which is what the preview does.
         return RGB(lum, lum / 10, 0);
+    }
+
+    // The Direct2D counterpart. Same transform, different type: the
+    // preview, the status bar and the sky map all paint through D2D,
+    // which takes floats rather than a packed COLORREF.
+    inline D2D1_COLOR_F NVf(D2D1_COLOR_F c) {
+        if (!detail::g_nightVision) return c;
+        const float lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+        return D2D1::ColorF(lum, lum * 0.1f, 0.0f, c.a);
     }
 
     // ── Mode-aware GDI object cache ───────────────────────────

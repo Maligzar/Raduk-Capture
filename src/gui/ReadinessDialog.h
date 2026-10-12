@@ -22,6 +22,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include "Theme.h"
 #include <windows.h>
 #include <commctrl.h>
 #include <functional>
@@ -50,7 +51,7 @@ inline bool ShowReadinessDialog(
         wc.lpfnWndProc   = DefWindowProcW;
         wc.hInstance     = GetModuleHandleW(nullptr);
         wc.hCursor       = LoadCursorW(nullptr, (LPCWSTR)IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(RGB(7, 13, 22));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
         wc.lpszClassName = kClass;
         RegisterClassExW(&wc);
         registered = true;

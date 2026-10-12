@@ -22,6 +22,7 @@
 #define NOMINMAX
 #endif
 
+#include "Theme.h"
 #include <windows.h>
 #include <commctrl.h>
 #include <functional>
@@ -100,7 +101,7 @@ public:
         wc.lpfnWndProc   = ToolbarWndProc;
         wc.hInstance     = GetModuleHandle(nullptr);
         wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(RGB(10, 21, 32)); // --bg-panel
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(10, 21, 32))); // --bg-panel
         wc.lpszClassName = L"RadukToolbarStrip";
         RegisterClassExW(&wc); // ignore already-registered error
 
@@ -397,6 +398,16 @@ private:
                 GetModuleHandle(nullptr), nullptr);
 
             if (btn) {
+                // No SetWindowTheme here, deliberately. Stripping the
+                // visual style was tried to make these button faces
+                // follow night vision, and measurement rejected it: the
+                // toolbar only went from 5.1% to 4% blue, because the
+                // residual is ClearType subpixel fringing on the labels
+                // and not the face at all -- while day mode lost its
+                // normal appearance permanently, reading 0.17% blue with
+                // night vision OFF where it had been 39%. A fix that
+                // misses its target and damages the common case is worse
+                // than the gap it was aimed at.
                 SendMessage(btn, WM_SETFONT, (WPARAM)m_font, TRUE);
                 *d.out = btn;
             }
@@ -465,17 +476,17 @@ private:
             case WM_CTLCOLORBTN: {
                 // Paint button background to match toolbar dark theme
                 HDC hdc = (HDC)wParam;
-                SetBkColor(hdc, RGB(10, 21, 32));
-                SetTextColor(hdc, RGB(200, 232, 240)); // --text
-                static HBRUSH hBg = CreateSolidBrush(RGB(10, 21, 32));
+                SetBkColor(hdc, Theme::NV(RGB(10, 21, 32)));
+                SetTextColor(hdc, Theme::NV(RGB(200, 232, 240))); // --text
+                HBRUSH hBg = Theme::Brush(RGB(10, 21, 32));
                 return (LRESULT)hBg;
             }
             case WM_ERASEBKGND: {
                 HDC hdc = (HDC)wParam;
                 RECT cr; GetClientRect(hwnd, &cr);
-                static HBRUSH hBg = CreateSolidBrush(RGB(10, 21, 32));
+                HBRUSH hBg = Theme::Brush(RGB(10, 21, 32));
                 FillRect(hdc, &cr, hBg);
-                static HPEN hBorder = CreatePen(PS_SOLID, 1, RGB(14, 29, 46));
+                HPEN hBorder = Theme::Pen(RGB(14, 29, 46), 1);
                 HPEN old = (HPEN)SelectObject(hdc, hBorder);
                 MoveToEx(hdc, 0, cr.bottom - 1, nullptr);
                 LineTo(hdc, cr.right, cr.bottom - 1);

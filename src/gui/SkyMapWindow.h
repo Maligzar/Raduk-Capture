@@ -30,6 +30,7 @@
 #define NOMINMAX
 #endif
 
+#include "Theme.h"
 #include <windows.h>
 #include <d2d1.h>
 #include <dwrite.h>
@@ -95,7 +96,7 @@ public:
         wc.lpfnWndProc   = WndProc;
         wc.hInstance     = GetModuleHandle(nullptr);
         wc.hCursor       = LoadCursor(nullptr, IDC_CROSS);
-        wc.hbrBackground = CreateSolidBrush(RGB(4, 8, 16));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(4, 8, 16)));
         wc.lpszClassName = L"RadukSkyMap";
         RegisterClassExW(&wc);
 

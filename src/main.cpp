@@ -1253,20 +1253,7 @@ static int RunApp(bool useEmulator) {
     raduk::gui::MountController mountCtrl;
     mountCtrl.SetMount(mount);
 
-    // Phase 42: every window now exists, so put each one on the screen
-    // its profile names. Deliberately after all the windows are built
-    // and before the message loop, so the app is already arranged when
-    // it first appears rather than visibly rearranging itself.
-    {
-        workspace.Place("main",   window.Handle());
-        workspace.Place("skymap", skyMap.Handle());
-        workspace.Place("goto",   gotoPanel.Handle());
-        workspace.Place("mount",  mountCtrl.Handle());
-        // Write the generated profile out on first run so it can be
-        // hand-edited rather than reverse-engineered.
-        if (!workspaceHadConfig && workspace.Save(kWorkspacePath))
-            Log("[LAYOUT] wrote a starting %s\n", kWorkspacePath.c_str());
-    }
+
 
     // Suspend tracker corrections around manual jogs (resume after a 500ms
     // settle). The generation counter prevents a stale resume timer from
@@ -1329,6 +1316,32 @@ static int RunApp(bool useEmulator) {
 
     mountCtrl.Create(window.Handle());
     mountCtrl.Show();  // visible by default - safety first
+
+    // ── Phase 42: place the windows ───────────────────────────
+    // Here, not earlier, because this is the first point at which every
+    // window actually exists. mountCtrl is created on this line, so an
+    // earlier Place() for it found a null HWND and silently did nothing
+    // -- which is exactly how its placement went missing the first time.
+    // Still before the message loop, so the app appears already
+    // arranged rather than visibly rearranging itself.
+    {
+        workspace.Place("main",   window.Handle());
+        workspace.Place("skymap", skyMap.Handle());
+        workspace.Place("goto",   gotoPanel.Handle());
+        workspace.Place("mount",  mountCtrl.Handle());
+        if (!workspaceHadConfig && workspace.Save(kWorkspacePath))
+            Log("[LAYOUT] wrote a starting %s\n", kWorkspacePath.c_str());
+    }
+
+    // Ctrl+Shift+Home brings everything home. Registered globally, so it
+    // still works when the window you would otherwise click is sitting
+    // on a monitor that has gone away.
+    window.SetGatherWindowsHandler([&]() {
+        workspace.GatherToPrimary({
+            window.Handle(), skyMap.Handle(),
+            gotoPanel.Handle(), mountCtrl.Handle()
+        });
+    });
     Log("[INIT] Mount controller ready (always on top)\n");
 
     // Phase 49: Help Window

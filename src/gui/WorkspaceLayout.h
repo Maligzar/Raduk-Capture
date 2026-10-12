@@ -274,6 +274,12 @@ public:
         int i = 0;
         for (HWND h : windows) {
             if (!h || !IsWindow(h)) continue;
+            // A window that was maximised gets maximised again once it is
+            // on the primary, rather than being left at the rescue size.
+            // Coming back from a lost monitor should not also cost you
+            // the main window's size -- and if it was maximised on a
+            // screen that has gone, maximised on this one is right.
+            const bool wasMax = IsZoomed(h) != FALSE;
             // Cascade so they do not land exactly on top of each other.
             const LONG ox = w.left + 40 * (i % 6);
             const LONG oy = w.top  + 40 * (i % 6);
@@ -281,6 +287,7 @@ public:
             SetWindowPos(h, HWND_TOP, ox, oy,
                          (std::min)(cw - 80, 1100L), (std::min)(ch - 80, 800L),
                          SWP_NOACTIVATE);
+            if (wasMax) ShowWindow(h, SW_MAXIMIZE);
             ++i;
         }
         Say("[LAYOUT] gathered " + std::to_string(i) + " window(s) onto the primary");

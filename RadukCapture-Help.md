@@ -313,6 +313,7 @@ fullscreen.
 | `H` | Cycle Channel Mode (All → Red → Green → Blue → All) |
 | `M` | Open Map (Sky Map) |
 | `F11` *(in the Sky Map window)* | Fill the display the map is on, with no title bar. `Esc` or `F11` again to come back. See **Putting the Sky Map on its own screen**. |
+| `Ctrl+Shift+Home` | **Bring every window back to the main screen.** Works from anywhere, even with the app in the background. See **The multi-monitor workspace**. |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |
@@ -497,6 +498,66 @@ going spare.
 
 ### NOTES  (saved with profile)
 - Free-text notes for the current session. **Saved and restored with the active profile** — click SAVE on the profile to persist, click LOAD to restore. Notes are also editable in the profile EDIT dialog.
+
+---
+
+## The multi-monitor workspace (v1.2.4)
+
+The app counts the displays at launch, loads the layout for that count,
+and opens with each window already on the screen it belongs on. Nothing
+to arrange by hand at the start of a session.
+
+**Layouts are keyed by how many screens are attached**, not by one saved
+arrangement. Five screens get the five-screen layout; plug in only the
+laptop panel and it uses the one-screen layout instead. If there is no
+layout for the exact number found, it steps *down* to the largest one
+that fits, so a five-screen layout still does something sensible on
+three and everything ultimately falls back to the one-screen layout.
+This matters on a rig whose screens come from two graphics cards: the
+set changes when a cable or a driver does, and a single remembered
+arrangement would be wrong the moment it did.
+
+The layout lives in **`workspace.ini`** next to the program, written on
+first run so it can be edited rather than guessed at:
+
+```ini
+[monitors.5]
+main   = \\.\DISPLAY5
+skymap = \\.\DISPLAY4 maximized
+goto   = \\.\DISPLAY2
+mount  = \\.\DISPLAY1
+```
+
+Each line is `role = display [maximized] [x,y,w,h]`. The sizes, if given,
+are fractions of that screen, so a layout written on one monitor size
+still means something on another. **A role with no size is moved, not
+resized** — the mount and GoTo panels place their controls at fixed
+positions, so stretching one would leave its buttons in a corner of an
+empty window. Only the map and the preview actually scale.
+
+### If a window goes missing
+
+Press **`Ctrl+Shift+Home`**. Every window comes back to the main screen
+at a usable size, and anything that was maximised is maximised again.
+
+This exists because a window placed on a monitor that is no longer there
+is not minimised and not closed — it is invisible, focusable, and still
+taking keystrokes, which looks exactly like a feature that stopped
+working. The shortcut is registered with Windows rather than handled by
+the app's own window, so it works whatever has focus, including when the
+window you would otherwise click on is the one that went missing.
+
+Two safeguards usually prevent you needing it. Every position is checked
+against the screens that actually exist before it is used, and anything
+that would land off every screen goes to the main one instead. Screens
+are matched by device name rather than by position in a list, because
+that order changes when the graphics drivers re-enumerate.
+
+**The preview stays on the main screen** and is not moved by any layout.
+The live image is drawn by whichever card drives its monitor, and moving
+it onto a screen belonging to the other card costs a copy on every
+frame. Until the app knows which screens belong to which card, leaving
+it alone is the safe default rather than a considered choice.
 
 ---
 

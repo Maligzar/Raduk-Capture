@@ -22,6 +22,9 @@ static constexpr int TOOLBAR_HEIGHT_PX = 30;  // must match ToolbarStrip.h TOOLB
 
 // Panel is a fixed PREVIEW_PANEL_RESERVED px wide, docked to the right edge.
 // Preview area = clientW - PREVIEW_PANEL_RESERVED.
+// Id for the global rescue hotkey. Any value unique within this window.
+static constexpr int HOTKEY_GATHER_WINDOWS = 0xBEE1;
+
 static int CalcPreviewW(int clientW) {
     int previewW = clientW - PREVIEW_PANEL_RESERVED;
     if (previewW < 100) previewW = 100;
@@ -145,6 +148,23 @@ bool Window::Create(const wchar_t* title, int width, int height) {
 
     m_savedPlacement.length = sizeof(WINDOWPLACEMENT);
     GetWindowPlacement(m_hwnd, &m_savedPlacement);
+
+    // ── Rescue hotkey: Ctrl+Shift+Home ────────────────────────
+    //
+    // A GLOBAL hotkey, not an entry in HandleKeyDown, and that is the
+    // whole point. This exists for the case where a window has been
+    // placed on a monitor that no longer exists: it is not minimised
+    // and not closed, just invisible, focusable and swallowing
+    // keystrokes. A key that only works when the main window has focus
+    // is no use if the main window is the one that went missing, and
+    // neither is a button you have to click on a screen that is not
+    // there. RegisterHotKey works whatever has focus.
+    //
+    // MOD_NOREPEAT so holding it fires once.
+    if (!RegisterHotKey(m_hwnd, HOTKEY_GATHER_WINDOWS,
+                        MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_HOME)) {
+        printf("[Window] Ctrl+Shift+Home not registered (taken by another app)\n");
+    }
 
     printf("[Window] Created maximized: %dx%d client\n", m_clientWidth, m_clientHeight);
     return true;
@@ -715,7 +735,15 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             DestroyWindow(m_hwnd);
             return 0;
 
+        case WM_HOTKEY:
+            if (wParam == HOTKEY_GATHER_WINDOWS && m_onGatherWindows) {
+                m_onGatherWindows();
+                return 0;
+            }
+            break;
+
         case WM_DESTROY:
+            UnregisterHotKey(m_hwnd, HOTKEY_GATHER_WINDOWS);
             PostQuitMessage(0);
             return 0;
 

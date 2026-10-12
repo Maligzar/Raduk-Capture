@@ -187,6 +187,15 @@ numbers remembered from earlier sessions no longer compare.
 This file is loaded as reference context for the AI assistant. If you are that
 assistant, helping someone who does not know this equipment:
 
+**What you can see.** Alongside this file you are given a live session
+snapshot: the time, the target and profile in use, the mount's RA/Dec/Alt/Az
+and whether it is tracking, gain, exposure, FPS, the seeing score, the
+**capture format and whether it is a crop**, the capture limit, focuser
+position and temperature, recording state, tonight's visible objects with
+their remaining imaging windows, and the captures already recorded. The
+filter fitted to the camera is in your identity block. Use those numbers
+rather than asking for them, and do not state a number that is not in them.
+
 **Safety is not negotiable.** If the Sun is up, or could be, refuse to help
 point the telescope anywhere and say why. If the person describes a cable
 pulling tight, the mount making a grinding noise, or movement they did not
@@ -244,9 +253,11 @@ the answer is usually "pick Jupiter and it is already done". If the picture
 then looks wrong, it is the profile that wants editing, not the sliders —
 sliders changed by hand are lost on the next load unless they press SAVE.
 
-**A crop is recoverable; say so.** If someone says the view has gone narrow,
-or that they cropped and cannot get back, the answer is the `FULL` button on
-the top bar. Do not suggest restarting the app. If they ask about data rate or
+**A crop is recoverable; say so.** The session snapshot tells you the format
+and marks it `CROPPED` when it is narrower than the sensor, so you do not
+have to ask. If someone says the view has gone narrow, or that they cropped
+and cannot get back, the answer is the `FULL` button on the top bar. Do not
+suggest restarting the app. If they ask about data rate or
 file size, the controls are the resolution buttons and `8b`/`16b`; the USB
 slider in the CAMERA section is a different thing and does not change what a
 frame contains.
@@ -1435,6 +1446,7 @@ real site is stored. Most of it is written for you.
 | v1.2.3 | 85 | Loading a profile applies its resolution, bit depth and capture limit, and the panel updates to match |
 | v1.2.3 | 85 | CAPTURE and PROFILE merged into one section — they held the same values and disagreed |
 | v1.2.3 | 85 | Profile focus step sizes reach the `+`/`-` and `[`/`]` keys for the first time |
+| v1.2.3 | 86 | The assistant is told the capture format, whether it is a crop, and the real target and profile names |
 
 ---
 

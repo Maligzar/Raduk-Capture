@@ -198,6 +198,12 @@ public:
         DoGoTo(raH, decDeg, name);
     }
 
+    // Phase 86: the last target actually slewed to. The AI context was
+    // reporting the capture file prefix as both the target and the
+    // profile name, with the comment "best available" -- so an
+    // assistant asked "what am I pointing at" answered with a filename.
+    const std::string& CurrentTarget() const { return m_currentTarget; }
+
     // Search catalog by name (case-insensitive), slew to first match.
     // Used by APEX remote commands and sky map auto-GoTo.
     void RequestGoToByName(const std::string& name) {

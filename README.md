@@ -31,8 +31,10 @@ Direct2D — no frameworks.
   noise, NexStar slew-rate curve, per-planet rendering), so the entire app
   runs with no hardware attached and focus work can be tested indoors
 - **Guidance for non-experts** — a readiness check that stays silent when the
-  rig is fine, and a help file that doubles as reference context for a local
-  AI assistant
+  rig is fine, and a local AI assistant (Ollama) given the help file as
+  reference plus a live session snapshot: mount position, camera settings,
+  capture format and whether it is cropped, seeing, focus, and tonight's
+  imaging windows
 - **WebSocket telemetry** + browser dashboard for remote monitoring
   (loopback-only by default; `RADUK_WS_LAN=1` to expose on a trusted LAN)
 

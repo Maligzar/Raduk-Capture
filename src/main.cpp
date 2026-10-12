@@ -3086,9 +3086,28 @@ static int RunApp(bool useEmulator) {
                     char lstBuf[16]; snprintf(lstBuf, 16, "%02dh %02dm", lh, lm);
                     aiState.lstStr = lstBuf;
                 }
-                // Target / profile — use file prefix as target name
-                aiState.targetName  = controls.GetFilePrefix();
-                aiState.profileName = controls.GetFilePrefix(); // best available
+                // Phase 86: the real target and the real profile. Both of
+                // these were the capture file prefix, so an assistant
+                // asked what the rig was pointing at answered with a
+                // filename -- and after Phase 85 the active profile is
+                // authoritative, so there is no reason to guess.
+                {
+                    const std::string& tgt = gotoPanel.CurrentTarget();
+                    aiState.targetName = tgt.empty() ? controls.GetFilePrefix()
+                                                     : tgt;
+                    const TargetProfile* ap = profiles.Active();
+                    aiState.profileName = ap ? ap->name : std::string("none");
+                    if (ap) {
+                        aiState.limitType  = ap->limitType;
+                        aiState.limitValue = ap->limitValue;
+                    }
+                }
+                // Capture format, so "am I still cropped" is answerable.
+                aiState.roiWidth     = roiWidth;
+                aiState.roiHeight    = roiHeight;
+                aiState.bitDepth     = roiBits;
+                aiState.sensorWidth  = cam.MaxWidth();
+                aiState.sensorHeight = cam.MaxHeight();
                 // Mount
                 if (mount && mount->IsConnected()) {
                     double ra, dec;

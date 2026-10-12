@@ -7,7 +7,7 @@
 //
 //  [IDENTITY]        — RadukScope persona + site info
 //  [APP REFERENCE]   — Full RadukCapture-Help.md (cached)
-//  [SESSION STATE]   — Live camera/mount/seeing snapshot
+//  [SESSION STATE]   — Live camera/mount/format/seeing snapshot
 //  [TONIGHT'S SKY]   — Planner data from GoToPanel
 //  [CAPTURES TONIGHT]— SER file listing from output dir
 //  [OBJECT KNOWLEDGE]— SQLite stub (empty until 50a)
@@ -52,6 +52,18 @@ struct AISessionState {
     float exposureMs = 0;
     float fps        = 0;
     float seeingScore= 0;   // 0–10
+
+    // Phase 86: capture format. The toolbar can change these mid-session
+    // now, and without them the assistant could not answer "am I at full
+    // frame", "why is this file so big", or spot that someone is still
+    // cropped from an earlier [ROI] and should press FULL.
+    int   roiWidth    = 0;
+    int   roiHeight   = 0;
+    int   bitDepth    = 8;
+    int   sensorWidth = 0;   // for recognising a crop
+    int   sensorHeight= 0;
+    std::string limitType;   // "frames" or "time"
+    int   limitValue  = 0;
 
     // Focuser
     int   eafPos     = 0;
@@ -150,6 +162,26 @@ public:
            << "  Exp " << s.exposureMs << "ms"
            << "  FPS " << s.fps
            << "  Seeing " << s.seeingScore << "/10\n";
+        // Format, and whether it is a crop. Said in words rather than
+        // left as two numbers to compare, because the question people
+        // actually ask is "why has my field gone narrow".
+        if (s.roiWidth > 0 && s.roiHeight > 0) {
+            ss << "Format: " << s.roiWidth << "x" << s.roiHeight << "  "
+               << s.bitDepth << "-bit";
+            if (s.sensorWidth > 0 && s.sensorHeight > 0 &&
+                (s.roiWidth < s.sensorWidth || s.roiHeight < s.sensorHeight)) {
+                ss << "  (CROPPED from the full " << s.sensorWidth << "x"
+                   << s.sensorHeight << " sensor - the FULL button on the top "
+                   << "bar restores the whole field)";
+            } else {
+                ss << "  (full sensor)";
+            }
+            ss << "\n";
+        }
+        if (!s.limitType.empty() && s.limitValue > 0) {
+            ss << "Capture limit: " << s.limitValue
+               << (s.limitType == "time" ? " seconds" : " frames") << "\n";
+        }
         ss << "EAF: " << s.eafPos << "  Temp: " << s.eafTempC << "°C\n";
         ss << "Recording: " << (s.recording ? "YES" : "NO");
         if (s.recording) {

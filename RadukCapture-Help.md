@@ -237,6 +237,13 @@ Bahtinov or FWHM focus aid, and no click-to-recentre. The section "What is not
 built yet" is the list. Say it plainly and say what to do instead — darks
 belong in the stacker afterwards, not here.
 
+**Selecting a target sets the camera up.** Picking an object on the map or
+in GoTo loads that target's profile: gain, exposure, resolution, bit depth,
+focus position. So if someone asks "what settings should I use for Jupiter",
+the answer is usually "pick Jupiter and it is already done". If the picture
+then looks wrong, it is the profile that wants editing, not the sliders —
+sliders changed by hand are lost on the next load unless they press SAVE.
+
 **A crop is recoverable; say so.** If someone says the view has gone narrow,
 or that they cropped and cannot get back, the answer is the `FULL` button on
 the top bar. Do not suggest restarting the app. If they ask about data rate or
@@ -359,10 +366,6 @@ All sections are collapsible — click the section header to expand/collapse.
 - **[N] NIGHT** — Toggle Night Vision Mode (red-tinted preview for dark adaptation). Also `N` key. HUD shows `NIGHT VISION` in red when active.
 - **[H] CH: ALL** — Cycle single-channel display mode: All → Red → Green → Blue. Shows selected channel as grayscale. Display only — SER data unaffected. Also `H` key. HUD shows channel label in cyan when active.
 
-### PROFILE
-- Load, save, and edit named target profiles (e.g. Jupiter, Saturn, Moon).
-- Profiles store: gain, exposure, gamma, white balance, output directory, frame prefix, capture limits, and gate threshold.
-
 ### CAMERA
 The **Exposure** slider covers **0.001 ms to 60 ms**, which spans planetary
 work including the auto-exposure assistant's 50 ms ceiling. Longer exposures
@@ -414,10 +417,22 @@ are set through the profile editor, which accepts up to 60 s.
 - **POINT SOLVE → SYNC** — Run ASTAP plate solve on the current frame and sync mount coordinates.
 
 ### CAPTURE
-- **File prefix** — Base name for output files (e.g. `Jupiter`).
+Holds the target profile and the recording settings together. They used to
+be two sections, PROFILE and CAPTURE, which described the same thing from
+opposite ends — and because the profile's copies were never pushed into the
+boxes, the boxes silently won every time. One section, one set of values.
+
+- **Target** — The profile, with `LOAD` / `SAVE` / `EDIT`. Picking an object
+  on the sky map or in GoTo loads the matching profile automatically; see
+  [Profiles](#profiles).
+- **Prefix** — Base name for output files (e.g. `Jupiter_`). Filled in by a
+  profile load, and read back by `SAVE`.
 - **Type dropdown** — Frame type: `Light` / `Dark` / `Flat` / `Bias`. Inserted in filename.
 - **Output directory** — Where SER files are saved (default: `D:\RadukCapture\captures`).
-- **Frames / Sec radio** — Capture limit mode: by frame count or by time.
+- **Frames / Sec radio** — Capture limit mode: by frame count or by time. Also
+  set by a profile load — a time-limited profile selects **Sec** for you,
+  which it previously did not, so it loaded its seconds into the box and
+  still stopped on the frame count.
 - **MIN SEEING / GATE** — Quality gate: only record frames where seeing score ≥ threshold. Enable with the GATE checkbox.
 - **▶ RECORD** — Start recording. Button turns red while recording. Press again to stop.
   - Press `P` while recording to **pause** (amber `⏸ PAUSED` state). Press `P` again to resume.
@@ -716,6 +731,68 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 **HCG threshold:** gain 182 (above this = high-conversion-gain mode)
 **Site:** auto-detected at startup (see *Observing site* below); stored in rig.ini
 **ADC model:** Edlen 1966, pressure from site elevation, T=288K
+
+---
+
+## Profiles
+
+A profile is everything the rig should be for one target: gain, exposure,
+gamma, white balance, USB bandwidth, resolution, bit depth, focus position,
+focus step sizes, tracking mode, file prefix and capture limit.
+
+### Loading one
+
+**Automatically.** Picking an object on the sky map, in the GoTo panel or in
+the object info panel loads the matching profile before the slew starts, so
+the camera is ready when the mount arrives. Matching is by name: `Jupiter`
+finds the Jupiter profile, anything starting `M` and a digit finds `DSO`,
+`Moon` finds `Moon`. No match leaves the current settings alone and says so
+in the log.
+
+**By hand.** Pick it under **Target** in the CAPTURE section and press
+`LOAD`.
+
+Either way it applies the camera settings, drives the focuser to the
+profile's focus position, sets the tracking mode, sets the resolution and
+bit depth, and fills in the prefix and capture limit — and the panel updates
+to match, so what you see is what the camera is doing.
+
+### Resolution: who wins
+
+Three things can set resolution, and the last one to act wins:
+
+| Action | Effect |
+|--------|--------|
+| Startup | Full sensor, 8-bit — always, whatever the active profile says |
+| Loading a profile | The profile's resolution and bit depth |
+| A toolbar button | What you pressed, overriding either of the above |
+
+So the app always opens at the widest field, a target selection narrows it
+to what that target wants, and `FULL` is always one press away. Loading a
+profile does **not** move the ROI on the sensor — a profile says how wide to
+read, not where to point; the mount and the tracker decide that.
+
+### Saving one
+
+`SAVE` records the **live** rig, not the stored profile: the camera's actual
+gain, exposure, gamma, white balance, USB bandwidth, resolution and bit
+depth, the focuser's actual position, and the prefix and limit as they stand
+in the boxes. So a night of tuning is kept by pressing `SAVE`, and anything
+you change in CAPTURE is part of the profile from then on.
+
+**Worth knowing about your saved profiles.** Because `SAVE` records the live
+resolution, and because the emulator used to force 1280x960 regardless of
+what was asked, five of the eight profiles on disk — Jupiter, Saturn, Mars,
+Venus and Moon — hold 1280x960 rather than the 640x480 (or 1920x1080 for
+Moon) their defaults intend. That did nothing before, because loading a
+profile ignored resolution. It does something now. If you want Jupiter back
+at 640x480 for the frame rate, load it, press `640`, press `SAVE`.
+
+### Focus steps
+
+`+` / `-` move the focuser by the profile's **fine** step and `[` / `]` by
+its **coarse** step (10 and 100 by default). Change them in the profile
+editor for a target that wants finer control.
 
 ---
 
@@ -1355,6 +1432,9 @@ real site is stored. Most of it is written for you.
 | v1.2.3 | 84 | One shared capture-format path replaces three divergent copies; ROI placed by centre, not origin |
 | v1.2.3 | 84 | Startup readiness check no longer races the first frame and false-fails the camera |
 | v1.2.3 | 84 | Emulator honours requested ROI up to 1280x960; its FrameSize() no longer ignores its arguments |
+| v1.2.3 | 85 | Loading a profile applies its resolution, bit depth and capture limit, and the panel updates to match |
+| v1.2.3 | 85 | CAPTURE and PROFILE merged into one section — they held the same values and disagreed |
+| v1.2.3 | 85 | Profile focus step sizes reach the `+`/`-` and `[`/`]` keys for the first time |
 
 ---
 

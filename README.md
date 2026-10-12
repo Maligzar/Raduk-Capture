@@ -11,6 +11,9 @@ Direct2D — no frameworks.
 - **Capture format on the toolbar** — resolution presets from full sensor down
   to 640x480 and 8/16-bit depth, applied through one shared reconfigure path,
   so an ROI crop is always recoverable
+- **Target profiles that actually load** — picking an object on the sky map or
+  in GoTo applies that target's gain, exposure, resolution, bit depth, focus
+  position and capture limit, and the control panel updates to match
 - **Closed-loop planet tracking** — three-stage centroid acquisition with
   PHD2-style measured guide calibration (camera rotation, plate scale, and
   guide rate are measured, never assumed)

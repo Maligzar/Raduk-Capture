@@ -369,7 +369,7 @@ public:
             m_mount->GetAltAz(alt, az);
 
         m_solver.SolveAsync(frameData, w, h,
-            [this, objCopy, hintRA, hintDec, az, alt,
+            [this, objCopy, hintRA, hintDec, az, alt, w,
              camTempC, seeingScore](raduk::sky::SolveResult result) {
                 m_autoSolving.store(false);
 
@@ -393,6 +393,28 @@ public:
                 if (m_mount && m_mount->IsConnected()) {
                     m_mount->SyncRADec(result.ra, result.dec);
                     m_alignPoints++;
+                }
+
+                // A solve knows the true field width, so it knows the
+                // true plate scale. PlateScaleArcsecPx in rig.ini is a
+                // calculated figure -- focal length over pixel size --
+                // that has never been checked against the sky, and it
+                // feeds the ADC figure, the drift readout and every
+                // overlay scale. Rather than leave that a manual check
+                // nobody remembers, every solve now reports it.
+                if (result.fovW > 0.0 && w > 0) {
+                    const double measured = result.fovW * 3600.0 / (double)w;
+                    const double assumed  =
+                        raduk::core::RigConfig::Get().plateScaleArcsecPx;
+                    const double offPct = (assumed > 0.0001)
+                        ? fabs(measured - assumed) / assumed * 100.0 : 0.0;
+                    char sb[200];
+                    sprintf_s(sb, "Plate scale: solved %.4f\"/px vs "
+                                  "rig.ini %.4f\"/px (%.0f%% out)%s",
+                              measured, assumed, offPct,
+                              offPct > 5.0 ? " <- set PlateScaleArcsecPx to "
+                                             "the solved value" : "");
+                    if (m_onLog) m_onLog(sb);
                 }
 
                 // Record to pointing model

@@ -4126,6 +4126,39 @@ static int RunApp(bool useEmulator) {
             // answer, which is an invitation to try subtracting it a
             // fourth time. The diagnostic itself stays, renamed to what
             // it actually measures.
+            // The sharpness ceiling checks itself. SHARP_CEIL scales
+            // every reading, the seeing score, the capture gate and the
+            // autofocus curve, and it has been wrong twice -- once
+            // calibrated on a noiseless emulator frame, which cost 500
+            // steps of focus error the moment real noise appeared. The
+            // clear-night checklist asks the user to watch this log for
+            // pinning or crowding; this watches instead, over a long
+            // enough run that a focus sweep cannot trigger it, and says
+            // so once.
+            if (lastAnalysis.valid) {
+                static int  sharpHigh = 0, sharpLow = 0, sharpSeen = 0;
+                static bool sharpSaid = false;
+                const float spct = lastAnalysis.sharpnessPct;
+                sharpSeen++;
+                if (spct >= 95.0f) sharpHigh++;
+                if (spct <= 10.0f) sharpLow++;
+                if (!sharpSaid && sharpSeen >= 400) {
+                    if (sharpHigh * 2 > sharpSeen) {
+                        Log("[SHARP] CEILING TOO LOW: %d of %d readings at "
+                            "or above 95%%. The curve is clipped and "
+                            "autofocus cannot find a peak - raise "
+                            "SHARP_CEIL in core/Sharpness.h\n",
+                            sharpHigh, sharpSeen);
+                        sharpSaid = true;
+                    } else if (sharpLow * 10 > sharpSeen * 9) {
+                        Log("[SHARP] CEILING TOO HIGH: %d of %d readings "
+                            "at or below 10%%. Almost all resolution is "
+                            "being thrown away - lower SHARP_CEIL in "
+                            "core/Sharpness.h\n", sharpLow, sharpSeen);
+                        sharpSaid = true;
+                    }
+                }
+            }
             if (lastAnalysis.valid)
                 Log("[SHARP] pct=%.2f  seeing=%.1f/10  raw=%.1f  "
                     "darkest-decile-gradient=%.1f (diagnostic, not subtracted)\n",

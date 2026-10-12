@@ -8,9 +8,15 @@ Everything here already works in the emulator. That is the problem — the
 emulator is where these numbers came from, so it agrees with them by
 construction.
 
-**Order matters.** Items 1–3 should be done before a serious capture,
+**Order matters.** Items 1–3 should be settled before a serious capture,
 because each one can silently bias everything recorded afterwards.
 Items 4–9 can be checked whenever there is a spare minute.
+
+**Items 1–3 now report themselves.** They used to require watching a log
+for a condition you had to know to look for, which is a poor way to find
+out that every frame of a session was mis-scaled. The app now measures all
+three and says so when they are wrong — so for those, "doing the item" means
+reading one line rather than running a procedure.
 
 ---
 
@@ -34,8 +40,22 @@ wrong twice already, and both times the symptom was not obvious:
 `1000` was chosen to leave headroom for a noisy real frame. It has never
 seen one.
 
-**What to do:** get a planet roughly focused and watch the `[SHARP]` log
-line through a focus sweep.
+**The app now watches this itself.** After about three minutes of imaging it
+writes one of these to the log if the ceiling is wrong, and says nothing if
+it is right:
+
+```
+[SHARP] CEILING TOO LOW: 231 of 400 readings at or above 95%. The curve is
+        clipped and autofocus cannot find a peak - raise SHARP_CEIL
+[SHARP] CEILING TOO HIGH: 377 of 400 readings at or below 10%. Almost all
+        resolution is being thrown away - lower SHARP_CEIL
+```
+
+It waits 400 samples on purpose, so the low readings during a focus sweep
+cannot trigger it, and it says each thing once.
+
+**To judge it by eye instead,** get a planet roughly focused and watch the
+`[SHARP]` log line through a focus sweep.
 
 | What you see | Meaning | Action |
 |---|---|---|
@@ -46,7 +66,7 @@ line through a focus sweep.
 Only the **shape** of the curve matters to autofocus. The ceiling just
 has to not flatten it.
 
-## 2. Guide rate in `rig.ini` — assumed, never measured here
+## 2. Guide rate in `rig.ini` — now measured and reported
 
 **File:** `src/core/RigConfig.h:162` (`GuideRateArcsecPerSec = 7.5`)
 
@@ -75,9 +95,17 @@ Derived from 2032 mm focal length and 2.0 µm pixels. The real figure
 depends on where the camera actually sits in the light path, and feeds
 the ADC figure, the drift readout and the overlay scales.
 
-**What to do:** plate-solve one frame with ASTAP (`[GOTO]` → solve). The
-solver reports the true scale. If it disagrees with 0.203 by more than a
-few percent, set `PlateScaleArcsecPx` to what the solver says.
+**The app now reports this itself.** A solve knows the true field width, so
+it knows the true scale. Every successful solve logs the comparison:
+
+```
+[GOTO] Plate scale: solved 0.2061"/px vs rig.ini 0.2030"/px (2% out)
+[GOTO] Plate scale: solved 0.2480"/px vs rig.ini 0.2030"/px (22% out)
+       <- set PlateScaleArcsecPx to the solved value
+```
+
+**What to do:** plate-solve one frame (`[GOTO]` → solve) and read that line.
+Anything over about 5% is flagged, and worth correcting.
 
 ---
 
@@ -148,10 +176,8 @@ bright, the tint is a one-line change in `Theme::NV` (`src/gui/Theme.h`) --
 the green component is currently a tenth of the luminance and can go to zero,
 and the luminance itself can be scaled down.
 
-One known gap to notice rather than fix: turn night vision on **during** a
-session and a few preview overlays keep their day colours until restart. If
-that is visible and annoying, it is 48 cached D2D brushes in PreviewRenderer
-and SkyMapWindow; StatusBar already shows the fix.
+(The mid-session overlay gap noted when this was written is fixed — the
+preview overlays now follow a toggle without a restart.)
 
 ## 8. The motion plot's camera source
 

@@ -190,11 +190,12 @@ assistant, helping someone who does not know this equipment:
 **What you can see.** Alongside this file you are given a live session
 snapshot: the time, the target and profile in use, the mount's RA/Dec/Alt/Az
 and whether it is tracking, gain, exposure, FPS, the seeing score, the
-**capture format and whether it is a crop**, the capture limit, focuser
-position and temperature, recording state, tonight's visible objects with
-their remaining imaging windows, and the captures already recorded. The
-filter fitted to the camera is in your identity block. Use those numbers
-rather than asking for them, and do not state a number that is not in them.
+**capture format and whether it is a crop**, the capture limit, **which
+display modes are altering the image**, focuser position and temperature,
+recording state, tonight's visible objects with their remaining imaging
+windows, and the captures already recorded. The filter fitted to the camera
+is in your identity block. Use those numbers rather than asking for them, and
+do not state a number that is not in them.
 
 **Safety is not negotiable.** If the Sun is up, or could be, refuse to help
 point the telescope anywhere and say why. If the person describes a cable
@@ -239,6 +240,17 @@ guess a band from the target or the season.
 steps around wherever the focuser already is. If someone is far out of focus,
 they need to get roughly sharp by hand first, or it will report `focus not
 bracketed` — which is it working correctly, not failing.
+
+**Check the display line before blaming the camera.** Several modes change
+only what the image *looks* like and nothing about what is captured: RAW
+debayer makes it greyscale, night vision makes it red, single-channel makes
+it a grey version of one colour, display FX brightens it, and a framing shot
+makes it briefly bright and noisy. The snapshot lists whichever of these are
+on, and says `Display: normal` when none are. So when someone reports a
+picture that looks wrong, read that line first. If it says normal, the
+display is not the cause and the cause is exposure, focus, or the sky. If it
+lists something, name it and say which key turns it off — do not send them
+hunting through the camera sliders for a fault that is not there.
 
 **Do not promise what is not built.** There is no dark-frame subtraction, no
 flat-field correction, no FITS or AVI output, no polar-alignment assistant, no
@@ -318,7 +330,7 @@ capture format.
 | `[CENTROID]` | — | **Acquire the planet**: find, calibrate, centre, lock. Press again to cancel. |
 | `[LOCK]` | — | Manual override — force the calibration step |
 | `[ROI]` | — | Crop the sensor around a locked planet (not a freehand ROI — drag a box on the preview for that) |
-| `[C] COLOR` | — | Toggle COLOR / RAW debayer mode |
+| `[C] COLOR` | — | COLOR / RAW debayer. **RAW shows the raw greyscale sensor data** — useful for judging focus, but the image goes monochrome |
 | `[*] MAP` | `M` | Toggle Sky Map window |
 | `[I] GOTO` | `G` | Open GoTo panel |
 | `[+] RETICLE` | `R` | Toggle crosshair reticle overlay |
@@ -1324,6 +1336,27 @@ it needs.
 - Run `POINT SOLVE → SYNC` to correct mount model at current position
 - Ensure StarSense alignment was performed before session
 
+### The picture looks wrong — grey, red, too bright, monochrome
+
+Before changing any camera setting, check whether a **display mode** is on.
+These change only what you see; the recording is unaffected, and nothing in
+the camera is broken.
+
+| What you see | Likely mode | Turn it off with |
+|--------------|-------------|------------------|
+| Greyscale / monochrome | RAW debayer | `[C] COLOR` button |
+| Everything red | Night vision | `N` |
+| Grey, but one colour's detail | Single channel (R/G/B) | `H` until it reads `CH: ALL` |
+| Unnaturally bright or smeared | Display FX / stack | `B` until it reads `FX: NORMAL` |
+| Briefly very bright and noisy | Framing shot — restores itself after 5s | wait |
+| Circles or brackets drawn on it | Reticle | `R` until it turns off |
+
+The AI assistant is given this same list of what is currently on, so asking
+it "why does my image look like this" works.
+
+If none of those are on, the cause is exposure, focus, or the sky — not the
+display.
+
 ### The view has gone narrow / I cropped and cannot get back
 Press **`FULL`** on the top bar. `[ROI]` and dragging a box on the preview
 both narrow the sensor read-out, and before v1.2.3 nothing widened it again,
@@ -1510,6 +1543,7 @@ real site is stored. Most of it is written for you.
 | v1.2.3 | 26 | Night vision remembered between sessions (the mode itself already shipped) |
 | v1.2.3 | 45 | Multi-reticle: crosshair / circle / rings / box, cycled by one control |
 | v1.2.3 | 39 | Framing shot — `Shift+S` boosts gain and exposure for 5s, then restores |
+| v1.2.3 | 87 | The assistant is told which display modes are altering the image, so "why does it look wrong" starts in the right place |
 
 ---
 

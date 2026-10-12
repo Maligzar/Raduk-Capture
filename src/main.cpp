@@ -3190,6 +3190,27 @@ static int RunApp(bool useEmulator) {
                 aiState.bitDepth     = roiBits;
                 aiState.sensorWidth  = cam.MaxWidth();
                 aiState.sensorHeight = cam.MaxHeight();
+                // Phase 87: display modes. Narrowed to the non-default
+                // ones at the far end, so only send what is actually on.
+                {
+                    using namespace raduk::gui;
+                    aiState.debayerRaw =
+                        (preview.GetDebayerMode() == DebayerMode::Raw);
+                    aiState.nightVision = preview.NightVisionOn();
+                    aiState.framingShot = framing.active.load();
+                    auto narrow = [](const wchar_t* w) {
+                        std::string out;
+                        for (; w && *w; ++w) out += (char)*w;  // ASCII labels
+                        return out;
+                    };
+                    if (preview.GetChannelMode() !=
+                            PreviewRenderer::ChannelMode::All)
+                        aiState.channelMode = narrow(preview.ChannelLabel());
+                    if (preview.GetDisplayFX() != DisplayFX::Normal)
+                        aiState.displayFX = narrow(preview.DisplayFXLabel());
+                    if (preview.ReticleVisible())
+                        aiState.reticle = narrow(preview.ReticleLabel());
+                }
                 // Mount
                 if (mount && mount->IsConnected()) {
                     double ra, dec;

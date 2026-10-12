@@ -65,6 +65,23 @@ struct AISessionState {
     std::string limitType;   // "frames" or "time"
     int   limitValue  = 0;
 
+    // Phase 87: display modes. Plain strings and bools rather than the
+    // gui enums, so core does not end up depending on gui for this.
+    //
+    // These are here because every one of them changes what the image
+    // looks like without changing the capture at all, and a beginner
+    // seeing the result has no way to know that. "Why is my picture grey"
+    // is RAW debayer; "why has everything gone red" is night vision;
+    // "why is it suddenly bright and noisy" is a framing shot in its
+    // five seconds. Without these the assistant would hunt the camera
+    // settings for a fault that is not there.
+    bool        debayerRaw   = false;  // true = greyscale Bayer, not colour
+    bool        nightVision  = false;
+    std::string channelMode;           // "" when showing all channels
+    std::string displayFX;             // "" when Normal
+    std::string reticle;               // "" when off
+    bool        framingShot  = false;  // inside the 5s boost
+
     // Focuser
     int   eafPos     = 0;
     float eafTempC   = 0;
@@ -181,6 +198,32 @@ public:
         if (!s.limitType.empty() && s.limitValue > 0) {
             ss << "Capture limit: " << s.limitValue
                << (s.limitType == "time" ? " seconds" : " frames") << "\n";
+        }
+        // Only what is NOT at its default, so the line means "something
+        // unusual is on". Listing every mode every time would bury the
+        // one that matters, and a silent line is itself the answer: if
+        // nothing is listed, the display is not what is wrong.
+        {
+            std::string odd;
+            auto add = [&](const std::string& t) {
+                if (!odd.empty()) odd += ", ";
+                odd += t;
+            };
+            if (s.debayerRaw)         add("RAW/greyscale debayer (not colour)");
+            if (s.nightVision)        add("night vision (red)");
+            if (!s.channelMode.empty()) add("single channel: " + s.channelMode);
+            if (!s.displayFX.empty())   add("display FX: " + s.displayFX);
+            if (!s.reticle.empty())     add("reticle: " + s.reticle);
+            if (s.framingShot)
+                add("FRAMING SHOT active - gain and exposure are "
+                    "temporarily boosted and restore themselves");
+            if (odd.empty()) {
+                ss << "Display: normal (nothing altering the image)\n";
+            } else {
+                ss << "Display: " << odd
+                   << "  <- these change how the image LOOKS, not what is "
+                      "captured\n";
+            }
         }
         ss << "EAF: " << s.eafPos << "  Temp: " << s.eafTempC << "°C\n";
         ss << "Recording: " << (s.recording ? "YES" : "NO");

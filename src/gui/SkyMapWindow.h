@@ -100,10 +100,25 @@ public:
         wc.lpszClassName = L"RadukSkyMap";
         RegisterClassExW(&wc);
 
+        // No WS_EX_TOOLWINDOW, and WS_MAXIMIZEBOX added.
+        //
+        // This window could be dragged to any of the rig's displays but
+        // not made to fill one, and the reason was in these two flags:
+        // WS_EX_TOOLWINDOW suppresses the minimise and maximise buttons
+        // outright, and WS_MAXIMIZEBOX was absent, so the system menu's
+        // Maximize was greyed and double-clicking the caption did
+        // nothing. There was no "make it fill this screen" anywhere,
+        // because Windows had been told not to offer one.
+        //
+        // With the box present, maximise fills whatever display the
+        // window is currently on -- the OS already does the monitor
+        // arithmetic, and WM_SIZE resizes the D2D target. Dropping the
+        // tool-window bit also puts the map in the taskbar and Alt-Tab,
+        // which is wanted once it lives on a screen of its own.
         m_hwnd = CreateWindowExW(
-            WS_EX_TOOLWINDOW,
+            0,
             L"RadukSkyMap", L"Sky Map",
-            WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_SIZEBOX,
+            WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_SIZEBOX | WS_MAXIMIZEBOX,
             x, y, w, h,
             parent, nullptr, GetModuleHandle(nullptr), this);
         if (!m_hwnd) return false;
@@ -118,7 +133,11 @@ public:
 
         ShowWindow(m_hwnd, SW_SHOW);
         InvalidateRect(m_hwnd, nullptr, FALSE);
-        printf("[SkyMap] Created %dx%d  lat=%.4f lon=%.4f\n", w, h, OBS_LAT, OBS_LON);
+        // One decimal place, deliberately. LogInit calls AllocConsole and
+        // points stdout at it, so this line is on screen -- and at 4dp it
+        // put the observing site on that console to about 11 metres.
+        // One decimal is ~11 km: a town, not a house.
+        printf("[SkyMap] Created %dx%d  lat=%.1f lon=%.1f\n", w, h, OBS_LAT, OBS_LON);
         return true;
     }
 
@@ -128,6 +147,48 @@ public:
     }
 
     bool IsVisible() const { return m_hwnd && IsWindowVisible(m_hwnd); }
+
+    bool IsFullscreen() const { return m_fullscreen; }
+
+    // Fill the display this window is CURRENTLY on, not the primary and
+    // not "the second one". The rig has five attached, the map is a
+    // window you drag to whichever one you want it on, and the only
+    // sensible meaning of full screen is the screen it is already on --
+    // which is what MonitorFromWindow answers.
+    void ToggleFullscreen() {
+        if (!m_hwnd) return;
+
+        if (!m_fullscreen) {
+            m_savedPlacement.length = sizeof(WINDOWPLACEMENT);
+            GetWindowPlacement(m_hwnd, &m_savedPlacement);
+
+            MONITORINFO mi = { sizeof(mi) };
+            if (!GetMonitorInfo(MonitorFromWindow(m_hwnd, MONITOR_DEFAULTTONEAREST), &mi))
+                return;
+
+            // Drop the frame: a caption and a sizing border on a window
+            // meant to fill a screen just eat rows and put a title bar
+            // across the top of the sky.
+            SetWindowLongW(m_hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+            SetWindowPos(m_hwnd, HWND_TOP,
+                         mi.rcMonitor.left, mi.rcMonitor.top,
+                         mi.rcMonitor.right  - mi.rcMonitor.left,
+                         mi.rcMonitor.bottom - mi.rcMonitor.top,
+                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+            m_fullscreen = true;
+        } else {
+            SetWindowLongW(m_hwnd, GWL_STYLE,
+                           WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_SIZEBOX |
+                           WS_MAXIMIZEBOX | WS_VISIBLE);
+            SetWindowPlacement(m_hwnd, &m_savedPlacement);
+            SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+            m_fullscreen = false;
+        }
+        SetFocus(m_hwnd);   // keep F11/Esc coming here, not to the main window
+        InvalidateRect(m_hwnd, nullptr, FALSE);
+    }
     void Show()  { if (m_hwnd) { ShowWindow(m_hwnd, SW_SHOW); Redraw(); } }
     void Hide()  { if (m_hwnd) ShowWindow(m_hwnd, SW_HIDE); }
     void Toggle(){ IsVisible() ? Hide() : Show(); }
@@ -900,6 +961,19 @@ private:
                 self->OnResize(LOWORD(lParam), HIWORD(lParam));
                 return 0;
 
+            // This window had no key handling whatsoever. F11 matches the
+            // main window's fullscreen key; Escape is the way back out,
+            // which matters because fullscreen removes the caption bar and
+            // with it every visible way to restore the window.
+            case WM_KEYDOWN:
+                if (wParam == VK_F11) { self->ToggleFullscreen(); return 0; }
+                if (wParam == VK_ESCAPE) {
+                    if (self->m_fullscreen) self->ToggleFullscreen();
+                    else                    ShowWindow(hwnd, SW_HIDE);
+                    return 0;
+                }
+                break;
+
             case WM_TIMER:
                 // Rebuild object positions every 30s
                 self->m_catalog.UpdatePlanets();
@@ -1080,6 +1154,8 @@ private:
 
     // ── Members ────────────────────────────────────────────────
     HWND   m_hwnd  = nullptr;
+    bool            m_fullscreen = false;
+    WINDOWPLACEMENT m_savedPlacement = {};
     int    m_w     = 600;
     int    m_h     = 600;
 

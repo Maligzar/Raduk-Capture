@@ -312,6 +312,7 @@ fullscreen.
 | `G` | Open GoTo panel |
 | `H` | Cycle Channel Mode (All → Red → Green → Blue → All) |
 | `M` | Open Map (Sky Map) |
+| `F11` *(in the Sky Map window)* | Fill the display the map is on, with no title bar. `Esc` or `F11` again to come back. See **Putting the Sky Map on its own screen**. |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |
@@ -496,6 +497,41 @@ going spare.
 
 ### NOTES  (saved with profile)
 - Free-text notes for the current session. **Saved and restored with the active profile** — click SAVE on the profile to persist, click LOAD to restore. Notes are also editable in the profile EDIT dialog.
+
+---
+
+## Putting the Sky Map on its own screen (v1.2.4)
+
+The map has always been a window you could drag to any display. What it
+had no way to do was **fill** one, and the reason was two window flags
+rather than anything to do with monitors: it was created as a tool
+window, which suppresses the minimise and maximise buttons outright,
+and without `WS_MAXIMIZEBOX`, so the system menu's Maximize was greyed
+and double-clicking the title bar did nothing. There was no "make this
+fill the screen" control anywhere because Windows had been told not to
+offer one.
+
+Three ways now, all of which act on **whichever display the window is
+currently on** — drag it where you want it first:
+
+| | What it does |
+|---|---|
+| **Maximise button**, or double-click the title bar | Fills that display, keeping the title bar and respecting the taskbar. |
+| **`F11`** | Fills that display completely, with no title bar and over the taskbar. `Esc` or `F11` returns it. |
+| **Drag the edges** | Still works; the map redraws at any size. |
+
+The map is also now in the taskbar and Alt-Tab, which it was not before
+— useful once it lives on a screen of its own rather than on top of the
+capture window.
+
+Measured on this rig's five displays: `F11` with the map on DISPLAY2 at
+(-504,1088) filled that screen, not the primary.
+
+**The other floating panels do not get this**, deliberately. Mount
+Controller, GoTo and Object Info lay their controls out at fixed
+positions and have no sizing border, so maximising one would strand its
+buttons in a corner of an empty window. The map and the preview are the
+two surfaces that actually scale.
 
 ---
 
@@ -1652,9 +1688,11 @@ preview to recentre, and no "go to previous image" framing recall. The
 reticle (four shapes, movable, sizeable, rotatable) and the framing shot do
 exist — see the **Reticle** and **Framing shot** sections.
 
-**Display extras.** No two-monitor mode. Night vision (now including the
-whole interface), the single-channel R/G/B view and the display stretch all
-exist — see [Display stretch](#display-stretch).
+**Display extras.** No multi-monitor workspace — every window opens on
+whichever screen the main window is on, and positions are not remembered
+between runs. Night vision (now including the whole interface), the
+single-channel R/G/B view and the display stretch all exist — see
+[Display stretch](#display-stretch).
 
 **Analysis extras.** No sensor-analysis or smart-histogram tooling, no
 stellar photometry, no multi-session statistics dashboard, no solar/lunar

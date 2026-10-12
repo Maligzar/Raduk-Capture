@@ -84,11 +84,13 @@ app also loads as reference context for the AI assistant.
 Built and in use: capture, tracking, GoTo, autofocus, the ADC advisor, the
 quick-look stacker, the readiness check and the device emulators.
 
-Also built: night vision, single-channel (R/G/B) view, a four-shape reticle
-(crosshair, circle, collimation rings, framing box), and a framing shot that
-boosts gain and exposure for five seconds then restores them.
+Also built: night vision across the whole interface (not just the preview),
+a display stretch with black and white points, single-channel (R/G/B) view,
+a four-shape reticle (crosshair, circle, collimation rings, framing box) that
+can be moved, sized and rotated, and a framing shot that boosts gain and
+exposure for five seconds then restores them.
 
-Not built yet, in rough priority order: histogram stretch, framing
+Not built yet, in rough priority order: framing
 helpers (click-to-recentre, push-to), focus aids beyond autofocus (FWHM,
 Bahtinov), AVI/FITS output, and a polar-alignment assistant. Calibration
 frames exist as a preview aid only — the recording stays raw. Full

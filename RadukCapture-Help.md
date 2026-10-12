@@ -241,6 +241,11 @@ steps around wherever the focuser already is. If someone is far out of focus,
 they need to get roughly sharp by hand first, or it will report `focus not
 bracketed` — which is it working correctly, not failing.
 
+**The display stretch is not an exposure change.** If someone says the image
+looks too dark or too flat, the stretch (`L`, and the Black/White sliders) is
+the first thing to try, because it costs nothing and changes no data. Raising
+gain or exposure to fix how something *looks* makes the recording worse.
+
 **Dark and flat correction change the preview, not the recording.** If
 someone asks why their saved file looks noisier than the screen, that is why
 and it is correct. A master only applies at the resolution and bit depth it
@@ -309,6 +314,7 @@ fullscreen.
 | `M` | Open Map (Sky Map) |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
+| `L` | **L**evels — display stretch on/off, for comparing the two |
 | `P` | Pause / Resume recording |
 | `Q` | Toggle Quality Bar Graph |
 | `R` | Reticle: off → crosshair → circle → rings → box → off |
@@ -390,6 +396,7 @@ All sections are collapsible — click the section header to expand/collapse.
 
 ### IMAGE
 - **DARK / FLAT / CLEAR** — Build or clear calibration masters. See [Dark and flat frames](#dark-and-flat-frames).
+- **Black / White sliders** — Display stretch. See [Display stretch](#display-stretch).
 - **ZOOM: FIT / FULLSCR** — Switch between fit-to-window and fullscreen preview.
 - **RGB ALIGN** — Toggle atmospheric dispersion correction on the display. Auto-computes pixel shift from mount altitude using the Edlen refractivity model. Blue channel shifts UP, red shifts DOWN by half. Display only — SER data is unaffected.
 - **Manual slider** — Fine-tune the RGB align offset ±20px on top of the auto value. Center position = 0px offset.
@@ -571,8 +578,26 @@ turns it off, so a single press still just switches the reticle on:
 All four keep a centre dot — the only part that marks an exact pixel, and
 what you nudge the planet onto. The toolbar button names the live shape.
 
-Dragging, resizing and rotating the reticle are **not** implemented; it is
-centred on the frame.
+### Moving, sizing and rotating it
+
+| Gesture | Effect |
+|---------|--------|
+| `Ctrl` + drag | Move it anywhere in the frame |
+| `Ctrl` + wheel | Make it bigger or smaller |
+| `Shift` + wheel | Rotate it, 5° a notch |
+
+Modifiers rather than plain gestures on purpose: a plain drag is the ROI
+rubber band and a plain wheel is the preview zoom, both used constantly. The
+reticle takes the modifiers so neither is disturbed.
+
+**Rotation only applies to crosshair and box.** A circle and three
+concentric rings look identical rotated, so the app says so rather than
+accepting the input and appearing to do nothing.
+
+The position is stored as a fraction of the frame, so it stays where you put
+it when the window is resized or you change zoom. **Cycling the reticle off
+resets position, size and rotation**, which is how you recover from a stray
+`Ctrl`+drag without hunting for a reset button.
 
 ### Clipping Warning (`C` key)
 Any pixel where R, G, or B = 255 flashes red at ~2.5Hz. The `CLIP X.X%` label appears top-right in the HUD. Useful for dialing in exposure without clipping planetary detail.
@@ -748,11 +773,27 @@ pushed into the red channel, which keeps detail visible while giving your eyes
 far less to re-adapt from. **Remembered between sessions**, so if you finish a
 night with it on, the next launch comes up red rather than blinding you.
 
-The **control panel chrome stays its normal colours.** The spec asked for the
-whole UI to go red and that is not built — the panel's colours are set in
-place rather than drawn from the theme, so it is a much larger job than it
-sounds. The preview is the large bright area, so the part that matters is
-covered.
+**The whole interface goes red, not just the image.** The control panel, the
+toolbar, the status bar, the floating windows and the dialogs all follow.
+Measured by capturing the rendered windows: of the pixels sampled in the
+control panel, 21% were blue- or green-dominant in day mode and **0%** with
+night vision on; the status bar went from 77% to 0%.
+
+The toolbar retains about 3% blue, and that is the anti-aliasing of the
+button labels rather than any colour the app chooses — removing it would mean
+changing how every font in the application is rendered.
+
+**Accent colours converge.** Cyan, amber and green are distinguishable by
+hue in day mode and all become the same red at night, because they have
+almost the same brightness. That is unavoidable in a red-only palette: any
+transform that kept them apart would have to put back the blue and green
+that night vision exists to remove. Section headers still carry their names
+in text.
+
+One known gap: a few overlays drawn on top of the preview keep their day
+colours if you switch night vision on **during** a session. Start with it on,
+or press `N` twice, and they follow. The main surfaces are unaffected either
+way.
 
 Pair it with the `[FX]` brightness modes rather than raising gain if the
 screen is still too bright.
@@ -932,6 +973,35 @@ If nothing is wrong, it says nothing and costs nothing: with no condition
 found, the model is not called.
 
 Needs Ollama running locally. If it is not, turning advice on says so.
+
+---
+
+## Display stretch
+
+Two sliders in the IMAGE section, **Black** and **White**, that decide which
+part of the brightness range fills the screen:
+
+    shown = (value - black) × 255 / (white - black)
+
+Raise **Black** until the background goes properly black. Lower **White**
+until the target's detail fills the range. Anything below black shows as
+black, anything above white as white.
+
+**This changes only what you see.** Nothing recorded is affected, which is
+the point — it is how a faint target becomes visible without touching gain
+or exposure, both of which would change the data. `L` switches it off and on
+so you can compare, which is the only reliable way to tell whether a stretch
+is helping or just making the noise bigger.
+
+Use the **histogram** below it to choose the points. The three rows are the
+real red, green and blue channels, so a single channel about to clip is
+visible on its own — before v1.2.3 all three rows drew the same luminance
+figure, which looked like a colour histogram but could not show that.
+
+The status line reads `Stretch: 20-180` when it is doing something,
+`Stretch: on, 0-255 (no effect)` when the window is open wide enough to
+change nothing, and `Stretch: off (L)` when disabled. The sliders cannot be
+crossed over; the window is held at least 4 levels wide.
 
 ---
 
@@ -1523,12 +1593,12 @@ different job.
 
 **Alignment and framing helpers.** No push-to assistant, no click-on-the-
 preview to recentre, and no "go to previous image" framing recall. The
-reticle and the framing shot do exist — see the **Reticle** and **Framing
-shot** sections.
+reticle (four shapes, movable, sizeable, rotatable) and the framing shot do
+exist — see the **Reticle** and **Framing shot** sections.
 
-**Display extras.** No mini-histogram display stretch and no two-monitor
-mode. Night vision and the single-channel R/G/B view do exist; night
-vision does not recolour the control panel chrome, only the preview and HUD.
+**Display extras.** No two-monitor mode. Night vision (now including the
+whole interface), the single-channel R/G/B view and the display stretch all
+exist — see [Display stretch](#display-stretch).
 
 **Analysis extras.** No sensor-analysis or smart-histogram tooling, no
 stellar photometry, no multi-session statistics dashboard, no solar/lunar
@@ -1668,6 +1738,9 @@ real site is stored. Most of it is written for you.
 | v1.2.3 | 12b | Occasional AI advice (`W`) — conditions detected in code, the model only phrases them |
 | v1.2.3 | 27 | Master dark: 32-frame average, subtracted from the preview |
 | v1.2.3 | 28 | Master flat: normalised per Bayer position so vignetting is corrected without shifting colour |
+| v1.2.3 | 37 | Display stretch (`L`), and the histogram shows the real R/G/B channels for the first time |
+| v1.2.3 | 45 | Reticle moves, sizes and rotates (Ctrl+drag, Ctrl+wheel, Shift+wheel) |
+| v1.2.3 | 26 | Night vision reddens the whole interface, not just the preview |
 
 ---
 

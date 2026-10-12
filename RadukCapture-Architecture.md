@@ -1438,15 +1438,15 @@ RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS M
 | 24 | Pixel Value Readout | 1 | Easy | ✅ v1.0.11 |
 | 49 | Help System | 1 | Medium | ✅ v1.0.x (gui/HelpWindow.h) |
 | 25 | Image Boost / Frame Stack FX | 1 | Medium | ✅ v1.0.12 |
-| 26 | Night Vision Mode | 2 | Easy | ◑ preview+HUD and persistence ship; red UI chrome not done (190 hardcoded RGB literals, not a Theme.h swap) |
+| 26 | Night Vision Mode | 2 | Easy | ✅ whole interface; measured 21%→0% blue in the panel. 48 cached D2D brushes in PreviewRenderer/SkyMapWindow still follow only from launch |
 | 38 | Single-Channel Display Mode | 2 | Easy | ✅ `H` key (PreviewRenderer ChannelMode) |
 | 40 | Notification Bar | 2 | Easy | ✅ (gui/NotificationBar.h) |
-| 45 | Multi-Reticle Overlays | 2 | Easy-Med | ◑ 4 shapes cycle on `R`; drag/resize/rotate not done |
+| 45 | Multi-Reticle Overlays | 2 | Easy-Med | ✅ 4 shapes, Ctrl+drag / Ctrl+wheel / Shift+wheel |
 | 39 | Framing Shot | 2 | Easy-Med | ✅ `Shift+S` / [FRAME] |
 | 29 | Ghosted Image Overlay | 2 | Easy | ✅ ([GH] button) |
 | 13 | Sky Survey / Pointing Model | 2 | Medium | ✅ (sky/PointingModel.h) |
 | 14 | Session Planner | 2 | Medium | ✅ (GoToPanel planner rows) |
-| 37 | Display Stretch Mini Histogram | 2 | Medium | 🔲 |
+| 37 | Display Stretch Mini Histogram | 2 | Medium | ✅ `L` + Black/White sliders; also fixed the histogram, which was luminance x3 not R/G/B |
 | 46 | Connect/Disconnect All HW | 2 | Medium | 🔲 |
 | 27 | Dark Frame Subtraction | 2 | Medium | ✅ preview only; built in-app, not loaded from PNG (a PNG is already debayered) |
 | 28 | Flat Frame Correction | 2 | Medium | ✅ preview only; normalised per Bayer position, not by a global mean |

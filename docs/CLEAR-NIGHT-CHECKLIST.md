@@ -10,7 +10,7 @@ construction.
 
 **Order matters.** Items 1–3 should be done before a serious capture,
 because each one can silently bias everything recorded afterwards.
-Items 4–8 can be checked whenever there is a spare minute.
+Items 4–9 can be checked whenever there is a spare minute.
 
 ---
 
@@ -134,7 +134,26 @@ than measured.
 | `CENTROID_MIN_PEAK = 20` | `FrameAnalyzer.h:65` | Below this a frame is treated as noise. A faint target at high altitude may sit under it and report "too faint" when it is usable. |
 | `SPEED_WINDOW_S = 2.5` | `MotionMonitor.h:50` | Speed averaging window for the motion plot. |
 
-## 7. The motion plot's camera source
+## 7. Night vision, read at the eyepiece
+
+Verified on the bench by measuring the rendered windows -- the control panel
+and status bar go to 0% blue, the toolbar to 3.5% (label anti-aliasing). What
+the bench cannot answer is whether it is **dark enough in practice**: whether
+the red is deep enough to keep dark adaptation through a session, and whether
+the accent colours converging to one red actually costs anything when reading
+the panel at night.
+
+**What to do:** work a full session with it on. If the screen still feels
+bright, the tint is a one-line change in `Theme::NV` (`src/gui/Theme.h`) --
+the green component is currently a tenth of the luminance and can go to zero,
+and the luminance itself can be scaled down.
+
+One known gap to notice rather than fix: turn night vision on **during** a
+session and a few preview overlays keep their day colours until restart. If
+that is visible and annoying, it is 48 cached D2D brushes in PreviewRenderer
+and SkyMapWindow; StatusBar already shows the fix.
+
+## 8. The motion plot's camera source
 
 **File:** `src/gui/MotionMonitor.h`
 
@@ -147,7 +166,7 @@ give the mount a single FINE nudge. The trail should move by roughly the
 commanded amount. This is the feature that exists to answer "did that
 small command do anything", so it needs to be right.
 
-## 8. Known broken, and not ours
+## 9. Known broken, and not ours
 
 **AutoStakkert will not start on this machine.** It parses every option
 correctly and then never begins processing. Proven not to be

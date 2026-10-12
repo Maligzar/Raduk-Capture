@@ -101,5 +101,5 @@ that better. See **What is not built yet** in
 
 ## License
 
-Creative Commons — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
+PolyForm Noncommercial 1.0.0 — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
 property of Suzhou ZWO Co., Ltd. under their own terms.

@@ -251,6 +251,29 @@ public:
     void RefreshFilterLabel();
 
     // ── Phases 27 & 28: calibration frames ────────────────────
+    // ── Phase 37: display stretch ─────────────────────────────
+    void SetStretchCallback(std::function<void(int,int)> cb) { m_onStretch = cb; }
+    void SetStretchLabel(const std::wstring& t) {
+        m_stretchLabel = t;
+        if (m_lblStretch) SetWindowTextW(m_lblStretch, t.c_str());
+    }
+    int  BlackPoint() const {
+        if (!m_sliderBlack) return m_uiBlack;
+        return (int)SendMessage(m_sliderBlack, TBM_GETPOS, 0, 0);
+    }
+    int  WhitePoint() const {
+        if (!m_sliderWhite) return m_uiWhite;
+        return (int)SendMessage(m_sliderWhite, TBM_GETPOS, 0, 0);
+    }
+    // Seeds the sliders, and the cache the getters fall back to while
+    // IMAGE is collapsed -- the same hole that silently disabled the
+    // quality gate in review pass 2.
+    void SetStretchPoints(int black, int white) {
+        m_uiBlack = black; m_uiWhite = white;
+        if (m_sliderBlack) SendMessage(m_sliderBlack, TBM_SETPOS, TRUE, black);
+        if (m_sliderWhite) SendMessage(m_sliderWhite, TBM_SETPOS, TRUE, white);
+    }
+
     void SetCalDarkCallback (std::function<void()> cb) { m_onCalDark  = cb; }
     void SetCalFlatCallback (std::function<void()> cb) { m_onCalFlat  = cb; }
     void SetCalClearCallback(std::function<void()> cb) { m_onCalClear = cb; }
@@ -619,6 +642,11 @@ private:
     HWND m_btnCalFlat   = nullptr;  // Phase 28
     HWND m_btnCalClear  = nullptr;
     HWND m_lblCalStatus = nullptr;
+    HWND m_sliderBlack  = nullptr;  // Phase 37
+    HWND m_sliderWhite  = nullptr;
+    HWND m_lblStretch   = nullptr;
+    int  m_uiBlack = 0, m_uiWhite = 255;
+    std::wstring m_stretchLabel = L"Stretch: off";
     std::wstring m_calStatus = L"Cal: none";
 
     // ── Mount controls ─────────────────────────────────────────
@@ -725,6 +753,9 @@ private:
         ID_BTN_CAL_FLAT,
         ID_BTN_CAL_CLEAR,
         ID_LBL_CAL_STATUS,
+        ID_SLIDER_BLACK,
+        ID_SLIDER_WHITE,
+        ID_LBL_STRETCH,
         ID_LBL_MOUNT_RA = 1400, ID_LBL_MOUNT_DEC, ID_LBL_MOUNT_TRACK,
         ID_LBL_MOUNT_AZ, ID_LBL_MOUNT_ALT, ID_LBL_MOUNT_HA,
         ID_LBL_MOUNT_CONNECTED,
@@ -796,6 +827,7 @@ private:
     std::function<void()>                   m_onFXCycle;
     std::function<void()>                   m_onNightVision;
     std::function<void()>                   m_onCalDark;
+    std::function<void(int,int)>            m_onStretch;
     std::function<void()>                   m_onCalFlat;
     std::function<void()>                   m_onCalClear;
     std::function<void()>                   m_onChannelCycle;

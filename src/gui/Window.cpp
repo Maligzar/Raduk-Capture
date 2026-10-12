@@ -326,6 +326,9 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
         case 'W':   // Watch — Phase 12b advisory loop on/off
             if (firstPress && m_onAdvisoryToggle) m_onAdvisoryToggle();
             return true;
+        case 'L':   // Levels -- Phase 37 display stretch on/off
+            if (firstPress && m_onStretchToggle) m_onStretchToggle();
+            return true;
         case 'H':
             if (firstPress && m_onChannelCycle) m_onChannelCycle();
             return true;

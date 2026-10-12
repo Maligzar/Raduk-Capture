@@ -1138,6 +1138,15 @@ bool ControlPanel::HandleScroll(WPARAM wParam, LPARAM lParam) {
         }
         return true;
     }
+    if (slider == m_sliderBlack || slider == m_sliderWhite) {
+        // Both are reported together: the stretch is one window, and
+        // SetStretch has to be able to keep them apart.
+        int b = (int)SendMessage(m_sliderBlack, TBM_GETPOS, 0, 0);
+        int wv = (int)SendMessage(m_sliderWhite, TBM_GETPOS, 0, 0);
+        m_uiBlack = b; m_uiWhite = wv;
+        if (m_onStretch) m_onStretch(b, wv);
+        return true;
+    }
     if (slider == m_sliderUSB) {
         swprintf(buf, 32, L"%d%%", pos); SetWindowTextW(m_lblUSBVal, buf);
         if (commit && m_camera) m_camera->SetUSBBandwidth(pos);
@@ -1818,9 +1827,13 @@ void ControlPanel::PaintHistogram(HDC hdc, int panX, int panY, int panW, int pan
     const int barW  = panW - padX - labW - 4 - pctW - 4;
     if (barW < 10) return;
 
-    // FrameAnalyzer provides a single luminance histogram (Bayer green channel).
-    // Display as three tinted rows — same data, FC-style R/G/B visual layout.
-    // When per-channel histograms are added to FrameAnalyzer, swap these pointers.
+    // Phase 37: the real per-channel data. All three rows used to show
+    // m_analysis.histogram -- the luminance figure, tinted three ways --
+    // under a comment saying to swap the pointers "when per-channel
+    // histograms are added to FrameAnalyzer". They were added, and
+    // nobody swapped. So this looked like an R/G/B histogram while being
+    // physically incapable of showing one channel clipping on its own,
+    // which is most of what the display is for.
     struct ChanRow {
         const char* label;
         COLORREF    color;
@@ -1828,9 +1841,9 @@ void ControlPanel::PaintHistogram(HDC hdc, int panX, int panY, int panW, int pan
         float       clip;
         float       mean;
     } rows[3] = {
-        {"R", kHistR, &m_analysis.histogram, m_analysis.clipPct, m_analysis.meanBrightness},
-        {"G", kHistG, &m_analysis.histogram, m_analysis.clipPct, m_analysis.meanBrightness},
-        {"B", kHistB, &m_analysis.histogram, m_analysis.clipPct, m_analysis.meanBrightness},
+        {"R", kHistR, &m_analysis.histR, m_analysis.clipR, m_analysis.meanR},
+        {"G", kHistG, &m_analysis.histG, m_analysis.clipG, m_analysis.meanG},
+        {"B", kHistB, &m_analysis.histB, m_analysis.clipB, m_analysis.meanB},
     };
 
     HFONT labFont = MakeFont(10, true,  "Barlow Condensed");
@@ -2240,6 +2253,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_radioFrames = m_radioTime = nullptr;
     m_editGateThreshold = m_btnGateEnable = nullptr;
     m_btnCalDark = m_btnCalFlat = m_btnCalClear = m_lblCalStatus = nullptr;
+    m_sliderBlack = m_sliderWhite = m_lblStretch = nullptr;
     m_editNotes = nullptr;
     m_btnRecord  = nullptr;
     m_lblRecStatus = m_lblRecFrames = nullptr;
@@ -2341,6 +2355,27 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
                                         ID_LBL_CAL_STATUS);
         TagControl(m_lblCalStatus, Section::Image);
         y += SH + 2;
+    }
+    // Phase 37: display stretch. Sliders rather than typed values
+    // because finding a black point is a feel-it-out operation -- you
+    // drag until the background goes black without eating the target.
+    {
+        const int LW = 42, VW = 0;
+        TagControl(MakeLabel(L"Black", x, y, LW, SH), Section::Image);
+        m_sliderBlack = MakeSlider(x+LW+2, y, w-LW-2, SL, 0, 251, 0,
+                                   ID_SLIDER_BLACK);
+        TagControl(m_sliderBlack, Section::Image);
+        y += SL + 2;
+        TagControl(MakeLabel(L"White", x, y, LW, SH), Section::Image);
+        m_sliderWhite = MakeSlider(x+LW+2, y, w-LW-2, SL, 4, 255, 255,
+                                   ID_SLIDER_WHITE);
+        TagControl(m_sliderWhite, Section::Image);
+        y += SL + 2;
+        m_lblStretch = MakeValueLabel(m_stretchLabel.c_str(), x, y, w, SH,
+                                      ID_LBL_STRETCH);
+        TagControl(m_lblStretch, Section::Image);
+        y += SH + 2;
+        (void)VW;
     }
     } // end Image
     m_btnDock = nullptr;

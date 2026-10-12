@@ -651,10 +651,32 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             bool flashOn = m_showClip && ((m_clipFlash / 8) % 2 == 0);
             ++m_clipFlash;
 
+            // Phase 37: the stretch as a 256-entry table, built once per
+            // frame instead of two multiplies and a clamp on every one of
+            // several million subpixels.
+            const bool stretchOn = StretchActive();
+            uint8_t lut[256];
+            if (stretchOn) {
+                const int lo = m_black, hi = m_white;
+                const int span = (hi > lo) ? (hi - lo) : 1;   // SetStretch
+                for (int v = 0; v < 256; v++) {               // keeps hi>lo
+                    int o = (v - lo) * 255 / span;
+                    lut[v] = (uint8_t)(o < 0 ? 0 : (o > 255 ? 255 : o));
+                }
+            }
+
             for (size_t i = 0; i < n; i++) {
                 uint8_t r = fxSrc[i*3+0];
                 uint8_t g = fxSrc[i*3+1];
                 uint8_t b = fxSrc[i*3+2];
+                // Phase 37: display stretch, FIRST. It is a transfer
+                // function on the real pixel values, so it has to run
+                // before night vision collapses them to luminance and
+                // before a single channel is picked out -- otherwise it
+                // would be stretching the output of those, not the image.
+                if (stretchOn) {
+                    r = lut[r]; g = lut[g]; b = lut[b];
+                }
                 // Phase 26: Night Vision — Rec.709 luminance → red channel only
                 if (m_nightVision) {
                     uint8_t lum = (uint8_t)(0.2126f*r + 0.7152f*g + 0.0722f*b);

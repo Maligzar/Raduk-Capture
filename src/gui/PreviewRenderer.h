@@ -108,6 +108,30 @@ public:
     // The renderer borrows the masters; it does not own them. Applied
     // to the PREVIEW only: frame->data is left untouched, so the
     // recording and the sharpness metric still see raw sensor data.
+    // ── Phase 37: display stretch ─────────────────────────────
+    // A transfer function on the DISPLAY only: out = (v-black)*255/
+    // (white-black). Nothing recorded changes. This is how you see a
+    // faint target without touching gain or exposure, which would.
+    void SetStretch(int black, int white) {
+        // Kept at least 4 apart. A zero or inverted window would divide
+        // by zero or solarise the image, and someone dragging two
+        // sliders will hit both.
+        if (black < 0)   black = 0;
+        if (white > 255) white = 255;
+        if (white < black + 4) white = black + 4;
+        if (white > 255) { white = 255; black = 251; }
+        m_black = black; m_white = white;
+    }
+    void SetStretchEnabled(bool on) { m_stretchOn = on; }
+    bool StretchEnabled() const     { return m_stretchOn; }
+    int  StretchBlack()   const     { return m_black; }
+    int  StretchWhite()   const     { return m_white; }
+    // True only when it is on AND actually changing anything, so a
+    // 0-255 window does not claim to be stretching.
+    bool StretchActive() const {
+        return m_stretchOn && (m_black > 0 || m_white < 255);
+    }
+
     void SetCalibration(const raduk::core::CalibrationFrames* c) { m_cal = c; }
     void SetCalibrationEnabled(bool on) { m_calEnabled = on; }
     bool CalibrationEnabled() const     { return m_calEnabled; }
@@ -428,6 +452,9 @@ private:
     bool                    m_nightVision   = false;
     const raduk::core::CalibrationFrames* m_cal = nullptr;
     bool                    m_calEnabled    = true;
+    bool                    m_stretchOn     = false;
+    int                     m_black         = 0;
+    int                     m_white         = 255;
     bool                    m_calApplied    = false;
     std::vector<uint8_t>    m_calBuf;
 

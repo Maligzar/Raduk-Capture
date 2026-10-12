@@ -2745,6 +2745,43 @@ static int RunApp(bool useEmulator) {
             calib.FlatMeta().averaged);
     calStatus();
 
+    // ── Phase 37: display stretch ───────────────────
+    // Black and white points on the DISPLAY. This is the control that
+    // lets a faint target be seen without touching gain or exposure,
+    // which would change what gets recorded.
+    auto stretchStatus = [&]() {
+        wchar_t b[96];
+        if (!preview.StretchEnabled())
+            swprintf(b, 96, L"Stretch: off (L)");
+        else if (!preview.StretchActive())
+            swprintf(b, 96, L"Stretch: on, 0-255 (no effect)");
+        else
+            swprintf(b, 96, L"Stretch: %d-%d", preview.StretchBlack(),
+                     preview.StretchWhite());
+        controls.SetStretchLabel(b);
+    };
+    controls.SetStretchCallback([&](int black, int white) {
+        preview.SetStretch(black, white);
+        // Moving a slider implies wanting to see the effect; requiring a
+        // separate switch-on would just look broken.
+        if (!preview.StretchEnabled() && preview.StretchActive())
+            preview.SetStretchEnabled(true);
+        // Read back: SetStretch keeps the window at least 4 wide, so the
+        // sliders must follow what it decided rather than what was asked.
+        controls.SetStretchPoints(preview.StretchBlack(),
+                                  preview.StretchWhite());
+        stretchStatus();
+    });
+    auto doStretchToggle = [&]() {
+        preview.SetStretchEnabled(!preview.StretchEnabled());
+        Log("[STRETCH] %s (%d-%d)\n",
+            preview.StretchEnabled() ? "ON" : "OFF",
+            preview.StretchBlack(), preview.StretchWhite());
+        stretchStatus();
+    };
+    window.SetStretchToggleHandler([&]() { doStretchToggle(); });
+    stretchStatus();
+
     // Phase 26: N key and panel button toggle Night Vision Mode
     auto doNightVision = [&]() {
         preview.ToggleNightVision();

@@ -1371,6 +1371,27 @@ cleanup:
 
 void PreviewRenderer::DrawReticle(float cx, float cy, float rw, float rh) {
     if (!m_reticleBrush || rw < 10 || rh < 10) return;
+
+    // Phase 45: offset and rotation. The offset is a FRACTION of the
+    // frame so it survives a window resize; rotation goes through the
+    // render target transform, which turns the shape about its own
+    // centre rather than about the frame centre.
+    cx += m_reticleDX * rw;
+    cy += m_reticleDY * rh;
+    D2D1_MATRIX_3X2_F saved = D2D1::Matrix3x2F::Identity();
+    const bool rotated = (m_reticleRot != 0.0f) && ReticleRotatable();
+    if (rotated) {
+        m_renderTarget->GetTransform(&saved);
+        m_renderTarget->SetTransform(
+            D2D1::Matrix3x2F::Rotation(m_reticleRot, D2D1::Point2F(cx, cy))
+            * saved);
+    }
+    // Put the transform back on every exit path, including the early
+    // returns inside the shape cases.
+    struct Restore {
+        ID2D1RenderTarget* rt; D2D1_MATRIX_3X2_F m; bool on;
+        ~Restore() { if (on) rt->SetTransform(m); }
+    } restore{ m_renderTarget, saved, rotated };
     const float smaller = (rw < rh) ? rw : rh;
     const float gap  = smaller * 0.018f;
     const float base = smaller * 0.5f * m_reticleScale;

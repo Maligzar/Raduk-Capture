@@ -405,22 +405,50 @@ LRESULT CALLBACK Window::PreviewProc(HWND hwnd, UINT msg,
             // Capture so a drag leaving the child still completes -- an ROI
             // box dragged past the edge would otherwise never apply.
             SetCapture(hwnd);
+            // Phase 45: Ctrl+drag moves the reticle. Plain drag stays the
+            // ROI rubber band -- taking the plain drag for the reticle
+            // would break the way a crop is selected.
+            if ((wParam & MK_CONTROL) && self->m_onReticleDrag) {
+                self->m_reticleDragging = true;
+                self->m_reticleLastX = x;
+                self->m_reticleLastY = y;
+                return 0;
+            }
             if (self->m_onPixelClick) self->m_onPixelClick(x, y);
             if (self->m_onClick) self->m_onClick(x, y);
             return 0;
 
         case WM_MOUSEMOVE:
             self->PreviewMouseCoords(lParam, x, y);
+            if (self->m_reticleDragging) {
+                // Deltas, not absolute position: the handler works in
+                // fractions of the frame and does not know where the
+                // preview sits inside the window.
+                if (self->m_onReticleDrag)
+                    self->m_onReticleDrag(x - self->m_reticleLastX,
+                                          y - self->m_reticleLastY);
+                self->m_reticleLastX = x;
+                self->m_reticleLastY = y;
+                return 0;
+            }
             if (self->m_onMouseMove) self->m_onMouseMove(x, y);
             return 0;
 
         case WM_LBUTTONUP:
             self->PreviewMouseCoords(lParam, x, y);
             ReleaseCapture();
+            if (self->m_reticleDragging) {
+                self->m_reticleDragging = false;
+                if (self->m_onReticleDragEnd) self->m_onReticleDragEnd();
+                return 0;
+            }
             if (self->m_onMouseUp) self->m_onMouseUp(x, y);
             return 0;
 
         case WM_CAPTURECHANGED:
+            // A reticle drag ends with the capture too, or the next
+            // mouse move would keep dragging it with no button down.
+            self->m_reticleDragging = false;
             // Capture stolen mid-drag (alt-tab, a popup, the system menu)
             // means WM_LBUTTONUP never arrives, leaving the renderer in
             // DragState::Dragging with a rubber band painted over the
@@ -596,7 +624,20 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
 
         case WM_MOUSEWHEEL: {
             int delta = GET_WHEEL_DELTA_WPARAM(wParam);
-            if (m_onZoomWheel) m_onZoomWheel(delta > 0 ? 1 : -1);
+            const int dir = delta > 0 ? 1 : -1;
+            // Phase 45: modifiers steer the wheel. Plain wheel stays the
+            // preview zoom, which it has always been and is used
+            // constantly -- the reticle controls take the modifiers
+            // rather than the other way round.
+            const bool ctrl  = (LOWORD(wParam) & MK_CONTROL) != 0;
+            const bool shift = (LOWORD(wParam) & MK_SHIFT)   != 0;
+            if (ctrl) {
+                if (m_onReticleSize)   m_onReticleSize(dir);
+            } else if (shift) {
+                if (m_onReticleRotate) m_onReticleRotate(dir);
+            } else if (m_onZoomWheel) {
+                m_onZoomWheel(dir);
+            }
             return 0;
         }
 

@@ -177,6 +177,49 @@ public:
     }
     // Shape size as a fraction of the shorter preview edge. The
     // crosshair spans the frame and ignores this.
+    // ── Phase 45: move, size and rotate ──────────────────────
+    // Offsets are FRACTIONS of the preview, not pixels, so the reticle
+    // stays where it was put when the window is resized or the zoom
+    // changes. Pixels would drift every time the layout moved.
+    void NudgeReticle(float dxFrac, float dyFrac) {
+        m_reticleDX += dxFrac;
+        m_reticleDY += dyFrac;
+        // Half a frame in any direction. Further and it is off screen,
+        // where it cannot be seen or dragged back.
+        auto clamp = [](float v) { return v < -0.5f ? -0.5f
+                                        : (v > 0.5f ? 0.5f : v); };
+        m_reticleDX = clamp(m_reticleDX);
+        m_reticleDY = clamp(m_reticleDY);
+    }
+    void SetReticleOffset(float dxFrac, float dyFrac) {
+        m_reticleDX = 0.0f; m_reticleDY = 0.0f;
+        NudgeReticle(dxFrac, dyFrac);
+    }
+    float ReticleDX() const { return m_reticleDX; }
+    float ReticleDY() const { return m_reticleDY; }
+
+    // Rotation only means anything for the shapes that are not radially
+    // symmetric. A rotated circle, or three concentric rings, is the
+    // same picture -- so the angle is kept but reported as inapplicable,
+    // rather than silently accepted and visibly doing nothing.
+    bool ReticleRotatable() const {
+        return m_reticleShape == ReticleShape::Box
+            || m_reticleShape == ReticleShape::Crosshair;
+    }
+    void RotateReticle(float degrees) {
+        m_reticleRot += degrees;
+        while (m_reticleRot >= 360.0f) m_reticleRot -= 360.0f;
+        while (m_reticleRot <    0.0f) m_reticleRot += 360.0f;
+    }
+    float ReticleRotation() const { return m_reticleRot; }
+
+    // Back to frame centre, original size, no rotation.
+    void ResetReticleTransform() {
+        m_reticleDX = m_reticleDY = 0.0f;
+        m_reticleRot = 0.0f;
+        m_reticleScale = 0.35f;
+    }
+
     void SetReticleScale(float f) {
         if (f < 0.05f) f = 0.05f;
         if (f > 0.95f) f = 0.95f;
@@ -404,6 +447,9 @@ private:
     bool                    m_showReticle   = false;
     ReticleShape            m_reticleShape  = ReticleShape::Crosshair;
     float                   m_reticleScale  = 0.35f;
+    float                   m_reticleDX     = 0.0f;   // fraction of width
+    float                   m_reticleDY     = 0.0f;   // fraction of height
+    float                   m_reticleRot    = 0.0f;   // degrees
     ZoomMode                m_zoom          = ZoomMode::Fit;
     DebayerMode             m_debayerMode   = DebayerMode::Color;
 

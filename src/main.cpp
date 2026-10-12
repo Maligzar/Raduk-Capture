@@ -2144,9 +2144,69 @@ static int RunApp(bool useEmulator) {
     window.SetFramingShotHandler([&]() { doFramingShot(); });
     toolbar.SetFramingShotCallback([&]() { doFramingShot(); });
 
+    // ── Phase 45: move, size and rotate the reticle ──────
+    // Modifiers rather than new keys: the plain wheel and plain drag are
+    // the preview zoom and the ROI rubber band, both used constantly.
+    // Each change reports the new state, because an overlay nudged by
+    // accident with no feedback is just a mystery.
+    auto reticleState = [&]() {
+        wchar_t b[128];
+        if (!preview.ReticleVisible()) return;
+        if (preview.ReticleRotatable())
+            swprintf(b, 128, L"%ls  %.0f%%  %.0f°",
+                     preview.ReticleLabel(),
+                     preview.ReticleScale() * 100.0f,
+                     preview.ReticleRotation());
+        else
+            swprintf(b, 128, L"%ls  %.0f%%", preview.ReticleLabel(),
+                     preview.ReticleScale() * 100.0f);
+        notifBar.NotifyInfo(b);
+        // Logged too. The notification bar is transient and cannot be
+        // read back, so without this the transform is unverifiable --
+        // the same blind spot as the advisory printf and the
+        // guide-rate warning.
+        Log("[RETICLE] %ls  scale=%.2f rot=%.0f off=(%.3f,%.3f)\n",
+            preview.ReticleLabel(), preview.ReticleScale(),
+            preview.ReticleRotation(),
+            preview.ReticleDX(), preview.ReticleDY());
+    };
+    window.SetReticleSizeHandler([&](int dir) {
+        if (!preview.ReticleVisible()) return;
+        preview.SetReticleScale(preview.ReticleScale() + dir * 0.03f);
+        reticleState();
+    });
+    window.SetReticleRotateHandler([&](int dir) {
+        if (!preview.ReticleVisible()) return;
+        if (!preview.ReticleRotatable()) {
+            // Said rather than silently ignored: a circle and three
+            // concentric rings look identical rotated, so a user turning
+            // the wheel would otherwise think rotation was broken.
+            notifBar.NotifyInfo(L"This reticle shape has no orientation "
+                                L"- try BOX or CROSS");
+            return;
+        }
+        preview.RotateReticle(dir * 5.0f);
+        reticleState();
+    });
+    window.SetReticleDragHandler([&](float dxPx, float dyPx) {
+        if (!preview.ReticleVisible()) return;
+        // Pixels to fractions of the preview. Using the preview size,
+        // not the window size, or the reticle would lag the cursor by
+        // the width of the control panel.
+        const float pw = (float)window.PreviewWidth();
+        const float ph = (float)window.PreviewHeight();
+        if (pw < 1.0f || ph < 1.0f) return;
+        preview.NudgeReticle(dxPx / pw, dyPx / ph);
+    });
+    window.SetReticleDragEndHandler([&]() { reticleState(); });
+
     auto doReticle = [&]() {
         // Phase 45: steps Off -> Crosshair -> Circle -> Rings -> Box -> Off.
         preview.ToggleReticle();
+        // Phase 45: cycling back to off also clears any drag, size and
+        // rotation. Without that a reticle nudged somewhere odd stays
+        // odd for the rest of the session, with nothing obvious to press.
+        if (!preview.ReticleVisible()) preview.ResetReticleTransform();
         toolbar.SetReticleShapeLabel(preview.ReticleLabel());
         Log("[RETICLE] %ls\n", preview.ReticleLabel());
         slog.System("Reticle: %s",

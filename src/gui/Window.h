@@ -52,6 +52,17 @@ public:
     void SetFramingShotHandler(std::function<void()> h)       { m_onFramingShot        = h; }  // Shift+S
     void SetAdvisoryToggleHandler(std::function<void()> h)    { m_onAdvisoryToggle     = h; }
     void SetStretchToggleHandler(std::function<void()> h)     { m_onStretchToggle     = h; }  // L key
+    // Phase 45: reticle transform. Ctrl+wheel sizes, Shift+wheel
+    // rotates, Ctrl+drag moves. Deltas in window pixels; the handler
+    // converts to fractions of the frame.
+    void SetReticleSizeHandler(std::function<void(int)> h)    { m_onReticleSize   = h; }
+    void SetReticleRotateHandler(std::function<void(int)> h)  { m_onReticleRotate = h; }
+    void SetReticleDragHandler(std::function<void(float,float)> h) { m_onReticleDrag = h; }
+    // Fires once when the gesture finishes. Reporting during the drag
+    // would mean a notification per mouse-move message; reporting at the
+    // end is both quieter and the only point at which the result is
+    // final enough to be worth stating.
+    void SetReticleDragEndHandler(std::function<void()> h) { m_onReticleDragEnd = h; }
     void SetHelpToggleHandler(std::function<void()> h)        { m_onHelpToggle          = h; }  // ? key
     void SetAIToggleHandler(std::function<void()> h)          { m_onAIToggle            = h; }  // / key
     void SetGhostToggleHandler(std::function<void()> h)       { m_onGhostToggle         = h; }  // O key
@@ -111,6 +122,16 @@ public:
         }
         int pw = m_clientWidth - 580;  // render target reservation
         return pw > 100 ? pw : 100;
+    }
+    // Phase 45: the reticle drag works in fractions of the preview, so
+    // it needs the preview's height as well as its width.
+    int  PreviewHeight() const {
+        if (m_renderTarget) {
+            D2D1_SIZE_U sz = m_renderTarget->GetPixelSize();
+            if (sz.height > 0) return (int)sz.height;
+        }
+        int ph = m_clientHeight - 30 - 30;   // toolbar + status bar
+        return ph > 100 ? ph : 100;
     }
     float DpiScale() const { return m_dpiScale; }
     bool IsOpen()                         const { return m_hwnd != nullptr; }
@@ -189,6 +210,12 @@ private:
     std::function<void()>               m_onFramingShot;
     std::function<void()>               m_onAdvisoryToggle;
     std::function<void()>               m_onStretchToggle;
+    std::function<void(int)>            m_onReticleSize;
+    std::function<void(int)>            m_onReticleRotate;
+    std::function<void(float,float)>    m_onReticleDrag;
+    std::function<void()>               m_onReticleDragEnd;
+    bool  m_reticleDragging = false;
+    float m_reticleLastX = 0.0f, m_reticleLastY = 0.0f;
     std::function<void()>               m_onHelpToggle;
     std::function<void()>               m_onAIToggle;
     std::function<void()>               m_onGhostToggle;

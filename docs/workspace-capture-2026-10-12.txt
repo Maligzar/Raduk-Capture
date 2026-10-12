@@ -1,0 +1,11 @@
+﻿window                   visible   rect                   on display     style
+RadukAIChat              True      (1910,2376) 500x620    \\.\DISPLAY7   CAPTION|SIZEBOX|VISIBLE
+RadukMountController     False     (1516,723) 210x326     \\.\DISPLAY1   CAPTION
+RadukObjectInfo          False     (100,100) 440x580      \\.\DISPLAY1   CAPTION
+RadukHistogram           True      (-770,1138) 433x366    \\.\DISPLAY6   CAPTION|SIZEBOX|MAXBOX|VISIBLE
+RadukSkyMap              True      (1082,1072) 1936x1048  \\.\DISPLAY8   CAPTION|SIZEBOX|MAXBOX|VISIBLE
+RadukTemperature         True      (-771,1847) 1750x210   \\.\DISPLAY6   CAPTION|SIZEBOX|MAXBOX|VISIBLE
+RadukSharpness           True      (-775,1511) 1746x286   \\.\DISPLAY6   CAPTION|SIZEBOX|MAXBOX|VISIBLE
+RadukGoToPanel           True      (2437,2283) 487x711    \\.\DISPLAY7   CAPTION|SIZEBOX|VISIBLE
+RadukCaptureWindow       True      (-8,-8) 1936x1048      \\.\DISPLAY1   CAPTION|SIZEBOX|MAXBOX|VISIBLE
+RadukHelpWindow          True      (1133,2228) 745x900    \\.\DISPLAY7   CAPTION|SIZEBOX|VISIBLE

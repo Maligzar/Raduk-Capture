@@ -9,6 +9,7 @@
 #include "Theme.h"
 #include "HistogramDraw.h"
 #include "SharpnessDraw.h"
+#include "TemperatureDraw.h"
 #include "Version.h"
 #include "core/ADCAssistant.h"
 #include "core/RigConfig.h"
@@ -879,7 +880,7 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
         DrawADCOverlay(pw, ph);
 
     // Quality bar graph — per-frame sharpness history (Phase 25a)
-    if (m_showQualityGraph && m_qualCount > 0)
+    if (m_showOverlayTelemetry && m_showQualityGraph && m_qualCount > 0)
         DrawQualityGraph(px, pw, ph);
 
     // HUD
@@ -1123,6 +1124,7 @@ void PreviewRenderer::DrawSidePanels(const raduk::core::AnalysisResult& analysis
                                      int previewX, int previewWidth,
                                      int windowHeight, int statusBarHeight) {
     if (!m_renderTarget || !m_hudFont) return;
+    if (!m_showOverlayTelemetry) return;
 
     const float px = (float)previewX;
     const float pw = (float)previewWidth;
@@ -1178,84 +1180,30 @@ void PreviewRenderer::DrawHistogramPanel(const raduk::core::AnalysisResult& a,
 void PreviewRenderer::DrawTempPanel(float x, float y, float w, float h) {
     FillPanelBg(x, y, w, h);
 
-    const float PAD  = 6.0f;
-    const float LBLH = 18.0f;
-    const float chartTop = y + PAD;
-    const float chartH   = h - LBLH - PAD * 2.0f;
-    const float chartW   = w - PAD * 2.0f;
-    if (chartH < 16.0f) return;
+    // Drawing shared with the stand-alone temperature window
+    // (TemperatureDraw.h). The 2 degree minimum span lives there, and
+    // has to behave identically in both or the two displays disagree
+    // about whether the temperature is doing anything.
+    const float PAD    = 6.0f;
+    const float LABELH = 18.0f;
 
-    m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+    temperature::Brushes br;
+    br.cam = m_greenBrush;
+    br.foc = m_amberBrush;
+    br.dim = m_dimBrush;
 
-    if (m_tempHistory.size() < 2) {
-        if (m_dimBrush)
-            m_renderTarget->DrawText(L"TEMP  collecting...", 19, m_hudFont,
-                D2D1::RectF(x + PAD, y + PAD, x + w - PAD, y + h - PAD), m_dimBrush);
-        return;
-    }
-
-    float tMin = 999.0f, tMax = -999.0f;
-    for (const TempSample& s : m_tempHistory) {
-        if (s.camC < tMin) tMin = s.camC;
-        if (s.focC < tMin) tMin = s.focC;
-        if (s.camC > tMax) tMax = s.camC;
-        if (s.focC > tMax) tMax = s.focC;
-    }
-    float tRange = tMax - tMin;
-    // Floor the range, or a still night magnifies sensor quantisation
-    // into a chart that looks like the temperature is swinging wildly.
-    if (tRange < 2.0f) { tMin -= 1.0f; tRange = 2.0f; }
-
+    // The overlay's own 120-sample history, converted for the shared
+    // painter. Small enough that copying it per frame costs nothing.
+    temperature::Sample flat[TEMP_HISTORY];
     const int n = (int)m_tempHistory.size();
-    auto tempToY = [&](float t) -> float {
-        return chartTop + chartH - 1.0f - ((t - tMin) / tRange) * (chartH - 2.0f);
-    };
-    auto idxToX = [&](int i) -> float {
-        return x + PAD + (float)i / (float)(TEMP_HISTORY - 1) * chartW;
-    };
+    for (int i = 0; i < n; i++)
+        flat[i] = { m_tempHistory[i].camC, m_tempHistory[i].focC };
 
-    struct Trace { ID2D1SolidColorBrush* brush; bool isFoc; } traces[2] = {
-        {m_greenBrush, false},
-        {m_amberBrush, true },
-    };
-    for (const Trace& tr : traces) {
-        if (!tr.brush) continue;
-        for (int i = 1; i < n; i++) {
-            const float t0 = tr.isFoc ? m_tempHistory[i-1].focC : m_tempHistory[i-1].camC;
-            const float t1 = tr.isFoc ? m_tempHistory[i].focC   : m_tempHistory[i].camC;
-            m_renderTarget->DrawLine(
-                D2D1::Point2F(idxToX(i - 1), tempToY(t0)),
-                D2D1::Point2F(idxToX(i),     tempToY(t1)), tr.brush, 1.0f);
-        }
-    }
-
-    // Label row: range on the left, current readings on the right.
-    const float labY = y + h - LBLH - 2.0f;
-    wchar_t buf[64];
-
-    if (m_dimBrush) {
-        swprintf(buf, 64, L"%.0f\xB0-%.0f\xB0", tMin, tMin + tRange);
-        m_renderTarget->DrawText(buf, (UINT32)wcslen(buf), m_hudFont,
-            D2D1::RectF(x + PAD, labY, x + PAD + 70.0f, labY + LBLH), m_dimBrush);
-    }
-    if (m_greenBrush) {
-        swprintf(buf, 64, L"CAM %.1f\xB0", m_tempCamC);
-        m_renderTarget->DrawText(buf, (UINT32)wcslen(buf), m_hudFont,
-            D2D1::RectF(x + w - PAD - 160.0f, labY, x + w - PAD - 80.0f, labY + LBLH),
-            m_greenBrush);
-    }
-    if (m_amberBrush) {
-        swprintf(buf, 64, L"FOC %.1f\xB0", m_tempFocC);
-        m_renderTarget->DrawText(buf, (UINT32)wcslen(buf), m_hudFont,
-            D2D1::RectF(x + w - PAD - 78.0f, labY, x + w - PAD, labY + LBLH),
-            m_amberBrush);
-    }
+    temperature::Draw(m_renderTarget, m_hudFont, br, flat, n, TEMP_HISTORY,
+                      m_tempCamC, m_tempFocC,
+                      x + PAD, y + PAD, w - PAD * 2.0f, h - PAD * 2.0f,
+                      LABELH, 1.0f);
 }
-
-// ── DrawPixelReadout ──────────────────────────────────────────
-// Maps current hover/locked screen position to frame pixel coords,
-// reads RGB from m_rgbBuffer, shows tooltip + crosshair.
-// Tooltip follows cursor when unlocked, stays fixed when locked.
 
 void PreviewRenderer::DrawPixelReadout(float px, float pw, float ph) {
     if (!m_renderTarget || !m_hudFont) return;

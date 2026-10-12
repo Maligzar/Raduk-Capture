@@ -64,6 +64,7 @@
 #include "gui/WorkspaceLayout.h"
 #include "gui/HistogramWindow.h"
 #include "gui/SharpnessWindow.h"
+#include "gui/TemperatureWindow.h"
 #include "gui/MountController.h"
 #include "gui/StatusBar.h"
 #include "gui/HelpWindow.h"
@@ -1360,6 +1361,12 @@ static int RunApp(bool useEmulator) {
     sharpWindow.Create(window.Handle(), 240, 240, 1100, 520);
     Log("[INIT] Sharpness window ready\n");
 
+    // Phase 42d: temperature over an hour, not the overlay's minute --
+    // long enough to see the tube cooling pull focus with it.
+    raduk::gui::TemperatureWindow tempWindow;
+    tempWindow.Create(window.Handle(), 280, 280, 1100, 420);
+    Log("[INIT] Temperature window ready\n");
+
     // ── Phase 42: place the windows ───────────────────────────
     // This has to be the point where the LAST window has been created,
     // and it has moved twice for that reason: Place() on a window that
@@ -1379,6 +1386,7 @@ static int RunApp(bool useEmulator) {
         { "aichat", aiChat.Handle()    },
         { "histogram", histWindow.Handle() },
         { "sharpness", sharpWindow.Handle() },
+        { "temperature", tempWindow.Handle() },
     };
     for (const auto& [role, hwnd] : kPlacedWindows)
         workspace.Place(role, hwnd);
@@ -2943,6 +2951,24 @@ static int RunApp(bool useEmulator) {
         raduk::gui::Theme::SetNightVision(on);
         controls.SetNightVisionActive(on);
         controls.ForceRepaint();
+        // Every OTHER window as well, which is what was missing.
+        //
+        // Theme::NV is evaluated at paint time, so these windows had the
+        // right colours available all along -- nobody ever told them to
+        // paint. The control panel got a ForceRepaint and the rest were
+        // left showing whatever they last drew, so on a multi-screen
+        // desk an entire monitor of panels stayed in day colours while
+        // the main screen went red.
+        //
+        // RDW_ALLCHILDREN matters: these panels are built from Win32
+        // child controls whose colours come from WM_CTLCOLOR*, and
+        // repainting only the parent would leave every edit box and
+        // button behind.
+        for (const auto& [role, hwnd] : kPlacedWindows)
+            if (hwnd && IsWindow(hwnd))
+                RedrawWindow(hwnd, nullptr, nullptr,
+                             RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN |
+                             RDW_UPDATENOW);
         // Persist immediately rather than at shutdown: the app can be
         // killed at the mount, and losing this setting means the next
         // launch blinds you in the dark.
@@ -2951,6 +2977,8 @@ static int RunApp(bool useEmulator) {
         rg.Save();
         Log("[NIGHT] Night Vision %s (saved)\n", on ? "ON" : "OFF");
     };
+    preview.SetShowOverlayTelemetry(raduk::core::RigConfig::Get().overlayTelemetry);
+
     // Restore it before the first frame is drawn.
     if (raduk::core::RigConfig::Get().nightVision) {
         preview.SetNightVision(true);
@@ -3028,6 +3056,15 @@ static int RunApp(bool useEmulator) {
     window.SetSkyMapToggleHandler([&]()     { skyMap.Toggle();       });
     window.SetHistogramToggleHandler([&]()  { histWindow.Toggle();   });
     window.SetSharpnessToggleHandler([&]()  { sharpWindow.Toggle();  });
+    window.SetTemperatureToggleHandler([&]() { tempWindow.Toggle(); });
+    window.SetOverlayTelemetryHandler([&]() {
+        preview.ToggleOverlayTelemetry();
+        const bool on = preview.OverlayTelemetryVisible();
+        auto& rg = raduk::core::RigConfig::Get();
+        rg.overlayTelemetry = on;
+        rg.Save();
+        Log("[OVERLAY] preview telemetry %s (saved)\n", on ? "ON" : "OFF");
+    });
     window.SetAutofocusToggleHandler([&]() {
         // A key: same as clicking the AF button — toggle start/abort
         bool start = !autofocus.IsRunning();
@@ -4053,6 +4090,7 @@ static int RunApp(bool useEmulator) {
             float camT = cam.IsOpen()     ? cam.Temperature()        : 0.0f;
             float focT = focuser.IsOpen() ? focuser.GetTemperature() : 0.0f;
             preview.PushTempSample(camT, focT);
+            tempWindow.Push(camT, focT);
 
             // ── FC-style status bars ───────────────────────────
             {

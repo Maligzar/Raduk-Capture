@@ -302,6 +302,15 @@ public:
     // ── Quality bar graph — Phase 25a ─────────────────────────
     // Rolling per-frame sharpness history drawn as a vertical bar
     // chart in the bottom-left of the preview. Toggle via Q key.
+    // The histogram, temperature and sharpness readouts drawn ON the
+    // preview. Each now also exists as a window of its own, so on a
+    // multi-screen desk they are duplicates sitting on top of the
+    // image. Off hides all three at once and leaves everything that is
+    // NOT duplicated -- reticle, ADC, caption, pixel readout, HUD line.
+    void SetShowOverlayTelemetry(bool on) { m_showOverlayTelemetry = on; }
+    bool OverlayTelemetryVisible() const  { return m_showOverlayTelemetry; }
+    void ToggleOverlayTelemetry()         { m_showOverlayTelemetry = !m_showOverlayTelemetry; }
+
     void SetShowQualityGraph(bool show) { m_showQualityGraph = show; }
     bool QualityGraphVisible()    const { return m_showQualityGraph; }
     void ToggleQualityGraph()           { m_showQualityGraph = !m_showQualityGraph; }
@@ -569,6 +578,7 @@ private:
     float                   m_qualHistory[200] = {};
     int                     m_qualHead      = 0;
     int                     m_qualCount     = 0;
+    bool                    m_showOverlayTelemetry = true;
     bool                    m_showQualityGraph = true; // on by default
 
     // Last drawn frame rect — used for hit testing frame bar clicks

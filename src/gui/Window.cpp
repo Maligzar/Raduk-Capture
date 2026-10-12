@@ -386,6 +386,11 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             else       { if (m_onFocusFine)   m_onFocusFine(10);   }
             return true;
         case 'T':
+            // Shift+T is the temperature window; plain T stays fullscreen.
+            if (shift) {
+                if (firstPress && m_onTemperatureToggle) m_onTemperatureToggle();
+                return true;
+            }
             if (firstPress && m_onTrackingToggle) m_onTrackingToggle();
             return true;
         case VK_F11:
@@ -406,9 +411,19 @@ bool Window::HandleChar(WPARAM wParam) {
     if (wParam == L'?' && m_onHelpToggle) { m_onHelpToggle(); return true; }
     // / key -- toggle AI chat panel
     if (wParam == L'/' && m_onAIToggle)   { m_onAIToggle();   return true; }
-    // O key -- toggle ghost frame overlay
-    if ((wParam == L'o' || wParam == L'O') && m_onGhostToggle) {
+    // o -- ghost frame overlay.
+    if (wParam == L'o' && m_onGhostToggle) {
         m_onGhostToggle();
+        return true;
+    }
+    // O (shift) -- hide the readouts drawn ON the preview. They are
+    // duplicates once the histogram, sharpness and temperature each
+    // have a window of their own, and on a five-screen desk a duplicate
+    // sitting on top of the image is just something covering the image.
+    // This used to be the same branch as the ghost frame, which took
+    // both cases of the letter.
+    if (wParam == L'O' && m_onOverlayTelemetry) {
+        m_onOverlayTelemetry();
         return true;
     }
     return false;

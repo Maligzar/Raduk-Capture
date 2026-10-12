@@ -190,6 +190,10 @@ struct RigConfig {
     // again every time the app was reopened -- in the dark, which is
     // exactly when a bright screen does the damage.
     bool nightVision = false;
+    // Preview overlay telemetry (histogram / temperature / sharpness
+    // drawn on the image). Remembered, because on a multi-screen desk
+    // it gets turned off once and should stay off.
+    bool overlayTelemetry = true;
 
     // Phase 12b: unprompted advice from the local LLM. Off by default --
     // it costs GPU time and not everyone wants a running commentary.
@@ -262,6 +266,7 @@ struct RigConfig {
         wf("ShowAlignHelper", showAlignHelper ? 1.0 : 0.0);
         wf("ShowReadinessCheck", showReadinessCheck ? 1.0 : 0.0);
         wf("NightVision", nightVision ? 1.0 : 0.0);
+        wf("OverlayTelemetry", overlayTelemetry ? 1.0 : 0.0);
         wf("AdvisoryEnabled",   advisoryEnabled ? 1.0 : 0.0);
         wf("AdvisoryIntervalS", (double)advisoryIntervalS);
         wf("LastRoiWidth",   (double)lastRoiWidth);
@@ -330,6 +335,7 @@ private:
         cfg.showAlignHelper       = rf("ShowAlignHelper", 1.0) != 0.0;
         cfg.showReadinessCheck    = rf("ShowReadinessCheck", 1.0) != 0.0;
         cfg.nightVision           = rf("NightVision", 0.0) != 0.0;
+        cfg.overlayTelemetry      = rf("OverlayTelemetry", 1.0) != 0.0;
         cfg.advisoryEnabled       = rf("AdvisoryEnabled", 0.0) != 0.0;
         cfg.advisoryIntervalS     = (int)rf("AdvisoryIntervalS", 180.0);
         if (cfg.advisoryIntervalS < 30 || cfg.advisoryIntervalS > 3600)

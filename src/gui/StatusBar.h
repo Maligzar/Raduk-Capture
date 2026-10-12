@@ -18,6 +18,23 @@ namespace raduk::gui {
 
 static constexpr int STATUS_BAR_HEIGHT = 32;
 
+// Font size for the bottom bar, and the factor every hardcoded field
+// width is multiplied by. The two have to move together: Space Mono is
+// monospace, so a glyph at 13px is 1.3x the width of one at 10px, and
+// raising the size alone would clip every field to its old box.
+//
+// Measured at 13px, maximised: the run ends at 1247 of the 1360 DIPs
+// the bar gets (previewW = 1920 - PANEL_WIDTH), with every field
+// present including the mount. That is the normal case and it fits.
+//
+// It does not fit at every window size, which is the point of the
+// right limit in DrawText below. Restored to 1440 wide the bar has
+// about 880 DIPs, and the run wants ~1050 with the mount connected --
+// so the field widths cannot be trusted to fit and something has to
+// give way gracefully rather than overprint.
+static constexpr float STATUS_FONT_PX = 13.0f;
+static constexpr float STATUS_W_SCALE = STATUS_FONT_PX / 10.0f;
+
 class StatusBar {
 public:
     StatusBar() = default;
@@ -62,7 +79,7 @@ public:
             L"Space Mono", nullptr,
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL,
-            10.0f, L"en-us", &m_font);
+            STATUS_FONT_PX, L"en-us", &m_font);
         if (FAILED(hr)) return false;
 
         m_font->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
@@ -148,6 +165,23 @@ public:
         float x = 8.0f;
         float h = (float)STATUS_BAR_HEIGHT;
 
+        // Reserve the right-aligned profile label's space BEFORE the
+        // left-to-right run, and stop the run there.
+        //
+        // Every field width below is a hardcoded constant scaled by the
+        // font size, so the run's total length is fixed while the space
+        // it has to fit in is not: the bar is previewW wide, which
+        // changes with the window and the control panel. At 13px the run
+        // ends about where the profile label begins, and on anything
+        // narrower than this screen it would simply draw over it --
+        // RA/DEC and the profile name interleaved into unreadable mush.
+        // Clipping to a limit degrades instead: the last field that
+        // fits gets what room is left and loses its tail, which for the
+        // mount field is well past the end of the text anyway.
+        const float profW = 100.0f * STATUS_W_SCALE;
+        m_rightLimit = m_profileName.empty() ? w - 8.0f
+                                             : w - profW - 16.0f;
+
         // ── Live indicator ─────────────────────────────────────
         auto dot = m_emulator
             ? Theme::NVf(D2D1::ColorF(1.0f, 0.667f, 0.0f))   // amber = emulator
@@ -167,75 +201,78 @@ public:
         const wchar_t* modeLabel = m_emulator ? L"EMU" : L"LIVE";
         ID2D1SolidColorBrush* modeBrush = m_emulator ? m_amberBrush : m_greenBrush;
         swprintf(buf, 8, L"%s", modeLabel);
-        DrawText(buf, x, y, 35.0f, h, modeBrush);
-        x += 38.0f;
+        DrawText(buf, x, y, 35.0f * STATUS_W_SCALE, h, modeBrush);
+        x += 38.0f  * STATUS_W_SCALE;
 
-        DrawSep(x, y, h); x += 18.0f;
+        DrawSep(x, y, h); x += 18.0f * STATUS_W_SCALE;
 
         // ── FPS ────────────────────────────────────────────────
         ID2D1SolidColorBrush* fpsBrush = (m_fps > 30) ? m_accentBrush : m_amberBrush;
         swprintf(buf, 32, L"%.1f FPS", m_fps);
-        DrawText(buf, x, y, 70.0f, h, fpsBrush);
-        x += 74.0f;
+        DrawText(buf, x, y, 70.0f * STATUS_W_SCALE, h, fpsBrush);
+        x += 74.0f  * STATUS_W_SCALE;
 
         // ── Drops ──────────────────────────────────────────────
         ID2D1SolidColorBrush* dropBrush = (m_drops == 0) ? m_dimBrush : m_amberBrush;
         swprintf(buf, 32, L"DROPS: %d", m_drops);
-        DrawText(buf, x, y, 80.0f, h, dropBrush);
-        x += 84.0f;
+        DrawText(buf, x, y, 80.0f * STATUS_W_SCALE, h, dropBrush);
+        x += 84.0f  * STATUS_W_SCALE;
 
-        DrawSep(x, y, h); x += 18.0f;
+        DrawSep(x, y, h); x += 18.0f * STATUS_W_SCALE;
 
         // ── Resolution ─────────────────────────────────────────
         const wchar_t* fmt = (m_bitDepth == 16) ? L"%dx%d RAW16" : L"%dx%d RAW8";
         swprintf(buf, 64, fmt, m_roiW, m_roiH);
-        DrawText(buf, x, y, 110.0f, h, m_textBrush);
-        x += 114.0f;
+        DrawText(buf, x, y, 110.0f * STATUS_W_SCALE, h, m_textBrush);
+        x += 114.0f * STATUS_W_SCALE;
 
         // ── Sensor temp ────────────────────────────────────────
         swprintf(buf, 32, L"%.1f\xB0""C", m_sensorTemp);
-        DrawText(buf, x, y, 55.0f, h, m_dimBrush);
-        x += 59.0f;
+        DrawText(buf, x, y, 55.0f * STATUS_W_SCALE, h, m_dimBrush);
+        x += 59.0f  * STATUS_W_SCALE;
 
-        DrawSep(x, y, h); x += 18.0f;
+        DrawSep(x, y, h); x += 18.0f * STATUS_W_SCALE;
 
         // ── EAF ────────────────────────────────────────────────
         if (m_eafPos >= 0) {
             ID2D1SolidColorBrush* eafBrush = m_eafMoving ? m_amberBrush : m_textBrush;
             swprintf(buf, 64, L"EAF: %d  %.1f\xB0""C%s",
                 m_eafPos, m_eafTemp, m_eafMoving ? L" [MOVING]" : L"");
-            DrawText(buf, x, y, 160.0f, h, eafBrush);
-            x += 164.0f;
+            DrawText(buf, x, y, 160.0f * STATUS_W_SCALE, h, eafBrush);
+            x += 164.0f * STATUS_W_SCALE;
 
-            DrawSep(x, y, h); x += 18.0f;
+            DrawSep(x, y, h); x += 18.0f * STATUS_W_SCALE;
         }
 
         // ── Mount ──────────────────────────────────────────────
         if (m_mountConn) {
             swprintf(buf, 128, L"RA: %hs  DEC: %hs  TRK: %hs",
                 m_ra.c_str(), m_dec.c_str(), m_tracking.c_str());
-            DrawText(buf, x, y, 320.0f, h, m_textBrush);
-            x += 324.0f;
+            DrawText(buf, x, y, 320.0f * STATUS_W_SCALE, h, m_textBrush);
+            x += 324.0f * STATUS_W_SCALE;
 
-            DrawSep(x, y, h); x += 18.0f;
+            DrawSep(x, y, h); x += 18.0f * STATUS_W_SCALE;
         }
 
         // ── Profile (right-aligned) ────────────────────────────
         if (!m_profileName.empty()) {
             swprintf(buf, 64, L"[%hs]", m_profileName.c_str());
-            float pw = 100.0f;
-            DrawText(buf, w - pw - 8.0f, y, pw, h, m_accentBrush);
+            m_rightLimit = w;            // this one IS the right edge
+            DrawText(buf, w - profW - 8.0f, y, profW, h, m_accentBrush);
         }
     }
 
 private:
     void DrawText(const wchar_t* text, float x, float y,
                   float w, float h, ID2D1SolidColorBrush* brush) {
+        if (x >= m_rightLimit) return;                  // no room left
+        if (x + w > m_rightLimit) w = m_rightLimit - x; // clip the tail
         D2D1_RECT_F r = D2D1::RectF(x, y, x + w, y + h);
         m_rt->DrawText(text, (UINT32)wcslen(text), m_font, r, brush);
     }
 
     void DrawSep(float x, float y, float h) {
+        if (x + 4 >= m_rightLimit) return;  // a separator with nothing after it
         m_rt->DrawLine(
             D2D1::Point2F(x + 4, y + 6),
             D2D1::Point2F(x + 4, y + h - 6),
@@ -267,6 +304,9 @@ private:
     bool        m_mountConn   = false;
     std::string m_profileName;
     bool        m_emulator    = false;
+    // Right edge the left-to-right run may not cross. Set per Draw, since
+    // it depends on the bar width and whether a profile label is shown.
+    float       m_rightLimit  = 1e9f;
 };
 
 } // namespace raduk::gui

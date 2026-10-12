@@ -458,7 +458,7 @@ boxes, the boxes silently won every time. One section, one set of values.
   set by a profile load — a time-limited profile selects **Sec** for you,
   which it previously did not, so it loaded its seconds into the box and
   still stopped on the frame count.
-- **MIN SEEING / GATE** — Quality gate: only record frames where seeing score ≥ threshold. Enable with the GATE checkbox.
+- **MIN SEEING / GATE** — Quality gate: only record frames where seeing score ≥ threshold. Enable with the GATE checkbox. The setting survives collapsing the section — until v1.2.3 it did not, and collapsing CAPTURE silently switched the gate off.
 - **▶ RECORD** — Start recording. Button turns red while recording. Press again to stop.
   - Press `P` while recording to **pause** (amber `⏸ PAUSED` state). Press `P` again to resume.
 

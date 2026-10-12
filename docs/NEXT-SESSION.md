@@ -59,26 +59,31 @@ and so does the exact command that worked earlier the same day.
 reinstall. See the Stacking section of the help file for how to tell a
 healthy run from a stuck one.
 
-## 4. Review pass 2 was cut short
+## 4. Review pass 2 — closed
 
-A 20-agent review ran on 2026-10-10; 6 agents finished and 14
-verification passes died on a usage limit. One finding was confirmed and
-fixed. **Twelve findings remain unverified** — they are suspicions, not
-defects, and should be re-verified rather than fixed on sight. Locations
-as of that run (line numbers have since moved):
+All 12 unverified findings were judged on 2026-10-11. The findings
+themselves were gone (the reviewing agents died on a usage limit and
+the transcript kept only their file:line labels), so each location was
+recovered from `bf2fee1` and reviewed fresh.
 
-`AutoStakkertRunner.h` (2 — one of these turned out to be the wchar_t
-narrowing fixed in Phase 83, found independently by the compiler),
-`ControlPanel.h` (2), `ControlPanel.cpp` (1), `main.cpp` (2),
-`QuickLookStacker.h` (1), `CaptureManager.h` (1), `CameraEmulator.h` (2),
-`MotionMonitor.h` (2).
+**5 real and fixed**, the worst being that the capture quality gate was
+off at every launch: `GateEnabled()` answered false on a null handle,
+and the checkbox only exists while CAPTURE is expanded, which stopped
+being normal in Phase 79. Also: the AutoStakkert launch path was widened
+byte-by-byte, the emulator's seeing distribution was skewed the wrong
+way, the `[SHARP]` log printed a figure `Sharpness.h` documents as
+meaningless, and MotionMonitor's crosshair comment had been false for
+two phases.
 
-A fourth review dimension is worth adding next time: **"a periodic
-update silently overwrites or invalidates something the user set."**
-Three instances of exactly that were found by hand in one day — the
-focuser GoTo field being overwritten mid-keystroke, the toolbar state
-cache discarding active markers after a resize, and the ADC figure
-silently assuming a filter band.
+**4 dismissed** with reasons recorded in the commit. **3 noted, not
+changed** — the quick-look stacker re-anchoring on a single jumped
+frame is the one most worth revisiting.
+
+The fourth review dimension is still worth adding next time: **"a value
+that lives only in its own control disappears when that control does."**
+The gate bug is the fourth instance this session, after the focuser GoTo
+field, the toolbar state cache, and the profile's capture fields. A
+collapsed section is now the default, so this will keep happening.
 
 ## 5. The planned feature roadmap
 

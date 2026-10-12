@@ -92,6 +92,8 @@ public:
     void SetFullscreenToggleHandler(std::function<void()> h) { m_onFullscreenToggle = h; }
     // Ctrl+Shift+Home — gather every window back onto the primary.
     void SetGatherWindowsHandler(std::function<void()> h) { m_onGatherWindows = h; }
+    // Ctrl+Shift+End — record where the windows are now as the layout.
+    void SetSaveLayoutHandler(std::function<void()> h) { m_onSaveLayout = h; }
     void SetJogHandler(std::function<void(int,int,bool)> h)  { m_onJog              = h; }
     void SetAutofocusToggleHandler(std::function<void()> h)  { m_onAutofocusToggle  = h; }
 
@@ -233,6 +235,7 @@ private:
     std::function<void()>               m_onTrackingToggle;
     std::function<void()>               m_onFullscreenToggle;
     std::function<void()>               m_onGatherWindows;
+    std::function<void()>               m_onSaveLayout;
     std::function<void(int,int,bool)>   m_onJog;
     std::function<void()>               m_onAutofocusToggle;
     std::function<void()>               m_onMove;

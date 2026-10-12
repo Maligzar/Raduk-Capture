@@ -314,6 +314,7 @@ fullscreen.
 | `M` | Open Map (Sky Map) |
 | `F11` *(in the Sky Map window)* | Fill the display the map is on, with no title bar. `Esc` or `F11` again to come back. See **Putting the Sky Map on its own screen**. |
 | `Ctrl+Shift+Home` | **Bring every window back to the main screen.** Works from anywhere, even with the app in the background. See **The multi-monitor workspace**. |
+| `Ctrl+Shift+End` | **Save the current arrangement** as the layout to open with. |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |
@@ -542,6 +543,42 @@ one for the main window and four to share between five panels, so two
 of them double up — help and AI chat by default, both being panels you
 read occasionally rather than watch. Change the file if you would
 rather pair a different two.
+
+### Arrange it by hand, then keep it
+
+Drag the windows wherever you want them and press **`Ctrl+Shift+End`**.
+That records exactly where everything is — to the pixel, including which
+windows are maximised — and the app opens that way from then on.
+
+This is the intended way to set the layout up. A generated default
+spreads the windows one per screen because it has nothing better to go
+on; it will never guess an arrangement you built deliberately. Saved
+entries use the `@x,y,w,h` form, which is exact screen coordinates
+rather than fractions, so what you get back is what you had.
+
+The layout in use on this rig keeps **DISPLAY1 and DISPLAY2 free** for
+telemetry windows. A copy lives in `docs/workspace-5monitor.ini`.
+
+### Why a window can be stuck
+
+A window can be on screen, fully drawn, and still impossible to move,
+because the only part you can drag is its title bar — and that can end
+up somewhere you cannot click. Two ways it happens on a multi-monitor
+desktop:
+
+- **Under a taskbar.** Monitors can each have one.
+- **In the gap between screens.** Monitors arranged at different
+  vertical offsets leave bands that belong to no display at all. On this
+  rig there is a 19-pixel band between the bottom of one row and the top
+  of the next, and the GoTo panel's title bar landed exactly in it.
+
+So placement does not ask "is this window on the desktop" — the desktop
+as Windows reports it is the *bounding box* of all the monitors, dead
+space included. It asks whether the **title bar** overlaps some
+monitor's usable area, taskbars excluded. Anything that fails is put on
+the main screen instead, and the log says so.
+
+If one gets stuck anyway, `Ctrl+Shift+Home`.
 
 ### If a window goes missing
 

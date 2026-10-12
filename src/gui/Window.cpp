@@ -24,6 +24,7 @@ static constexpr int TOOLBAR_HEIGHT_PX = 30;  // must match ToolbarStrip.h TOOLB
 // Preview area = clientW - PREVIEW_PANEL_RESERVED.
 // Id for the global rescue hotkey. Any value unique within this window.
 static constexpr int HOTKEY_GATHER_WINDOWS = 0xBEE1;
+static constexpr int HOTKEY_SAVE_LAYOUT    = 0xBEE2;
 
 static int CalcPreviewW(int clientW) {
     int previewW = clientW - PREVIEW_PANEL_RESERVED;
@@ -164,6 +165,13 @@ bool Window::Create(const wchar_t* title, int width, int height) {
     if (!RegisterHotKey(m_hwnd, HOTKEY_GATHER_WINDOWS,
                         MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_HOME)) {
         printf("[Window] Ctrl+Shift+Home not registered (taken by another app)\n");
+    }
+    // Ctrl+Shift+End saves the arrangement. Global for the same reason:
+    // it should work with any of the app's windows in front, which is
+    // exactly when you have just finished dragging one into place.
+    if (!RegisterHotKey(m_hwnd, HOTKEY_SAVE_LAYOUT,
+                        MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_END)) {
+        printf("[Window] Ctrl+Shift+End not registered (taken by another app)\n");
     }
 
     printf("[Window] Created maximized: %dx%d client\n", m_clientWidth, m_clientHeight);
@@ -740,10 +748,15 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                 m_onGatherWindows();
                 return 0;
             }
+            if (wParam == HOTKEY_SAVE_LAYOUT && m_onSaveLayout) {
+                m_onSaveLayout();
+                return 0;
+            }
             break;
 
         case WM_DESTROY:
             UnregisterHotKey(m_hwnd, HOTKEY_GATHER_WINDOWS);
+            UnregisterHotKey(m_hwnd, HOTKEY_SAVE_LAYOUT);
             PostQuitMessage(0);
             return 0;
 

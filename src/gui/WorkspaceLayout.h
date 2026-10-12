@@ -77,6 +77,12 @@ struct Placement {
     // for 1920x1080 still means something on a different size.
     float fx = 0.0f, fy = 0.0f, fw = 1.0f, fh = 1.0f;
     bool  hasFrac = false;
+    // Exact screen coordinates, written by "save current layout". The
+    // fractional form is for layouts meant to survive a change of
+    // resolution; this one is for reproducing an arrangement somebody
+    // built by hand, exactly as they built it.
+    RECT  abs     = {};
+    bool  hasAbs  = false;
 };
 
 class WorkspaceLayout {
@@ -205,8 +211,11 @@ public:
             HMONITOR on = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
             MONITORINFOEXW cur = {};
             cur.cbSize = sizeof(cur);
+            // Not when exact coordinates were asked for: "it is already
+            // on that screen" is no reason to ignore a position somebody
+            // chose deliberately and saved.
             if (GetMonitorInfoW(on, &cur) && mon->device == cur.szDevice &&
-                p.mode != PlaceMode::Maximized) {
+                p.mode != PlaceMode::Maximized && !p.hasAbs) {
                 Say(std::string("[LAYOUT] ") + role + ": already on " +
                     Narrow(mon->device) + ", left alone");
                 return;
@@ -217,7 +226,9 @@ public:
         const LONG mh = mon->work.bottom - mon->work.top;
 
         RECT target;
-        if (p.hasFrac) {
+        if (p.hasAbs) {
+            target = p.abs;
+        } else if (p.hasFrac) {
             target.left   = mon->work.left + (LONG)(p.fx * mw);
             target.top    = mon->work.top  + (LONG)(p.fy * mh);
             target.right  = target.left    + (LONG)(p.fw * mw);
@@ -243,10 +254,16 @@ public:
             target.bottom = target.top  + ch;
         }
 
-        if (!ClampToDesktop(target)) {
+        if (!CaptionReachable(target)) {
             Say(std::string("[LAYOUT] ") + role +
-                ": target is off every screen - sent to primary");
-            target = PrimaryWork();
+                ": title bar would not be grabbable there - sent to primary");
+            const RECT pw = PrimaryWork();
+            const LONG tw = target.right - target.left;
+            const LONG th = target.bottom - target.top;
+            target.left   = pw.left + 40;
+            target.top    = pw.top  + 40;
+            target.right  = target.left + (std::min)(tw, pw.right - pw.left - 80);
+            target.bottom = target.top  + (std::min)(th, pw.bottom - pw.top - 80);
         }
 
         SetWindowPos(hwnd, nullptr, target.left, target.top,
@@ -345,6 +362,51 @@ public:
         }
     }
 
+    // Replace the active profile with where the windows ARE now.
+    //
+    // The arrangement that matters is the one somebody built by dragging
+    // windows around until it felt right, and that is not something a
+    // generated default will ever guess. This records it verbatim --
+    // exact coordinates, and the maximised flag where it applies.
+    void CaptureCurrent(const std::vector<std::pair<const char*, HWND>>& windows) {
+        if (m_active < 0) m_active = MonitorCount();
+        auto& prof = m_profiles[m_active];
+        prof.clear();
+        for (const auto& [role, hwnd] : windows) {
+            if (!hwnd || !IsWindow(hwnd)) continue;
+            RECT r = {};
+            if (!GetWindowRect(hwnd, &r)) continue;
+
+            Placement p;
+            p.hasAbs = true;
+            p.abs    = r;
+            if (IsZoomed(hwnd)) p.mode = PlaceMode::Maximized;
+
+            // Name the monitor the window's CENTRE sits on, so the entry
+            // still says something useful to a reader even though the
+            // coordinates are what get used.
+            const LONG cx = (r.left + r.right) / 2;
+            const LONG cy = (r.top + r.bottom) / 2;
+            for (const auto& m : m_monitors) {
+                if (cx >= m.full.left && cx < m.full.right &&
+                    cy >= m.full.top  && cy < m.full.bottom) {
+                    p.device = m.device;
+                    break;
+                }
+            }
+            if (p.device.empty() && !m_monitors.empty())
+                p.device = m_monitors[0].device;
+
+            prof[role] = p;
+            char buf[200];
+            snprintf(buf, sizeof(buf), "[LAYOUT] captured %s on %ls at (%ld,%ld) %ldx%ld%s",
+                     role, p.device.c_str(), r.left, r.top,
+                     r.right - r.left, r.bottom - r.top,
+                     p.mode == PlaceMode::Maximized ? " maximised" : "");
+            Say(buf);
+        }
+    }
+
     // Write the active profile out so it can be hand-edited.
     bool Save(const std::string& path) const {
         FILE* f = nullptr;
@@ -354,7 +416,9 @@ public:
         fprintf(f, "# screens are attached at launch and uses the matching\n");
         fprintf(f, "# section, stepping down if there is no exact match.\n");
         fprintf(f, "#\n");
-        fprintf(f, "#   role = <device> [maximized|fullscreen] [x,y,w,h as 0-1 fractions]\n");
+        fprintf(f, "#   role = <device> [maximized|fullscreen] [placement]\n");
+        fprintf(f, "# placement is either x,y,w,h as 0-1 fractions of that\n");
+        fprintf(f, "# screen, or @x,y,w,h in exact screen coordinates.\n");
         fprintf(f, "#\n");
         fprintf(f, "# Roles: main skymap goto aichat help motion\n\n");
         for (const auto& [count, prof] : m_profiles) {
@@ -363,7 +427,10 @@ public:
                 fprintf(f, "%s = %ls", role.c_str(), p.device.c_str());
                 if (p.mode == PlaceMode::Maximized)  fprintf(f, " maximized");
                 if (p.mode == PlaceMode::Fullscreen) fprintf(f, " fullscreen");
-                if (p.hasFrac)
+                if (p.hasAbs)
+                    fprintf(f, " @%ld,%ld,%ld,%ld", p.abs.left, p.abs.top,
+                            p.abs.right - p.abs.left, p.abs.bottom - p.abs.top);
+                else if (p.hasFrac)
                     fprintf(f, " %.2f,%.2f,%.2f,%.2f", p.fx, p.fy, p.fw, p.fh);
                 fprintf(f, "\n");
             }
@@ -414,20 +481,35 @@ private:
         return r;
     }
 
-    // True if the rect has enough visible area to be usable. The bar is
-    // a titlebar's worth: anything less and the window is effectively
-    // lost even though Windows thinks it is fine.
-    static bool ClampToDesktop(RECT& r) {
-        const int vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
-        const int vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
-        const int vw = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-        const int vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-        const RECT v = { vx, vy, vx + vw, vy + vh };
-        RECT hit = {};
-        if (!IntersectRect(&hit, &r, &v)) return false;
-        const LONG visW = hit.right - hit.left;
-        const LONG visH = hit.bottom - hit.top;
-        return visW >= 120 && visH >= 40;
+    // Can the window's TITLE BAR actually be grabbed where this rect
+    // puts it?
+    //
+    // The previous test asked whether the rect overlapped the virtual
+    // desktop, and that is not the same question. The virtual desktop
+    // is the BOUNDING BOX of all the monitors, so on any irregular
+    // arrangement it contains dead space that belongs to no screen --
+    // this rig's five displays sit at x = -504, -488, 0, 1416 and 1432,
+    // with a 19-pixel band between the bottom of one row and the top of
+    // the next. It also ignores taskbars.
+    //
+    // The GoTo panel landed with its caption in exactly that band, under
+    // a taskbar. The window was on screen, drawn, and completely
+    // immovable, because the only part you can drag was behind
+    // something else. A window you cannot move is barely better than one
+    // you cannot see.
+    //
+    // So: intersect the caption strip with each monitor's WORK AREA,
+    // which excludes taskbars, and require a grabbable amount of it.
+    bool CaptionReachable(const RECT& r) const {
+        const LONG CAPTION_H = 32;   // enough of the bar to get hold of
+        RECT cap = { r.left, r.top, r.right, r.top + CAPTION_H };
+        for (const auto& m : m_monitors) {
+            RECT hit = {};
+            if (!IntersectRect(&hit, &cap, &m.work)) continue;
+            if ((hit.right - hit.left) >= 120 && (hit.bottom - hit.top) >= 20)
+                return true;
+        }
+        return false;
     }
 
     static std::string Narrow(const std::wstring& w) {
@@ -461,6 +543,14 @@ private:
         for (size_t k = 1; k < tok.size(); ++k) {
             if (tok[k] == "maximized")       p.mode = PlaceMode::Maximized;
             else if (tok[k] == "fullscreen") p.mode = PlaceMode::Fullscreen;
+            else if (tok[k].size() > 1 && tok[k][0] == '@') {
+                long x, y, w, h;
+                if (sscanf_s(tok[k].c_str() + 1, "%ld,%ld,%ld,%ld",
+                             &x, &y, &w, &h) == 4) {
+                    p.abs    = { x, y, x + w, y + h };
+                    p.hasAbs = true;
+                }
+            }
             else if (tok[k].find(',') != std::string::npos) {
                 float a, b, c, d;
                 if (sscanf_s(tok[k].c_str(), "%f,%f,%f,%f", &a, &b, &c, &d) == 4) {

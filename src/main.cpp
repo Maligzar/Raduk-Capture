@@ -1366,6 +1366,19 @@ static int RunApp(bool useEmulator) {
     if (!workspaceHadConfig && workspace.Save(kWorkspacePath))
         Log("[LAYOUT] wrote a starting %s\n", kWorkspacePath.c_str());
 
+    // Ctrl+Shift+End records the arrangement as it stands. Drag the
+    // windows where you want them, press it once, and that is what the
+    // app opens with from then on. A generated default will never guess
+    // an arrangement somebody built by hand.
+    window.SetSaveLayoutHandler([&]() {
+        workspace.CaptureCurrent(kPlacedWindows);
+        if (workspace.Save(kWorkspacePath))
+            Log("[LAYOUT] saved the current arrangement to %s\n",
+                kWorkspacePath.c_str());
+        else
+            Log("[LAYOUT] could not write %s\n", kWorkspacePath.c_str());
+    });
+
     // Ctrl+Shift+Home brings everything home. Registered globally, so it
     // still works when the window you would otherwise click is sitting
     // on a monitor that has gone away.

@@ -61,6 +61,7 @@
 #include "gui/ToolbarStrip.h"
 #include "gui/GoToPanel.h"
 #include "gui/SkyMapWindow.h"
+#include "gui/WorkspaceLayout.h"
 #include "gui/MountController.h"
 #include "gui/StatusBar.h"
 #include "gui/HelpWindow.h"
@@ -1114,6 +1115,23 @@ static int RunApp(bool useEmulator) {
     }
     skyMap.Hide(); // hidden by default — M key or [★ MAP] to show
 
+    // ── Phase 42: five-monitor workspace ──────────────────────
+    // Detect how many screens there are, pick the layout profile for
+    // that count, and open every window already on the screen it
+    // belongs on. Keyed by COUNT so the app has a sane answer for five
+    // screens, for one, and for whatever it finds in between, rather
+    // than one saved arrangement that is wrong as soon as a cable
+    // moves. Everything it does is clamped to the current desktop:
+    // a window placed where no monitor is would be invisible but
+    // focusable, which looks exactly like a broken feature.
+    raduk::gui::WorkspaceLayout workspace;
+    const std::string kWorkspacePath = "workspace.ini";
+    bool workspaceHadConfig = false;
+    workspace.SetLogCallback([](const std::string& m) { Log("%s\n", m.c_str()); });
+    workspace.Detect();
+    workspaceHadConfig = workspace.Load(kWorkspacePath);
+    workspace.SelectProfile();
+
     // Click-to-GoTo: sky map click → GoToPanel.RequestGoTo
     // This triggers profile auto-load + mount slew + all status updates
     // Same code path as clicking GOTO SELECTED in the GoTo panel
@@ -1234,6 +1252,21 @@ static int RunApp(bool useEmulator) {
     // Lets you stop the mount even when RadukCapture is not focused.
     raduk::gui::MountController mountCtrl;
     mountCtrl.SetMount(mount);
+
+    // Phase 42: every window now exists, so put each one on the screen
+    // its profile names. Deliberately after all the windows are built
+    // and before the message loop, so the app is already arranged when
+    // it first appears rather than visibly rearranging itself.
+    {
+        workspace.Place("main",   window.Handle());
+        workspace.Place("skymap", skyMap.Handle());
+        workspace.Place("goto",   gotoPanel.Handle());
+        workspace.Place("mount",  mountCtrl.Handle());
+        // Write the generated profile out on first run so it can be
+        // hand-edited rather than reverse-engineered.
+        if (!workspaceHadConfig && workspace.Save(kWorkspacePath))
+            Log("[LAYOUT] wrote a starting %s\n", kWorkspacePath.c_str());
+    }
 
     // Suspend tracker corrections around manual jogs (resume after a 500ms
     // settle). The generation counter prevents a stale resume timer from

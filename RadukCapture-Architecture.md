@@ -801,7 +801,7 @@ SharpCap's toolbar has 19 buttons. RadukCapture currently has 7. Full parity req
 | Pause capture | — | 🔲 Add to toolbar (Phase 41) |
 | Snapshot (save PNG) | — | 🔲 Phase 22 |
 | Framing Shot | — | 🔲 Phase 39 |
-| Two Monitor Mode | — | 🔲 Phase 42 (the streaming PC second monitor) |
+| Two Monitor Mode | — | 🔲 Phase 42 (five-screen workspace; SharpCap only does two) |
 | Live Stack | — | 🔲 Phase 17 |
 | Deep Sky Annotation | — | 🔲 Phase 43 |
 | Target Name | Notes field in panel | Partial |
@@ -816,7 +816,7 @@ SharpCap's toolbar has 19 buttons. RadukCapture currently has 7. Full parity req
 
 **New phases from toolbar review:**
 - **Phase 41 — Pause Capture:** Pause/resume recording without closing the SER file. Frames continue displaying live but are not written to disk. Amber PAUSED indicator on RECORD button.
-- **Phase 42 — Two Monitor Mode:** Send preview to second monitor (the streaming PC via network share or second display on the capture PC). Preview fills second screen; controls stay on primary.
+- **Phase 42 — Five-Monitor Workspace:** Assign each top-level window (preview, sky map, GoTo/planner, motion monitor, AI chat, help) to a named screen, persist the placement, and recover gracefully when the monitor set changes. The windows already exist as separate top-levels, so this is placement + persistence, not new UI. Two constraints are specific to this rig: the live preview must stay on a monitor attached to the RTX 2060 (a cross-adapter present through the P1000 costs a frame-rate ceiling), and saved coordinates must be clamped to the current virtual desktop or windows restore off-screen and invisible. Full plan: `docs/Phase42-Plan-Five-Monitor-Workspace.md`.
 - **Phase 43 — Deep Sky Image Annotation:** After plate solve, overlay catalog object names/icons on the preview for any DSO in the field. Uses existing SkyObject catalog + ASTAP solve result.
 - **Phase 44 — Frame Type Labels:** Light / Dark / Flat / Bias frame type selector. Appended to output filename. Used for session organization and dark library management.
 - **Phase 45 — Multi-Reticle Overlays:** Multiple reticle shapes — crosshair (current), circle, rings (collimation), custom — selectable from toolbar dropdown.
@@ -1455,7 +1455,7 @@ RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS M
 | 47 | Pixel Position / Click to Recentre | 2 | Medium | 🔲 |
 | 48 | Goto Previous Image | 2 | Medium | 🔲 |
 | 6.6 | GoTo Map Learning | 2 | Med-Hard | ◑ partial — auto solve+sync on lock ships; the accumulating map does not |
-| 42 | Two Monitor Mode | 2 | Hard | 🔲 |
+| 42 | Five-Monitor Workspace | 2 | Medium | 🔲 re-estimated from Hard — the five windows are already separate top-levels, so only placement + persistence is missing |
 | 16 | Polar Alignment Assistant | 2 | Hard | 🔲 |
 | 43 | Deep Sky Image Annotation | 3 | Hard | 🔲 |
 | 17 | Live Stacking Preview | 3 | Hard | ◑ superseded by the quick-look stacker (Phase 74) |

@@ -108,6 +108,9 @@ public:
         if (IsWindowVisible(m_hwnd)) Hide(); else Show();
     }}
     void ShowAtDefault() { Show(); }
+    // For WorkspaceLayout, which needs to move this onto a chosen screen.
+    HWND Handle() const { return m_hwnd; }
+
     bool IsVisible() const {
         return m_hwnd && IsWindowVisible(m_hwnd);
     }

@@ -52,6 +52,13 @@ public:
     // Further than seeing can account for: a jog, a slew, a bumped tripod
     // or a failed centroid. 64 buffer px is ~13" at the real plate scale.
     static constexpr int   MAX_SHIFT    = 64;
+    // Consecutive agreeing outliers needed before the reference moves,
+    // and how close they must be to count as agreeing (superpixels).
+    // Three at ~40 FPS is under a tenth of a second, so a genuine slew
+    // is still picked up immediately in human terms, while a lone bad
+    // centroid cannot move the reference at all.
+    static constexpr int   JUMP_CONFIRM = 3;
+    static constexpr int   JUMP_AGREE   = 8;
     // Below this the frame is noise and a centroid from it is a random
     // walk. Matches AnalysisResult::CENTROID_MIN_PEAK.
     static constexpr int   MIN_PEAK     = 20;
@@ -188,12 +195,39 @@ public:
         int dy = (int)lroundf(m_refY - ccy) & ~1;
 
         if (std::abs(dx) > MAX_SHIFT || std::abs(dy) > MAX_SHIFT) {
-            // The planet moved further than seeing explains. Re-anchor on
-            // it rather than discarding frames forever, but drop this one.
-            m_refX = ccx; m_refY = ccy;
-            v.reason = "planet jumped - re-anchoring";
+            // The planet is further from the reference than seeing
+            // explains. Re-anchoring is right when the planet really has
+            // moved -- a slew, a nudge, a recentre -- but it used to
+            // happen on the FIRST such frame, which meant one bad
+            // centroid was enough to move the reference onto a wrong
+            // position. Every good frame afterwards then measured as
+            // jumped relative to that, so the next one re-anchored too,
+            // and the stack could oscillate without admitting anything.
+            //
+            // A real move keeps the planet in its new place, so the test
+            // is whether the jump PERSISTS. Consecutive outliers that
+            // agree with each other re-anchor; a single wild centroid is
+            // discarded and the reference is left where it was.
+            const bool agrees =
+                m_jumpCount > 0 &&
+                std::abs((int)lroundf(ccx - m_jumpX)) <= JUMP_AGREE &&
+                std::abs((int)lroundf(ccy - m_jumpY)) <= JUMP_AGREE;
+            if (agrees) m_jumpCount++;
+            else      { m_jumpCount = 1; m_jumpX = ccx; m_jumpY = ccy; }
+
+            if (m_jumpCount >= JUMP_CONFIRM) {
+                m_refX = ccx; m_refY = ccy;
+                m_jumpCount = 0;
+                v.reason = "planet moved - re-anchored";
+            } else {
+                v.reason = "planet jumped - ignoring one outlier";
+            }
             return v;
         }
+        // Back inside the window, so whatever the outlier was, it was not
+        // a move. Forget it, or an old jump would combine with a later
+        // unrelated one and re-anchor on neither.
+        m_jumpCount = 0;
 
         const int n = (int)m_hist.size();
         if (n < COLD_START) {
@@ -282,6 +316,8 @@ private:
 
     std::vector<float> m_hist;
     bool  m_haveRef   = false;
+    int   m_jumpCount = 0;
+    float m_jumpX = 0.0f, m_jumpY = 0.0f;
     float m_refX      = 0.0f, m_refY = 0.0f;
     float m_lastScore = 0.0f;
     float m_threshold = 0.0f;

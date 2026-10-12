@@ -35,6 +35,7 @@
 #include "../sky/PointingModel.h"
 #include "../core/IMount.h"
 #include "../core/FrameSlot.h"
+#include "../core/SkyMath.h"
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "uxtheme.lib")
@@ -57,6 +58,12 @@ public:
 
     // Called when GoTo is issued — main.cpp uses this to auto-load
     // the matching camera profile (e.g. GoTo Jupiter → load Jupiter profile)
+    // Phase 6.6: so the pointing correction is visible. printf reaches
+    // nothing in a GUI build, which is how the guide-rate warning in
+    // CentroidTracker stayed invisible for its whole life.
+    void SetLogCallback(std::function<void(const std::string&)> cb)
+        { m_onLog = cb; }
+
     void SetProfileAutoLoadCallback(std::function<void(const std::string&)> cb)
         { m_onProfileAutoLoad = cb; }
 
@@ -1298,6 +1305,46 @@ private:
         // e.g. "Jupiter" → loads Jupiter preset (gain, exp, ROI, WB)
         // Do this BEFORE the slew so camera is ready when mount arrives
         if (m_onProfileAutoLoad) m_onProfileAutoLoad(name);
+
+        // Phase 6.6: the accumulated pointing map, REPORTED and not
+        // applied. It records every plate-solved error and can already
+        // compute a correction, and wiring that into the commanded
+        // coordinates was the obvious next step -- but it is wrong twice
+        // over, and both reasons need sky time to settle rather than a
+        // guess here:
+        //
+        //  1. SIGN. GetCorrection returns (actual - expected), i.e.
+        //     truth minus what the mount claimed. A GoTo drives until
+        //     the mount's REPORTED position equals the target, which
+        //     leaves the telescope that error away from it. The fix is
+        //     therefore to command target MINUS the error;
+        //     ApplyPointingCorrection adds it, which would double the
+        //     error rather than remove it.
+        //
+        //  2. THE DATA IS ALREADY SPENT. AutoSolveOnLock calls
+        //     SyncRADec with the solved position immediately before
+        //     recording it, so the mount's model is corrected at that
+        //     point and the error just recorded no longer exists.
+        //     Applying it later would reintroduce an error the mount
+        //     does not have.
+        //
+        // Doing this properly means either recording without syncing,
+        // so the map is the only correction, or recording post-sync
+        // residuals, which measure what the sync failed to fix. Which
+        // of those is right is a measurement, not a decision. Until
+        // then the prediction is shown so the map is at least visible,
+        // and the slew is left alone.
+        double predRA = 0.0, predDec = 0.0;
+        double tAlt = 0.0, tAz = 0.0;
+        bool corrected = false;
+        if (raduk::core::RigConfig::Get().SiteIsSet()) {
+            raduk::core::RADecToAltAzNow(ra_h, dec_deg, tAlt, tAz);
+            // Below the horizon there is nothing to correct for, and
+            // the map has no entries there anyway.
+            if (tAlt > 0.0)
+                corrected = m_pointingModel.GetCorrection(tAz, tAlt,
+                                                          predRA, predDec);
+        }
         char buf[256];
         sprintf_s(buf, "Loading %s profile → slewing to %s (%.4fh, %.4f°)...",
                   name.c_str(), name.c_str(), ra_h, dec_deg);
@@ -1315,6 +1362,19 @@ private:
         }
         m_mount->GoToRADec(ra_h, dec_deg);
         m_lastSlewing = true;
+        if (corrected) {
+            // Reported so the map is visible and can be judged against
+            // what the mount actually does, which is the evidence needed
+            // to settle the two problems above.
+            char cb[200];
+            sprintf_s(cb, "Pointing model predicts %+.1f\" RA, %+.1f\" Dec "
+                          "here (from %d nearby points) - NOT applied, see "
+                          "Phase 6.6 note",
+                      predRA  * 15.0 * 3600.0,
+                      predDec * 3600.0,
+                      m_pointingModel.NearbyCount(tAz, tAlt));
+            if (m_onLog) m_onLog(cb);
+        }
     }
 
     void DoPlateSolve() {
@@ -1781,6 +1841,7 @@ private:
     // Callbacks
     std::function<void(const std::string&)> m_onGoToComplete;
     std::function<void(const std::string&)> m_onProfileAutoLoad;
+    std::function<void(const std::string&)> m_onLog;
     std::function<bool(double,double)>  m_preSlew;   // cord-wrap guard
     std::function<void(double,double)>      m_onSync;
     std::function<void(const std::string&, float, float, float)> m_onInfo;

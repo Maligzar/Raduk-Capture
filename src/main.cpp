@@ -1167,6 +1167,10 @@ static int RunApp(bool useEmulator) {
     // they run later, by which time it holds both hooks.
     ProfileApplyHooks profileHooks;
 
+    gotoPanel.SetLogCallback([&](const std::string& m) {
+        Log("[GOTO] %s\n", m.c_str());
+        slog.Mount("%s", m.c_str());
+    });
     gotoPanel.SetProfileAutoLoadCallback([&](const std::string& targetName) {
         // Find best matching profile by name
         int bestIdx = -1;

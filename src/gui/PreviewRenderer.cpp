@@ -12,6 +12,7 @@
 #include "core/RigConfig.h"
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 #include <vector>
 #include <wincodec.h>   // WIC — PNG encoder
 #pragma comment(lib, "windowscodecs.lib")
@@ -1188,6 +1189,25 @@ void PreviewRenderer::DrawHistogramPanel(const raduk::core::AnalysisResult& a,
             for (int i = 1; i < 255; i++)
                 if ((*row.hist)[i] > peak) peak = (*row.hist)[i];
 
+            // LOG counts, not linear.
+            //
+            // A planetary frame is mostly sky, so the low bins hold
+            // several orders of magnitude more pixels than the bins the
+            // planet actually occupies. Scaled linearly against the
+            // tallest bin, everything but the sky spike works out under
+            // one pixel and is dropped -- the rows read as empty while
+            // the data is there. That was true of the control panel
+            // version too; it mattered less when the thing was collapsed
+            // by default.
+            //
+            // log(1+v)/log(1+peak) puts a single-count bin at about 6%
+            // of row height against a peak of 100k, so the shape of the
+            // distribution is visible while the sky still reads as the
+            // tallest thing. The cost is that read noise is now visible
+            // too, which is the honest picture rather than a flattering
+            // one.
+            const float logPeak = logf(1.0f + (float)peak);
+
             // Bins 0 and 1 skipped: that is dark current, not signal, and
             // on a planetary frame it is most of the pixels -- leaving it
             // in flattens everything else against the sky spike.
@@ -1195,7 +1215,7 @@ void PreviewRenderer::DrawHistogramPanel(const raduk::core::AnalysisResult& a,
             for (int i = 2; i < 256; i++) {
                 const uint32_t v = (*row.hist)[i];
                 if (!v) continue;
-                const float bh = (float)v / (float)peak * bedH;
+                const float bh = logf(1.0f + (float)v) / logPeak * bedH;
                 // Skip, do not clamp, a bin under a pixel. Clamping drew
                 // every non-zero bin as a 1px mark, which on a planetary
                 // frame is nearly all 254 of them -- a flat line across

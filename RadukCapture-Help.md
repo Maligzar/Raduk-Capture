@@ -582,13 +582,20 @@ percentage** on the right. The percentage is the number to watch: it
 turns amber past 0.1% and red past 1%. Below the rows is the **seeing
 score** out of 10.
 
-Two details worth knowing, both inherited from the panel version:
+Two details worth knowing:
 
 - Bins 0 and 1 are not drawn. On a planetary frame that is sky, and it
-  is most of the pixels — leaving it in flattens everything else.
-- Bars are scaled to the tallest bin, and a bar that works out under
-  one pixel is skipped. On a small target against a lot of sky the
-  rows will look sparse. That is the data, not a fault.
+  is most of the pixels.
+- **Counts are on a log scale.** A planetary frame holds orders of
+  magnitude more sky pixels than planet pixels, so scaled linearly
+  everything except the sky spike came out under one pixel tall and the
+  rows read as empty. The control panel version had the same problem
+  and it mattered less there, collapsed behind a header. Log scaling
+  shows the distribution; the price is that read noise is visible too.
+
+Because the three channels share a scale you can read the **colour
+balance** straight off how far each row extends to the right — on
+Jupiter, R reaches furthest and B stops soonest.
 
 **Right — temperature.** Camera and focuser temperature over the last
 120 samples, about a minute: camera in green, focuser in amber. The

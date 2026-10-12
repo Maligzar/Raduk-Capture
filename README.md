@@ -88,10 +88,11 @@ Also built: night vision, single-channel (R/G/B) view, a four-shape reticle
 (crosshair, circle, collimation rings, framing box), and a framing shot that
 boosts gain and exposure for five seconds then restores them.
 
-Not built yet, in rough priority order: calibration frames (darks, flats),
-histogram stretch, framing helpers (click-to-recentre, push-to), focus aids
-beyond autofocus (FWHM, Bahtinov), AVI/FITS output, and a polar-alignment
-assistant. Full stacking is deliberately out of scope — AutoStakkert does
+Not built yet, in rough priority order: histogram stretch, framing
+helpers (click-to-recentre, push-to), focus aids beyond autofocus (FWHM,
+Bahtinov), AVI/FITS output, and a polar-alignment assistant. Calibration
+frames exist as a preview aid only — the recording stays raw. Full
+stacking is deliberately out of scope — AutoStakkert does
 that better. See **What is not built yet** in
 [RadukCapture-Help.md](RadukCapture-Help.md) and the phase table in
 [RadukCapture-Architecture.md](RadukCapture-Architecture.md).

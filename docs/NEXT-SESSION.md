@@ -38,16 +38,17 @@ Three things specifically cannot be checked without sky or hardware:
 
 ## 2. Decisions waiting on the owner, not on code
 
-- **Should a profile own the capture format?** `TargetProfile` stores
-  `roiWidth`, `roiHeight`, `binning` and `imgType`; `ApplyProfile()`
-  applies none of them. Wiring them up would make the active profile
-  authority over resolution, and since profile 0 is Jupiter at 640×480
-  the app would stop starting at full frame — the opposite of what was
-  asked for in Phase 84. Left as a decision.
-- **Phase 35, the ADC alignment tool.** The advisor now knows the filter
-  band and reports dispersion honestly. Whether a tool to help dial a
-  corrector in is worth building depends on whether a corrector gets
-  bought.
+- **Should a profile own the capture format?** ANSWERED 2026-10-11:
+  neither. Startup simply retains the last settings (Phase 88), and a
+  profile load still applies its own format when you pick a target.
+- **Phase 35, the ADC alignment tool.** The advisor knows the filter band
+  and reports honestly. Whether a tool to help dial a corrector in is
+  worth building depends on whether a corrector gets bought.
+- **Should dark subtraction feed the sharpness metric?** Hot pixels do
+  inflate a Laplacian, so dark-subtracting before analysis would improve
+  focusing. It would also move the capture gate and the SHARP_CEIL scale
+  under a system tuned against raw frames. Worth doing deliberately, with
+  before/after numbers on a real night -- not as a side effect.
 
 ## 3. Known broken, not ours
 

@@ -1448,8 +1448,8 @@ RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS M
 | 14 | Session Planner | 2 | Medium | ✅ (GoToPanel planner rows) |
 | 37 | Display Stretch Mini Histogram | 2 | Medium | 🔲 |
 | 46 | Connect/Disconnect All HW | 2 | Medium | 🔲 |
-| 27 | Dark Frame Subtraction | 2 | Medium | 🔲 |
-| 28 | Flat Frame Correction | 2 | Medium | 🔲 |
+| 27 | Dark Frame Subtraction | 2 | Medium | ✅ preview only; built in-app, not loaded from PNG (a PNG is already debayered) |
+| 28 | Flat Frame Correction | 2 | Medium | ✅ preview only; normalised per Bayer position, not by a global mean |
 | 30 | Push-To Assistant | 2 | Medium | 🔲 |
 | 35 | ADC Alignment Tool | 2 | Medium | 🔲 |
 | 47 | Pixel Position / Click to Recentre | 2 | Medium | 🔲 |
@@ -1466,7 +1466,7 @@ RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS M
 | 36 | Sensor Analysis / Smart Histogram | 3 | Hard | 🔲 |
 | 33 | Stellar Photometry | 3 | Very Hard | 🔲 |
 | 34 | Solar/Lunar Framing | 3 | Hard | 🔲 |
-| 12b | Ollama Integration | 3 | Medium | 🔲 |
+| 12b | Ollama Integration | 3 | Medium | ✅ `W`; conditions detected in code, model only phrases them |
 | 20 | Distribution / ASCOM | 3 | Very Hard | 🔲 |
 | — | OBS Streaming | — | Hard | 🚫 Deferred |
 

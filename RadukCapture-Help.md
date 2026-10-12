@@ -241,6 +241,11 @@ steps around wherever the focuser already is. If someone is far out of focus,
 they need to get roughly sharp by hand first, or it will report `focus not
 bracketed` — which is it working correctly, not failing.
 
+**Dark and flat correction change the preview, not the recording.** If
+someone asks why their saved file looks noisier than the screen, that is why
+and it is correct. A master only applies at the resolution and bit depth it
+was taken at; the status line says so when it does not.
+
 **Check the display line before blaming the camera.** Several modes change
 only what the image *looks* like and nothing about what is captured: RAW
 debayer makes it greyscale, night vision makes it red, single-channel makes
@@ -303,6 +308,7 @@ fullscreen.
 | `H` | Cycle Channel Mode (All → Red → Green → Blue → All) |
 | `M` | Open Map (Sky Map) |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
+| `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `P` | Pause / Resume recording |
 | `Q` | Toggle Quality Bar Graph |
 | `R` | Reticle: off → crosshair → circle → rings → box → off |
@@ -383,6 +389,7 @@ are dropping.
 All sections are collapsible — click the section header to expand/collapse.
 
 ### IMAGE
+- **DARK / FLAT / CLEAR** — Build or clear calibration masters. See [Dark and flat frames](#dark-and-flat-frames).
 - **ZOOM: FIT / FULLSCR** — Switch between fit-to-window and fullscreen preview.
 - **RGB ALIGN** — Toggle atmospheric dispersion correction on the display. Auto-computes pixel shift from mount altitude using the Edlen refractivity model. Blue channel shifts UP, red shifts DOWN by half. Display only — SER data is unaffected.
 - **Manual slider** — Fine-tune the RGB align offset ±20px on top of the auto value. Center position = 0px offset.
@@ -815,6 +822,30 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 
 ---
 
+## What is remembered between sessions
+
+The app reopens where you left it. `rig.ini` keeps the live camera state and
+capture format — gain, exposure, gamma, white balance, USB bandwidth,
+resolution and bit depth — written whenever the format changes and on a
+clean exit, and restored at launch.
+
+Before v1.2.3 startup wrote fixed values over whatever the rig had been
+doing (gain 100, 8 ms, full frame, 8-bit), so a night of tuning survived
+only if it had been saved into a profile first, and the capture format did
+not survive at all.
+
+A first run still comes up at full frame, 8-bit. Values that cannot be used
+are ignored individually rather than discarding the whole session, so one
+bad number does not reset everything.
+
+**This is not the same as a profile.** The session is simply where you left
+off; a profile is a named set of settings for a target that you choose to
+load. See [Profiles](#profiles).
+
+Also remembered: night vision, and whether AI advice is on.
+
+---
+
 ## Profiles
 
 A profile is everything the rig should be for one target: gain, exposure,
@@ -874,6 +905,89 @@ at 640x480 for the frame rate, load it, press `640`, press `SAVE`.
 `+` / `-` move the focuser by the profile's **fine** step and `[` / `]` by
 its **coarse** step (10 and 100 by default). Change them in the profile
 editor for a target that wants finer control.
+
+---
+
+## Advice from the AI (`W`)
+
+Separate from the chat panel, which answers when you ask. This one watches
+and occasionally remarks — at most once every three minutes, never while
+recording, and only when something has actually changed. **Off by default**;
+`W` turns it on and it is remembered.
+
+**The software decides what is worth saying, not the model.** It checks for
+specific conditions — target below 30 degrees, frames dropping, mount not
+tracking, sensor cropped small — and the model is only asked to put one of
+them into a sentence. That restriction exists because the first version let
+the model judge, and it confidently advised *"lowering gain for improved
+dispersion visibility"*, which is nonsense. Advice that sounds like
+expertise and is wrong is worse than no advice, so the model is no longer
+allowed to invent a reason it was not handed.
+
+It never operates anything. It produces a sentence in the notification bar
+and nothing else — it has no connection to the camera, mount or focuser at
+all.
+
+If nothing is wrong, it says nothing and costs nothing: with no condition
+found, the model is not called.
+
+Needs Ollama running locally. If it is not, turning advice on says so.
+
+---
+
+## Dark and flat frames
+
+Two corrections, both applied to **what you see** and not to what gets
+recorded.
+
+A **dark** records what the sensor reports with no light reaching it: thermal
+signal, and hot pixels that sit at the same bright spot every frame. Subtract
+it and the clutter goes, which matters most while focusing — a field of hot
+pixels looks like detail.
+
+A **flat** records how unevenly the optics deliver light: vignetting, and the
+shadows of dust on the sensor window. Divide by it and the field evens out.
+
+### Making them
+
+Press **DARK** in the IMAGE section, **cover the telescope completely**, and
+leave it. It averages 32 frames and saves the result. Press **FLAT** pointing
+at something evenly lit — a white screen, or twilight sky through the scope
+— again 32 frames. **CLEAR** deletes both.
+
+It averages rather than taking one frame on purpose: a single dark carries
+its own random noise into every frame you subtract it from, which can leave
+you worse off than before.
+
+Masters are saved next to your captures, so they are still there next launch.
+
+### When a master stops being valid
+
+A dark is only correct for the gain, exposure and temperature it was taken
+at, because that is what determines the thermal signal. The status line says
+which state it is in:
+
+| Status | Meaning |
+|--------|---------|
+| `Cal: none` | Nothing built. |
+| `Cal: dark ON` | Being applied, and nothing looks wrong. |
+| `Cal: dark ON(taken at a different gain)` | **Still being applied**, but it will be imperfect. Rebuild it. |
+| `Cal: dark off(wrong resolution)` | Loaded and **not** applied — you changed resolution since. Rebuild it. |
+
+Resolution and bit depth are hard requirements: a master of the wrong shape
+cannot be subtracted at all, so it is refused rather than misapplied. Gain
+and exposure are warnings, because an imperfect dark usually still beats
+none.
+
+### What they do not touch
+
+The recorded SER keeps the raw sensor data, and so does the sharpness
+reading. That is deliberate: your stacker does this better with the whole
+frame set, raw data stays useful if a master turns out to be wrong, and the
+sharpness scale was calibrated against raw frames.
+
+So for a real session, these are a **focusing and framing aid**. Take darks
+and flats with your stacker for the final image.
 
 ---
 
@@ -1392,9 +1506,10 @@ Listed so nobody goes looking for it, and so the assistant does not promise
 it. These are planned, not missing by accident — see
 `RadukCapture-Architecture.md` for the full roadmap.
 
-**Calibration frames.** No dark-frame subtraction and no flat-field
-correction. Take darks at the same gain and temperature and apply them in
-your stacker afterwards.
+**Calibration frames are a preview aid only.** Dark and flat correction
+exist and are applied to what you see, but the recorded SER stays raw — see
+[Dark and flat frames](#dark-and-flat-frames). For the final image, take
+darks and flats in your stacker.
 
 **Output formats.** SER only, plus PNG snapshots. No AVI, and no FITS — the
 plate solver reads FITS but nothing here writes it.
@@ -1448,6 +1563,11 @@ real site is stored. Most of it is written for you.
 | `ShowAlignHelper` | `0` suppresses the align helper. |
 | `ShowReadinessCheck` | `0` suppresses the readiness dialog (the log line remains). |
 | `FilterName` | Filter fitted to the camera. One of the presets, or your own label. |
+| `NightVision` | `1` restores night vision at launch. |
+| `AdvisoryEnabled` | `1` turns on occasional AI advice (`W`). |
+| `AdvisoryIntervalS` | Seconds between advice checks; 30-3600, default 180. |
+| `LastRoiWidth` / `LastRoiHeight` / `LastBitDepth` | Capture format to restore at launch. See **What is remembered between sessions**. |
+| `LastGain` / `LastExposureMs` / `LastGamma` / `LastWbRed` / `LastWbBlue` / `LastUsb` | Camera state to restore. Each is ignored individually if out of range. |
 | `FilterLowNm` / `FilterHighNm` | Band edges in nanometres; these are what the ADC model actually uses. Edit them for a filter that is not a preset — the SETUP picker will then show blank rather than overwrite them. Both are reset to the UV/IR cut default if either falls outside 300–1200nm, or the band is narrower than 10nm, because a nonsense band would push the Edlen model outside its domain and return an authoritative-looking meaningless figure. |
 
 ---
@@ -1544,6 +1664,10 @@ real site is stored. Most of it is written for you.
 | v1.2.3 | 45 | Multi-reticle: crosshair / circle / rings / box, cycled by one control |
 | v1.2.3 | 39 | Framing shot — `Shift+S` boosts gain and exposure for 5s, then restores |
 | v1.2.3 | 87 | The assistant is told which display modes are altering the image, so "why does it look wrong" starts in the right place |
+| v1.2.3 | 88 | Startup restores the last camera state and capture format instead of overwriting them |
+| v1.2.3 | 12b | Occasional AI advice (`W`) — conditions detected in code, the model only phrases them |
+| v1.2.3 | 27 | Master dark: 32-frame average, subtracted from the preview |
+| v1.2.3 | 28 | Master flat: normalised per Bayer position so vignetting is corrected without shifting colour |
 
 ---
 

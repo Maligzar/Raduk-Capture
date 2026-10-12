@@ -132,6 +132,18 @@ void FrameAnalyzer::Run() {
             r.clipG = (float)r.histG[255] / cntG * 100.0f;
             r.clipB = (float)r.histB[255] / cntB * 100.0f;
             r.clipPct = (r.clipR + r.clipG + r.clipB) / 3.0f;
+
+            // Highlight percentile, walked down from white. Counting
+            // down rather than up means the answer is reached after a
+            // handful of bins on a dark frame instead of 250.
+            const uint32_t want = (uint32_t)((1.0f - AnalysisResult::HIGHLIGHT_PCTILE)
+                                             * (float)countL);
+            uint32_t seen = 0;
+            r.highlightDN = 0.0f;
+            for (int i = 255; i >= 0; i--) {
+                seen += r.histogram[i];
+                if (seen > want) { r.highlightDN = (float)i; break; }
+            }
         }
 
         // ── Sharpness: Laplacian variance on a 256x256 crop ──

@@ -33,6 +33,7 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <functional>
 #include <algorithm>
 #include "profiles/TargetProfile.h"   // for GAIN_HCG_THRESHOLD
 
@@ -50,9 +51,24 @@ class AutoExposureAssistant {
 public:
     // ── Configuration ─────────────────────────────────────────
     struct Config {
-        // Target peak brightness range (0-255 DN)
-        float targetLo  = 127.0f;  // 50% of 255
-        float targetHi  = 178.0f;  // 70% of 255
+        // Target HIGHLIGHT range (0-255 DN) -- the brightness of the
+        // brightest real thing in the frame, i.e. the planet.
+        //
+        // These numbers used to be applied to the frame MEAN, which the
+        // comment above them already called "peak". On a planetary
+        // frame the two are nothing alike: the frame is mostly black
+        // sky, so its mean sits in the low tens of DN however the
+        // planet is exposed. Driving that mean to 152 is impossible --
+        // the controller pushed exposure and gain to their ceilings,
+        // the planet clipped, the clip emergency cut 30% off, the mean
+        // fell again, and it went round. That is the "cycles but never
+        // settles" behaviour, and it was arithmetic, not tuning.
+        //
+        // 185-215 DN leaves the planet bright but off the ceiling, with
+        // headroom for seeing to brighten a moment of good luck without
+        // clipping it. UNVERIFIED ON SKY -- see the clear-night list.
+        float targetLo  = 185.0f;  // 73% of 255
+        float targetHi  = 215.0f;  // 84% of 255
 
         // Clip threshold — emergency cut if any channel clips this %
         float clipEmergency = 1.5f;  // > 1.5% clipping = cut exposure
@@ -79,22 +95,32 @@ public:
 
     AutoExposureAssistant() = default;
 
+    // Every diagnostic in here was a printf, and this is a GUI-subsystem
+    // build where printf reaches nothing at all. So the one running
+    // commentary that explains why auto-exposure is doing what it is
+    // doing has been invisible for its whole life -- including while it
+    // was oscillating. Route it at the log instead.
+    void SetLogCallback(std::function<void(const std::string&)> cb) {
+        m_log = std::move(cb);
+    }
+
     void SetConfig(const Config& c) { m_cfg = c; }
 
     // ── Mode control ──────────────────────────────────────────
     void SetAuto(bool enabled) {
         m_autoMode = enabled;
         m_settling = 0;
-        if (enabled) printf("[AE] Auto mode ON\n");
-        else         printf("[AE] Advisory mode\n");
+        if (enabled) Say("[AE] Auto mode ON");
+        else         Say("[AE] Advisory mode");
     }
     bool IsAuto()     const { return m_autoMode; }
     bool IsEnabled()  const { return m_enabled; }
     void SetEnabled(bool e) { m_enabled = e; if (!e) m_autoMode = false; }
 
     // ── Data feed (call every analysis update, ~2Hz) ──────────
-    void Feed(float meanBrightness, float clipPct,
+    void Feed(float highlightDN, float meanBrightness, float clipPct,
               long currentGain, double currentExpMs) {
+        m_highlightDN     = highlightDN;
         m_meanBrightness  = meanBrightness;
         m_clipPct         = clipPct;
         m_currentGain     = (int)currentGain;
@@ -149,22 +175,22 @@ public:
             s.text = buf;
             m_settling = m_cfg.settleFrames;
             m_lastSuggestion = s;
-            printf("[AE] %s\n", s.text.c_str());
+            Say(s.text);
             return s;
         }
 
         // ── I-controller on mean brightness ───────────────────
         // Error: how far are we from the center of target range?
-        float target = (m_cfg.targetLo + m_cfg.targetHi) / 2.0f;  // ~152
-        float error  = target - m_meanBrightness;  // positive = too dark
+        float target = (m_cfg.targetLo + m_cfg.targetHi) / 2.0f;  // ~200
+        float error  = target - m_highlightDN;  // positive = too dark
         float deadband = (m_cfg.targetHi - m_cfg.targetLo) / 2.0f; // ±25.5
 
         if (fabsf(error) <= deadband) {
             // In target range — no action
             char buf[64];
             snprintf(buf, sizeof(buf),
-                     "AE: OK  %.0f DN  [%.0f-%.0f]",
-                     m_meanBrightness, m_cfg.targetLo, m_cfg.targetHi);
+                     "AE: OK  hi %.0f DN  [%.0f-%.0f]",
+                     m_highlightDN, m_cfg.targetLo, m_cfg.targetHi);
             s.text = buf;
             m_lastSuggestion = s;
             return s;
@@ -186,8 +212,8 @@ public:
             const char* dir = (newExp > m_currentExpMs) ? "+" : "";
             char buf[80];
             snprintf(buf, sizeof(buf),
-                     "AE: %s%.2fms  (%.0f DN)",
-                     dir, newExp - m_currentExpMs, m_meanBrightness);
+                     "AE: %s%.2fms  (hi %.0f DN)",
+                     dir, newExp - m_currentExpMs, m_highlightDN);
             // Prepend arrow for clarity
             std::string arrow = (newExp > m_currentExpMs) ? "AE: Exp +" : "AE: Exp ";
             char full[80];
@@ -198,7 +224,7 @@ public:
             s.text = full;
             m_settling = m_cfg.settleFrames;
             m_lastSuggestion = s;
-            printf("[AE] %s\n", s.text.c_str());
+            Say(s.text);
             return s;
         }
 
@@ -228,7 +254,7 @@ public:
                 s.text = buf;
                 m_settling = m_cfg.settleFrames;
                 m_lastSuggestion = s;
-                printf("[AE] %s\n", s.text.c_str());
+                Say(s.text);
                 return s;
             }
         }
@@ -266,7 +292,11 @@ private:
     bool    m_hasData    = false;
     int     m_settling   = 0;
 
+    std::function<void(const std::string&)> m_log;
+    void Say(const std::string& s) const { if (m_log) m_log(s); }
+
     float   m_meanBrightness = 0.0f;
+    float   m_highlightDN    = 0.0f;
     float   m_clipPct        = 0.0f;
     int     m_currentGain    = 200;
     double  m_currentExpMs   = 8.0;

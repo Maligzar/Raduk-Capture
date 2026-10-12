@@ -2410,6 +2410,10 @@ static int RunApp(bool useEmulator) {
 
     // ── Phase 12: Auto-Exposure Assistant ─────────────────────
     raduk::core::AutoExposureAssistant ae;
+    // Its running commentary was printf, which a GUI build throws away.
+    // Needed on the night: AE deciding something odd is only debuggable
+    // if it says what it decided and what it saw.
+    ae.SetLogCallback([](const std::string& m) { Log("%s\n", m.c_str()); });
     {
         raduk::core::AutoExposureAssistant::Config aeCfg;
         // ASI678MC HCG floor — never go below 182 in auto mode
@@ -3778,7 +3782,8 @@ static int RunApp(bool useEmulator) {
                 long curExpUs = cam.GetControl(ASI_EXPOSURE);
                 double curExpMs = curExpUs / 1000.0;
 
-                ae.Feed(lastAnalysis.meanBrightness,
+                ae.Feed(lastAnalysis.highlightDN,
+                        lastAnalysis.meanBrightness,
                         lastAnalysis.clipPct,
                         curGain, curExpMs);
                 auto sug = ae.Tick();

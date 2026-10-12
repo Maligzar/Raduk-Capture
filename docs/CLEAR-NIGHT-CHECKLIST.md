@@ -203,6 +203,53 @@ and so does the exact command that worked earlier the same day.
 Next steps are reboot, then reinstall. Not a night-sky item, but it
 blocks the stacking handoff whenever it is next wanted.
 
+## 10. Auto-exposure — restructured on the bench, unproven anywhere
+
+**Files:** `src/core/AutoExposureAssistant.h`, `src/core/FrameAnalyzer.cpp`
+
+Reported from a live session on 2026-10-12: AE cycles through settings
+and never settles. The session log showed why, and it was arithmetic
+rather than tuning:
+
+```
+AE: ↑ Exp 8 → 11 → 15 → 21 → 29 → 40.00ms      exposure to its ceiling
+AE: ↑ Gain 100 → 182 → 248 → 338 → 461 → 570   then gain to maximum
+AE: ↓ Exp 40 → 36 → 32 → 29 → 26.00ms          then unwinding again
+```
+
+AE drove the **frame mean** to 127-178 DN. A planet is a small bright
+disc on black sky, so the frame mean sits in the low tens however the
+planet is exposed — the target was unreachable, so the controller went
+to both ceilings, clipped, got cut back by the clip emergency, and went
+round again.
+
+It now drives `highlightDN`, the 99.9th percentile of luminance — the
+brightness of the brightest real thing in the frame — toward 185-215 DN.
+
+**None of these numbers has met a real sensor, and the restructured loop
+has not yet been watched through to a settle even on the bench.** What
+needs checking, in order:
+
+1. **Does it settle at all?** Turn AE to AUTO on a real planet and watch
+   `[AE]` in the log. It should converge within a few ticks and then sit
+   on `AE: OK hi NNN DN`. If it walks to a ceiling again, the target is
+   still unreachable for that target's size.
+2. **Is 185-215 DN right?** Too high and seeing will clip the planet on
+   good moments; too low and you are throwing away dynamic range. Judge
+   it by the histogram panel: R, G and B should all stop short of the
+   right edge with the clip percentages reading 0.0%.
+3. **Is the 99.9th percentile the right one?** It assumes the planet is
+   at least 0.1% of the frame — about 1200 superpixels, so a disc 40px
+   across. True for Jupiter and Saturn at this focal length, marginal
+   for Mars away from opposition, wrong for Uranus. If AE behaves oddly
+   on a small target, this is the first thing to suspect.
+   `AnalysisResult::HIGHLIGHT_PCTILE` is the one constant to change.
+
+AE's commentary now reaches `raduk_log.txt`. Every one of its
+diagnostics used to be a `printf`, which a GUI-subsystem build discards
+— so the running explanation of what AE was doing had been invisible for
+its whole life, including while it was oscillating in the log above.
+
 ---
 
 ## Data, not code: five saved profiles hold the wrong resolution

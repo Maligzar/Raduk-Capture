@@ -48,6 +48,19 @@ struct AnalysisResult {
     float meanR = 0.0f, meanG = 0.0f, meanB = 0.0f;
     float meanBrightness = 0.0f;
 
+    // Luminance below which HIGHLIGHT_PCTILE of superpixels fall: the
+    // brightness of the brightest real thing in the frame, which on a
+    // planetary target is the planet.
+    //
+    // The frame mean cannot answer that question. A planet is a small
+    // bright disc on black sky, so the mean is dominated by sky and
+    // barely moves however the planet is exposed -- which is why
+    // auto-exposure, which used to drive the mean to 50-70%, could not
+    // settle: the only way to lift a mostly-black frame's mean to 152 DN
+    // is to blow the planet out entirely.
+    static constexpr float HIGHLIGHT_PCTILE = 0.999f;
+    float highlightDN = 0.0f;
+
     // ── Sharpness / seeing ─────────────────────────────────────
     float sharpnessPct = 0.0f;   // Laplacian variance 0-100%
     float sharpRaw     = 0.0f;   // diagnostic: variance before noise subtraction

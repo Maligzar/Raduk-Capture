@@ -1566,8 +1566,19 @@ HWND ControlPanel::MakeSlider(int x, int y, int w, int h,
         WS_CHILD | WS_VISIBLE | TBS_HORZ | TBS_NOTICKS,
         x, y, w, h, m_panelHwnd,
         (HMENU)(INT_PTR)id, GetModuleHandle(nullptr), nullptr);
-    SendMessage(s, TBM_SETRANGE, TRUE, MAKELPARAM(lo, hi));
-    SendMessage(s, TBM_SETPOS,   TRUE, val);
+    // TBM_SETRANGE packs both bounds into MAKELPARAM, which is two
+    // SIGNED 16-BIT halves. The exposure slider asks for 1..60000 us,
+    // and 60000 does not fit: it came back as 60000 - 65536 = -5536, so
+    // the control had a maximum BELOW its minimum and pinned itself at
+    // 1 us. The slider could not be dragged at all, and auto-exposure
+    // writing to it through UpdateSlider was silently ignored too.
+    //
+    // TBM_SETRANGEMIN/MAX take the value as a full 32-bit lParam, so
+    // they have no such ceiling. Every other slider here is under 32767
+    // and was never affected, which is why this survived.
+    SendMessage(s, TBM_SETRANGEMIN, FALSE, (LPARAM)lo);
+    SendMessage(s, TBM_SETRANGEMAX, TRUE,  (LPARAM)hi);
+    SendMessage(s, TBM_SETPOS,      TRUE,  (LPARAM)val);
     // Strip UxTheme so WM_CTLCOLORSCROLLBAR takes effect for Elite Raduk colors
     SetWindowTheme(s, L"", L"");
     return s;

@@ -284,14 +284,16 @@ fullscreen.
 | `A` | Toggle Autofocus (start / abort) |
 | `B` | Cycle Display FX (Normal → Boost ×2 → Boost ×4 → Stack 3/5/10) |
 | `C` | Toggle Clipping Warning Overlay |
-| `F` | Toggle Fullscreen |
+| `F` / `Shift+F` | Focus step: fine / coarse (uses the profile's step sizes) |
+| `Shift+S` | Framing shot — boost gain and exposure for 5s, then restore |
+| `F11` | Toggle fullscreen |
 | `G` | Open GoTo panel |
 | `H` | Cycle Channel Mode (All → Red → Green → Blue → All) |
 | `M` | Open Map (Sky Map) |
-| `N` | Toggle Night Vision Mode |
+| `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `P` | Pause / Resume recording |
 | `Q` | Toggle Quality Bar Graph |
-| `R` | Toggle Reticle |
+| `R` | Reticle: off → crosshair → circle → rings → box → off |
 | `S` | Save Snapshot (PNG) |
 | `V` | Toggle RGB Align |
 | `X` | Toggle Pixel Value Readout |
@@ -533,8 +535,25 @@ is off, and is exactly what tracking exists to cancel.
 
 ## Preview Overlays
 
-### Reticle (`R` key)
-Crosshair overlay centered on the image. Adjustable size. Use for centering targets before tracking.
+### Reticle (`R` key, or the `[+]` toolbar button)
+
+One control, four shapes. Each press steps to the next and the fifth
+turns it off, so a single press still just switches the reticle on:
+
+**off → crosshair → circle → rings → box → off**
+
+| Shape | Use |
+|-------|-----|
+| **Crosshair** | Centring a target before tracking. Spans the frame with a gap at the middle, so the target itself is never covered. |
+| **Circle** | A single ring, for judging whether a disc sits centred. |
+| **Rings** | Three concentric rings for **collimation** — defocus a star until it shows as a donut and check the donut is centred in these. |
+| **Box** | Corner brackets framing a region, for deciding on a crop before committing to one. Brackets rather than a full rectangle so the edge does not hide the detail just inside it. |
+
+All four keep a centre dot — the only part that marks an exact pixel, and
+what you nudge the planet onto. The toolbar button names the live shape.
+
+Dragging, resizing and rotating the reticle are **not** implemented; it is
+centred on the frame.
 
 ### Clipping Warning (`C` key)
 Any pixel where R, G, or B = 255 flashes red at ~2.5Hz. The `CLIP X.X%` label appears top-right in the HUD. Useful for dialing in exposure without clipping planetary detail.
@@ -700,6 +719,45 @@ compare.**
 `prefix _ timestamp _ frametype _ WxH _ bitdepth _ runnumber .ser`
 
 A `_quality.txt` file is written alongside each SER with per-frame sharpness scores, mean, and peak.
+
+---
+
+## Night vision (`N`)
+
+Turns the **preview and HUD** deep red: the image is reduced to luminance and
+pushed into the red channel, which keeps detail visible while giving your eyes
+far less to re-adapt from. **Remembered between sessions**, so if you finish a
+night with it on, the next launch comes up red rather than blinding you.
+
+The **control panel chrome stays its normal colours.** The spec asked for the
+whole UI to go red and that is not built — the panel's colours are set in
+place rather than drawn from the theme, so it is a much larger job than it
+sounds. The preview is the large bright area, so the part that matters is
+covered.
+
+Pair it with the `[FX]` brightness modes rather than raising gain if the
+screen is still too bright.
+
+---
+
+## Framing shot (`Shift+S`, or the `[FRAME]` button)
+
+A faint target is invisible at planetary settings, so checking whether it is
+even in the frame used to mean winding gain and exposure up by hand and
+remembering what they were.
+
+One press saves your gain and exposure, goes to **gain 570 and a 2-second
+exposure** for **five seconds**, then puts both back exactly as they were. The
+preview is live throughout — nothing is captured to disk and the recording
+settings are untouched.
+
+**It refuses while recording**, and says so. Boosting gain mid-file would
+bury unusable frames in the middle of a capture, and you would not find out
+until you came to stack it.
+
+The restore is automatic, so there is nothing to undo if you walk away. It is
+`Shift+S` rather than `F` — a framing shot is a boosted snapshot, and `F` has
+stepped the focuser since long before this existed.
 
 ---
 
@@ -1316,11 +1374,13 @@ helper covers mount orientation and the keep-out sector, which is a
 different job.
 
 **Alignment and framing helpers.** No push-to assistant, no click-on-the-
-preview to recentre, no multi-reticle overlays, no framing-shot button, and
-no "go to previous image" framing recall.
+preview to recentre, and no "go to previous image" framing recall. The
+reticle and the framing shot do exist — see the **Reticle** and **Framing
+shot** sections.
 
-**Display extras.** No single-channel (R/G/B only) view, no mini-histogram
-display stretch, no night-vision colour scheme, no two-monitor mode.
+**Display extras.** No mini-histogram display stretch and no two-monitor
+mode. Night vision and the single-channel R/G/B view do exist; night
+vision does not recolour the control panel chrome, only the preview and HUD.
 
 **Analysis extras.** No sensor-analysis or smart-histogram tooling, no
 stellar photometry, no multi-session statistics dashboard, no solar/lunar
@@ -1447,6 +1507,9 @@ real site is stored. Most of it is written for you.
 | v1.2.3 | 85 | CAPTURE and PROFILE merged into one section — they held the same values and disagreed |
 | v1.2.3 | 85 | Profile focus step sizes reach the `+`/`-` and `[`/`]` keys for the first time |
 | v1.2.3 | 86 | The assistant is told the capture format, whether it is a crop, and the real target and profile names |
+| v1.2.3 | 26 | Night vision remembered between sessions (the mode itself already shipped) |
+| v1.2.3 | 45 | Multi-reticle: crosshair / circle / rings / box, cycled by one control |
+| v1.2.3 | 39 | Framing shot — `Shift+S` boosts gain and exposure for 5s, then restores |
 
 ---
 

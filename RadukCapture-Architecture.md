@@ -1438,11 +1438,11 @@ RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS M
 | 24 | Pixel Value Readout | 1 | Easy | ✅ v1.0.11 |
 | 49 | Help System | 1 | Medium | ✅ v1.0.x (gui/HelpWindow.h) |
 | 25 | Image Boost / Frame Stack FX | 1 | Medium | ✅ v1.0.12 |
-| 26 | Night Vision Mode | 2 | Easy | 🔲 |
-| 38 | Single-Channel Display Mode | 2 | Easy | 🔲 |
+| 26 | Night Vision Mode | 2 | Easy | ◑ preview+HUD and persistence ship; red UI chrome not done (190 hardcoded RGB literals, not a Theme.h swap) |
+| 38 | Single-Channel Display Mode | 2 | Easy | ✅ `H` key (PreviewRenderer ChannelMode) |
 | 40 | Notification Bar | 2 | Easy | ✅ (gui/NotificationBar.h) |
-| 45 | Multi-Reticle Overlays | 2 | Easy-Med | 🔲 |
-| 39 | Framing Shot | 2 | Easy-Med | 🔲 |
+| 45 | Multi-Reticle Overlays | 2 | Easy-Med | ◑ 4 shapes cycle on `R`; drag/resize/rotate not done |
+| 39 | Framing Shot | 2 | Easy-Med | ✅ `Shift+S` / [FRAME] |
 | 29 | Ghosted Image Overlay | 2 | Easy | ✅ ([GH] button) |
 | 13 | Sky Survey / Pointing Model | 2 | Medium | ✅ (sky/PointingModel.h) |
 | 14 | Session Planner | 2 | Medium | ✅ (GoToPanel planner rows) |

@@ -84,9 +84,12 @@ app also loads as reference context for the AI assistant.
 Built and in use: capture, tracking, GoTo, autofocus, the ADC advisor, the
 quick-look stacker, the readiness check and the device emulators.
 
+Also built: night vision, single-channel (R/G/B) view, a four-shape reticle
+(crosshair, circle, collimation rings, framing box), and a framing shot that
+boosts gain and exposure for five seconds then restores them.
+
 Not built yet, in rough priority order: calibration frames (darks, flats),
-display extras (single-channel view, histogram stretch, night vision),
-framing helpers (click-to-recentre, push-to, multi-reticle), focus aids
+histogram stretch, framing helpers (click-to-recentre, push-to), focus aids
 beyond autofocus (FWHM, Bahtinov), AVI/FITS output, and a polar-alignment
 assistant. Full stacking is deliberately out of scope — AutoStakkert does
 that better. See **What is not built yet** in

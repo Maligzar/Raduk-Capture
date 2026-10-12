@@ -318,20 +318,29 @@ public:
         const char* spill[] = { "skymap", "goto", "mount", "aichat", "help" };
         const int   nSpill  = (int)(sizeof(spill) / sizeof(spill[0]));
 
+        // One screen goes to the main window, so the rest share what is
+        // left. There are more auxiliary windows than spare screens on a
+        // five-monitor rig -- five roles, four spares -- so the last
+        // role has to double up with another.
+        //
+        // It doubles up on the LAST spare rather than being dropped.
+        // Dropping it is what happened first, and the failure was
+        // invisible: no entry meant Place() did nothing, so the window
+        // silently stayed wherever it opened with nothing in the log or
+        // the generated file to say why. Pairing is a choice; omission
+        // looks like a bug. Help and AI chat land together, which is the
+        // sensible pair anyway - both are read-occasionally text panels.
+        const size_t spares = m_monitors.size() > 1 ? m_monitors.size() - 1 : 0;
         for (int i = 0; i < nSpill; ++i) {
+            if (spares == 0) continue;        // single screen: leave everything
             Placement p;
-            if ((size_t)(i + 1) < m_monitors.size()) {
-                p.device = m_monitors[i + 1].device;
-                // The map scales, so it earns a full screen. The
-                // rest are fixed-layout panels and only get moved: see
-                // the centring branch in Place().
-                if (std::string(spill[i]) == "skymap")
-                    p.mode = PlaceMode::Maximized;
-            } else {
-                // Not enough screens — leave it on the primary, where it
-                // already opens. No entry at all means Place() is a no-op.
-                continue;
-            }
+            const size_t pick = ((size_t)i < spares) ? (size_t)i + 1 : spares;
+            p.device = m_monitors[pick].device;
+            // The map scales, so it earns a full screen. The rest are
+            // fixed-layout panels and only get moved: see the centring
+            // branch in Place().
+            if (std::string(spill[i]) == "skymap")
+                p.mode = PlaceMode::Maximized;
             prof[spill[i]] = p;
         }
     }

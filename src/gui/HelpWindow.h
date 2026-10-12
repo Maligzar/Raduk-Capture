@@ -71,6 +71,9 @@ public:
         return RegisterAndCreate();
     }
 
+    // For WorkspaceLayout, which needs to move this onto a chosen screen.
+    HWND Handle() const { return m_hwnd; }
+
     void Show()    { if (m_hwnd) { ShowWindow(m_hwnd, SW_SHOW); SetForegroundWindow(m_hwnd); } }
 
     // Phase 68 step 6: open filtered to a section, so a failed

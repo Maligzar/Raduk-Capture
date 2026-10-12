@@ -1317,31 +1317,6 @@ static int RunApp(bool useEmulator) {
     mountCtrl.Create(window.Handle());
     mountCtrl.Show();  // visible by default - safety first
 
-    // ── Phase 42: place the windows ───────────────────────────
-    // Here, not earlier, because this is the first point at which every
-    // window actually exists. mountCtrl is created on this line, so an
-    // earlier Place() for it found a null HWND and silently did nothing
-    // -- which is exactly how its placement went missing the first time.
-    // Still before the message loop, so the app appears already
-    // arranged rather than visibly rearranging itself.
-    {
-        workspace.Place("main",   window.Handle());
-        workspace.Place("skymap", skyMap.Handle());
-        workspace.Place("goto",   gotoPanel.Handle());
-        workspace.Place("mount",  mountCtrl.Handle());
-        if (!workspaceHadConfig && workspace.Save(kWorkspacePath))
-            Log("[LAYOUT] wrote a starting %s\n", kWorkspacePath.c_str());
-    }
-
-    // Ctrl+Shift+Home brings everything home. Registered globally, so it
-    // still works when the window you would otherwise click is sitting
-    // on a monitor that has gone away.
-    window.SetGatherWindowsHandler([&]() {
-        workspace.GatherToPrimary({
-            window.Handle(), skyMap.Handle(),
-            gotoPanel.Handle(), mountCtrl.Handle()
-        });
-    });
     Log("[INIT] Mount controller ready (always on top)\n");
 
     // Phase 49: Help Window
@@ -1367,6 +1342,38 @@ static int RunApp(bool useEmulator) {
         aiChat.Create(window.Handle(), exeDir2);
     }
     Log("[INIT] AI chat panel ready\n");
+
+    // ── Phase 42: place the windows ───────────────────────────
+    // This has to be the point where the LAST window has been created,
+    // and it has moved twice for that reason: Place() on a window that
+    // does not exist yet finds a null HWND and silently does nothing,
+    // so a placement simply goes missing with no error anywhere. The
+    // mount panel and then these two were each lost that way. Anything
+    // added later belongs after this line, not before it.
+    //
+    // Still ahead of the message loop, so the app comes up already
+    // arranged instead of visibly rearranging itself.
+    const std::vector<std::pair<const char*, HWND>> kPlacedWindows = {
+        { "main",   window.Handle()    },
+        { "skymap", skyMap.Handle()    },
+        { "goto",   gotoPanel.Handle() },
+        { "mount",  mountCtrl.Handle() },
+        { "help",   helpWindow.Handle()},
+        { "aichat", aiChat.Handle()    },
+    };
+    for (const auto& [role, hwnd] : kPlacedWindows)
+        workspace.Place(role, hwnd);
+    if (!workspaceHadConfig && workspace.Save(kWorkspacePath))
+        Log("[LAYOUT] wrote a starting %s\n", kWorkspacePath.c_str());
+
+    // Ctrl+Shift+Home brings everything home. Registered globally, so it
+    // still works when the window you would otherwise click is sitting
+    // on a monitor that has gone away.
+    window.SetGatherWindowsHandler([&]() {
+        std::vector<HWND> all;
+        for (const auto& [role, hwnd] : kPlacedWindows) all.push_back(hwnd);
+        workspace.GatherToPrimary(all);
+    });
     // Phase 50a DB wire — both AI panel and object info panel share the same DB
     objectInfo.SetKnowledgeDB(&aiChat.GetKnowledgeDB());
 

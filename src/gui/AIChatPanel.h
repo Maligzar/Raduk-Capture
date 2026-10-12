@@ -63,6 +63,9 @@ public:
         return RegisterAndCreate();
     }
 
+    // For WorkspaceLayout, which needs to move this onto a chosen screen.
+    HWND Handle() const { return m_hwnd; }
+
     void Show()    { if (m_hwnd) { ShowWindow(m_hwnd, SW_SHOW); SetForegroundWindow(m_hwnd); } }
     void Hide()    { if (m_hwnd) ShowWindow(m_hwnd, SW_HIDE); }
     void Toggle()  { if (!m_hwnd) return; IsVisible() ? Hide() : Show(); }

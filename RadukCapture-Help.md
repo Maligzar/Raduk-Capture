@@ -526,6 +526,8 @@ main   = \\.\DISPLAY5
 skymap = \\.\DISPLAY4 maximized
 goto   = \\.\DISPLAY2
 mount  = \\.\DISPLAY1
+help   = \\.\DISPLAY3
+aichat = \\.\DISPLAY3
 ```
 
 Each line is `role = display [maximized] [x,y,w,h]`. The sizes, if given,
@@ -534,6 +536,12 @@ still means something on another. **A role with no size is moved, not
 resized** — the mount and GoTo panels place their controls at fixed
 positions, so stretching one would leave its buttons in a corner of an
 empty window. Only the map and the preview actually scale.
+
+**More than one window can name the same screen.** Five screens means
+one for the main window and four to share between five panels, so two
+of them double up — help and AI chat by default, both being panels you
+read occasionally rather than watch. Change the file if you would
+rather pair a different two.
 
 ### If a window goes missing
 

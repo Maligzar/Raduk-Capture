@@ -101,5 +101,5 @@ that better. See **What is not built yet** in
 
 ## License
 
-MIT — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
+Creative Commons — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
 property of Suzhou ZWO Co., Ltd. under their own terms.

@@ -324,7 +324,7 @@ private:
         if (!m_rt) return;
 
         m_rt->BeginDraw();
-        m_rt->Clear(D2D1::ColorF(0.016f, 0.031f, 0.063f)); // deep space blue
+        m_rt->Clear(Theme::NVf(D2D1::ColorF(0.016f, 0.031f, 0.063f))); // deep space blue
 
         float cx = m_w * 0.5f;
         float cy = m_h * 0.5f;
@@ -332,7 +332,7 @@ private:
 
         // ── Horizon circle fill ────────────────────────────────
         ID2D1SolidColorBrush* skyBrush = nullptr;
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.02f, 0.05f, 0.12f), &skyBrush);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.02f, 0.05f, 0.12f)), &skyBrush);
         if (skyBrush) {
             m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx,cy), R, R), skyBrush);
             skyBrush->Release();
@@ -340,7 +340,7 @@ private:
 
         // ── Altitude rings / grid ─────────────────────────────
         ID2D1SolidColorBrush* ringBrush = nullptr;
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.08f, 0.18f, 0.32f, 0.5f), &ringBrush);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.08f, 0.18f, 0.32f, 0.5f)), &ringBrush);
         if (ringBrush) {
             if (m_zoom <= 1.5f) {
                 // Full-sky: draw altitude rings as circles
@@ -367,7 +367,7 @@ private:
 
         // ── Horizon circle border ──────────────────────────────
         ID2D1SolidColorBrush* horizBrush = nullptr;
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.6f, 1.0f, 0.5f), &horizBrush);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.0f, 0.6f, 1.0f, 0.5f)), &horizBrush);
         if (horizBrush) {
             m_rt->DrawEllipse(D2D1::Ellipse(D2D1::Point2F(cx,cy), R, R),
                               horizBrush, 1.5f);
@@ -376,7 +376,7 @@ private:
 
         // ── Cardinal direction lines ───────────────────────────
         ID2D1SolidColorBrush* cardBrush = nullptr;
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.05f, 0.12f, 0.22f, 0.4f), &cardBrush);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.05f, 0.12f, 0.22f, 0.4f)), &cardBrush);
         if (cardBrush) {
             // N-S line
             m_rt->DrawLine(D2D1::Point2F(cx, cy-R), D2D1::Point2F(cx, cy+R),
@@ -399,9 +399,9 @@ private:
         ID2D1SolidColorBrush* dsoBrush  = nullptr;
         ID2D1SolidColorBrush* starBrush = nullptr;
         ID2D1SolidColorBrush* dsoFade   = nullptr;
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.8f, 0.9f, 0.8f), &dsoBrush);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.9f, 0.95f, 1.0f, 0.9f), &starBrush);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.3f, 0.4f, 0.5f, 0.3f), &dsoFade);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.0f, 0.8f, 0.9f, 0.8f)), &dsoBrush);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.9f, 0.95f, 1.0f, 0.9f)), &starBrush);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.3f, 0.4f, 0.5f, 0.3f)), &dsoFade);
 
         for (const auto& obj : m_objects) {
             if (obj.type == "Planet" || obj.type == "Sun" || obj.type == "Moon") continue;
@@ -447,8 +447,8 @@ private:
             ID2D1SolidColorBrush *sunFill = nullptr, *sunGlow = nullptr, *sunRay = nullptr;
             m_rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.92f, 0.2f,
                                         obj.visible ? 1.0f : 0.25f), &sunFill);
-            m_rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.75f, 0.1f, 0.25f), &sunGlow);
-            m_rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.92f, 0.2f, 0.6f), &sunRay);
+            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.75f, 0.1f, 0.25f)), &sunGlow);
+            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.92f, 0.2f, 0.6f)), &sunRay);
             if (sunGlow)
                 m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(obj.px,obj.py), sz+8, sz+8), sunGlow);
             if (sunFill) {
@@ -495,7 +495,7 @@ private:
                                         obj.visible ? 1.0f : 0.25f), &moonFill);
             m_rt->CreateSolidColorBrush(D2D1::ColorF(0.05f,0.08f,0.14f,
                                         obj.visible ? 0.85f : 0.2f), &moonShadow);
-            m_rt->CreateSolidColorBrush(D2D1::ColorF(0.7f,0.75f,0.85f, 0.18f), &moonGlow);
+            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.7f,0.75f,0.85f, 0.18f)), &moonGlow);
 
             if (moonGlow)
                 m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(obj.px,obj.py), sz+5, sz+5), moonGlow);
@@ -590,7 +590,7 @@ private:
                 AltAzToXY(alt, az, mx, my);
 
                 ID2D1SolidColorBrush* xhBrush = nullptr;
-                m_rt->CreateSolidColorBrush(D2D1::ColorF(0.0f, 1.0f, 0.5f, 0.9f), &xhBrush);
+                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.0f, 1.0f, 0.5f, 0.9f)), &xhBrush);
                 if (xhBrush) {
                     float arm = 12.0f;
                     m_rt->DrawLine(D2D1::Point2F(mx-arm, my), D2D1::Point2F(mx+arm, my),
@@ -604,7 +604,7 @@ private:
                 // FOV circle — ASI678MC + 8SE = 0.13° diagonal
                 float fovPx = (float)(0.065 / 90.0) * (std::min(cx,cy) - 20.0f) * 2;
                 ID2D1SolidColorBrush* fovBrush = nullptr;
-                m_rt->CreateSolidColorBrush(D2D1::ColorF(0.0f, 1.0f, 0.5f, 0.2f), &fovBrush);
+                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.0f, 1.0f, 0.5f, 0.2f)), &fovBrush);
                 if (fovBrush) {
                     m_rt->DrawEllipse(
                         D2D1::Ellipse(D2D1::Point2F(mx,my), fovPx, fovPx),
@@ -618,7 +618,7 @@ private:
         if (m_hoverIdx >= 0 && m_hoverIdx < (int)m_objects.size()) {
             const auto& ho = m_objects[m_hoverIdx];
             ID2D1SolidColorBrush* hBrush = nullptr;
-            m_rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.15f), &hBrush);
+            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.15f)), &hBrush);
             if (hBrush) {
                 m_rt->DrawEllipse(
                     D2D1::Ellipse(D2D1::Point2F(ho.px, ho.py), 12, 12),
@@ -656,7 +656,7 @@ private:
             }
             if (m_statusFormat) {
                 ID2D1SolidColorBrush* sb = nullptr;
-                m_rt->CreateSolidColorBrush(D2D1::ColorF(0.3f, 0.5f, 0.7f, 0.8f), &sb);
+                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.3f, 0.5f, 0.7f, 0.8f)), &sb);
                 if (sb) {
                     D2D1_RECT_F sr = D2D1::RectF(4, m_h - 18.0f, m_w - 4.0f, (float)m_h);
                     m_statusFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
@@ -677,7 +677,7 @@ private:
     void DrawCompassLabel(const wchar_t* text, float x, float y) {
         if (!m_labelFormat) return;
         ID2D1SolidColorBrush* b = nullptr;
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.7f, 1.0f, 0.8f), &b);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.0f, 0.7f, 1.0f, 0.8f)), &b);
         if (b) {
             D2D1_RECT_F r = D2D1::RectF(x-10, y, x+10, y+14);
             m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
@@ -722,18 +722,18 @@ private:
         ID2D1SolidColorBrush *bgBr = nullptr, *borderBr = nullptr,
                              *titleBr = nullptr, *altBr = nullptr,
                              *slewBr = nullptr, *cancelBr = nullptr;
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.04f, 0.09f, 0.18f, 0.97f), &bgBr);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.04f, 0.09f, 0.18f, 0.97f)), &bgBr);
         m_rt->CreateSolidColorBrush(
-            belowHorizon ? D2D1::ColorF(0.8f, 0.2f, 0.1f, 0.9f)
-                         : D2D1::ColorF(0.0f, 0.9f, 1.0f, 0.7f),
+            belowHorizon ? Theme::NVf(D2D1::ColorF(0.8f, 0.2f, 0.1f, 0.9f))
+                         : Theme::NVf(D2D1::ColorF(0.0f, 0.9f, 1.0f, 0.7f)),
             &borderBr);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.9f, 0.95f, 1.0f, 1.0f),  &titleBr);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.9f, 0.95f, 1.0f, 1.0f)),  &titleBr);
         m_rt->CreateSolidColorBrush(
-            belowHorizon ? D2D1::ColorF(1.0f, 0.35f, 0.2f, 1.0f)
-                         : D2D1::ColorF(0.6f, 0.8f, 0.9f, 0.9f),
+            belowHorizon ? Theme::NVf(D2D1::ColorF(1.0f, 0.35f, 0.2f, 1.0f))
+                         : Theme::NVf(D2D1::ColorF(0.6f, 0.8f, 0.9f, 0.9f)),
             &altBr);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.1f, 0.9f, 0.4f, 1.0f),  &slewBr);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.9f, 0.3f, 0.2f, 1.0f),  &cancelBr);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.1f, 0.9f, 0.4f, 1.0f)),  &slewBr);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.9f, 0.3f, 0.2f, 1.0f)),  &cancelBr);
 
         if (bgBr)     m_rt->FillRectangle(popR, bgBr);
         if (borderBr) m_rt->DrawRectangle(popR, borderBr, 1.5f);
@@ -761,7 +761,7 @@ private:
                 // ✓ SLEW button
                 m_btnSlewRect = D2D1::RectF(px+6, py+40, px+PW/2-4, py+PH-6);
                 ID2D1SolidColorBrush* slewBg = nullptr;
-                m_rt->CreateSolidColorBrush(D2D1::ColorF(0.05f, 0.25f, 0.12f, 0.9f), &slewBg);
+                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.05f, 0.25f, 0.12f, 0.9f)), &slewBg);
                 if (slewBg) { m_rt->FillRectangle(m_btnSlewRect, slewBg); slewBg->Release(); }
                 m_rt->DrawRectangle(m_btnSlewRect, slewBr, 1.0f);
                 D2D1_RECT_F st = D2D1::RectF(m_btnSlewRect.left+2, m_btnSlewRect.top+2,
@@ -777,7 +777,7 @@ private:
                 float cancelLeft = belowHorizon ? px+6 : px+PW/2+4;
                 m_btnCancelRect = D2D1::RectF(cancelLeft, py+40, px+PW-6, py+PH-6);
                 ID2D1SolidColorBrush* cancelBg = nullptr;
-                m_rt->CreateSolidColorBrush(D2D1::ColorF(0.25f, 0.05f, 0.05f, 0.9f), &cancelBg);
+                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.25f, 0.05f, 0.05f, 0.9f)), &cancelBg);
                 if (cancelBg) { m_rt->FillRectangle(m_btnCancelRect, cancelBg); cancelBg->Release(); }
                 m_rt->DrawRectangle(m_btnCancelRect, cancelBr, 1.0f);
                 D2D1_RECT_F ct = D2D1::RectF(m_btnCancelRect.left+2, m_btnCancelRect.top+2,
@@ -801,8 +801,8 @@ private:
         D2D1_RECT_F tr = D2D1::RectF(tx-4, ty-2, tx+155, ty+14);
 
         ID2D1SolidColorBrush* bg = nullptr, *fg = nullptr;
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.04f, 0.1f, 0.2f, 0.9f), &bg);
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(0.9f, 0.95f, 1.0f, 0.95f), &fg);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.04f, 0.1f, 0.2f, 0.9f)), &bg);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.9f, 0.95f, 1.0f, 0.95f)), &fg);
         if (bg) { m_rt->FillRectangle(tr, bg); bg->Release(); }
         if (fg) {
             m_statusFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);

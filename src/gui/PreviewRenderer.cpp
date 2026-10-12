@@ -20,12 +20,11 @@ namespace raduk::gui {
 
 PreviewRenderer::~PreviewRenderer() { Release(); }
 
-bool PreviewRenderer::Init(ID2D1HwndRenderTarget* renderTarget,
-                            IDWriteFactory* dwriteFactory) {
-    m_renderTarget  = renderTarget;
-    m_dwriteFactory = dwriteFactory;
-    if (!m_renderTarget || !m_dwriteFactory) return false;
-
+// Phase 26 / follow-up: brush creation split out of Init so the
+// palette can be changed without tearing down the fonts and the
+// frame buffers, which Release() also frees. The colours come from
+// Theme, which tints them, so recreating is all that is needed.
+bool PreviewRenderer::CreateBrushes() {
     HRESULT hr;
     hr = m_renderTarget->CreateSolidColorBrush(Theme::Color(Theme::TEXT),     &m_textBrush);
     if (FAILED(hr)) return false;
@@ -52,6 +51,31 @@ bool PreviewRenderer::Init(ID2D1HwndRenderTarget* renderTarget,
     hr = m_renderTarget->CreateSolidColorBrush(
         D2D1::ColorF(0.0f, 0.898f, 1.0f, 0.15f), &m_barHiBrush);   // cyan highlight
     if (FAILED(hr)) return false;
+    m_brushPaletteGen = Theme::PaletteGeneration();
+    return true;
+}
+
+void PreviewRenderer::ReleaseBrushes() {
+    if (m_textBrush) { m_textBrush->Release(); m_textBrush = nullptr; }
+    if (m_accentBrush) { m_accentBrush->Release(); m_accentBrush = nullptr; }
+    if (m_dimBrush) { m_dimBrush->Release(); m_dimBrush = nullptr; }
+    if (m_reticleBrush) { m_reticleBrush->Release(); m_reticleBrush = nullptr; }
+    if (m_greenBrush) { m_greenBrush->Release(); m_greenBrush = nullptr; }
+    if (m_amberBrush) { m_amberBrush->Release(); m_amberBrush = nullptr; }
+    if (m_redBrush) { m_redBrush->Release(); m_redBrush = nullptr; }
+    if (m_barBgBrush) { m_barBgBrush->Release(); m_barBgBrush = nullptr; }
+    if (m_barHiBrush) { m_barHiBrush->Release(); m_barHiBrush = nullptr; }
+}
+
+bool PreviewRenderer::Init(ID2D1HwndRenderTarget* renderTarget,
+                            IDWriteFactory* dwriteFactory) {
+    m_renderTarget  = renderTarget;
+    m_dwriteFactory = dwriteFactory;
+    if (!m_renderTarget || !m_dwriteFactory) return false;
+
+    if (!CreateBrushes()) return false;
+
+    HRESULT hr;
 
     hr = m_dwriteFactory->CreateTextFormat(
         Theme::FONT_DATA, nullptr,
@@ -520,6 +544,15 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
     float pw = (float)previewWidth;
     float ph = (float)previewHeight;
 
+    // Phase 26 follow-up: the brushes hold tinted colours taken when
+    // they were created, so a palette change has to rebuild them. This
+    // is why switching night vision on mid-session used to leave the
+    // overlays in day colours until a restart; StatusBar already did
+    // this and the preview did not.
+    if (m_brushPaletteGen != Theme::PaletteGeneration()) {
+        ReleaseBrushes();
+        CreateBrushes();
+    }
     m_renderTarget->BeginDraw();
     m_renderTarget->Clear(Theme::Color(Theme::BG_VOID));
 
@@ -1580,15 +1613,7 @@ D2D1_RECT_F PreviewRenderer::CalculateZoomedRect(int frameW, int frameH,
 
 void PreviewRenderer::Release() {
     if (m_bitmap)      { m_bitmap->Release();      m_bitmap      = nullptr; }
-    if (m_textBrush)   { m_textBrush->Release();   m_textBrush   = nullptr; }
-    if (m_accentBrush) { m_accentBrush->Release(); m_accentBrush = nullptr; }
-    if (m_dimBrush)    { m_dimBrush->Release();    m_dimBrush    = nullptr; }
-    if (m_reticleBrush){ m_reticleBrush->Release();m_reticleBrush= nullptr; }
-    if (m_greenBrush)  { m_greenBrush->Release();  m_greenBrush  = nullptr; }
-    if (m_amberBrush)  { m_amberBrush->Release();  m_amberBrush  = nullptr; }
-    if (m_redBrush)    { m_redBrush->Release();    m_redBrush    = nullptr; }
-    if (m_barBgBrush)  { m_barBgBrush->Release();  m_barBgBrush  = nullptr; }
-    if (m_barHiBrush)  { m_barHiBrush->Release();  m_barHiBrush  = nullptr; }
+    ReleaseBrushes();
     if (m_hudFont)     { m_hudFont->Release();     m_hudFont     = nullptr; }
     if (m_titleFont)   { m_titleFont->Release();   m_titleFont   = nullptr; }
     if (m_barFont)     { m_barFont->Release();     m_barFont     = nullptr; }

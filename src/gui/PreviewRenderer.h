@@ -412,6 +412,12 @@ public:
 private:
     void DebayerRGGB(const uint8_t* raw, uint8_t* rgb, int width, int height, int bitDepth);
     D2D1_RECT_F CalculateZoomedRect(int frameW, int frameH, int previewX, int previewW, int previewH);
+    // Brush lifecycle, separate from Init/Release so a palette change
+    // does not tear down the fonts and frame buffers as well.
+    bool CreateBrushes();
+    void ReleaseBrushes();
+    unsigned m_brushPaletteGen = 0;
+
     void DrawReticle(float cx, float cy, float rw, float rh);
     void DrawADCOverlay(float previewW, float previewH);
     void DrawQualityGraph(float px, float pw, float ph);

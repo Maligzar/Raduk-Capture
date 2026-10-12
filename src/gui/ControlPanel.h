@@ -248,6 +248,20 @@ public:
     // Phase 83: restate the filter the ADC figure was computed over.
     // Call after anything that can change the band (rig setup, a
     // reloaded rig.ini) so the label can never outlive the setting.
+    // Phase 26: repaint everything after a palette change. The GDI
+    // strip is drawn on demand so invalidating is enough, but the child
+    // controls hold their own background brushes and only re-ask for
+    // them on their next WM_CTLCOLOR*, which is why they are
+    // invalidated individually rather than relying on the parent.
+    void ForceRepaint() {
+        if (!m_panelHwnd) return;
+        InvalidateRect(m_panelHwnd, nullptr, TRUE);
+        for (auto& kv : m_ctrlSection)
+            if (kv.first) InvalidateRect(kv.first, nullptr, TRUE);
+        for (HWND h : m_sectionHeaders)
+            if (h) InvalidateRect(h, nullptr, TRUE);
+    }
+
     void RefreshFilterLabel();
 
     // ── Phases 27 & 28: calibration frames ────────────────────

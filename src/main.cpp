@@ -56,6 +56,7 @@
 #include "net/APEXTelemetry.h"
 #include "gui/Window.h"
 #include "gui/PreviewRenderer.h"
+#include "gui/Theme.h"
 #include "gui/ControlPanel.h"
 #include "gui/ToolbarStrip.h"
 #include "gui/GoToPanel.h"
@@ -2846,7 +2847,13 @@ static int RunApp(bool useEmulator) {
     auto doNightVision = [&]() {
         preview.ToggleNightVision();
         bool on = preview.NightVisionOn();
+        // Phase 26: the chrome follows the preview. Theme holds the mode
+        // as process state because the painting code is spread across
+        // seventeen files; bumping it invalidates every cached brush and
+        // pen, which is what makes a toggle actually repaint.
+        raduk::gui::Theme::SetNightVision(on);
         controls.SetNightVisionActive(on);
+        controls.ForceRepaint();
         // Persist immediately rather than at shutdown: the app can be
         // killed at the mount, and losing this setting means the next
         // launch blinds you in the dark.
@@ -2858,6 +2865,7 @@ static int RunApp(bool useEmulator) {
     // Restore it before the first frame is drawn.
     if (raduk::core::RigConfig::Get().nightVision) {
         preview.SetNightVision(true);
+        raduk::gui::Theme::SetNightVision(true);
         controls.SetNightVisionActive(true);
         Log("[NIGHT] Night Vision restored ON from rig.ini\n");
     }

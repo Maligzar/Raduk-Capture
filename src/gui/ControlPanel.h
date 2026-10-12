@@ -328,6 +328,19 @@ public:
     }
 
     std::string GetFilePrefix() const;
+
+    // ── Phase 85: push a loaded profile into the panel ─────────
+    // These exist because the panel had getters only. ApplyProfile
+    // changed the camera and nothing told the UI, so after loading a
+    // profile the sliders still showed the previous values -- and
+    // nudging one then committed that stale value straight back to
+    // the camera, undoing the profile that had just been applied.
+    // exposureUs, not ms: the slider is in microseconds, as the move
+    // handler has always been.
+    void SetCameraSliders(int gain, int exposureUs, int gamma,
+                          int wbRed, int wbBlue, int usbBandwidth);
+    void SetFilePrefix(const std::string& prefix);
+    void SetCaptureLimit(bool byFrames, uint32_t frames, double timeSec);
     std::string GetFrameType() const;  // Phase 44: "Light", "Dark", "Flat", "Bias"
     std::string GetOutputDir() const;
 
@@ -466,7 +479,7 @@ private:
     // InitCollapsed(), called from Create().
     std::unordered_map<Section, bool> m_collapsed;
     void InitCollapsed() {
-        for (Section s : { Section::Image, Section::Profile,
+        for (Section s : { Section::Image,
                            Section::Camera, Section::EAF, Section::Mount,
                            Section::Capture, Section::Notes,
                            Section::Status, Section::Histogram,

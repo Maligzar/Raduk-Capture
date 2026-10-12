@@ -450,9 +450,30 @@ static bool ShowStartupDialog(HardwareStatus& hwOut) {
 #endif // !RADUK_EMULATOR
 
 // ── Apply profile ──────────────────────────────────────────────
+// Phase 85: what SAVE records and what LOAD applied had drifted apart.
+// SAVE captured gain, exposure, gamma, white balance, USB bandwidth,
+// high-speed, ROI, binning, bit depth and focus position; LOAD applied
+// everything except the last four, so a profile's resolution and bit
+// depth were written to disk every time and read back from it never.
+// And nothing told the control panel anything, so after a load the
+// sliders still showed the previous values -- then nudging one wrote
+// that stale value back to the camera and undid the profile.
+//
+// These hooks close both gaps. They are passed in rather than called
+// directly because the format path and the panel both live inside
+// RunApp, while this is a free function above it.
+struct ProfileApplyHooks {
+    // Null leaves the capture format alone. Supplied only for an
+    // explicit target selection -- startup must stay at full frame.
+    std::function<void(int w, int h, int bits)> setFormat;
+    // Null leaves the panel showing whatever it showed before.
+    std::function<void(const TargetProfile&)>   syncUi;
+};
+
 static void ApplyProfile(const TargetProfile& p,
                           ASICamera* cam, EAFFocuser* focuser,
-                          IMount* mount, SessionLog& slog) {
+                          IMount* mount, SessionLog& slog,
+                          const ProfileApplyHooks& hooks = {}) {
     Log("[PROFILE] Applying: %s\n", p.name.c_str());
     slog.Profile("Applied: %s", p.name.c_str());
 #ifdef RADUK_EMULATOR
@@ -477,6 +498,14 @@ static void ApplyProfile(const TargetProfile& p,
         if (p.trackingMode == "eq_south") mode = IMount::EQ_SOUTH;
         mount->SetTrackingMode(mode);
     }
+    // Format after the control writes: it stops and restarts the capture
+    // thread, and the gain/exposure values set above survive that.
+    if (hooks.setFormat && p.roiWidth > 0 && p.roiHeight > 0) {
+        hooks.setFormat(p.roiWidth, p.roiHeight,
+                        p.imgType == ASI_IMG_RAW16 ? 16 : 8);
+    }
+    // Last, so the panel describes the state everything above left.
+    if (hooks.syncUi) hooks.syncUi(p);
 }
 
 // ── Application core ───────────────────────────────────────────
@@ -1073,6 +1102,12 @@ static int RunApp(bool useEmulator) {
     //   "Jupiter" / "M*"  → exact profile name match
     //   Messier objects   → DSO profile
     //   Unknown           → no profile change
+    // Phase 85: filled in further down, once applyFormat and the panel
+    // setters are in scope. Declared here because the callbacks below
+    // are registered before that point and capture it by reference --
+    // they run later, by which time it holds both hooks.
+    ProfileApplyHooks profileHooks;
+
     gotoPanel.SetProfileAutoLoadCallback([&](const std::string& targetName) {
         // Find best matching profile by name
         int bestIdx = -1;
@@ -1116,7 +1151,7 @@ static int RunApp(bool useEmulator) {
             slog.Profile("Auto: %s → %s", targetName.c_str(), p.name.c_str());
             ApplyProfile(p, &cam,
                 focuser.IsOpen() ? &focuser : nullptr,
-                mount, slog);
+                mount, slog, profileHooks);
             controls.SetActiveProfile(bestIdx);
             profiles.SetActive(bestIdx);
         } else {
@@ -1446,7 +1481,7 @@ static int RunApp(bool useEmulator) {
         if (!p) return;
         ApplyProfile(*p, &cam,
                      focuser.IsOpen()    ? &focuser : nullptr,
-                     mount && mount->IsConnected() ? mount : nullptr, slog);
+                     mount && mount->IsConnected() ? mount : nullptr, slog, profileHooks);
         controls.SetActiveProfile(index);
         CaptureConfig cfg = capturer.Config();
         cfg.filePrefix = p->filePrefix.empty() ? p->name : p->filePrefix;
@@ -1486,13 +1521,28 @@ static int RunApp(bool useEmulator) {
         // actively defocuses the rig.
         if (focuser.IsOpen()) p->focusPosition = focuser.GetPosition();
 
+        // Phase 85: the capture fields too. LOAD now pushes these into
+        // the panel, so SAVE has to read them back or the round trip is
+        // one-way: a limit or prefix typed into CAPTURE would be lost on
+        // the next load, and the profile would quietly reimpose the old
+        // one. These three are the whole overlap between the two
+        // sections that were merged.
+        p->filePrefix = controls.GetFilePrefix();
+        if (controls.GetLimitByFrames()) {
+            p->limitType  = "frames";
+            p->limitValue = (int)controls.GetLimitFrames();
+        } else {
+            p->limitType  = "time";
+            p->limitValue = (int)controls.GetLimitTimeSec();
+        }
         p->notes = controls.GetNotes();
         profiles.Save(*p);
         Log("[PROFILE] Saved %s: gain=%d exp=%.2fms gamma=%d wb=%d/%d "
-            "usb=%d focus=%d roi=%dx%d\n",
+            "usb=%d focus=%d roi=%dx%d limit=%s/%d prefix=%s\n",
             p->name.c_str(), p->gain, p->exposureMs, p->gamma,
             p->wbRed, p->wbBlue, p->usbBandwidth, p->focusPosition,
-            p->roiWidth, p->roiHeight);
+            p->roiWidth, p->roiHeight, p->limitType.c_str(),
+            p->limitValue, p->filePrefix.c_str());
         slog.Profile("Saved: %s (gain=%d exp=%.2fms focus=%d)",
                      p->name.c_str(), p->gain, p->exposureMs, p->focusPosition);
     });
@@ -1913,6 +1963,39 @@ static int RunApp(bool useEmulator) {
                     roiStartX + startX + newW / 2,
                     roiStartY + startY + newH / 2, "dragged box");
     });
+
+    // ── Phase 85: fill in the profile hooks ───────────────────
+    // Declared far above, next to the GoTo auto-load callback that
+    // captured it; only here are applyFormat and the panel setters in
+    // scope. Both hooks run on an explicit target selection only --
+    // selecting an object on the map or in GoTo, pressing LOAD, or an
+    // APEX load_profile. Startup never calls ApplyProfile, so the app
+    // still comes up at full frame.
+    profileHooks.setFormat = [&](int w, int h, int bits) {
+        // Keep the ROI where it already is. A profile says how wide to
+        // read the sensor, not where to point it -- the mount and the
+        // tracker decide that, and recentring here would fight them.
+        applyFormat(w, h, bits,
+                    roiStartX + roiWidth / 2, roiStartY + roiHeight / 2,
+                    "profile");
+    };
+    profileHooks.syncUi = [&](const TargetProfile& p) {
+        // The slider is in microseconds; the profile stores milliseconds.
+        controls.SetCameraSliders(p.gain, (int)(p.exposureMs * 1000.0),
+                                  p.gamma, p.wbRed, p.wbBlue, p.usbBandwidth);
+        controls.SetFilePrefix(p.filePrefix.empty() ? p.name : p.filePrefix);
+        // limitValue means frames or seconds depending on limitType, and
+        // the two boxes are separate, so only the matching one is set.
+        const bool byFrames = (p.limitType != "time");
+        controls.SetCaptureLimit(byFrames,
+                                 byFrames ? (uint32_t)p.limitValue : 0,
+                                 byFrames ? 0.0 : (double)p.limitValue);
+        Log("[PROFILE] Panel synced: gain=%d exp=%.2fms gamma=%d wb=%d/%d "
+            "usb=%d limit=%s/%d prefix=%s\n",
+            p.gain, p.exposureMs, p.gamma, p.wbRed, p.wbBlue, p.usbBandwidth,
+            p.limitType.c_str(), p.limitValue,
+            (p.filePrefix.empty() ? p.name : p.filePrefix).c_str());
+    };
 
     // Reticle toggle — now lives on the frame bar. Keyboard R key still works.
     // preview.ToggleReticle() is the single source of truth for state.
@@ -2561,12 +2644,22 @@ static int RunApp(bool useEmulator) {
 
     window.SetZoomWheelHandler([&](int dir) { doZoomStep(dir); });
     window.SetScrollHandler([&](WPARAM w, LPARAM l) { return controls.HandleScroll(w, l); });
-    window.SetFocusFineHandler([&](int steps) {
-        if (focuser.IsOpen()) focuser.MoveRelative(steps);
-    });
-    window.SetFocusCoarseHandler([&](int steps) {
-        if (focuser.IsOpen()) focuser.MoveRelative(steps);
-    });
+    // Phase 85: the profile's stepFine / stepCoarse finally reach
+    // something. They have been saved and loaded since the profile
+    // format existed and were read by nothing; Window.cpp hardcoded 10
+    // and 100, which are exactly their defaults, so these fields were
+    // plainly meant for these two keys all along. The handler's sign is
+    // the direction the key chose; the magnitude is the profile's.
+    auto profileStep = [&](int signedSteps, bool coarse) {
+        if (!focuser.IsOpen()) return;
+        const TargetProfile* p = profiles.Active();
+        int mag = coarse ? (p ? p->stepCoarse : 100)
+                         : (p ? p->stepFine   : 10);
+        if (mag < 1) mag = coarse ? 100 : 10;   // a 0 in a hand-edited ini
+        focuser.MoveRelative(signedSteps < 0 ? -mag : mag);
+    };
+    window.SetFocusFineHandler  ([&](int steps) { profileStep(steps, false); });
+    window.SetFocusCoarseHandler([&](int steps) { profileStep(steps, true);  });
     window.SetTrackingToggleHandler([&]() {
         if (mount && mount->IsConnected()) {
             auto mode = mount->GetTrackingMode();
@@ -2733,7 +2826,7 @@ static int RunApp(bool useEmulator) {
                     const TargetProfile& p = profiles.Profiles()[idx];
                     ApplyProfile(p, &cam,
                                  focuser.IsOpen() ? &focuser : nullptr,
-                                 mount, slog);
+                                 mount, slog, profileHooks);
                     controls.SetActiveProfile(idx);
                     profiles.SetActive(idx);
                     CaptureConfig cfg = capturer.Config();

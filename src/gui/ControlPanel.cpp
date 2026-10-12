@@ -167,9 +167,6 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                         case Section::Image:
                             accent = RGB(0, 229, 255); isCollapsible = true;
                             collapsed = self->IsCollapsed(Section::Image); break;
-                        case Section::Profile:
-                            accent = RGB(140, 175, 190); isCollapsible = true;
-                            collapsed = self->IsCollapsed(Section::Profile); break;
                         case Section::Camera:
                             accent = RGB(0, 229, 255); isCollapsible = true;
                             collapsed = self->IsCollapsed(Section::Camera); break;
@@ -1430,6 +1427,89 @@ bool ControlPanel::GetLimitByFrames() const {
     return SendMessage(m_radioFrames, BM_GETCHECK, 0, 0) == BST_CHECKED;
 }
 
+// ── Phase 85: profile → panel ──────────────────────────
+// Each of these mirrors the formatting its HandleScroll branch uses, so
+// a value shown after a load reads identically to the same value shown
+// after a drag. They deliberately do NOT call back into the camera:
+// ApplyProfile has already done that, and a second write here would
+// race it.
+
+void ControlPanel::SetCameraSliders(int gain, int exposureUs, int gamma,
+                                    int wbRed, int wbBlue, int usbBandwidth) {
+    wchar_t buf[32];
+    auto put = [&](HWND sl, HWND lbl, int v, const wchar_t* fmt) {
+        if (!sl) return;
+        SendMessage(sl, TBM_SETPOS, TRUE, v);
+        if (lbl) { swprintf(buf, 32, fmt, v); SetWindowTextW(lbl, buf); }
+    };
+    put(m_sliderGain,  m_lblGainVal,  gain,         L"%d");
+    put(m_sliderGamma, m_lblGammaVal, gamma,        L"%d");
+    put(m_sliderWBR,   m_lblWBRVal,   wbRed,        L"%d");
+    put(m_sliderWBB,   m_lblWBBVal,   wbBlue,       L"%d");
+    put(m_sliderUSB,   m_lblUSBVal,   usbBandwidth, L"%d%%");
+
+    if (m_sliderExposure) {
+        SendMessage(m_sliderExposure, TBM_SETPOS, TRUE, exposureUs);
+        if (m_lblExpVal) {
+            // The slider tops out at 60 ms, by design -- longer exposures
+            // are set in the profile editor. But the DSO profile asks for
+            // 30 SECONDS, and TBM_SETPOS silently clamps, so printing the
+            // profile's value beside a pegged slider would have them
+            // disagreeing: the same fault this method exists to fix.
+            // The label tells the truth about the camera and marks itself
+            // with a '+' when the slider cannot reach it.
+            const int shown = (int)SendMessage(m_sliderExposure, TBM_GETPOS, 0, 0);
+            const bool pegged = (shown != exposureUs);
+            const double ms = (double)exposureUs / 1000.0;
+            const wchar_t* tail = pegged ? L"+" : L"";
+            if (ms < 1.0)       swprintf(buf, 32, L"%.3fms%ls", ms, tail);
+            else if (ms < 10.0) swprintf(buf, 32, L"%.2fms%ls", ms, tail);
+            else if (ms < 1000.0) swprintf(buf, 32, L"%.1fms%ls", ms, tail);
+            else                swprintf(buf, 32, L"%.1fs%ls", ms / 1000.0, tail);
+            SetWindowTextW(m_lblExpVal, buf);
+        }
+    }
+}
+
+void ControlPanel::SetFilePrefix(const std::string& prefix) {
+    if (prefix.empty()) return;
+    wchar_t w[64] = {};
+    MultiByteToWideChar(CP_UTF8, 0, prefix.c_str(), -1, w, 63);
+    // The cache first, and unconditionally. A profile can be loaded
+    // while CAPTURE is collapsed -- a GoTo auto-load with the panel shut
+    // is the normal case -- and the control does not exist then. Writing
+    // only the window would drop the value, and expanding the section
+    // later would restore the PREVIOUS prefix from this same cache while
+    // the recorder was using the profile's. Cache then window keeps them
+    // one value.
+    m_ui.filePrefix = w;
+    if (m_editFilePrefix) SetWindowTextW(m_editFilePrefix, w);
+}
+
+void ControlPanel::SetCaptureLimit(bool byFrames, uint32_t frames,
+                                   double timeSec) {
+    wchar_t buf[24];
+    // Cached unconditionally, for the same reason as the prefix above.
+    if (frames > 0) {
+        swprintf(buf, 24, L"%u", frames);
+        m_ui.limitFrames = buf;
+        if (m_editLimitFrames) SetWindowTextW(m_editLimitFrames, buf);
+    }
+    if (timeSec > 0.0) {
+        swprintf(buf, 24, L"%.0f", timeSec);
+        m_ui.limitTime = buf;
+        if (m_editLimitTime) SetWindowTextW(m_editLimitTime, buf);
+    }
+    m_ui.limitByFrames = byFrames ? 1 : 0;
+    // The radio pair is what GetLimitByFrames() reads, so it has to move
+    // too -- otherwise a time-limited profile loads its seconds into the
+    // box and still stops on the frame count.
+    if (m_radioFrames) SendMessage(m_radioFrames, BM_SETCHECK,
+                                   byFrames ? BST_CHECKED : BST_UNCHECKED, 0);
+    if (m_radioTime)   SendMessage(m_radioTime,   BM_SETCHECK,
+                                   byFrames ? BST_UNCHECKED : BST_CHECKED, 0);
+}
+
 // ── Control creation helpers ───────────────────────────────────
 
 HWND ControlPanel::MakeLabel(const wchar_t* text, int x, int y, int w, int h, int id) {
@@ -2238,22 +2318,6 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_btnDock = nullptr;
 
     // ── PROFILE ───────────────────────────────────────────────────
-    secC("PROFILE", Section::Profile);
-    if (!IsCollapsed(Section::Profile)) {
-    {
-        const int BTN_W  = 48;
-        const int BTN_GAP = 2;
-        const int btnsTotalW = BTN_W * 3 + BTN_GAP * 2;
-        int cbW = w - btnsTotalW - 4;
-        m_comboProfile    = MakeComboBox(x, y-1, cbW, 140, ID_COMBO_PROFILE);
-        int bx = x + cbW + 4;
-        m_btnProfileLoad  = MakeButton(L"LOAD", bx,                     y, BTN_W, BH, ID_BTN_PROFILE_LOAD);
-        m_btnProfileSave  = MakeButton(L"SAVE", bx + BTN_W + BTN_GAP,   y, BTN_W, BH, ID_BTN_PROFILE_SAVE);
-        m_btnProfileEdit  = MakeButton(L"EDIT", bx + (BTN_W+BTN_GAP)*2, y, BTN_W, BH, ID_BTN_PROFILE_EDIT);
-        y += BH + 2;
-    }
-    } // end Profile
-
     // ── CAMERA ────────────────────────────────────────────────────
     secC("CAMERA", Section::Camera);
     if (!IsCollapsed(Section::Camera)) {
@@ -2501,7 +2565,33 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // ── CAPTURE ───────────────────────────────────────────────────
     secC("CAPTURE", Section::Capture);
     if (!IsCollapsed(Section::Capture)) {
-    m_editFilePrefix = MakeEditBox(L"Jupiter", x, y-2, w-22, BH, ID_EDIT_FILE_PREFIX);
+    // Phase 85: the target picker moved in here from its own PROFILE
+    // section. The two described the same thing from opposite ends -- a
+    // profile carries a file prefix and a frame limit, and the boxes
+    // below are a file prefix and a frame limit -- and because nothing
+    // pushed the profile's copies into these boxes, the boxes silently
+    // won every time. One header makes that overlap visible instead of
+    // hiding it behind two collapsed ones.
+    {
+        const int BTN_W  = 48;
+        const int BTN_GAP = 2;
+        const int LBL_W  = 42;
+        const int btnsTotalW = BTN_W * 3 + BTN_GAP * 2;
+        TagControl(MakeLabel(L"Target:", x, y, LBL_W, SH), Section::Capture);
+        int cbX = x + LBL_W + 2;
+        int cbW = w - LBL_W - 2 - btnsTotalW - 4;
+        m_comboProfile   = MakeComboBox(cbX, y-1, cbW, 140, ID_COMBO_PROFILE);
+        TagControl(m_comboProfile, Section::Capture);
+        int bx = cbX + cbW + 4;
+        m_btnProfileLoad = MakeButton(L"LOAD", bx,                     y, BTN_W, BH, ID_BTN_PROFILE_LOAD);
+        m_btnProfileSave = MakeButton(L"SAVE", bx + BTN_W + BTN_GAP,   y, BTN_W, BH, ID_BTN_PROFILE_SAVE);
+        m_btnProfileEdit = MakeButton(L"EDIT", bx + (BTN_W+BTN_GAP)*2, y, BTN_W, BH, ID_BTN_PROFILE_EDIT);
+        TagControls({ m_btnProfileLoad, m_btnProfileSave, m_btnProfileEdit },
+                    Section::Capture);
+        y += BH + 3;
+    }
+    TagControl(MakeLabel(L"Prefix:", x, y, 42, SH), Section::Capture);
+    m_editFilePrefix = MakeEditBox(L"Jupiter", x+44, y-2, w-44-22, BH, ID_EDIT_FILE_PREFIX);
     SetWindowLong(m_editFilePrefix, GWL_STYLE,
         GetWindowLong(m_editFilePrefix, GWL_STYLE) & ~ES_NUMBER);
     m_btnBrowseDir = MakeButton(L"...", x+w-20, y-2, 20, BH, ID_BTN_BROWSE_DIR);

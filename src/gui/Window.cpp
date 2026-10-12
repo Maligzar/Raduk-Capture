@@ -331,6 +331,13 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             else       { if (firstPress && m_onSnapshot)    m_onSnapshot();    }
             return true;
         case 'Q':
+            // Shift+Q opens the stand-alone sharpness window, the same
+            // way Shift+H opens the histogram: on the key that already
+            // toggles the small version rather than taking a new letter.
+            if (shift) {
+                if (firstPress && m_onSharpnessToggle) m_onSharpnessToggle();
+                return true;
+            }
             if (firstPress && m_onQualityGraphToggle) m_onQualityGraphToggle();
             return true;
         case 'P':

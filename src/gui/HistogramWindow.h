@@ -70,7 +70,12 @@ public:
         }
 
         if (!InitD2D()) { DestroyWindow(m_hwnd); m_hwnd = nullptr; return false; }
-        ShowWindow(m_hwnd, SW_HIDE);   // opened with Shift+H
+        // Shown at startup, not hidden behind a shortcut. These are
+        // telemetry for a screen of their own: a readout you have to
+        // remember to open is a readout you will not be looking at
+        // when it matters. Shift+H closes it if the screen is wanted
+        // for something else.
+        ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
         return true;
     }
 

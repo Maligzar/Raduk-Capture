@@ -315,7 +315,8 @@ fullscreen.
 | `F11` *(in the Sky Map window)* | Fill the display the map is on, with no title bar. `Esc` or `F11` again to come back. See **Putting the Sky Map on its own screen**. |
 | `Ctrl+Shift+Home` | **Bring every window back to the main screen.** Works from anywhere, even with the app in the background. See **The multi-monitor workspace**. |
 | `Ctrl+Shift+End` | **Save the current arrangement** as the layout to open with. |
-| `Shift+H` | Open the **histogram window** — the same display on a screen of its own. |
+| `Shift+H` | Close or reopen the **histogram window**. Open at startup. |
+| `Shift+Q` | Close or reopen the **sharpness window**. Open at startup. |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |
@@ -557,9 +558,10 @@ on; it will never guess an arrangement you built deliberately. Saved
 entries use the `@x,y,w,h` form, which is exact screen coordinates
 rather than fractions, so what you get back is what you had.
 
-The layout in use on this rig puts the histogram window on DISPLAY2 and
-keeps **DISPLAY1 free** for the telemetry windows still to come. A copy
-lives in `docs/workspace-5monitor.ini`.
+The layout in use on this rig gives the histogram window DISPLAY2 and
+the sharpness window DISPLAY1, with the map on DISPLAY4, the main window
+and mount controller on DISPLAY5, and help, AI chat and GoTo sharing
+DISPLAY3. A copy lives in `docs/workspace-5monitor.ini`.
 
 ### Why a window can be stuck
 
@@ -769,6 +771,41 @@ screen or with the preview full screen.
 `Shift+H` rather than a letter of its own, the same way `Shift+S` is the
 framing shot — and `H` already cycles the channel display mode, which is
 the same question asked a different way.
+
+### The sharpness window (`Shift+Q`, v1.2.4)
+
+The rolling sharpness graph on a screen of its own, and **not** just a
+larger copy of the corner overlay.
+
+The overlay keeps 200 samples, about five seconds. That is the right
+amount for *is it sharp right now* while your hand is on the focuser.
+A screen of its own can answer a different question — has the seeing
+settled, is focus drifting as the tube cools, was that a gust or the
+mount — and that needs minutes. So this window keeps its own history of
+4000 samples, fed from the same stream: roughly 90 seconds at 40fps,
+longer at lower frame rates.
+
+It also draws **gridlines at 30% and 60%**, the two thresholds the bars
+are coloured by, so a value can be read off rather than guessed. Those
+same thresholds are what autofocus and the capture quality gate act on.
+
+`F11` fills the screen it is on, `Esc` closes it.
+
+**Every window opens at startup**, on the screen its layout names —
+sharpness, histogram, the sky map, GoTo, help and AI chat. A readout you
+have to remember to open is one you will not be looking at when it
+matters, and on a five-screen desk there is no reason to hide any of
+them. The shortcuts close them when a screen is wanted for something
+else.
+
+They open *without taking focus*, so the main window keeps it and the
+first keystroke of a session goes where you expect.
+
+One change worth knowing: the GoTo panel used to start hidden
+deliberately, to stop a mis-click starting a slew while imaging. That
+was a fair worry when it opened over the imaging controls; it now sits
+on a screen of its own, well away from anything you touch during a
+capture. Press `G` if you would rather have it shut.
 
 ### Reticle (`R` key, or the `[+]` toolbar button)
 

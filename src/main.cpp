@@ -63,6 +63,7 @@
 #include "gui/SkyMapWindow.h"
 #include "gui/WorkspaceLayout.h"
 #include "gui/HistogramWindow.h"
+#include "gui/SharpnessWindow.h"
 #include "gui/MountController.h"
 #include "gui/StatusBar.h"
 #include "gui/HelpWindow.h"
@@ -1351,6 +1352,14 @@ static int RunApp(bool useEmulator) {
     histWindow.Create(window.Handle(), 200, 200, 900, 520);
     Log("[INIT] Histogram window ready\n");
 
+    // Phase 42c: sharpness over a long window, for the other spare
+    // screen. Its own history, far longer than the overlay's five
+    // seconds -- the overlay answers "is it sharp now", this answers
+    // "is it drifting".
+    raduk::gui::SharpnessWindow sharpWindow;
+    sharpWindow.Create(window.Handle(), 240, 240, 1100, 520);
+    Log("[INIT] Sharpness window ready\n");
+
     // ── Phase 42: place the windows ───────────────────────────
     // This has to be the point where the LAST window has been created,
     // and it has moved twice for that reason: Place() on a window that
@@ -1369,6 +1378,7 @@ static int RunApp(bool useEmulator) {
         { "help",   helpWindow.Handle()},
         { "aichat", aiChat.Handle()    },
         { "histogram", histWindow.Handle() },
+        { "sharpness", sharpWindow.Handle() },
     };
     for (const auto& [role, hwnd] : kPlacedWindows)
         workspace.Place(role, hwnd);
@@ -3017,6 +3027,7 @@ static int RunApp(bool useEmulator) {
     window.SetGoToToggleHandler([&]()       { gotoPanel.ShowCentered(); });
     window.SetSkyMapToggleHandler([&]()     { skyMap.Toggle();       });
     window.SetHistogramToggleHandler([&]()  { histWindow.Toggle();   });
+    window.SetSharpnessToggleHandler([&]()  { sharpWindow.Toggle();  });
     window.SetAutofocusToggleHandler([&]() {
         // A key: same as clicking the AF button — toggle start/abort
         bool start = !autofocus.IsRunning();
@@ -3033,9 +3044,24 @@ static int RunApp(bool useEmulator) {
         }
     });
 
-    // GoTo panel starts HIDDEN — opens only when user clicks [↑] GOTO in frame bar
-    // or presses G. Prevents accidental slew from mis-clicks while imaging.
-    gotoPanel.Hide();
+    // ── Startup visibility for the windows on their own screens ──
+    //
+    // All shown, and shown WITHOUT taking focus: the main window must
+    // keep it, or the first keystroke of a session goes to whichever
+    // panel happened to open last. Their Show() methods call
+    // SetForegroundWindow, which is right when you press the shortcut
+    // and wrong at startup, so this goes through the handle directly.
+    //
+    // GoTo used to start hidden on purpose -- the comment here said it
+    // prevented an accidental slew from a mis-click while imaging. That
+    // was a fair worry when it opened on top of the imaging controls.
+    // It now lives on a screen of its own, well away from anything you
+    // touch during a capture, so the mis-click it guarded against is a
+    // great deal less likely. Press G to close it if you would rather
+    // have it shut, and this is a one-line change back.
+    for (HWND h : { gotoPanel.Handle(), helpWindow.Handle(), aiChat.Handle() })
+        if (h) ShowWindow(h, SW_SHOWNOACTIVATE);
+    SetForegroundWindow(window.Handle());
 
     // ── Toolbar button callbacks (Win32 native buttons) ────────
     toolbar.SetCentroidCallback([&]() {
@@ -3833,6 +3859,7 @@ static int RunApp(bool useEmulator) {
         preview.DrawSidePanels(lastAnalysis, lastAnalysis.valid,
                                0, previewW, windowH, stDIPs);
         histWindow.Update(lastAnalysis);
+        if (lastAnalysis.valid) sharpWindow.Push(lastAnalysis.sharpnessPct);
 
         if (!window.IsFullscreen())
             statusBar.Draw(previewW, windowH);

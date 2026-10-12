@@ -96,6 +96,8 @@ public:
     void SetSaveLayoutHandler(std::function<void()> h) { m_onSaveLayout = h; }
     // Shift+H — the stand-alone histogram window.
     void SetHistogramToggleHandler(std::function<void()> h) { m_onHistogramToggle = h; }
+    // Shift+Q — the stand-alone sharpness window.
+    void SetSharpnessToggleHandler(std::function<void()> h) { m_onSharpnessToggle = h; }
     void SetJogHandler(std::function<void(int,int,bool)> h)  { m_onJog              = h; }
     void SetAutofocusToggleHandler(std::function<void()> h)  { m_onAutofocusToggle  = h; }
 
@@ -239,6 +241,7 @@ private:
     std::function<void()>               m_onGatherWindows;
     std::function<void()>               m_onSaveLayout;
     std::function<void()>               m_onHistogramToggle;
+    std::function<void()>               m_onSharpnessToggle;
     std::function<void(int,int,bool)>   m_onJog;
     std::function<void()>               m_onAutofocusToggle;
     std::function<void()>               m_onMove;

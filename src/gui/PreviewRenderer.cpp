@@ -8,6 +8,7 @@
 #include "PreviewRenderer.h"
 #include "Theme.h"
 #include "HistogramDraw.h"
+#include "SharpnessDraw.h"
 #include "Version.h"
 #include "core/ADCAssistant.h"
 #include "core/RigConfig.h"
@@ -1354,14 +1355,14 @@ void PreviewRenderer::DrawQualityGraph(float px, float pw, float ph) {
     const float GRAPH_H   = 48.0f;   // bar chart height
     const float MARGIN    = 10.0f;   // left margin from preview edge
     const float LABEL_W   = 60.0f;   // label area to the right of bars
-    const float BAR_W     = 1.5f;    // each bar width
-    const float GAP       = 0.5f;    // gap between bars
+    const float BAR_W     = 1.5f;
+    const float GAP       = 0.5f;
 
-    // Position: bottom-left, above status line
-    float gx = px + MARGIN;
-    float gy = ph - 24.0f - GRAPH_H - 8.0f;  // just above HUD status
+    // Bottom-left, above the HUD status line.
+    const float gx = px + MARGIN;
+    const float gy = ph - 24.0f - GRAPH_H - 8.0f;
 
-    // Semi-transparent background
+    // Semi-transparent backing.
     {
         ID2D1SolidColorBrush* bgBrush = nullptr;
         m_renderTarget->CreateSolidColorBrush(
@@ -1375,69 +1376,25 @@ void PreviewRenderer::DrawQualityGraph(float px, float pw, float ph) {
         }
     }
 
-    // ── Draw bars oldest → newest ──────────────────────────────
-    int   n       = m_qualCount;
-    int   maxBars = (int)((GRAPH_W - LABEL_W) / (BAR_W + GAP));
-    int   start   = (n > maxBars) ? n - maxBars : 0;
-    float peak    = 0.0f;
-    float sum     = 0.0f;
+    // The ring buffer is flattened oldest-first for the shared painter,
+    // which takes a plain span so the two callers can keep different
+    // amounts of history.
+    float flat[QUAL_HISTORY];
+    const int n = m_qualCount;
+    for (int i = 0; i < n; i++)
+        flat[i] = m_qualHistory[(m_qualHead - n + i + QUAL_HISTORY) % QUAL_HISTORY];
 
-    for (int i = start; i < n; i++) {
-        int   idx  = (m_qualHead - n + i + QUAL_HISTORY) % QUAL_HISTORY;
-        float val  = m_qualHistory[idx];
-        if (val > peak) peak = val;
-        sum += val;
+    sharpness::Brushes br;
+    br.green = m_greenBrush;
+    br.amber = m_amberBrush;
+    br.red   = m_redBrush;
+    br.dim   = m_dimBrush;
 
-        float barH = (val / 100.0f) * GRAPH_H;
-        float bx   = gx + (float)(i - start) * (BAR_W + GAP);
-        float by   = gy + GRAPH_H - barH;
-
-        // Color: green >= 60, amber >= 30, red < 30
-        ID2D1SolidColorBrush* barBrush =
-            (val >= 60.0f) ? m_greenBrush :
-            (val >= 30.0f) ? m_amberBrush : m_redBrush;
-        if (barBrush)
-            m_renderTarget->FillRectangle(
-                D2D1::RectF(bx, by, bx + BAR_W, gy + GRAPH_H), barBrush);
-    }
-
-    // ── Baseline ──────────────────────────────────────────────
-    if (m_dimBrush)
-        m_renderTarget->DrawLine(
-            D2D1::Point2F(gx, gy + GRAPH_H),
-            D2D1::Point2F(gx + GRAPH_W - LABEL_W, gy + GRAPH_H),
-            m_dimBrush, 0.5f);
-
-    // ── Label area: SHARP + peak + mean ──────────────────────
-    if (!m_hudFont) return;
-    float lx = gx + GRAPH_W - LABEL_W + 4;
-    float mean = (n > 0) ? sum / n : 0.0f;
-
-    ID2D1SolidColorBrush* labelBrush =
-        (peak >= 60.0f) ? m_greenBrush :
-        (peak >= 30.0f) ? m_amberBrush : m_redBrush;
-    if (!labelBrush) return;
-
-    m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-
-    // "SHARP" header
-    m_renderTarget->DrawText(L"SHARP", 5, m_hudFont,
-        D2D1::RectF(lx, gy, lx + LABEL_W, gy + 14), m_dimBrush ? m_dimBrush : labelBrush);
-
-    // Peak value
-    wchar_t buf[24];
-    swprintf(buf, 24, L"PK %.0f%%", peak);
-    m_renderTarget->DrawText(buf, (UINT32)wcslen(buf), m_hudFont,
-        D2D1::RectF(lx, gy + 14, lx + LABEL_W, gy + 28), labelBrush);
-
-    // Mean value
-    swprintf(buf, 24, L"AV %.0f%%", mean);
-    m_renderTarget->DrawText(buf, (UINT32)wcslen(buf), m_hudFont,
-        D2D1::RectF(lx, gy + 28, lx + LABEL_W, gy + 42), m_dimBrush ? m_dimBrush : labelBrush);
+    // No gridlines: across a 48px strip they would be noise.
+    sharpness::Draw(m_renderTarget, m_hudFont, br, flat, n,
+                    gx, gy, GRAPH_W + LABEL_W, GRAPH_H,
+                    LABEL_W, BAR_W, GAP, /*gridlines*/ false);
 }
-
-// ── SetDisplayFX ─────────────────────────────────────────────
-// Allocates/frees the stack accumulation buffer when mode changes.
 
 void PreviewRenderer::SetDisplayFX(DisplayFX fx) {
     if (fx == m_displayFX) return;

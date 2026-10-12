@@ -49,6 +49,7 @@ public:
     void SetStackLastHandler(std::function<void()> h)         { m_onStackLast           = h; }
     void SetNightVisionHandler(std::function<void()> h)       { m_onNightVision         = h; }
     void SetChannelCycleHandler(std::function<void()> h)      { m_onChannelCycle        = h; }  // H key
+    void SetFramingShotHandler(std::function<void()> h)       { m_onFramingShot        = h; }  // Shift+S
     void SetHelpToggleHandler(std::function<void()> h)        { m_onHelpToggle          = h; }  // ? key
     void SetAIToggleHandler(std::function<void()> h)          { m_onAIToggle            = h; }  // / key
     void SetGhostToggleHandler(std::function<void()> h)       { m_onGhostToggle         = h; }  // O key
@@ -183,6 +184,7 @@ private:
     std::function<void()>               m_onStackLast;
     std::function<void()>               m_onNightVision;
     std::function<void()>               m_onChannelCycle;
+    std::function<void()>               m_onFramingShot;
     std::function<void()>               m_onHelpToggle;
     std::function<void()>               m_onAIToggle;
     std::function<void()>               m_onGhostToggle;

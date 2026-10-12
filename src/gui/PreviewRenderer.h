@@ -106,8 +106,45 @@ public:
     void        CycleDebayer();          // toggles Color ↔ Raw
 
     // ── View controls ──────────────────────────────────────────
-    void ToggleReticle()        { m_showReticle = !m_showReticle; }
+    // Phase 45: shapes, not just on/off. Crosshair is the original;
+    // Rings exists for collimation, where three concentric circles
+    // show whether the out-of-focus donut is centred; Box frames a
+    // crop before committing to one.
+    enum class ReticleShape { Crosshair = 0, Circle, Rings, Box };
+
+    // One control rather than two. R used to toggle visibility and
+    // there was nowhere to choose a shape; it now steps
+    // Off -> Crosshair -> Circle -> Rings -> Box -> Off, so the first
+    // press still just turns the reticle on, as it always did.
+    void ToggleReticle() {
+        if (!m_showReticle) { m_showReticle = true;
+                              m_reticleShape = ReticleShape::Crosshair; return; }
+        switch (m_reticleShape) {
+            case ReticleShape::Crosshair: m_reticleShape = ReticleShape::Circle; break;
+            case ReticleShape::Circle:    m_reticleShape = ReticleShape::Rings;  break;
+            case ReticleShape::Rings:     m_reticleShape = ReticleShape::Box;    break;
+            case ReticleShape::Box:       m_showReticle  = false;                break;
+        }
+    }
     bool ReticleVisible() const { return m_showReticle; }
+    ReticleShape GetReticleShape() const { return m_reticleShape; }
+    const wchar_t* ReticleLabel() const {
+        if (!m_showReticle) return L"RETICLE";
+        switch (m_reticleShape) {
+            case ReticleShape::Circle: return L"RETICLE CIRCLE";
+            case ReticleShape::Rings:  return L"RETICLE RINGS";
+            case ReticleShape::Box:    return L"RETICLE BOX";
+            default:                   return L"RETICLE CROSS";
+        }
+    }
+    // Shape size as a fraction of the shorter preview edge. The
+    // crosshair spans the frame and ignores this.
+    void SetReticleScale(float f) {
+        if (f < 0.05f) f = 0.05f;
+        if (f > 0.95f) f = 0.95f;
+        m_reticleScale = f;
+    }
+    float ReticleScale() const { return m_reticleScale; }
 
     void CycleZoom() {
         switch (m_zoom) {
@@ -327,6 +364,8 @@ private:
     int                     m_frameHeight   = 0;
 
     bool                    m_showReticle   = false;
+    ReticleShape            m_reticleShape  = ReticleShape::Crosshair;
+    float                   m_reticleScale  = 0.35f;
     ZoomMode                m_zoom          = ZoomMode::Fit;
     DebayerMode             m_debayerMode   = DebayerMode::Color;
 

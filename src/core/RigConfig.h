@@ -184,6 +184,13 @@ struct RigConfig {
     // one people learn to resent.
     bool showReadinessCheck = true;
 
+    // Phase 26 step 2: night vision survives a restart. Its own spec
+    // asked for this and it was never stored, so the one setting whose
+    // whole purpose is protecting dark adaptation had to be switched on
+    // again every time the app was reopened -- in the dark, which is
+    // exactly when a bright screen does the damage.
+    bool nightVision = false;
+
     // Phase 67 step 6: an obstruction sector in azimuth - a house, a
     // wall, a tree. Degrees true, running CLOCKWISE from start to end.
     // Equal values mean no arc, which is the default: most sites do
@@ -228,6 +235,7 @@ struct RigConfig {
         wf("ObserverBearingDeg", observerBearingDeg);
         wf("ShowAlignHelper", showAlignHelper ? 1.0 : 0.0);
         wf("ShowReadinessCheck", showReadinessCheck ? 1.0 : 0.0);
+        wf("NightVision", nightVision ? 1.0 : 0.0);
         WritePrivateProfileStringA("Rig", "SiteSource",
                                    siteSource.empty() ? "manual" : siteSource.c_str(),
                                    p.c_str());
@@ -284,6 +292,7 @@ private:
         cfg.observerBearingDeg    = rf("ObserverBearingDeg", cfg.observerBearingDeg);
         cfg.showAlignHelper       = rf("ShowAlignHelper", 1.0) != 0.0;
         cfg.showReadinessCheck    = rf("ShowReadinessCheck", 1.0) != 0.0;
+        cfg.nightVision           = rf("NightVision", 0.0) != 0.0;
         {
             char sbuf[32] = {};
             GetPrivateProfileStringA("Rig", "SiteSource", "", sbuf, sizeof(sbuf), p.c_str());

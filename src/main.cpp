@@ -1999,9 +1999,67 @@ static int RunApp(bool useEmulator) {
 
     // Reticle toggle — now lives on the frame bar. Keyboard R key still works.
     // preview.ToggleReticle() is the single source of truth for state.
+    // ── Phase 39: framing shot ────────────────────────────────
+    // A faint target is invisible at planetary settings, so checking
+    // whether it is even in frame meant dialling gain and exposure up
+    // by hand and remembering what they were. This does that and puts
+    // them back.
+    //
+    // Restore is driven from the main thread via WM_USER+11 rather than
+    // from the sleeping thread: the camera control writes belong on the
+    // thread that owns the rest of them, and a detached thread writing
+    // gain while the user drags the gain slider is a race.
+    //
+    // Deliberately not a one-frame grab. The spec said capture a single
+    // frame and display it, but the preview is already live, so leaving
+    // the boosted settings up for five seconds shows the same thing and
+    // avoids a second capture path that could desync the ring buffer.
+    struct FramingShot {
+        std::atomic<bool> active{false};
+        int    savedGain = 0;
+        long   savedExpUs = 0;
+    };
+    static FramingShot framing;
+    auto doFramingShot = [&]() {
+        if (!cam.IsOpen()) return;
+        if (framing.active.load()) {
+            Log("[FRAME] Framing shot already running\n");
+            return;
+        }
+        if (capturer.IsRecording()) {
+            // Boosting gain mid-recording would put unusable frames in
+            // the middle of the file, and the user would not find out
+            // until stacking.
+            notifBar.NotifyWarn(L"Framing shot not available while recording");
+            Log("[FRAME] Refused - recording in progress\n");
+            return;
+        }
+        framing.savedGain  = (int)cam.GetControl(ASI_GAIN);
+        framing.savedExpUs = (long)cam.GetControl(ASI_EXPOSURE);
+        framing.active.store(true);
+
+        cam.SetGain(570);            // slider maximum; HCG well into deep gain
+        cam.SetExposure(2000.0);     // ms - long enough for a faint disc
+        notifBar.NotifyInfo(L"Framing shot - boosted for 5s, then restored");
+        Log("[FRAME] Framing shot: gain %d->570, exp %.1fms->2000ms\n",
+            framing.savedGain, framing.savedExpUs / 1000.0);
+        slog.Camera("Framing shot (5s boost)");
+
+        std::thread([&]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+            PostMessage(window.Handle(), WM_USER + 11, 0, 0);
+        }).detach();
+    };
+    window.SetFramingShotHandler([&]() { doFramingShot(); });
+    toolbar.SetFramingShotCallback([&]() { doFramingShot(); });
+
     auto doReticle = [&]() {
+        // Phase 45: steps Off -> Crosshair -> Circle -> Rings -> Box -> Off.
         preview.ToggleReticle();
-        slog.System("Reticle %s", preview.ReticleVisible() ? "ON" : "OFF");
+        toolbar.SetReticleShapeLabel(preview.ReticleLabel());
+        Log("[RETICLE] %ls\n", preview.ReticleLabel());
+        slog.System("Reticle: %s",
+                    preview.ReticleVisible() ? "on" : "off");
     };
     auto doZoom     = [&]() { preview.CycleZoom(); controls.SetZoomLabel(preview.ZoomLabel()); };
     auto doZoomStep = [&](int dir) { preview.ZoomStep(dir); controls.SetZoomLabel(preview.ZoomLabel()); };
@@ -2427,8 +2485,20 @@ static int RunApp(bool useEmulator) {
         preview.ToggleNightVision();
         bool on = preview.NightVisionOn();
         controls.SetNightVisionActive(on);
-        Log("[NIGHT] Night Vision %s\n", on ? "ON" : "OFF");
+        // Persist immediately rather than at shutdown: the app can be
+        // killed at the mount, and losing this setting means the next
+        // launch blinds you in the dark.
+        auto& rg = raduk::core::RigConfig::Get();
+        rg.nightVision = on;
+        rg.Save();
+        Log("[NIGHT] Night Vision %s (saved)\n", on ? "ON" : "OFF");
     };
+    // Restore it before the first frame is drawn.
+    if (raduk::core::RigConfig::Get().nightVision) {
+        preview.SetNightVision(true);
+        controls.SetNightVisionActive(true);
+        Log("[NIGHT] Night Vision restored ON from rig.ini\n");
+    }
     window.SetNightVisionHandler([&]() { doNightVision(); });
     controls.SetNightVisionCallback([&]() { doNightVision(); });
 
@@ -2687,6 +2757,18 @@ static int RunApp(bool useEmulator) {
     // WM_USER+1  — drain APEX WebSocket command queue
     // WM_USER+10 — GoTo settle timer expired → start centroid acquisition
     window.SetUserMessageHandler([&](UINT msg) {
+        if (msg == WM_USER + 11) {
+            // Phase 39: framing shot elapsed — put the camera back.
+            if (framing.active.exchange(false) && cam.IsOpen()) {
+                cam.SetGain(framing.savedGain);
+                cam.SetExposure(framing.savedExpUs / 1000.0);
+                Log("[FRAME] Restored: gain=%d exp=%.1fms\n",
+                    framing.savedGain, framing.savedExpUs / 1000.0);
+                slog.Camera("Framing shot ended - settings restored");
+                notifBar.NotifyInfo(L"Framing shot ended - settings restored");
+            }
+            return;
+        }
         if (msg == WM_USER + 10) {
             // 3s post-slew settle complete — auto-start Stage 1 (Searching)
             // The render loop will auto-advance to Centering and Locked

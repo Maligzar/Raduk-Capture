@@ -294,7 +294,13 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (firstPress && m_onClipToggle) m_onClipToggle();
             return true;
         case 'S':
-            if (firstPress && m_onSnapshot) m_onSnapshot();
+            // Phase 39: Shift+S is the framing shot — a boosted
+            // snapshot, so it sits on the snapshot key rather than
+            // taking a new letter. The spec asked for F, but F has
+            // stepped the focuser since long before this existed and
+            // is used far more often.
+            if (shift) { if (firstPress && m_onFramingShot) m_onFramingShot(); }
+            else       { if (firstPress && m_onSnapshot)    m_onSnapshot();    }
             return true;
         case 'Q':
             if (firstPress && m_onQualityGraphToggle) m_onQualityGraphToggle();

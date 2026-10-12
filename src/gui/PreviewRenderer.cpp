@@ -1331,16 +1331,72 @@ cleanup:
 
 void PreviewRenderer::DrawReticle(float cx, float cy, float rw, float rh) {
     if (!m_reticleBrush || rw < 10 || rh < 10) return;
-    float smaller = (rw < rh) ? rw : rh;
-    float gap = smaller * 0.018f;
-    float r   = smaller * 0.10f;
-    float left = cx-rw/2.0f, right=cx+rw/2.0f, top=cy-rh/2.0f, bot=cy+rh/2.0f;
-    m_renderTarget->DrawLine(D2D1::Point2F(left, cy),    D2D1::Point2F(cx-gap, cy),   m_reticleBrush, 1.5f);
-    m_renderTarget->DrawLine(D2D1::Point2F(cx+gap, cy),  D2D1::Point2F(right, cy),    m_reticleBrush, 1.5f);
-    m_renderTarget->DrawLine(D2D1::Point2F(cx, top),     D2D1::Point2F(cx, cy-gap),   m_reticleBrush, 1.5f);
-    m_renderTarget->DrawLine(D2D1::Point2F(cx, cy+gap),  D2D1::Point2F(cx, bot),      m_reticleBrush, 1.5f);
-    m_renderTarget->DrawEllipse(D2D1::Ellipse(D2D1::Point2F(cx,cy), r, r),            m_reticleBrush, 1.5f);
-    m_renderTarget->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx,cy), 2.5f, 2.5f),     m_reticleBrush);
+    const float smaller = (rw < rh) ? rw : rh;
+    const float gap  = smaller * 0.018f;
+    const float base = smaller * 0.5f * m_reticleScale;
+    const float left = cx-rw/2.0f, right = cx+rw/2.0f;
+    const float top  = cy-rh/2.0f, bot   = cy+rh/2.0f;
+
+    // Every shape keeps the centre dot. It is the only part that marks
+    // the exact pixel, and it is what the planet gets nudged onto.
+    auto centreDot = [&] {
+        m_renderTarget->FillEllipse(
+            D2D1::Ellipse(D2D1::Point2F(cx, cy), 2.5f, 2.5f), m_reticleBrush);
+    };
+
+    switch (m_reticleShape) {
+    case ReticleShape::Circle:
+        m_renderTarget->DrawEllipse(
+            D2D1::Ellipse(D2D1::Point2F(cx, cy), base, base), m_reticleBrush, 1.5f);
+        centreDot();
+        break;
+
+    case ReticleShape::Rings:
+        // Three concentric rings for collimation: a defocused star
+        // shows as a donut, and whether that donut sits centred in
+        // these is the thing being judged.
+        for (int i = 1; i <= 3; i++) {
+            const float r = base * (float)i / 3.0f;
+            m_renderTarget->DrawEllipse(
+                D2D1::Ellipse(D2D1::Point2F(cx, cy), r, r), m_reticleBrush, 1.2f);
+        }
+        centreDot();
+        break;
+
+    case ReticleShape::Box: {
+        // Corner brackets rather than a full rectangle, so the frame
+        // edge does not hide the detail just inside it.
+        const float h = base, t = base * 0.28f;
+        const D2D1_POINT_2F c[4] = {
+            { cx-h, cy-h }, { cx+h, cy-h }, { cx+h, cy+h }, { cx-h, cy+h }
+        };
+        const float sx[4] = {  1.0f, -1.0f, -1.0f,  1.0f };
+        const float sy[4] = {  1.0f,  1.0f, -1.0f, -1.0f };
+        for (int i = 0; i < 4; i++) {
+            m_renderTarget->DrawLine(c[i],
+                D2D1::Point2F(c[i].x + sx[i]*t, c[i].y), m_reticleBrush, 1.5f);
+            m_renderTarget->DrawLine(c[i],
+                D2D1::Point2F(c[i].x, c[i].y + sy[i]*t), m_reticleBrush, 1.5f);
+        }
+        centreDot();
+        break;
+    }
+
+    case ReticleShape::Crosshair:
+    default: {
+        // The original: full-frame cross with a gap at the centre so
+        // the target itself is never covered, plus a small ring.
+        const float r = smaller * 0.10f;
+        m_renderTarget->DrawLine(D2D1::Point2F(left, cy),   D2D1::Point2F(cx-gap, cy), m_reticleBrush, 1.5f);
+        m_renderTarget->DrawLine(D2D1::Point2F(cx+gap, cy), D2D1::Point2F(right, cy),  m_reticleBrush, 1.5f);
+        m_renderTarget->DrawLine(D2D1::Point2F(cx, top),    D2D1::Point2F(cx, cy-gap), m_reticleBrush, 1.5f);
+        m_renderTarget->DrawLine(D2D1::Point2F(cx, cy+gap), D2D1::Point2F(cx, bot),    m_reticleBrush, 1.5f);
+        m_renderTarget->DrawEllipse(
+            D2D1::Ellipse(D2D1::Point2F(cx, cy), r, r), m_reticleBrush, 1.5f);
+        centreDot();
+        break;
+    }
+    }
 }
 
 // ── DrawADCOverlay ─────────────────────────────────────────────

@@ -56,7 +56,8 @@ enum ToolbarCmd : int {
     ID_TB_RES_640   = 3015,
     ID_TB_BIT8      = 3016,
     ID_TB_BIT16     = 3017,
-    ID_TB_LAST      = 3017,
+    ID_TB_FRAME     = 3018,   // Phase 39: framing shot (boosted 5s preview)
+    ID_TB_LAST      = 3018,
 };
 
 // One resolution preset. FULL is first because it is the default and the
@@ -162,7 +163,28 @@ public:
     void SetAICallback      (std::function<void()> cb) { m_onAI       = cb; }
     void SetExitCallback    (std::function<void()> cb) { m_onExit     = cb; }
     void SetGhostCallback   (std::function<void()> cb) { m_onGhost    = cb; }
+    // Phase 45: the reticle button now cycles shapes, so its label has
+    // to name the shape rather than just ON. Stored rather than written
+    // directly, because UpdateStates owns that button's text and would
+    // overwrite anything set behind its back on the next tick.
+    void SetReticleShapeLabel(const wchar_t* lbl) {
+        std::wstring s = lbl ? lbl : L"RETICLE";
+        if (s == m_reticleLabel) return;
+        m_reticleLabel = s;
+        // Written straight to the button. The first attempt flipped
+        // m_lastReticleVis to force UpdateStates to repaint, which
+        // backfired: on the two presses that also change visibility,
+        // the flip made the cached value MATCH the new one, so
+        // UpdateStates early-returned and the label stayed a press
+        // behind. Writing it here needs no cooperation from the cache.
+        if (m_btnReticle) {
+            std::wstring rl = L"[+] " + m_reticleLabel;
+            SetWindowTextW(m_btnReticle, rl.c_str());
+        }
+    }
+
     // Resolution: called with the preset's sensor dimensions.
+    void SetFramingShotCallback(std::function<void()> cb) { m_onFrame = cb; }
     void SetResolutionCallback(std::function<void(int,int)> cb) { m_onRes = cb; }
     // Bit depth: called with 8 or 16.
     void SetBitDepthCallback  (std::function<void(int)> cb)     { m_onBits = cb; }
@@ -260,7 +282,13 @@ public:
         SetWindowTextW(m_btnColor,    colorActive    ? L"[C] COLOR \u25CF" : L"[C] COLOR");
         SetWindowTextW(m_btnMap,      mapVisible      ? L"[*] MAP ON"      : L"[*] MAP");
         SetWindowTextW(m_btnGoTo,     gotoVisible     ? L"[I] GOTO ON"     : L"[I] GOTO");
-        SetWindowTextW(m_btnReticle,  reticleVisible  ? L"[+] RETICLE ON"  : L"[+] RETICLE");
+        {
+            // m_reticleLabel already reads "RETICLE" when the reticle is
+            // off, so the visibility flag does not need consulting here --
+            // and consulting it was what let the two values disagree.
+            std::wstring rl = L"[+] " + m_reticleLabel;
+            SetWindowTextW(m_btnReticle, rl.c_str());
+        }
         SetWindowTextW(m_btnClip,     clipVisible     ? L"[CLIP ON]"       : L"[CLIP]");
         SetWindowTextW(m_btnHelp,     helpVisible     ? L"[? ON]"          : L"[?]");
         SetWindowTextW(m_btnAI,       aiVisible       ? L"[AI ON]"         : L"[AI]");
@@ -307,6 +335,7 @@ public:
             }
             case ID_TB_BIT8:     if (m_onBits)     m_onBits(8);    return true;
             case ID_TB_BIT16:    if (m_onBits)     m_onBits(16);   return true;
+            case ID_TB_FRAME:    if (m_onFrame)    m_onFrame();    return true;
         }
         return false;
     }
@@ -332,6 +361,7 @@ private:
             { ID_TB_GOTO,     L"[I] GOTO",    64, &m_btnGoTo     },
             { ID_TB_RETICLE,  L"[+] RETICLE", 84, &m_btnReticle  },
             { ID_TB_CLIP,     L"[CLIP]",      60, &m_btnClip     },
+            { ID_TB_FRAME,    L"[FRAME]",     62, &m_btnFrame    },
             { ID_TB_GHOST,    L"[GH]",        40, &m_btnGhost    },
             { ID_TB_HELP,     L"[?]",         36, &m_btnHelp     },
             { ID_TB_AI,       L"[AI]",        40, &m_btnAI       },
@@ -394,6 +424,7 @@ private:
         if (m_btnRes640)   { DestroyWindow(m_btnRes640);   m_btnRes640   = nullptr; }
         if (m_btnBit8)     { DestroyWindow(m_btnBit8);     m_btnBit8     = nullptr; }
         if (m_btnBit16)    { DestroyWindow(m_btnBit16);    m_btnBit16    = nullptr; }
+        if (m_btnFrame)    { DestroyWindow(m_btnFrame);    m_btnFrame    = nullptr; }
         BuildButtons(w, h);
         // The new buttons carry their plain BuildButtons labels, but the
         // caches still hold the states those labels used to show, so every
@@ -482,9 +513,11 @@ private:
     HWND  m_btnRes640   = nullptr;
     HWND  m_btnBit8     = nullptr;
     HWND  m_btnBit16    = nullptr;
+    HWND  m_btnFrame    = nullptr;
 
     // -1 so the first UpdateFormat always paints, and so ResetStateCache()
     // can force a repaint after the buttons are recreated.
+    std::wstring m_reticleLabel = L"RETICLE";
     int  m_lastResW = -1;
     int  m_lastResH = -1;
     int  m_lastBits = -1;
@@ -516,6 +549,7 @@ private:
     std::function<void()> m_onExit;
     std::function<void(int,int)> m_onRes;
     std::function<void(int)>     m_onBits;
+    std::function<void()>        m_onFrame;
 };
 
 } // namespace raduk::gui

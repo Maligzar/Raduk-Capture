@@ -198,8 +198,13 @@ public:
             case ASI_GAMMA:            m_gamma = (int)value; break;
             case ASI_WB_R:             m_wbR = (int)value; break;
             case ASI_WB_B:             m_wbB = (int)value; break;
-            case ASI_BANDWIDTHOVERLOAD: break;  // no-op
-            case ASI_HIGH_SPEED_MODE:  break;
+            // Stored rather than dropped. Not simulating their effect is
+            // fine; answering 0 when asked what they are is not, because
+            // callers read these back -- the Phase 88 session restore
+            // persisted bandwidth 0 from a bench run and would have
+            // applied it to the real camera.
+            case ASI_BANDWIDTHOVERLOAD: m_usbBandwidth = (int)value; break;
+            case ASI_HIGH_SPEED_MODE:   m_highSpeed = (value != 0);  break;
             default: break;
         }
         return true;
@@ -213,6 +218,8 @@ public:
             case ASI_WB_R:        return m_wbR;
             case ASI_WB_B:        return m_wbB;
             case ASI_TEMPERATURE: return (long)(m_sensorTemp * 10.0f);
+            case ASI_BANDWIDTHOVERLOAD: return m_usbBandwidth;
+            case ASI_HIGH_SPEED_MODE:   return m_highSpeed ? 1 : 0;
             default:              return 0;
         }
     }
@@ -229,8 +236,14 @@ public:
     void SetExposure(double ms)          { m_exposureUs = (long)(ms * 1000.0); }
     void SetGamma(int gamma)             { m_gamma = gamma; }
     void SetWhiteBalance(int r, int b)   { m_wbR = r; m_wbB = b; }
-    void SetUSBBandwidth(int /*pct*/)    {}
-    void SetHighSpeedMode(bool /*en*/)   {}
+    // These are the setters callers actually use; SetControl is the other
+    // door to the same state. Both were empty here, so the emulator kept
+    // no record of either and GetControl answered 0 -- which the Phase 88
+    // session restore then wrote to rig.ini as the last known bandwidth.
+    // Their effect still is not simulated, and does not need to be; what
+    // matters is that reading back returns what was set.
+    void SetUSBBandwidth(int pct)        { m_usbBandwidth = pct; }
+    void SetHighSpeedMode(bool en)       { m_highSpeed = en; }
     void SetFlip(ASI_FLIP_STATUS /*f*/)         {}
     bool SetStartPos(int /*x*/, int /*y*/)      { return true; } // no-op in emulator
 
@@ -863,6 +876,8 @@ private:
     bool                        m_isOpen      = false;
     bool                        m_isCapturing = false;
     int                         m_roiW = 1280, m_roiH = 960;
+    int                         m_usbBandwidth = 80;
+    bool                        m_highSpeed    = true;
     int                         m_binning = 1;
     ASI_IMG_TYPE                m_imgType = ASI_IMG_RAW8;
     int                         m_gain = 100;

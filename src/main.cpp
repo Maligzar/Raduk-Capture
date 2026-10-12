@@ -602,8 +602,21 @@ static int RunApp(bool useEmulator) {
     // to. roiBits tracks what the camera actually gave us -- before this
     // was tracked, every call site simply asserted RAW8, and the 16-bit
     // the DSO profile asks for was silently discarded.
+    // Phase 88: come back where we left off. Full frame 8-bit remains
+    // the fallback for a first run or an upgrade, so nothing changes for
+    // a rig that has never stored a session.
     int roiWidth = 3840, roiHeight = 2160, roiBits = 8;
-    cam.SetROI(roiWidth, roiHeight, 1, ASI_IMG_RAW8);
+    {
+        const auto& rgs = raduk::core::RigConfig::Get();
+        if (rgs.HasLastFormat()) {
+            roiWidth  = rgs.lastRoiWidth;
+            roiHeight = rgs.lastRoiHeight;
+            roiBits   = (rgs.lastBitDepth == 16) ? 16 : 8;
+        }
+    }
+    const int reqW = roiWidth, reqH = roiHeight, reqBits = roiBits;
+    cam.SetROI(roiWidth, roiHeight, 1,
+               roiBits == 16 ? ASI_IMG_RAW16 : ASI_IMG_RAW8);
     // Read back what the camera accepted rather than trusting the request.
     {
         int aW=roiWidth,aH=roiHeight,aB=1; ASI_IMG_TYPE aT=ASI_IMG_RAW8;
@@ -611,8 +624,10 @@ static int RunApp(bool useEmulator) {
         roiWidth=aW; roiHeight=aH;
         roiBits = (aT == ASI_IMG_RAW16) ? 16 : 8;
     }
-    Log("[FORMAT] startup -> %dx%d %d-bit (requested 3840x2160 8-bit)\n",
-        roiWidth, roiHeight, roiBits);
+    Log("[FORMAT] startup -> %dx%d %d-bit (requested %dx%d %d-bit, %s)\n",
+        roiWidth, roiHeight, roiBits, reqW, reqH, reqBits,
+        raduk::core::RigConfig::Get().HasLastFormat()
+            ? "restored from last session" : "first run default");
     // Sensor-absolute origin of the current ROI. Centroids and rubber-band
     // selections are ROI-relative, so every crop must add this offset —
     // without it, a second acquisition cycle (ROI still cropped from the
@@ -620,8 +635,30 @@ static int RunApp(bool useEmulator) {
     // The ASI SDK centres a ROI when no start position is set; seed to match.
     int roiStartX = ((cam.MaxWidth()  - roiWidth)  / 2 / 8) * 8;
     int roiStartY = ((cam.MaxHeight() - roiHeight) / 2 / 2) * 2;
-    cam.SetGain(100); cam.SetExposure(8.0); cam.SetGamma(50);
-    cam.SetWhiteBalance(52, 47); cam.SetUSBBandwidth(80); cam.SetHighSpeedMode(true);
+    // Phase 88: last session's values, falling back to the old
+    // hardcoded defaults when nothing has been stored yet. These used to
+    // overwrite the rig unconditionally, so a night of tuning was lost on
+    // every relaunch unless it had been saved into a profile first.
+    {
+        const auto& rgs = raduk::core::RigConfig::Get();
+        // Per field, not one flag. RigConfig rejects each stored value
+        // on its own merits, so a session can come back with a good gain
+        // and no usable USB figure -- which is exactly what a session
+        // saved on the emulator does, since it discards that control.
+        const int   g  = rgs.lastGain       >= 0    ? rgs.lastGain  : 100;
+        const double e = rgs.lastExposureMs >  0.0f ? (double)rgs.lastExposureMs : 8.0;
+        const int   gm = rgs.lastGamma      >= 0    ? rgs.lastGamma : 50;
+        const int   wr = rgs.lastWbRed      >= 0    ? rgs.lastWbRed : 52;
+        const int   wb = rgs.lastWbBlue     >= 0    ? rgs.lastWbBlue: 47;
+        const int   ub = rgs.lastUsb        >= 0    ? rgs.lastUsb   : 80;
+        cam.SetGain(g); cam.SetExposure(e); cam.SetGamma(gm);
+        cam.SetWhiteBalance(wr, wb);
+        cam.SetUSBBandwidth(ub);
+        cam.SetHighSpeedMode(true);
+        Log("[CAMERA] startup -> gain=%d exp=%.2fms gamma=%d wb=%d/%d usb=%d (%s)\n",
+            g, e, gm, wr, wb, ub,
+            rgs.HasLastCamera() ? "restored" : "first run default");
+    }
 
     // ── EAF ────────────────────────────────────────────────────
     EAFFocuser focuser;
@@ -827,7 +864,14 @@ static int RunApp(bool useEmulator) {
 #endif // RADUK_EMULATOR
 
     // ── Preview ring + capture thread ──────────────────────────
-    int frameSizeBytes = ASICamera::FrameSize(roiWidth, roiHeight, ASI_IMG_RAW8);
+    // Phase 88: must follow the restored bit depth. This was hardcoded
+    // ASI_IMG_RAW8, which was right while startup was always 8-bit --
+    // once a session could come back 16-bit it allocated the ring at
+    // half the needed size, every frame was rejected as too small, and
+    // the app started with a dead preview and a readiness dialog
+    // blaming the camera.
+    int frameSizeBytes = ASICamera::FrameSize(
+        roiWidth, roiHeight, roiBits == 16 ? ASI_IMG_RAW16 : ASI_IMG_RAW8);
     RingBuffer ring;
     ring.Allocate(DEFAULT_RING_SIZE, frameSizeBytes);
     CaptureThread capture;
@@ -935,6 +979,19 @@ static int RunApp(bool useEmulator) {
                     focuser.IsOpen()    ? &focuser : nullptr,
                     mount && mount->IsConnected() ? mount : nullptr);
     controls.SnapToMainWindow();
+    // Phase 88: the sliders start from hardcoded constants, so after a
+    // restore the camera and the panel would have disagreed on every
+    // value -- and nudging a slider then wrote its stale number back to
+    // the camera, undoing the restore. Same fault, same fix as Phase 85.
+    if (cam.IsOpen()) {
+        controls.SetCameraSliders(
+            (int)cam.GetControl(ASI_GAIN),
+            (int)cam.GetControl(ASI_EXPOSURE),        // slider is in us
+            (int)cam.GetControl(ASI_GAMMA),
+            (int)cam.GetControl(ASI_WB_R),
+            (int)cam.GetControl(ASI_WB_B),
+            (int)cam.GetControl(ASI_BANDWIDTHOVERLOAD));
+    }
 
     // ── Toolbar strip (Win32 native buttons above preview) ─────
     raduk::gui::ToolbarStrip toolbar;
@@ -1871,6 +1928,31 @@ static int RunApp(bool useEmulator) {
         preview.HandleMouseUp(x, y);
     });
 
+    // Phase 88: store the live rig so the next launch comes back to it.
+    // Reads the camera rather than any cached copy, so whatever the user
+    // actually last dialled in is what gets kept -- including changes
+    // made with the sliders, which write straight to the camera and are
+    // not mirrored anywhere else.
+    auto saveSession = [&](const char* why) {
+        auto& rg = raduk::core::RigConfig::Get();
+        rg.lastRoiWidth  = roiWidth;
+        rg.lastRoiHeight = roiHeight;
+        rg.lastBitDepth  = roiBits;
+        if (cam.IsOpen()) {
+            rg.lastGain       = (int)cam.GetControl(ASI_GAIN);
+            rg.lastExposureMs = (float)(cam.GetControl(ASI_EXPOSURE) / 1000.0);
+            rg.lastGamma      = (int)cam.GetControl(ASI_GAMMA);
+            rg.lastWbRed      = (int)cam.GetControl(ASI_WB_R);
+            rg.lastWbBlue     = (int)cam.GetControl(ASI_WB_B);
+            rg.lastUsb        = (int)cam.GetControl(ASI_BANDWIDTHOVERLOAD);
+        }
+        rg.Save();
+        Log("[SESSION] Saved (%s): %dx%d %d-bit gain=%d exp=%.2fms gamma=%d wb=%d/%d usb=%d\n",
+            why, rg.lastRoiWidth, rg.lastRoiHeight, rg.lastBitDepth,
+            rg.lastGain, rg.lastExposureMs, rg.lastGamma,
+            rg.lastWbRed, rg.lastWbBlue, rg.lastUsb);
+    };
+
     // ── Phase 84: the one place the capture format changes ────
     // Three paths reconfigured the camera -- startup, a dragged box and
     // the [ROI] crop -- each carrying its own copy of the
@@ -1953,6 +2035,9 @@ static int RunApp(bool useEmulator) {
 
         if (wasRecording && capturer.StartRecording(w, h, bits))
             usbMgr.SetCapturing(true);
+        // Persisted straight away. A format change is deliberate, and
+        // the app does get killed at the mount rather than closed.
+        saveSession("format change");
         return true;
     };
 
@@ -2707,6 +2792,10 @@ static int RunApp(bool useEmulator) {
         objectInfo.Hide();
         notifBar.Dismiss();
         mountCtrl.Hide();
+        // Phase 88: keep the rig state before the window goes. This is
+        // the path that catches slider changes, which write straight to
+        // the camera and are mirrored nowhere else.
+        saveSession("exit");
         // Destroy main window → WM_DESTROY → PostQuitMessage → message loop exits
         DestroyWindow(window.Handle());
     };

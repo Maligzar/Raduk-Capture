@@ -191,6 +191,27 @@ struct RigConfig {
     // exactly when a bright screen does the damage.
     bool nightVision = false;
 
+    // ── Last session's camera state ───────────────────────────
+    // Phase 88. Startup used to write hardcoded values over whatever
+    // the rig was last doing: gain 100, 8 ms, full frame, 8-bit. A
+    // night's tuning survived only if it had been saved into a profile
+    // first, and the capture format did not survive at all. These hold
+    // the live state instead, so a relaunch comes back where you left.
+    //
+    // -1 / 0 means "never stored", and then the old defaults apply, so
+    // a first run and an upgrade both behave as before.
+    int   lastRoiWidth   = 0;
+    int   lastRoiHeight  = 0;
+    int   lastBitDepth   = 0;
+    int   lastGain       = -1;
+    float lastExposureMs = -1.0f;
+    int   lastGamma      = -1;
+    int   lastWbRed      = -1;
+    int   lastWbBlue     = -1;
+    int   lastUsb        = -1;
+    bool  HasLastCamera() const { return lastGain >= 0; }
+    bool  HasLastFormat() const { return lastRoiWidth > 0 && lastRoiHeight > 0; }
+
     // Phase 67 step 6: an obstruction sector in azimuth - a house, a
     // wall, a tree. Degrees true, running CLOCKWISE from start to end.
     // Equal values mean no arc, which is the default: most sites do
@@ -236,6 +257,15 @@ struct RigConfig {
         wf("ShowAlignHelper", showAlignHelper ? 1.0 : 0.0);
         wf("ShowReadinessCheck", showReadinessCheck ? 1.0 : 0.0);
         wf("NightVision", nightVision ? 1.0 : 0.0);
+        wf("LastRoiWidth",   (double)lastRoiWidth);
+        wf("LastRoiHeight",  (double)lastRoiHeight);
+        wf("LastBitDepth",   (double)lastBitDepth);
+        wf("LastGain",       (double)lastGain);
+        wf("LastExposureMs", (double)lastExposureMs);
+        wf("LastGamma",      (double)lastGamma);
+        wf("LastWbRed",      (double)lastWbRed);
+        wf("LastWbBlue",     (double)lastWbBlue);
+        wf("LastUsb",        (double)lastUsb);
         WritePrivateProfileStringA("Rig", "SiteSource",
                                    siteSource.empty() ? "manual" : siteSource.c_str(),
                                    p.c_str());
@@ -293,6 +323,39 @@ private:
         cfg.showAlignHelper       = rf("ShowAlignHelper", 1.0) != 0.0;
         cfg.showReadinessCheck    = rf("ShowReadinessCheck", 1.0) != 0.0;
         cfg.nightVision           = rf("NightVision", 0.0) != 0.0;
+        cfg.lastRoiWidth          = (int)rf("LastRoiWidth",   0.0);
+        cfg.lastRoiHeight         = (int)rf("LastRoiHeight",  0.0);
+        cfg.lastBitDepth          = (int)rf("LastBitDepth",   0.0);
+        cfg.lastGain              = (int)rf("LastGain",      -1.0);
+        cfg.lastExposureMs        = (float)rf("LastExposureMs", -1.0);
+        cfg.lastGamma             = (int)rf("LastGamma",     -1.0);
+        cfg.lastWbRed             = (int)rf("LastWbRed",     -1.0);
+        cfg.lastWbBlue            = (int)rf("LastWbBlue",    -1.0);
+        cfg.lastUsb               = (int)rf("LastUsb",       -1.0);
+
+        // A stored camera value outside its usable range must not be
+        // applied. The emulator discards USB bandwidth and answers 0 for
+        // it, so without this a session saved on the bench would restore
+        // bandwidth 0 to the real camera and stop it streaming. Each
+        // field is checked on its own: one bad number should not discard
+        // the rest of a good session.
+        auto bad = [](int v, int lo, int hi) { return v < lo || v > hi; };
+        if (bad(cfg.lastGain,   0,  600))  cfg.lastGain   = -1;
+        if (bad(cfg.lastGamma,  1,  100))  cfg.lastGamma  = -1;
+        if (bad(cfg.lastWbRed,  1,   99))  cfg.lastWbRed  = -1;
+        if (bad(cfg.lastWbBlue, 1,   99))  cfg.lastWbBlue = -1;
+        if (bad(cfg.lastUsb,   40,  100))  cfg.lastUsb    = -1;
+        if (cfg.lastExposureMs <= 0.0f || cfg.lastExposureMs > 600000.0f)
+            cfg.lastExposureMs = -1.0f;
+        // The format is checked against the real sensor by the caller,
+        // which reads back what the camera granted; only nonsense is
+        // rejected here.
+        if (cfg.lastRoiWidth  < 8 || cfg.lastRoiWidth  > 16384 ||
+            cfg.lastRoiHeight < 2 || cfg.lastRoiHeight > 16384) {
+            cfg.lastRoiWidth = cfg.lastRoiHeight = 0;
+        }
+        if (cfg.lastBitDepth != 8 && cfg.lastBitDepth != 16)
+            cfg.lastBitDepth = 0;
         {
             char sbuf[32] = {};
             GetPrivateProfileStringA("Rig", "SiteSource", "", sbuf, sizeof(sbuf), p.c_str());

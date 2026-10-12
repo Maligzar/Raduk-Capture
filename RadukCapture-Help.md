@@ -315,6 +315,7 @@ fullscreen.
 | `F11` *(in the Sky Map window)* | Fill the display the map is on, with no title bar. `Esc` or `F11` again to come back. See **Putting the Sky Map on its own screen**. |
 | `Ctrl+Shift+Home` | **Bring every window back to the main screen.** Works from anywhere, even with the app in the background. See **The multi-monitor workspace**. |
 | `Ctrl+Shift+End` | **Save the current arrangement** as the layout to open with. |
+| `Shift+H` | Open the **histogram window** — the same display on a screen of its own. |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |
@@ -556,8 +557,9 @@ on; it will never guess an arrangement you built deliberately. Saved
 entries use the `@x,y,w,h` form, which is exact screen coordinates
 rather than fractions, so what you get back is what you had.
 
-The layout in use on this rig keeps **DISPLAY1 and DISPLAY2 free** for
-telemetry windows. A copy lives in `docs/workspace-5monitor.ini`.
+The layout in use on this rig puts the histogram window on DISPLAY2 and
+keeps **DISPLAY1 free** for the telemetry windows still to come. A copy
+lives in `docs/workspace-5monitor.ini`.
 
 ### Why a window can be stuck
 
@@ -748,6 +750,25 @@ apparent swings.
 
 Both panels hide themselves if the window is too narrow to hold them
 without covering the target.
+
+### The histogram window (`Shift+H`, v1.2.4)
+
+The same per-channel histogram as the preview panel, in a window you can
+put on a screen of its own. `F11` fills that screen, `Esc` closes it.
+
+It is the identical display, not a second implementation — one piece of
+code draws both, so the log scale, the skipped bins and the clip
+colouring cannot drift apart between them. What the window adds is room:
+rows a third of a screen tall instead of 24 pixels, where the shape of
+each channel reads from across the room and the gap between R, G and B
+is obvious rather than inferred.
+
+The small panel on the preview stays as it is, for working on one
+screen or with the preview full screen.
+
+`Shift+H` rather than a letter of its own, the same way `Shift+S` is the
+framing shot — and `H` already cycles the channel display mode, which is
+the same question asked a different way.
 
 ### Reticle (`R` key, or the `[+]` toolbar button)
 

@@ -1,0 +1,182 @@
+#pragma once
+// ============================================================
+// HistogramDraw.h — Phase 42b
+//
+// One implementation of the per-channel histogram, drawn into any D2D
+// render target at any size.
+//
+// It exists because the histogram now has two homes: the small permanent
+// panel on the live preview, and a window of its own on a spare monitor.
+// Two copies of this would drift, and the parts most likely to drift are
+// the parts that were hardest to get right -- the log scale, the skipped
+// bins, the clip colouring. There is one copy and both callers use it.
+//
+// Everything scales from rowH, so the same code produces the 24px
+// overlay rows and a row a third of a 1080p screen tall. At rowH = 24
+// the derived widths come out at exactly the overlay's original
+// numbers, so the small version is unchanged by the extraction.
+// ============================================================
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <d2d1.h>
+#include <dwrite.h>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <cwchar>
+#include "../core/FrameAnalyzer.h"
+
+namespace raduk::gui::histogram {
+
+// The caller owns these; this header only borrows them for the call.
+struct Brushes {
+    ID2D1SolidColorBrush* r     = nullptr;
+    ID2D1SolidColorBrush* g     = nullptr;
+    ID2D1SolidColorBrush* b     = nullptr;
+    ID2D1SolidColorBrush* bed   = nullptr;   // bar bed behind each row
+    ID2D1SolidColorBrush* mean  = nullptr;   // mean marker
+    ID2D1SolidColorBrush* dim   = nullptr;
+    ID2D1SolidColorBrush* amber = nullptr;
+    ID2D1SolidColorBrush* red   = nullptr;
+    ID2D1SolidColorBrush* green = nullptr;
+};
+
+// labW / pctW are the channel-letter and clip-percentage columns.
+// They are the CALLER'S to set, and deliberately not derived from rowH:
+// they hold text, so they scale with the font, and the two part company
+// badly once the rows get large. Derived from rowH, a window with 195px
+// rows reserved 357px for the string "0.0%" and took all of it off the
+// bars -- the display's whole content squeezed to make room for four
+// characters.
+inline void Draw(ID2D1RenderTarget* rt, IDWriteTextFormat* font,
+                 const Brushes& br, const raduk::core::AnalysisResult& a,
+                 bool valid, float x, float y, float w, float h,
+                 float rowH, float labW, float pctW) {
+    if (!rt || !font) return;
+
+    const float PAD  = 6.0f;
+    const float LABW = labW;
+    const float PCTW = pctW;
+    const float barX = x + PAD + LABW + 4.0f;
+    const float barW = w - PAD * 2.0f - LABW - 4.0f - PCTW - 4.0f;
+    if (barW < 20.0f) return;
+
+    font->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+
+    struct Row {
+        const wchar_t*                   label;
+        ID2D1SolidColorBrush*            brush;
+        const std::array<uint32_t, 256>* hist;
+        float                            clip;
+        float                            mean;
+    } rows[3] = {
+        {L"R", br.r, &a.histR, a.clipR, a.meanR},
+        {L"G", br.g, &a.histG, a.clipG, a.meanG},
+        {L"B", br.b, &a.histB, a.clipB, a.meanB},
+    };
+
+    for (int ch = 0; ch < 3; ch++) {
+        Row& row = rows[ch];
+        const float ry = y + PAD + ch * rowH;
+        if (!row.brush) continue;
+
+        rt->DrawText(row.label, 1, font,
+                     D2D1::RectF(x + PAD, ry, x + PAD + LABW, ry + rowH),
+                     row.brush);
+
+        // Bar bed, so an empty channel still reads as a channel.
+        if (br.bed)
+            rt->FillRectangle(
+                D2D1::RectF(barX, ry + 2, barX + barW, ry + rowH - 2), br.bed);
+
+        if (valid) {
+            uint32_t peak = 1;
+            for (int i = 1; i < 255; i++)
+                if ((*row.hist)[i] > peak) peak = (*row.hist)[i];
+
+            // LOG counts, not linear.
+            //
+            // A planetary frame is mostly sky, so the low bins hold
+            // orders of magnitude more pixels than the bins the planet
+            // occupies. Scaled linearly against the tallest bin,
+            // everything except the sky spike works out under one pixel
+            // and is dropped -- the rows read as empty while the data is
+            // sitting right there.
+            //
+            // log(1+v)/log(1+peak) puts a single-count bin at about 6%
+            // of row height against a peak of 100k, so the shape of the
+            // distribution shows while the sky still reads as the
+            // tallest thing. Read noise becomes visible too, which is
+            // the honest picture rather than a flattering one.
+            const float logPeak = logf(1.0f + (float)peak);
+
+            // Bins 0 and 1 skipped: dark current, not signal, and on a
+            // planetary frame it is most of the pixels.
+            const float bedH = rowH - 4.0f;
+            for (int i = 2; i < 256; i++) {
+                const uint32_t v = (*row.hist)[i];
+                if (!v) continue;
+                const float bh = logf(1.0f + (float)v) / logPeak * bedH;
+                // Skip, do not clamp, a bin under a pixel. Clamping drew
+                // every non-zero bin as a 1px mark -- on a planetary
+                // frame nearly all 254 of them -- which made a flat line
+                // that looked like a histogram and carried nothing.
+                if (bh < 1.0f) continue;
+                const float bx  = barX + (float)i / 256.0f * barW;
+                float       bx2 = barX + (float)(i + 1) / 256.0f * barW;
+                if (bx2 <= bx) bx2 = bx + 1.0f;
+                rt->FillRectangle(
+                    D2D1::RectF(bx, ry + 2.0f + bedH - bh, bx2, ry + 2.0f + bedH),
+                    (i >= 248 && br.red) ? br.red : row.brush);
+            }
+
+            if (row.mean > 2.0f && br.mean) {
+                float mx = barX + row.mean / 255.0f * barW;
+                if (mx < barX) mx = barX;
+                if (mx > barX + barW - 1.0f) mx = barX + barW - 1.0f;
+                rt->DrawLine(D2D1::Point2F(mx, ry + 3.0f),
+                             D2D1::Point2F(mx, ry + rowH - 3.0f),
+                             br.mean, 0.8f);
+            }
+        }
+
+        // Clipped percentage — the number this display exists for.
+        wchar_t pct[16];
+        swprintf(pct, 16, L"%.1f%%", valid ? row.clip : 0.0f);
+        ID2D1SolidColorBrush* pctBrush =
+            (!valid)          ? br.dim :
+            (row.clip > 1.0f) ? br.red :
+            (row.clip > 0.1f) ? br.amber : br.dim;
+        if (!pctBrush) pctBrush = br.dim;
+        if (pctBrush) {
+            font->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+            rt->DrawText(pct, (UINT32)wcslen(pct), font,
+                         D2D1::RectF(barX + barW + 2.0f, ry, x + w - PAD, ry + rowH),
+                         pctBrush);
+            font->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+        }
+    }
+
+    // Seeing score. Not shown anywhere else -- the preview's bottom-left
+    // graph reports sharpness, which is a different question.
+    wchar_t line[48];
+    if (valid) swprintf(line, 48, L"SEEING  %.1f/10", a.seeingScore);
+    else       swprintf(line, 48, L"SEEING  --");
+    ID2D1SolidColorBrush* sBrush =
+        (!valid)                ? br.dim :
+        (a.seeingScore >= 7.0f) ? br.green :
+        (a.seeingScore >= 4.0f) ? br.amber : br.red;
+    if (!sBrush) sBrush = br.dim;
+    if (sBrush)
+        rt->DrawText(line, (UINT32)wcslen(line), font,
+                     D2D1::RectF(x + PAD, y + PAD + 3 * rowH, x + w - PAD, y + h),
+                     sBrush);
+}
+
+} // namespace raduk::gui::histogram

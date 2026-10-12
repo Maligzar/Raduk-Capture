@@ -358,7 +358,12 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (firstPress && m_onStretchToggle) m_onStretchToggle();
             return true;
         case 'H':
-            if (firstPress && m_onChannelCycle) m_onChannelCycle();
+            // Shift+H opens the histogram window. On the channel key
+            // rather than taking a new letter, the same way Shift+S is
+            // the framing shot -- and the two are related anyway, both
+            // being about where the colour is sitting.
+            if (shift) { if (firstPress && m_onHistogramToggle) m_onHistogramToggle(); }
+            else       { if (firstPress && m_onChannelCycle)    m_onChannelCycle();    }
             return true;
         case 'Z':
             if (firstPress && m_onZoomCycle) m_onZoomCycle();

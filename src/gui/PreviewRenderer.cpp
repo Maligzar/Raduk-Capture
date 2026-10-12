@@ -7,6 +7,7 @@
 // ============================================================
 #include "PreviewRenderer.h"
 #include "Theme.h"
+#include "HistogramDraw.h"
 #include "Version.h"
 #include "core/ADCAssistant.h"
 #include "core/RigConfig.h"
@@ -1148,128 +1149,29 @@ void PreviewRenderer::DrawHistogramPanel(const raduk::core::AnalysisResult& a,
                                          float x, float y, float w, float h) {
     FillPanelBg(x, y, w, h);
 
-    const float PAD  = 6.0f;
-    const float LABW = 12.0f;
-    const float PCTW = 44.0f;
-    const float ROWH = 24.0f;
-    const float barX = x + PAD + LABW + 4.0f;
-    const float barW = w - PAD * 2.0f - LABW - 4.0f - PCTW - 4.0f;
-    if (barW < 20.0f) return;
+    // The drawing itself lives in HistogramDraw.h, shared with the
+    // stand-alone histogram window. It used to be inline here, and the
+    // parts worth not duplicating are the parts that took the longest to
+    // get right: the log scale, the skipped sub-pixel bins, the clip
+    // colouring. ROWH 24 reproduces exactly what this overlay drew
+    // before the extraction.
+    // The overlay's original numbers, passed explicitly so the
+      // extraction cannot change how it looks.
+    const float ROWH = 24.0f, LABW = 12.0f, PCTW = 44.0f;
 
-    m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+    histogram::Brushes br;
+    br.r     = m_histRBrush;
+    br.g     = m_histGBrush;
+    br.b     = m_histBBrush;
+    br.bed   = m_panelBgBrush;
+    br.mean  = m_textBrush;
+    br.dim   = m_dimBrush;
+    br.amber = m_amberBrush;
+    br.red   = m_redBrush;
+    br.green = m_greenBrush;
 
-    struct Row {
-        const wchar_t*                   label;
-        ID2D1SolidColorBrush*            brush;
-        const std::array<uint32_t, 256>* hist;
-        float                            clip;
-        float                            mean;
-    } rows[3] = {
-        {L"R", m_histRBrush, &a.histR, a.clipR, a.meanR},
-        {L"G", m_histGBrush, &a.histG, a.clipG, a.meanG},
-        {L"B", m_histBBrush, &a.histB, a.clipB, a.meanB},
-    };
-
-    for (int ch = 0; ch < 3; ch++) {
-        Row& row = rows[ch];
-        const float ry = y + PAD + ch * ROWH;
-        if (!row.brush) continue;
-
-        // Channel letter
-        m_renderTarget->DrawText(row.label, 1, m_hudFont,
-            D2D1::RectF(x + PAD, ry, x + PAD + LABW, ry + ROWH), row.brush);
-
-        // Bar bed, so an empty channel still reads as a channel.
-        if (m_panelBgBrush)
-            m_renderTarget->FillRectangle(
-                D2D1::RectF(barX, ry + 2, barX + barW, ry + ROWH - 2), m_panelBgBrush);
-
-        if (valid) {
-            uint32_t peak = 1;
-            for (int i = 1; i < 255; i++)
-                if ((*row.hist)[i] > peak) peak = (*row.hist)[i];
-
-            // LOG counts, not linear.
-            //
-            // A planetary frame is mostly sky, so the low bins hold
-            // several orders of magnitude more pixels than the bins the
-            // planet actually occupies. Scaled linearly against the
-            // tallest bin, everything but the sky spike works out under
-            // one pixel and is dropped -- the rows read as empty while
-            // the data is there. That was true of the control panel
-            // version too; it mattered less when the thing was collapsed
-            // by default.
-            //
-            // log(1+v)/log(1+peak) puts a single-count bin at about 6%
-            // of row height against a peak of 100k, so the shape of the
-            // distribution is visible while the sky still reads as the
-            // tallest thing. The cost is that read noise is now visible
-            // too, which is the honest picture rather than a flattering
-            // one.
-            const float logPeak = logf(1.0f + (float)peak);
-
-            // Bins 0 and 1 skipped: that is dark current, not signal, and
-            // on a planetary frame it is most of the pixels -- leaving it
-            // in flattens everything else against the sky spike.
-            const float bedTop = ry + 2.0f, bedH = ROWH - 4.0f;
-            for (int i = 2; i < 256; i++) {
-                const uint32_t v = (*row.hist)[i];
-                if (!v) continue;
-                const float bh = logf(1.0f + (float)v) / logPeak * bedH;
-                // Skip, do not clamp, a bin under a pixel. Clamping drew
-                // every non-zero bin as a 1px mark, which on a planetary
-                // frame is nearly all 254 of them -- a flat line across
-                // the row that looked like a histogram and carried no
-                // information. The control panel version skipped them.
-                if (bh < 1.0f) continue;
-                const float bx  = barX + (float)i / 256.0f * barW;
-                float       bx2 = barX + (float)(i + 1) / 256.0f * barW;
-                if (bx2 <= bx) bx2 = bx + 1.0f;
-                m_renderTarget->FillRectangle(
-                    D2D1::RectF(bx, ry + 2.0f + bedH - bh, bx2, ry + 2.0f + bedH),
-                    (i >= 248 && m_redBrush) ? m_redBrush : row.brush);
-            }
-
-            // Mean marker
-            if (row.mean > 2.0f && m_textBrush) {
-                float mx = barX + row.mean / 255.0f * barW;
-                if (mx < barX) mx = barX;
-                if (mx > barX + barW - 1.0f) mx = barX + barW - 1.0f;
-                m_renderTarget->DrawLine(D2D1::Point2F(mx, ry + 3.0f),
-                                         D2D1::Point2F(mx, ry + ROWH - 3.0f),
-                                         m_textBrush, 0.8f);
-            }
-        }
-
-        // Clipped percentage, the number this panel exists for.
-        wchar_t pct[16];
-        swprintf(pct, 16, L"%.1f%%", valid ? row.clip : 0.0f);
-        ID2D1SolidColorBrush* pctBrush =
-            (!valid)             ? m_dimBrush :
-            (row.clip > 1.0f)    ? m_redBrush :
-            (row.clip > 0.1f)    ? m_amberBrush : m_dimBrush;
-        if (!pctBrush) pctBrush = m_dimBrush;
-        if (pctBrush) {
-            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
-            m_renderTarget->DrawText(pct, (UINT32)wcslen(pct), m_hudFont,
-                D2D1::RectF(barX + barW + 2.0f, ry, x + w - PAD, ry + ROWH), pctBrush);
-            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-        }
-    }
-
-    // Seeing score. Not shown anywhere else -- the bottom-left graph
-    // reports sharpness, which is a different question.
-    wchar_t line[48];
-    if (valid) swprintf(line, 48, L"SEEING  %.1f/10", a.seeingScore);
-    else       swprintf(line, 48, L"SEEING  --");
-    ID2D1SolidColorBrush* sBrush =
-        (!valid)                  ? m_dimBrush :
-        (a.seeingScore >= 7.0f)   ? m_greenBrush :
-        (a.seeingScore >= 4.0f)   ? m_amberBrush : m_redBrush;
-    if (!sBrush) sBrush = m_dimBrush;
-    if (sBrush)
-        m_renderTarget->DrawText(line, (UINT32)wcslen(line), m_hudFont,
-            D2D1::RectF(x + PAD, y + PAD + 3 * ROWH, x + w - PAD, y + h), sBrush);
+    histogram::Draw(m_renderTarget, m_hudFont, br, a, valid,
+                    x, y, w, h, ROWH, LABW, PCTW);
 }
 
 void PreviewRenderer::DrawTempPanel(float x, float y, float w, float h) {

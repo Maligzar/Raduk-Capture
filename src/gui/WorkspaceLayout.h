@@ -332,7 +332,11 @@ public:
 
         // Roles that benefit from a screen of their own, in the order
         // they get one as screens become available.
-        const char* spill[] = { "skymap", "goto", "mount", "aichat", "help" };
+        // Order matters: the earlier a role appears, the more likely it
+        // gets a screen to itself rather than doubling up. The map and
+        // the histogram are the two that actually use a whole screen.
+        const char* spill[] = { "skymap", "histogram", "goto",
+                                "mount", "aichat", "help" };
         const int   nSpill  = (int)(sizeof(spill) / sizeof(spill[0]));
 
         // One screen goes to the main window, so the rest share what is

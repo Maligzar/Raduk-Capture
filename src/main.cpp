@@ -62,6 +62,7 @@
 #include "gui/GoToPanel.h"
 #include "gui/SkyMapWindow.h"
 #include "gui/WorkspaceLayout.h"
+#include "gui/HistogramWindow.h"
 #include "gui/MountController.h"
 #include "gui/StatusBar.h"
 #include "gui/HelpWindow.h"
@@ -1343,6 +1344,13 @@ static int RunApp(bool useEmulator) {
     }
     Log("[INIT] AI chat panel ready\n");
 
+    // Phase 42b: the histogram as a window of its own, for one of the
+    // spare screens. Hidden until Shift+H; the overlay on the preview
+    // stays as it was for single-screen work.
+    raduk::gui::HistogramWindow histWindow;
+    histWindow.Create(window.Handle(), 200, 200, 900, 520);
+    Log("[INIT] Histogram window ready\n");
+
     // ── Phase 42: place the windows ───────────────────────────
     // This has to be the point where the LAST window has been created,
     // and it has moved twice for that reason: Place() on a window that
@@ -1360,6 +1368,7 @@ static int RunApp(bool useEmulator) {
         { "mount",  mountCtrl.Handle() },
         { "help",   helpWindow.Handle()},
         { "aichat", aiChat.Handle()    },
+        { "histogram", histWindow.Handle() },
     };
     for (const auto& [role, hwnd] : kPlacedWindows)
         workspace.Place(role, hwnd);
@@ -3007,6 +3016,7 @@ static int RunApp(bool useEmulator) {
     window.SetFullscreenToggleHandler([&]() { doFullscreen();        });
     window.SetGoToToggleHandler([&]()       { gotoPanel.ShowCentered(); });
     window.SetSkyMapToggleHandler([&]()     { skyMap.Toggle();       });
+    window.SetHistogramToggleHandler([&]()  { histWindow.Toggle();   });
     window.SetAutofocusToggleHandler([&]() {
         // A key: same as clicking the AF button — toggle start/abort
         bool start = !autofocus.IsRunning();
@@ -3822,6 +3832,7 @@ static int RunApp(bool useEmulator) {
         // histogram shows its channels greyed rather than disappearing.
         preview.DrawSidePanels(lastAnalysis, lastAnalysis.valid,
                                0, previewW, windowH, stDIPs);
+        histWindow.Update(lastAnalysis);
 
         if (!window.IsFullscreen())
             statusBar.Draw(previewW, windowH);

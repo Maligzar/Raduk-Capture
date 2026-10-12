@@ -11,6 +11,10 @@ unstarted or waiting on a clear night.
 
 ## 1. The real outstanding item is still a clear night
 
+**The full list is now its own document: [CLEAR-NIGHT-CHECKLIST.md](CLEAR-NIGHT-CHECKLIST.md).** It is
+ordered for use at the telescope, with what to look at and what to do
+with the answer. The summary below is kept for context.
+
 This has not changed since the last version of this file, and it has
 grown. Phases 60–84 are almost entirely bench-verified.
 

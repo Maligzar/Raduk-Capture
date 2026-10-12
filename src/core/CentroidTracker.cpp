@@ -396,21 +396,19 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
     // The correction solve is unaffected either way: it works in the
     // pixel domain from the measured px/ms matrix, where the rate
     // cancels out.
+    float measuredRate = 0.0f, assumedRate = 0.0f;
     cal.arcsecPerPx = RigConfig::Get().plateScaleArcsecPx;
     {
         float assumed  = RigConfig::Get().guideRateArcsecPerSec;
         float measured = (eMag * cal.arcsecPerPx)
                        / (CAL_PULSE_MS / 1000.0f);   // arcsec per second
-        printf("[CentroidTracker] Guide rate: assumed %.2f\"/s, "
-               "measured %.2f\"/s (%.0f%% of assumed)\n",
-               assumed, measured,
-               assumed > 0.01f ? (measured / assumed * 100.0f) : 0.0f);
-        if (assumed > 0.01f &&
-            (measured < assumed * 0.5f || measured > assumed * 2.0f)) {
-            printf("[CentroidTracker] WARNING: measured guide rate is far "
-                   "from rig.ini GuideRateArcsecPerSec -- pulse sizing and "
-                   "the drift readout will be off until it is corrected\n");
-        }
+        // Carried into the calibration message rather than printed.
+        // printf reaches nothing in a GUI build, so the one diagnostic
+        // that says rig.ini's guide rate is wrong -- which throws off
+        // pulse sizing and the drift readout -- was invisible to the
+        // only person who could act on it.
+        measuredRate = measured;
+        assumedRate  = assumed;
     }
     cal.when    = std::chrono::steady_clock::now();
     {
@@ -422,12 +420,21 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
         m_cal = cal;
     }
 
-    char buf[160];
+    // The guide rate belongs here, not in a printf: a measurement that
+    // disagrees with rig.ini is the most useful thing this routine
+    // learns, and it is only actionable if it is seen.
+    const bool rateOff = assumedRate > 0.01f &&
+                         (measuredRate < assumedRate * 0.5f ||
+                          measuredRate > assumedRate * 2.0f);
+    char buf[256];
     snprintf(buf, sizeof(buf),
-             "E=(%.2f,%.2f)px/s N=(%.2f,%.2f)px/s scale=%.2f\"/px alt=%.0f",
+             "E=(%.2f,%.2f)px/s N=(%.2f,%.2f)px/s scale=%.2f\"/px alt=%.0f"
+             "  guide rate measured %.2f\"/s vs rig.ini %.2f\"/s%s",
              cal.exPerMs * 1000, cal.eyPerMs * 1000,
              cal.nxPerMs * 1000, cal.nyPerMs * 1000,
-             cal.arcsecPerPx, cal.altDeg);
+             cal.arcsecPerPx, cal.altDeg,
+             measuredRate, assumedRate,
+             rateOff ? " <- WRONG, set GuideRateArcsecPerSec" : "");
     finish(true, buf);
 }
 

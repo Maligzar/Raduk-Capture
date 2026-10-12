@@ -1498,6 +1498,11 @@ To pin the site by hand, set both coordinates and `SiteSource=manual` in
 rig.ini; an entry marked manual is never replaced by an automatic estimate.
 
 ### Autofocus fails / doesn't converge
+- **Check the log for `[SHARP] CEILING`.** After a few minutes of imaging the
+  app judges its own sharpness scale and says so if it is wrong — a ceiling
+  set too low clips the focus curve flat, and autofocus then has no peak to
+  find. This is the single most likely reason a sweep returns something far
+  from focus. It names the constant to change.
 - Ensure EAF is connected (position shows a number, not dashes)
 - **Centre the target first.** Sharpness is measured on a 256×256 crop that
   follows the detected planet; with nothing detected it falls back to frame
@@ -1561,6 +1566,11 @@ Both the resolution and bit-depth buttons close the current recording, since
 a SER file cannot change format part-way through. Set the format first.
 
 ### ADC reading seems wrong
+- **Plate-solve once and read the log.** The ADC figure scales with the plate
+  scale, and `PlateScaleArcsecPx` in `rig.ini` is calculated rather than
+  measured. Every successful solve now logs
+  `Plate scale: solved X"/px vs rig.ini Y"/px`, and flags anything more than
+  5% out. Correct it there and the ADC figure corrects with it.
 - **Check the filter first.** The `Filter:` line directly under the ADC
   readout says which band the figure was computed over. If that does not match
   the glass actually on the camera, the number is wrong by as much as 4× —

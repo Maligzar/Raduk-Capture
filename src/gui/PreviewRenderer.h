@@ -15,6 +15,7 @@
 #include <chrono>
 #include <string>
 #include <vector>
+#include <deque>
 #include <functional>
 #include "../core/FrameSlot.h"
 #include "core/CalibrationFrames.h"
@@ -51,7 +52,7 @@ public:
 
     // Call order each tick:
     //   RenderFrame(...)           — BeginDraw, preview + reticle + HUD + frame bar
-    //   DrawAnalysisOverlay(...)   — histogram + seeing (optional)
+    //   DrawSidePanels(...)        — histogram + temperature panels
     //   statusBar.Draw(...)        — status bar strip
     //   EndFrame()                 — EndDraw, present
     void RenderFrame(const raduk::core::FrameSlot* frame,
@@ -59,9 +60,35 @@ public:
                      int statusBarHeight,
                      double fps, uint64_t frameCount, int droppedFrames);
 
-    void DrawAnalysisOverlay(const raduk::core::AnalysisResult& analysis,
-                              int previewX, int previewWidth, int windowHeight,
-                              int statusBarHeight);
+    // Permanent side panels: histogram to the left of the image, the
+    // temperature chart to the right. Both used to be collapsible
+    // sections in the control panel, where they competed for vertical
+    // room with everything else and started collapsed -- so the two
+    // readouts you want to glance at continuously were the two you had
+    // to open first. The dark sky either side of a planet is the one
+    // part of this window with space going spare, so they live there
+    // now and are always on.
+    //
+    // Drawn even when the analysis is stale: the temperature trace is
+    // meaningful with no frame at all, and a panel that vanishes
+    // whenever the planet drifts out of the centroid is worse than one
+    // showing its last reading.
+    void DrawSidePanels(const raduk::core::AnalysisResult& analysis,
+                        bool analysisValid,
+                        int previewX, int previewWidth, int windowHeight,
+                        int statusBarHeight);
+
+    struct TempSample { float camC; float focC; };
+    static constexpr int TEMP_HISTORY = 120;
+
+    // Temperature sample, from the readout loop (~500ms) -- the same
+    // source that used to feed the control panel's chart.
+    void PushTempSample(float camC, float focC) {
+        m_tempCamC = camC; m_tempFocC = focC; m_hasTempData = true;
+        m_tempHistory.push_back({camC, focC});
+        if ((int)m_tempHistory.size() > TEMP_HISTORY)
+            m_tempHistory.pop_front();
+    }
 
     void EndFrame();
 
@@ -421,6 +448,10 @@ private:
     void DrawReticle(float cx, float cy, float rw, float rh);
     void DrawADCOverlay(float previewW, float previewH);
     void DrawQualityGraph(float px, float pw, float ph);
+    void DrawHistogramPanel(const raduk::core::AnalysisResult& a, bool valid,
+                            float x, float y, float w, float h);
+    void DrawTempPanel(float x, float y, float w, float h);
+    void FillPanelBg(float x, float y, float w, float h);
     void DrawPixelReadout(float px, float pw, float ph);
     void DrawRubberBand();
     void DrawResetPopup();
@@ -441,9 +472,20 @@ private:
     ID2D1SolidColorBrush*   m_redBrush      = nullptr;
     ID2D1SolidColorBrush*   m_barBgBrush    = nullptr;  // frame bar background
     ID2D1SolidColorBrush*   m_barHiBrush    = nullptr;  // frame bar active button
+    // Side-panel channel colours, cached rather than created per frame:
+    // the histogram redraws three rows of bars at up to 30fps.
+    ID2D1SolidColorBrush*   m_histRBrush    = nullptr;
+    ID2D1SolidColorBrush*   m_histGBrush    = nullptr;
+    ID2D1SolidColorBrush*   m_histBBrush    = nullptr;
+    ID2D1SolidColorBrush*   m_panelBgBrush  = nullptr;  // translucent backing
     IDWriteTextFormat*      m_hudFont       = nullptr;
     IDWriteTextFormat*      m_titleFont     = nullptr;
     IDWriteTextFormat*      m_barFont       = nullptr;   // smaller font for frame bar
+
+    std::deque<TempSample> m_tempHistory;
+    float m_tempCamC    = 0.0f;
+    float m_tempFocC    = 0.0f;
+    bool  m_hasTempData = false;
 
     uint8_t*                m_rgbBuffer     = nullptr;
     size_t                  m_rgbBufferSize = 0;

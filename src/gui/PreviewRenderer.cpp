@@ -35,14 +35,20 @@ bool PreviewRenderer::CreateBrushes() {
     hr = m_renderTarget->CreateSolidColorBrush(
         D2D1::ColorF(1.0f, 0.1f, 0.1f, 1.0f), &m_reticleBrush);
     if (FAILED(hr)) return false;
+    // These three go through NVf as of the side panels. They were raw
+    // literals, so night vision left them green/amber at full strength.
+    // That was survivable while they only tinted the quality graph, and
+    // not once the temperature chart moved onto the preview: CAM and
+    // SEEING then sat on an otherwise all-red screen at the eyepiece,
+    // which is the one thing night vision exists to prevent.
     hr = m_renderTarget->CreateSolidColorBrush(
-        D2D1::ColorF(0.30f, 1.0f, 0.43f, 0.85f), &m_greenBrush);
+        Theme::NVf(D2D1::ColorF(0.30f, 1.0f, 0.43f, 0.85f)), &m_greenBrush);
     if (FAILED(hr)) return false;
     hr = m_renderTarget->CreateSolidColorBrush(
-        D2D1::ColorF(1.0f, 0.67f, 0.0f, 0.85f), &m_amberBrush);
+        Theme::NVf(D2D1::ColorF(1.0f, 0.67f, 0.0f, 0.85f)), &m_amberBrush);
     if (FAILED(hr)) return false;
     hr = m_renderTarget->CreateSolidColorBrush(
-        D2D1::ColorF(1.0f, 0.23f, 0.36f, 0.85f), &m_redBrush);
+        Theme::NVf(D2D1::ColorF(1.0f, 0.23f, 0.36f, 0.85f)), &m_redBrush);
     if (FAILED(hr)) return false;
     // Frame bar brushes
     hr = m_renderTarget->CreateSolidColorBrush(
@@ -50,6 +56,20 @@ bool PreviewRenderer::CreateBrushes() {
     if (FAILED(hr)) return false;
     hr = m_renderTarget->CreateSolidColorBrush(
         D2D1::ColorF(0.0f, 0.898f, 1.0f, 0.15f), &m_barHiBrush);   // cyan highlight
+    if (FAILED(hr)) return false;
+    // Side panels. Through Theme::NVf so night vision reaches them --
+    // the raw ColorF brushes above predate that and stay as they were.
+    hr = m_renderTarget->CreateSolidColorBrush(
+        Theme::NVf(D2D1::ColorF(1.0f, 0.31f, 0.31f, 0.90f)), &m_histRBrush);
+    if (FAILED(hr)) return false;
+    hr = m_renderTarget->CreateSolidColorBrush(
+        Theme::NVf(D2D1::ColorF(0.31f, 0.86f, 0.31f, 0.90f)), &m_histGBrush);
+    if (FAILED(hr)) return false;
+    hr = m_renderTarget->CreateSolidColorBrush(
+        Theme::NVf(D2D1::ColorF(0.31f, 0.55f, 1.0f, 0.90f)), &m_histBBrush);
+    if (FAILED(hr)) return false;
+    hr = m_renderTarget->CreateSolidColorBrush(
+        D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.55f), &m_panelBgBrush);
     if (FAILED(hr)) return false;
     m_brushPaletteGen = Theme::PaletteGeneration();
     return true;
@@ -65,6 +85,10 @@ void PreviewRenderer::ReleaseBrushes() {
     if (m_redBrush) { m_redBrush->Release(); m_redBrush = nullptr; }
     if (m_barBgBrush) { m_barBgBrush->Release(); m_barBgBrush = nullptr; }
     if (m_barHiBrush) { m_barHiBrush->Release(); m_barHiBrush = nullptr; }
+    if (m_histRBrush) { m_histRBrush->Release(); m_histRBrush = nullptr; }
+    if (m_histGBrush) { m_histGBrush->Release(); m_histGBrush = nullptr; }
+    if (m_histBBrush) { m_histBBrush->Release(); m_histBBrush = nullptr; }
+    if (m_panelBgBrush) { m_panelBgBrush->Release(); m_panelBgBrush = nullptr; }
 }
 
 bool PreviewRenderer::Init(ID2D1HwndRenderTarget* renderTarget,
@@ -1074,13 +1098,235 @@ void PreviewRenderer::DrawResetPopup() {
     }
 }
 
-// ── DrawAnalysisOverlay ───────────────────────────────────────
-// No-op — histogram drawn in ControlPanel::PaintHistogram (GDI WM_PAINT).
+// ── Side panels ───────────────────────────────────────────────────
+// Histogram left, temperature right, both vertically centred on the
+// dark sky either side of the target.
+//
+// Centred rather than cornered because every corner is already taken:
+// the caption and zoom hint sit top-left and top-right, the quality
+// graph and the ADC readout bottom-left and bottom-right. The middle
+// of each edge is the only part of the frame nothing else claims, and
+// on a planetary target it is empty sky.
 
-void PreviewRenderer::DrawAnalysisOverlay(const raduk::core::AnalysisResult& /*analysis*/,
-                                           int /*previewX*/, int /*previewWidth*/,
-                                           int /*windowHeight*/, int /*statusBarHeight*/) {
-    // No-op: histogram now drawn in ControlPanel::PaintHistogram (GDI WM_PAINT).
+void PreviewRenderer::FillPanelBg(float x, float y, float w, float h) {
+    if (!m_panelBgBrush) return;
+    m_renderTarget->FillRectangle(D2D1::RectF(x, y, x + w, y + h), m_panelBgBrush);
+    if (m_dimBrush)
+        m_renderTarget->DrawRectangle(D2D1::RectF(x, y, x + w, y + h), m_dimBrush, 0.5f);
+}
+
+void PreviewRenderer::DrawSidePanels(const raduk::core::AnalysisResult& analysis,
+                                     bool analysisValid,
+                                     int previewX, int previewWidth,
+                                     int windowHeight, int statusBarHeight) {
+    if (!m_renderTarget || !m_hudFont) return;
+
+    const float px = (float)previewX;
+    const float pw = (float)previewWidth;
+    const float ph = (float)(windowHeight - statusBarHeight);
+
+    const float PANEL_W = 268.0f;
+    const float HIST_H  = 104.0f;
+    const float TEMP_H  = 116.0f;
+    const float MARGIN  = 12.0f;
+
+    // Give up rather than overprint the image when there is no room to
+    // either side -- at a small window or a heavy zoom the two panels
+    // would meet in the middle and cover the target itself.
+    if (pw < PANEL_W * 2.0f + MARGIN * 4.0f + 160.0f) return;
+    if (ph < HIST_H + 120.0f) return;
+
+    DrawHistogramPanel(analysis, analysisValid,
+                       px + MARGIN, ph * 0.5f - HIST_H * 0.5f, PANEL_W, HIST_H);
+    DrawTempPanel(px + pw - PANEL_W - MARGIN,
+                  ph * 0.5f - TEMP_H * 0.5f, PANEL_W, TEMP_H);
+}
+
+void PreviewRenderer::DrawHistogramPanel(const raduk::core::AnalysisResult& a,
+                                         bool valid,
+                                         float x, float y, float w, float h) {
+    FillPanelBg(x, y, w, h);
+
+    const float PAD  = 6.0f;
+    const float LABW = 12.0f;
+    const float PCTW = 44.0f;
+    const float ROWH = 24.0f;
+    const float barX = x + PAD + LABW + 4.0f;
+    const float barW = w - PAD * 2.0f - LABW - 4.0f - PCTW - 4.0f;
+    if (barW < 20.0f) return;
+
+    m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+
+    struct Row {
+        const wchar_t*                   label;
+        ID2D1SolidColorBrush*            brush;
+        const std::array<uint32_t, 256>* hist;
+        float                            clip;
+        float                            mean;
+    } rows[3] = {
+        {L"R", m_histRBrush, &a.histR, a.clipR, a.meanR},
+        {L"G", m_histGBrush, &a.histG, a.clipG, a.meanG},
+        {L"B", m_histBBrush, &a.histB, a.clipB, a.meanB},
+    };
+
+    for (int ch = 0; ch < 3; ch++) {
+        Row& row = rows[ch];
+        const float ry = y + PAD + ch * ROWH;
+        if (!row.brush) continue;
+
+        // Channel letter
+        m_renderTarget->DrawText(row.label, 1, m_hudFont,
+            D2D1::RectF(x + PAD, ry, x + PAD + LABW, ry + ROWH), row.brush);
+
+        // Bar bed, so an empty channel still reads as a channel.
+        if (m_panelBgBrush)
+            m_renderTarget->FillRectangle(
+                D2D1::RectF(barX, ry + 2, barX + barW, ry + ROWH - 2), m_panelBgBrush);
+
+        if (valid) {
+            uint32_t peak = 1;
+            for (int i = 1; i < 255; i++)
+                if ((*row.hist)[i] > peak) peak = (*row.hist)[i];
+
+            // Bins 0 and 1 skipped: that is dark current, not signal, and
+            // on a planetary frame it is most of the pixels -- leaving it
+            // in flattens everything else against the sky spike.
+            const float bedTop = ry + 2.0f, bedH = ROWH - 4.0f;
+            for (int i = 2; i < 256; i++) {
+                const uint32_t v = (*row.hist)[i];
+                if (!v) continue;
+                const float bh = (float)v / (float)peak * bedH;
+                // Skip, do not clamp, a bin under a pixel. Clamping drew
+                // every non-zero bin as a 1px mark, which on a planetary
+                // frame is nearly all 254 of them -- a flat line across
+                // the row that looked like a histogram and carried no
+                // information. The control panel version skipped them.
+                if (bh < 1.0f) continue;
+                const float bx  = barX + (float)i / 256.0f * barW;
+                float       bx2 = barX + (float)(i + 1) / 256.0f * barW;
+                if (bx2 <= bx) bx2 = bx + 1.0f;
+                m_renderTarget->FillRectangle(
+                    D2D1::RectF(bx, ry + 2.0f + bedH - bh, bx2, ry + 2.0f + bedH),
+                    (i >= 248 && m_redBrush) ? m_redBrush : row.brush);
+            }
+
+            // Mean marker
+            if (row.mean > 2.0f && m_textBrush) {
+                float mx = barX + row.mean / 255.0f * barW;
+                if (mx < barX) mx = barX;
+                if (mx > barX + barW - 1.0f) mx = barX + barW - 1.0f;
+                m_renderTarget->DrawLine(D2D1::Point2F(mx, ry + 3.0f),
+                                         D2D1::Point2F(mx, ry + ROWH - 3.0f),
+                                         m_textBrush, 0.8f);
+            }
+        }
+
+        // Clipped percentage, the number this panel exists for.
+        wchar_t pct[16];
+        swprintf(pct, 16, L"%.1f%%", valid ? row.clip : 0.0f);
+        ID2D1SolidColorBrush* pctBrush =
+            (!valid)             ? m_dimBrush :
+            (row.clip > 1.0f)    ? m_redBrush :
+            (row.clip > 0.1f)    ? m_amberBrush : m_dimBrush;
+        if (!pctBrush) pctBrush = m_dimBrush;
+        if (pctBrush) {
+            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+            m_renderTarget->DrawText(pct, (UINT32)wcslen(pct), m_hudFont,
+                D2D1::RectF(barX + barW + 2.0f, ry, x + w - PAD, ry + ROWH), pctBrush);
+            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+        }
+    }
+
+    // Seeing score. Not shown anywhere else -- the bottom-left graph
+    // reports sharpness, which is a different question.
+    wchar_t line[48];
+    if (valid) swprintf(line, 48, L"SEEING  %.1f/10", a.seeingScore);
+    else       swprintf(line, 48, L"SEEING  --");
+    ID2D1SolidColorBrush* sBrush =
+        (!valid)                  ? m_dimBrush :
+        (a.seeingScore >= 7.0f)   ? m_greenBrush :
+        (a.seeingScore >= 4.0f)   ? m_amberBrush : m_redBrush;
+    if (!sBrush) sBrush = m_dimBrush;
+    if (sBrush)
+        m_renderTarget->DrawText(line, (UINT32)wcslen(line), m_hudFont,
+            D2D1::RectF(x + PAD, y + PAD + 3 * ROWH, x + w - PAD, y + h), sBrush);
+}
+
+void PreviewRenderer::DrawTempPanel(float x, float y, float w, float h) {
+    FillPanelBg(x, y, w, h);
+
+    const float PAD  = 6.0f;
+    const float LBLH = 18.0f;
+    const float chartTop = y + PAD;
+    const float chartH   = h - LBLH - PAD * 2.0f;
+    const float chartW   = w - PAD * 2.0f;
+    if (chartH < 16.0f) return;
+
+    m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+
+    if (m_tempHistory.size() < 2) {
+        if (m_dimBrush)
+            m_renderTarget->DrawText(L"TEMP  collecting...", 19, m_hudFont,
+                D2D1::RectF(x + PAD, y + PAD, x + w - PAD, y + h - PAD), m_dimBrush);
+        return;
+    }
+
+    float tMin = 999.0f, tMax = -999.0f;
+    for (const TempSample& s : m_tempHistory) {
+        if (s.camC < tMin) tMin = s.camC;
+        if (s.focC < tMin) tMin = s.focC;
+        if (s.camC > tMax) tMax = s.camC;
+        if (s.focC > tMax) tMax = s.focC;
+    }
+    float tRange = tMax - tMin;
+    // Floor the range, or a still night magnifies sensor quantisation
+    // into a chart that looks like the temperature is swinging wildly.
+    if (tRange < 2.0f) { tMin -= 1.0f; tRange = 2.0f; }
+
+    const int n = (int)m_tempHistory.size();
+    auto tempToY = [&](float t) -> float {
+        return chartTop + chartH - 1.0f - ((t - tMin) / tRange) * (chartH - 2.0f);
+    };
+    auto idxToX = [&](int i) -> float {
+        return x + PAD + (float)i / (float)(TEMP_HISTORY - 1) * chartW;
+    };
+
+    struct Trace { ID2D1SolidColorBrush* brush; bool isFoc; } traces[2] = {
+        {m_greenBrush, false},
+        {m_amberBrush, true },
+    };
+    for (const Trace& tr : traces) {
+        if (!tr.brush) continue;
+        for (int i = 1; i < n; i++) {
+            const float t0 = tr.isFoc ? m_tempHistory[i-1].focC : m_tempHistory[i-1].camC;
+            const float t1 = tr.isFoc ? m_tempHistory[i].focC   : m_tempHistory[i].camC;
+            m_renderTarget->DrawLine(
+                D2D1::Point2F(idxToX(i - 1), tempToY(t0)),
+                D2D1::Point2F(idxToX(i),     tempToY(t1)), tr.brush, 1.0f);
+        }
+    }
+
+    // Label row: range on the left, current readings on the right.
+    const float labY = y + h - LBLH - 2.0f;
+    wchar_t buf[64];
+
+    if (m_dimBrush) {
+        swprintf(buf, 64, L"%.0f\xB0-%.0f\xB0", tMin, tMin + tRange);
+        m_renderTarget->DrawText(buf, (UINT32)wcslen(buf), m_hudFont,
+            D2D1::RectF(x + PAD, labY, x + PAD + 70.0f, labY + LBLH), m_dimBrush);
+    }
+    if (m_greenBrush) {
+        swprintf(buf, 64, L"CAM %.1f\xB0", m_tempCamC);
+        m_renderTarget->DrawText(buf, (UINT32)wcslen(buf), m_hudFont,
+            D2D1::RectF(x + w - PAD - 160.0f, labY, x + w - PAD - 80.0f, labY + LBLH),
+            m_greenBrush);
+    }
+    if (m_amberBrush) {
+        swprintf(buf, 64, L"FOC %.1f\xB0", m_tempFocC);
+        m_renderTarget->DrawText(buf, (UINT32)wcslen(buf), m_hudFont,
+            D2D1::RectF(x + w - PAD - 78.0f, labY, x + w - PAD, labY + LBLH),
+            m_amberBrush);
+    }
 }
 
 // ── DrawPixelReadout ──────────────────────────────────────────

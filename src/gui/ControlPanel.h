@@ -65,15 +65,6 @@ public:
     // Called each render tick with latest frame analysis.
     void UpdateAnalysis(const raduk::core::AnalysisResult& analysis);
 
-    // Temperature sample — called from readout loop (~500ms)
-    void PushTempSample(float camC, float focC) {
-        m_tempCamC = camC; m_tempFocC = focC; m_hasTempData = true;
-        m_tempHistory.push_back({camC, focC});
-        if ((int)m_tempHistory.size() > TEMP_HISTORY)
-            m_tempHistory.pop_front();
-        if (m_panelHwnd) InvalidateRect(m_panelHwnd, nullptr, FALSE);
-    }
-
     // Status bar data — called from readout loop
     void UpdateStatus(float fps, int lost, float bufPct, int bufFrames,
                       int bufTotal, float diskGB, bool recording) {
@@ -454,9 +445,9 @@ private:
 
     // GDI painting
     void PaintAll(HDC hdc, const RECT& clientRect);
-    void PaintHistogram(HDC hdc, int x, int y, int w, int h);
+
     void PaintStatus(HDC hdc, int x, int y, int w);
-    void PaintTemperature(HDC hdc, int x, int y, int w, int h);
+
 
     // Layout rebuild
     void RebuildControls(int clientW, bool fromResize = false);
@@ -481,14 +472,6 @@ private:
     uint32_t m_paintDrops       = 0;
     double   m_paintElapsed     = 0.0;
     float    m_paintFPS         = 0.0f;
-
-    // ── Temperature chart ─────────────────────────────────────
-    struct TempSample { float camC; float focC; };
-    static constexpr int TEMP_HISTORY = 120;
-    std::deque<TempSample> m_tempHistory;
-    float m_tempCamC    = 0.0f;
-    float m_tempFocC    = 0.0f;
-    bool  m_hasTempData = false;
 
     // ── Status cache ───────────────────────────────────────────
     struct StatusCache {
@@ -523,8 +506,11 @@ private:
     void UpdateJogRateButtons();
 
     // ── Section tagging ───────────────────────────────────────
+    // Histogram and Temperature are gone from here: they are permanent
+    // overlays on the preview now (PreviewRenderer::DrawSidePanels), so
+    // they no longer need a collapse state or a header to hit-test.
     enum class Section { Default, Header, Camera, EAF, Mount,
-                         Image, Profile, Capture, Notes, Status, Histogram, Temperature };
+                         Image, Profile, Capture, Notes, Status };
     std::unordered_map<HWND, Section> m_ctrlSection;
     std::unordered_set<HWND> m_sectionHeaders;
     void TagControl(HWND h, Section s) { if (h) m_ctrlSection[h] = s; }
@@ -539,8 +525,7 @@ private:
         for (Section s : { Section::Image,
                            Section::Camera, Section::EAF, Section::Mount,
                            Section::Capture, Section::Notes,
-                           Section::Status, Section::Histogram,
-                           Section::Temperature })
+                           Section::Status })
             m_collapsed[s] = true;
     }
 
@@ -574,16 +559,14 @@ private:
         auto it = m_collapsed.find(s);
         return it != m_collapsed.end() && it->second;
     }
-    // Dynamic height of GDI-painted strip (STATUS+HISTOGRAM+TEMPERATURE headers + content)
+    // Dynamic height of the GDI-painted strip (STATUS header + content).
+    // HISTOGRAM and TEMPERATURE used to add 22 + 110 and 22 + 130 here;
+    // both are preview overlays now, which is the space this frees.
     int GdiStripHeight() const {
         const int HDR = 22;
         int h = 0;
         h += HDR + 2; // STATUS header always shown
-        if (!IsCollapsed(Section::Status))      h += 66;
-        h += HDR + 2; // HISTOGRAM header
-        if (!IsCollapsed(Section::Histogram))   h += 110;
-        h += HDR + 2; // TEMPERATURE header
-        if (!IsCollapsed(Section::Temperature)) h += 130;
+        if (!IsCollapsed(Section::Status)) h += 66;
         return h;
     }
     void ToggleCollapse(Section s) {
@@ -617,8 +600,6 @@ private:
     // ── GDI section header hit rects (STATUS/HISTOGRAM/TEMPERATURE) ──
     // Updated every PaintAll call; used by WM_LBUTTONDOWN for collapse clicks.
     RECT m_gdiHdrStatus      = {};
-    RECT m_gdiHdrHistogram   = {};
-    RECT m_gdiHdrTemperature = {};
 
     // ── Window handles ─────────────────────────────────────────
     HWND m_panelHwnd = nullptr;

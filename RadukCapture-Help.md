@@ -482,9 +482,17 @@ boxes, the boxes silently won every time. One section, one set of values.
 - **FPS** — Live frames per second.
 - **LOST** — Frames dropped (write buffer overflow).
 
-### HISTOGRAM
-- Live 256-bin luminance histogram of the current frame.
-- Peak channel and clip percentage shown below.
+### HISTOGRAM and TEMPERATURE — moved to the preview (v1.2.4)
+
+Both left the control panel. They are now permanent panels on the live
+image itself, one either side of the target, and there is nothing to
+expand — see **Side panels** under Preview Overlays.
+
+They moved because they were the wrong shape for this panel: every
+section here starts collapsed, so the two readouts you want to watch
+continuously were the two you had to open first, and opening them
+pushed everything else down. The dark sky either side of a planet was
+going spare.
 
 ### NOTES  (saved with profile)
 - Free-text notes for the current session. **Saved and restored with the active profile** — click SAVE on the profile to persist, click LOAD to restore. Notes are also editable in the profile EDIT dialog.
@@ -560,6 +568,37 @@ is off, and is exactly what tracking exists to cancel.
 ---
 
 ## Preview Overlays
+
+### Side panels — histogram and temperature (v1.2.4)
+
+Always on, one either side of the image, vertically centred. They sit
+in the middle of each edge because every corner is already taken: the
+caption and the zoom hint top-left and top-right, the sharpness graph
+and the ADC readout bottom-left and bottom-right.
+
+**Left — histogram.** One row per Bayer channel, R, G and B, each with
+its own bar chart, a white tick at the channel mean and the **clipped
+percentage** on the right. The percentage is the number to watch: it
+turns amber past 0.1% and red past 1%. Below the rows is the **seeing
+score** out of 10.
+
+Two details worth knowing, both inherited from the panel version:
+
+- Bins 0 and 1 are not drawn. On a planetary frame that is sky, and it
+  is most of the pixels — leaving it in flattens everything else.
+- Bars are scaled to the tallest bin, and a bar that works out under
+  one pixel is skipped. On a small target against a lot of sky the
+  rows will look sparse. That is the data, not a fault.
+
+**Right — temperature.** Camera and focuser temperature over the last
+120 samples, about a minute: camera in green, focuser in amber. The
+range in use is printed bottom-left of the panel and the current
+readings bottom-right. The vertical range never shrinks below 2°C, so
+a steady night reads as a flat line rather than being magnified into
+apparent swings.
+
+Both panels hide themselves if the window is too narrow to hold them
+without covering the target.
 
 ### Reticle (`R` key, or the `[+]` toolbar button)
 

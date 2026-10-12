@@ -3747,8 +3747,11 @@ static int RunApp(bool useEmulator) {
             stats.framesCaptured.load(),
             stats.droppedFrames.load());
 
-        if (lastAnalysis.valid)
-            preview.DrawAnalysisOverlay(lastAnalysis, 0, previewW, windowH, stDIPs);
+        // Unconditional, and told separately whether the analysis is
+        // valid: the temperature half needs no frame at all, and the
+        // histogram shows its channels greyed rather than disappearing.
+        preview.DrawSidePanels(lastAnalysis, lastAnalysis.valid,
+                               0, previewW, windowH, stDIPs);
 
         if (!window.IsFullscreen())
             statusBar.Draw(previewW, windowH);
@@ -3940,7 +3943,7 @@ static int RunApp(bool useEmulator) {
             // ── FC-style temperature chart sample ─────────────
             float camT = cam.IsOpen()     ? cam.Temperature()        : 0.0f;
             float focT = focuser.IsOpen() ? focuser.GetTemperature() : 0.0f;
-            controls.PushTempSample(camT, focT);
+            preview.PushTempSample(camT, focT);
 
             // ── FC-style status bars ───────────────────────────
             {

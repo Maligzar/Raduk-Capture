@@ -84,7 +84,8 @@ app also loads as reference context for the AI assistant.
 - **[Wiki](https://github.com/Maligzar/Raduk-Capture/wiki)** — deep
   reference: architecture, threading, the capture pipeline, every subsystem,
   and why each is built the way it is. Source lives in [`wiki/`](wiki) and is
-  published with `wiki/publish-wiki.sh`.
+  published with `wiki\publish-wiki.bat` (or `wiki/publish-wiki.sh` under
+  bash).
 - [RadukCapture-Help.md](RadukCapture-Help.md) — operator reference and
   first-night walkthrough, also the AI assistant's app knowledge.
 - [RadukCapture-Architecture.md](RadukCapture-Architecture.md) —

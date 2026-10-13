@@ -8,15 +8,27 @@ The GitHub wiki for this repository, kept here under version control.
 ## Publishing
 
 A GitHub wiki is a separate git repository (`<repo>.wiki.git`) with **no
-REST API**, so publishing is a clone-copy-commit-push:
+REST API**, so publishing is a clone-copy-commit-push.
 
-```bash
-./wiki/publish-wiki.sh --dry-run   # show what would change
-./wiki/publish-wiki.sh             # publish
+**Windows** (`cmd.exe` or PowerShell) — this is the one to use on the
+capture PC:
+
+```bat
+wiki\publish-wiki.bat --dry-run   :: show what would change
+wiki\publish-wiki.bat             :: publish
 ```
 
-The script removes pages the wiki has that `wiki/` no longer defines, so a
-rename here does not leave an orphan page behind.
+**bash** (Git Bash, WSL, Linux, macOS):
+
+```bash
+./wiki/publish-wiki.sh --dry-run
+./wiki/publish-wiki.sh
+```
+
+The two scripts do the same thing and must stay in step. Both remove pages
+the wiki has that `wiki/` no longer defines, so a rename here does not leave
+an orphan page behind, and both skip `README.md` — it documents this
+directory and is not a wiki page.
 
 **The wiki must already exist.** If it has never been initialised, create
 one page through the web UI first:

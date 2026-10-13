@@ -4,6 +4,9 @@
 # The GitHub wiki is a separate git repository (<repo>.wiki.git) with no
 # REST API, so publishing is a clone, copy, commit, push.
 #
+# On Windows use publish-wiki.bat instead -- cmd.exe cannot run this file.
+# The two do the same thing and must stay in step.
+#
 # Prerequisites:
 #   - The wiki must exist. If it does not, create one page once via the
 #     web UI: https://github.com/Maligzar/Raduk-Capture/wiki
@@ -65,9 +68,12 @@ if (( DRY_RUN )); then
   exit 0
 fi
 
+# No timestamp in the message -- git records the commit date, and a
+# locale-dependent date string would be one more thing the .bat has to
+# reproduce exactly to keep the two scripts equivalent.
 git -C "$WORK/wiki" -c user.name="${GIT_AUTHOR_NAME:-wiki-publish}" \
     -c user.email="${GIT_AUTHOR_EMAIL:-wiki-publish@localhost}" \
-    commit --quiet -m "Publish wiki from wiki/ ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+    commit --quiet -m "Publish wiki from wiki/"
 
 echo "==> Pushing"
 git -C "$WORK/wiki" push --quiet origin HEAD

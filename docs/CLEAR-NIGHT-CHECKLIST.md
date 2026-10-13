@@ -119,9 +119,20 @@ their own clamp logic.
   camera `FULL` should give the whole sensor at origin (0,0), and the
   log should read `3840x2160`, not a clamp.
 - **16-bit capture end to end.** The format bar offers it, the pipeline
-  handles it, the emulator exercises it — but no real RAW16 frame has
-  been through it. Record a short 16-bit SER and confirm the file opens
-  in your stacker with the expected bit depth.
+  handles it — but no real RAW16 frame has been through it. Record a
+  short 16-bit SER and confirm the file opens in your stacker with the
+  expected bit depth.
+
+  **This was outright broken until 2026-10-13 and is worth re-reading.**
+  The RECORD button passed a hardcoded 8 as the bit depth, so in 16-bit
+  mode the write buffer was sized at half what the camera sends. Every
+  frame was rejected as too large, the writer consumed nothing, and the
+  capture produced a **0-byte SER** while the UI showed it recording
+  normally — right frame count on screen, nothing on disk. In 8-bit the
+  hardcoded value happened to be correct, which is why it survived this
+  long. Fixed, and verified in the emulator at 194 frames / 455 MB
+  where it previously wrote 0 bytes. Still unproven against the real
+  camera, which is why this item stays.
 - **The 530 MB ring at full sensor.** 64 slots × 8.3 MB. Allocation
   succeeded in the emulator at smaller sizes; at full sensor on the real
   camera, watch `BUF` and `LOST` in the status bar for the first minute.

@@ -116,6 +116,16 @@ public:
     uint32_t FramesDropped()  const { return m_status.framesDropped.load(); }
     double   ElapsedSec()     const { return m_status.elapsedSec.load(); }
     uint64_t BytesWritten()   const { return m_status.bytesWritten.load(); }
+
+    // Every diagnostic in here was a printf, and this is a GUI build
+    // where that reaches nothing. The writer thread can stop on a disk
+    // error, the buffer can fail to allocate and frames can be dropped,
+    // and all three announced themselves into a void. A capture that
+    // silently produces a 0-byte file is exactly the case where these
+    // lines are the whole answer.
+    void SetLogCallback(std::function<void(const std::string&)> cb) {
+        m_logFn = std::move(cb);
+    }
     uint64_t BufferPending()  const { return m_writeBuffer.Pending(); }
     uint64_t BufferTotal()    const { return (uint64_t)m_writeBuffer.NumSlots(); }
 
@@ -140,6 +150,10 @@ private:
     std::function<void(const std::string&, bool)> m_onComplete;
     CaptureConfig   m_config;
     WriteBuffer     m_writeBuffer;
+    // Named m_logFn, not m_log: m_log is already the SessionLog pointer
+    // below, which writes the session summary file. Different jobs.
+    std::function<void(const std::string&)> m_logFn;
+    void Say(const std::string& s) const { if (m_logFn) m_logFn("[CAPTURE] " + s); }
     SERWriter       m_writer;
     SessionLog*     m_log = nullptr;
     CaptureStatus   m_status;
@@ -147,6 +161,8 @@ private:
 
     std::thread     m_writerThread;
     std::atomic<bool> m_writerRunning{false};
+    // Push failures repeat every frame; report the reason once.
+    std::atomic<bool> m_pushFailureReported{false};
     std::atomic<bool> m_paused{false};         // Phase 41: pause without closing SER
 
     int       m_frameWidth  = 0;

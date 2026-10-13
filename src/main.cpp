@@ -2411,7 +2411,21 @@ static int RunApp(bool useEmulator) {
             capturer.SetConfig(cfg);
             CreateDirectoryA(cfg.outputDir.c_str(), nullptr);
 
-            if (capturer.StartRecording(roiWidth, roiHeight, 8)) {
+            // roiBits, not 8.
+            //
+            // This said 8 outright, so every recording sized its write
+            // buffer for an 8-bit frame whatever the camera was actually
+            // sending. In 16-bit each frame is twice the slot size, every
+            // Push is rejected as too large, the writer thread consumes
+            // nothing, and the capture produces a 0-byte SER while the UI
+            // reports it recording normally.
+            //
+            // roiBits is the variable that tracks what the camera gave
+            // us rather than what was asked for -- which is the whole
+            // reason it exists, and the format-change path on line ~2147
+            // has always passed it. Only this one, the RECORD button,
+            // did not.
+            if (capturer.StartRecording(roiWidth, roiHeight, roiBits)) {
                 usbMgr.SetCapturing(true);
                 slog.System("USB capture mode — %s", usbMgr.StatusString());
                 Log("[USB] Throttling EAF+mount: %s\n", usbMgr.StatusString());
@@ -2513,6 +2527,8 @@ static int RunApp(bool useEmulator) {
     });
 
     // ── Phase 12: Auto-Exposure Assistant ─────────────────────
+    capturer.SetLogCallback([](const std::string& s) { Log("%s\n", s.c_str()); });
+
     raduk::core::AutoExposureAssistant ae;
     // Its running commentary was printf, which a GUI build throws away.
     // Needed on the night: AE deciding something odd is only debuggable

@@ -9,7 +9,7 @@ namespace raduk::core {
 
 bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     if (m_status.recording.load()) {
-        printf("[CaptureManager] Already recording\n");
+        Say("Already recording");
         return false;
     }
 
@@ -27,6 +27,13 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     // Allocate (512 full-frame slots ≈ 4.2GB) must abort the start,
     // not silently "record" nothing.
     size_t frameBytes = (size_t)width * height * (bitDepth == 16 ? 2 : 1);
+    {
+        char b[160];
+        snprintf(b, sizeof(b),
+                 "Write buffer sized for %dx%d %d-bit = %zu bytes/slot",
+                 width, height, bitDepth, frameBytes);
+        Say(b);
+    }
     if (!m_writeBuffer.IsAllocated() ||
         m_writeBuffer.NumSlots() != m_config.writeBufferSlots ||
         m_writeBuffer.SlotCapacity() < frameBytes) {
@@ -43,7 +50,7 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
 
     // Open SER writer
     if (!m_writer.Open(path, width, height, bitDepth)) {
-        printf("[CaptureManager] Failed to open SER: %s\n", path.c_str());
+        { char b[512]; snprintf(b, sizeof(b), "Failed to open SER: %s", path.c_str()); Say(b); }
         return false;
     }
 
@@ -64,13 +71,15 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
         m_status.lastError.clear();
     }
 
+    m_pushFailureReported.store(false);
+
     // Start writer thread
     m_writerRunning.store(true);
     m_writerThread = std::thread(&CaptureManager::WriterLoop, this);
 
     m_status.recording.store(true);
 
-    printf("[CaptureManager] Recording started: %s\n", path.c_str());
+    { char b[512]; snprintf(b, sizeof(b), "Recording started: %s", path.c_str()); Say(b); }
     if (m_log) m_log->Capture("Recording started: %s  %dx%d  %d-bit",
                                path.c_str(), width, height, bitDepth);
     return true;
@@ -141,7 +150,34 @@ bool CaptureManager::SubmitFrame(const FrameSlot* slot, float sharpness,
 
     if (!ok) {
         m_status.framesDropped.fetch_add(1);
-        printf("[CaptureManager] Write buffer FULL — frame dropped!\n");
+        // Push fails for two quite different reasons and this message
+        // only ever named one of them: the buffer being full, or the
+        // frame not fitting a slot. They need opposite fixes -- a full
+        // buffer means the disk is not keeping up, a frame too large
+        // means the buffer was sized for a different format than the
+        // camera is sending -- and calling both "FULL" sent anyone
+        // reading the log after the wrong one.
+        //
+        // Said once per recording, because the failing case fails on
+        // every single frame and a line each would bury everything.
+        if (!m_pushFailureReported.exchange(true)) {
+            char b[200];
+            const size_t cap = m_writeBuffer.SlotCapacity();
+            if (slot->dataSize > cap)
+                snprintf(b, sizeof(b),
+                         "FRAME TOO LARGE for the write buffer: frame is %zu "
+                         "bytes, slots hold %zu. Nothing will be recorded. The "
+                         "buffer was sized for a different format than the "
+                         "camera is sending.",
+                         slot->dataSize, cap);
+            else
+                snprintf(b, sizeof(b),
+                         "Write buffer FULL (%llu of %d slots pending) - the "
+                         "disk is not keeping up",
+                         (unsigned long long)m_writeBuffer.Pending(),
+                         m_writeBuffer.NumSlots());
+            Say(b);
+        }
         return false;
     }
 
@@ -155,7 +191,7 @@ std::string CaptureManager::CurrentFile() {
 
 void CaptureManager::WriterLoop() {
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
-    printf("[CaptureManager] Writer thread started\n");
+    Say("Writer thread started");
 
     while (m_writerRunning.load() || m_writeBuffer.Pending() > 0) {
         const WriteSlot* slot = m_writeBuffer.Peek();
@@ -183,13 +219,13 @@ void CaptureManager::WriterLoop() {
             m_status.framesRecorded.fetch_add(1);
             m_status.bytesWritten.fetch_add(slot->dataSize);
         } else {
-            printf("[CaptureManager] Disk write error — stopping\n");
+            Say("Disk write error — stopping");
             break;
         }
     }
 
-    printf("[CaptureManager] Writer thread finished — %u frames written\n",
-           m_status.framesRecorded.load());
+    { char b[128]; snprintf(b, sizeof(b), "Writer thread finished - %u frames written",
+                            m_status.framesRecorded.load()); Say(b); }
 }
 
 std::string CaptureManager::BuildFilePath(int width, int height, int bitDepth) {

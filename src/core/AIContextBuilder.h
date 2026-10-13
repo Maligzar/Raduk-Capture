@@ -6,7 +6,7 @@
 // Five context blocks, refreshed on each message:
 //
 //  [IDENTITY]        — RadukScope persona + site info
-//  [APP REFERENCE]   — Full RadukCapture-Help.md (cached)
+//  [APP REFERENCE]   — the RELEVANT sections of RadukCapture-Help.md
 //  [SESSION STATE]   — Live camera/mount/format/seeing snapshot
 //  [TONIGHT'S SKY]   — Planner data from GoToPanel
 //  [CAPTURES TONIGHT]— SER file listing from output dir
@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include <ctime>
 #include <cstdio>
@@ -101,6 +103,78 @@ class AIContextBuilder {
 public:
     AIContextBuilder() = default;
 
+    // Pick the help sections worth sending for this question.
+    //
+    // Deliberately crude: split on markdown headings, score each section
+    // by how many of the question's words it contains, send the best few
+    // within a budget. No embeddings, no index, nothing to maintain --
+    // and for "what exposure for Jupiter" it finds the exposure and
+    // Jupiter sections, which is the whole job.
+    //
+    // A question matching nothing still gets the opening of the file,
+    // which is the safety section, so the model is never answering with
+    // no app knowledge at all.
+    static std::string RelevantHelp(const std::string& help,
+                                    const std::string& question) {
+        // Budget in characters. Roughly 2000 tokens, against the 25,000
+        // the whole file cost.
+        const size_t BUDGET = 8000;
+        if (help.size() <= BUDGET) return help;
+
+        // Split into sections on lines beginning with '#'.
+        std::vector<std::string> sections;
+        {
+            size_t start = 0;
+            for (size_t i = 0; i < help.size(); ++i) {
+                if (help[i] == '\n' && i + 1 < help.size() && help[i + 1] == '#') {
+                    sections.push_back(help.substr(start, i - start));
+                    start = i + 1;
+                }
+            }
+            sections.push_back(help.substr(start));
+        }
+
+        // Question words worth matching on. Short ones are noise.
+        std::vector<std::string> terms;
+        {
+            std::string cur;
+            for (char c : question) {
+                if (isalnum((unsigned char)c)) cur += (char)tolower((unsigned char)c);
+                else { if (cur.size() >= 4) terms.push_back(cur); cur.clear(); }
+            }
+            if (cur.size() >= 4) terms.push_back(cur);
+        }
+
+        std::vector<std::pair<int, size_t>> scored;
+        for (size_t i = 0; i < sections.size(); ++i) {
+            std::string lower = sections[i];
+            for (auto& c : lower) c = (char)tolower((unsigned char)c);
+            int score = 0;
+            for (const auto& t : terms) {
+                size_t at = 0;
+                while ((at = lower.find(t, at)) != std::string::npos) { ++score; at += t.size(); }
+            }
+            scored.push_back({score, i});
+        }
+        std::sort(scored.begin(), scored.end(),
+                  [](const auto& a, const auto& b) { return a.first > b.first; });
+
+        std::string out;
+        // The head of the file first: it is the safety section, and it
+        // should be in front of the model whatever was asked.
+        out += sections.empty() ? std::string() : sections[0].substr(0, 1200);
+        out += "\n";
+
+        for (const auto& [score, idx] : scored) {
+            if (score <= 0) break;
+            if (idx == 0) continue;
+            if (out.size() + sections[idx].size() > BUDGET) continue;
+            out += sections[idx];
+            out += "\n";
+        }
+        return out;
+    }
+
     // Call once at startup — caches Help.md content.
     void LoadHelpFile(const std::wstring& exeDir) {
         std::wstring path = exeDir + L"\\RadukCapture-Help.md";
@@ -162,8 +236,22 @@ public:
               "Never invent equipment specs or sky positions.\n\n";
 
         // ── [APP REFERENCE] ───────────────────────────────────
+        // The sections that look relevant, not the whole manual.
+        //
+        // This used to paste the entire help file into every question.
+        // That was defensible when the file was 31 KB; it is now 101 KB,
+        // which Ollama measured at 26,922 prompt tokens -- about four
+        // minutes of prompt processing on CPU before the model could
+        // begin its first word. The symptom reported was "the AI is not
+        // answering", and on a long enough prompt that is
+        // indistinguishable from the truth, which was "the AI has not
+        // finished reading the question yet".
+        //
+        // The file also grows every time the app is documented, so the
+        // assistant got slower with each improvement to the help.
         if (!m_helpText.empty()) {
-            ss << "[APP REFERENCE]\n" << m_helpText << "\n\n";
+            ss << "[APP REFERENCE]\n"
+               << RelevantHelp(m_helpText, userQuery) << "\n\n";
         }
 
         // ── [SESSION STATE] ───────────────────────────────────

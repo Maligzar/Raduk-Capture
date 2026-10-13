@@ -372,6 +372,31 @@ keeping for a future phase:
 
 Leave the buttons alone unless they prove annoying at the eyepiece.
 
+### D4 · The AI runs on CPU because the GPU path cannot work here
+**Severity: medium. Diagnosed and worked around 2026-10-12.**
+
+Ollama 0.40.3 ships a llama-server built against a CUDA toolkit newer
+than driver 546.01 supports (that driver tops out at CUDA 12.3), so its
+kernels fail to load with "device kernel image is invalid" on **either**
+card -- the RTX 2060 included. The first guess, that the Pascal P1000
+was to blame, was tested by excluding it and proved wrong: the 2060
+alone fails identically.
+
+The driver cannot simply be updated, because 546.01 is the last unified
+package covering both the Turing and Pascal cards on this machine.
+
+Worked around with , set per-user. Measured at
+14-52 tok/s generation, which is usable for short answers. Prompt
+processing is the slow part at roughly 100-150 tok/s.
+
+Three ways out, none of them urgent now that it works:
+
+1. **An older Ollama** built against CUDA 12.3 or earlier. Keeps both
+   cards and the pinned driver. Needs someone to find which release.
+2. **A newer driver**, accepting whatever that does to the P1000.
+3. **Leave it on CPU.** For short advisory answers this is fine, and it
+   is one less thing coupled to the driver.
+
 ### D3 · Night-vision repaint reaches only what is in the layout list
 **Severity: low. Introduced 2026-10-12.**
 

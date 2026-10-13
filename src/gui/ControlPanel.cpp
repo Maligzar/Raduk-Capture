@@ -1826,6 +1826,7 @@ void ControlPanel::SnapshotUi() {
     grab(m_editOutputDir,     m_ui.outputDir);
     grab(m_editLimitFrames,   m_ui.limitFrames);
     grab(m_editLimitTime,     m_ui.limitTime);
+    grab(m_editGoToTarget,    m_ui.goToTarget);
     grab(m_editNotes,         m_ui.notes);
     grab(m_editGateThreshold, m_ui.gateThreshold);
     // The gate tick, which was the one value with no store outside its
@@ -1849,6 +1850,7 @@ void ControlPanel::RestoreUi() {
     put(m_editOutputDir,     m_ui.outputDir);
     put(m_editLimitFrames,   m_ui.limitFrames);
     put(m_editLimitTime,     m_ui.limitTime);
+    put(m_editGoToTarget,    m_ui.goToTarget);
     put(m_editNotes,         m_ui.notes);
     put(m_editGateThreshold, m_ui.gateThreshold);
     if (m_btnGateEnable && m_ui.gateEnabled >= 0)

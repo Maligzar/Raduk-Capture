@@ -202,6 +202,16 @@ public:
 
     // Public GoTo entry point — used by SkyMapWindow click-to-GoTo
     // Fires profile auto-load + mount slew + status updates
+    // Fired whenever a slew to a named object is requested, from any
+    // route. Hooked here rather than at the call sites because DoGoTo
+    // has seven of them -- the sky map, the object info panel, this
+    // panel's own two lists, the APEX remote command and the
+    // auto-acquire path -- and a sync that covers six of seven is
+    // worse than none, since you would learn to trust it.
+    void SetTargetChangedCallback(std::function<void(const std::string&)> cb) {
+        m_onTargetChanged = std::move(cb);
+    }
+
     void RequestGoTo(double raH, double decDeg, const std::string& name) {
         DoGoTo(raH, decDeg, name);
     }
@@ -1323,6 +1333,7 @@ private:
             return;
         }
         m_currentTarget = name;
+        if (m_onTargetChanged) m_onTargetChanged(name);
 
         // Auto-load matching camera profile before slewing
         // e.g. "Jupiter" → loads Jupiter preset (gain, exp, ROI, WB)
@@ -1856,6 +1867,7 @@ private:
     bool        m_lastSlewing   = false;
     int         m_alignPoints   = 0;
     std::string m_currentTarget;
+    std::function<void(const std::string&)> m_onTargetChanged;
 
     // Observer location — 0,0 until SetLocation() wires in RigConfig
     double m_lat = 0.0;

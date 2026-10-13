@@ -63,6 +63,26 @@ public:
     void UpdateSlider(bool isExposure, int val);
 
     // Called each render tick with latest frame analysis.
+    // Point the TELESCOPE card's GoTo box at an object.
+    //
+    // Called when something else has already decided to slew there --
+    // a click on the sky map, or a pick from the object info panel. The
+    // box is the input to a button that moves the telescope, and it
+    // used to keep whatever was last typed, so after slewing to Saturn
+    // from the map the GOTO button still said Jupiter. A mis-click then
+    // sent the mount somewhere nobody had asked for.
+    //
+    // Writes the cache unconditionally and the control only if it
+    // exists: TELESCOPE is collapsible, and a map click with the
+    // section shut is the normal case.
+    void SetGoToTarget(const std::string& name) {
+        if (name.empty()) return;
+        wchar_t w[64] = {};
+        MultiByteToWideChar(CP_UTF8, 0, name.c_str(), -1, w, 63);
+        m_ui.goToTarget = w;
+        if (m_editGoToTarget) SetWindowTextW(m_editGoToTarget, w);
+    }
+
     void UpdateAnalysis(const raduk::core::AnalysisResult& analysis);
 
     // Status bar data — called from readout loop
@@ -542,6 +562,11 @@ private:
     struct UiValues {
         std::wstring filePrefix, outputDir, limitFrames, limitTime;
         std::wstring notes, gateThreshold;
+        // The TELESCOPE card's GoTo target. It was not cached, so every
+        // collapse toggle rebuilt the control and reset it to the
+        // default "Jupiter" -- the same trap that took the capture
+        // prefix, the notes and the quality gate.
+        std::wstring goToTarget;
         int  frameType    = -1;
         int  limitByFrames = -1;   // -1 unknown, 0 time, 1 frames
         // Review pass 2: the capture quality gate lived ONLY in its

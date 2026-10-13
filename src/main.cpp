@@ -1139,6 +1139,15 @@ static int RunApp(bool useEmulator) {
     // Click-to-GoTo: sky map click → GoToPanel.RequestGoTo
     // This triggers profile auto-load + mount slew + all status updates
     // Same code path as clicking GOTO SELECTED in the GoTo panel
+    // Whatever we slew to becomes the TELESCOPE card's GoTo target, by
+    // every route. That box is the input to a button that moves the
+    // telescope, and it used to hold whatever was last typed -- so after
+    // slewing to Saturn from the map, GOTO still said Jupiter, and a
+    // mis-click sent the mount somewhere nobody had asked for.
+    gotoPanel.SetTargetChangedCallback([&](const std::string& name) {
+        controls.SetGoToTarget(name);
+    });
+
     skyMap.SetGoToCallback([&](double ra, double dec, const std::string& name) {
         Log("[SKYMAP] GoTo: %s (%.4fh, %.4f\u00B0)\n", name.c_str(), ra, dec);
         slog.Mount("SkyMap GoTo: %s", name.c_str());

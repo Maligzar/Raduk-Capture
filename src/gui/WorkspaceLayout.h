@@ -61,7 +61,21 @@ namespace raduk::gui {
 // ── One physical screen ───────────────────────────────────────
 struct MonitorDesc {
     std::wstring device;        // \\.\DISPLAY5 — what a human recognises
-    std::wstring id;            // DISPLAY_DEVICE.DeviceID — survives reorder
+    // The device INTERFACE path, e.g.
+    //   \\?\DISPLAY#AUS24D2#5&1084a64c&5&UID413953#{e6f07b5f-...}
+    //
+    // This is the identity that actually holds. The plain DeviceID is
+    // MONITOR\<model>\{class}\000N, where 000N is an enumeration index
+    // that renumbers for the same reasons \\.\DISPLAYn does -- and on a
+    // rig with four identical panels the model part cannot tell them
+    // apart, so the index is the only distinguishing piece and it is
+    // the volatile piece. The interface path carries the adapter output
+    // UID instead, which is derived from the port and the hardware.
+    //
+    // It maps one-to-one onto the monitors' EDID serial numbers, which
+    // are unique across all five here, without needing WMI or COM to
+    // read them.
+    std::wstring id;
     RECT full    = {};          // whole monitor
     RECT work    = {};          // minus the taskbar
     bool primary = false;
@@ -72,6 +86,7 @@ enum class PlaceMode { Normal, Maximized, Fullscreen };
 // Where one window should go.
 struct Placement {
     std::wstring device;        // monitor asked for, by device string
+    std::wstring id;            // and by its stable interface path
     PlaceMode    mode = PlaceMode::Normal;
     // Fractions of the target monitor's work area, so a layout written
     // for 1920x1080 still means something on a different size.
@@ -194,7 +209,7 @@ public:
         if (it == pit->second.end()) return;
 
         const Placement& p = it->second;
-        const MonitorDesc* mon = Resolve(p.device);
+        const MonitorDesc* mon = Resolve(p.id, p.device, role);
         if (!mon) {
             Say(std::string("[LAYOUT] ") + role + ": monitor not found, left alone");
             return;
@@ -328,6 +343,7 @@ public:
 
         Placement mainP;
         mainP.device = m_monitors[0].device;   // sorted primary-first
+        mainP.id     = m_monitors[0].id;
         prof["main"] = mainP;
 
         // Roles that benefit from a screen of their own, in the order
@@ -357,6 +373,7 @@ public:
             Placement p;
             const size_t pick = ((size_t)i < spares) ? (size_t)i + 1 : spares;
             p.device = m_monitors[pick].device;
+            p.id     = m_monitors[pick].id;
             // The map scales, so it earns a full screen. The rest are
             // fixed-layout panels and only get moved: see the centring
             // branch in Place().
@@ -395,11 +412,14 @@ public:
                 if (cx >= m.full.left && cx < m.full.right &&
                     cy >= m.full.top  && cy < m.full.bottom) {
                     p.device = m.device;
+                    p.id     = m.id;
                     break;
                 }
             }
-            if (p.device.empty() && !m_monitors.empty())
+            if (p.device.empty() && !m_monitors.empty()) {
                 p.device = m_monitors[0].device;
+                p.id     = m_monitors[0].id;
+            }
 
             prof[role] = p;
             char buf[200];
@@ -420,7 +440,11 @@ public:
         fprintf(f, "# screens are attached at launch and uses the matching\n");
         fprintf(f, "# section, stepping down if there is no exact match.\n");
         fprintf(f, "#\n");
-        fprintf(f, "#   role = <device> [maximized|fullscreen] [placement]\n");
+        fprintf(f, "#   role = <device> [id=<interface path>] "
+                   "[maximized|fullscreen] [placement]\n");
+        fprintf(f, "# The id is the monitor's device interface path and is\n");
+        fprintf(f, "# what placement actually matches on; the device name\n");
+        fprintf(f, "# before it is for reading, and this rig renumbers it.\n");
         fprintf(f, "# placement is either x,y,w,h as 0-1 fractions of that\n");
         fprintf(f, "# screen, or @x,y,w,h in exact screen coordinates.\n");
         fprintf(f, "#\n");
@@ -429,6 +453,9 @@ public:
             fprintf(f, "[monitors.%d]\n", count);
             for (const auto& [role, p] : prof) {
                 fprintf(f, "%s = %ls", role.c_str(), p.device.c_str());
+                // The identity that actually survives a re-enumeration.
+                // The name before it is for a human reading the file.
+                if (!p.id.empty()) fprintf(f, " id=%ls", p.id.c_str());
                 if (p.mode == PlaceMode::Maximized)  fprintf(f, " maximized");
                 if (p.mode == PlaceMode::Fullscreen) fprintf(f, " fullscreen");
                 if (p.hasAbs)
@@ -460,20 +487,48 @@ private:
         // DeviceID is the stable one: enumeration order is not.
         DISPLAY_DEVICEW dd = {};
         dd.cb = sizeof(dd);
-        if (EnumDisplayDevicesW(mi.szDevice, 0, &dd, 0)) d.id = dd.DeviceID;
+        // EDD_GET_DEVICE_INTERFACE_NAME (1) puts the interface path in
+        // DeviceID instead of the MONITOR\...\000N form.
+        if (EnumDisplayDevicesW(mi.szDevice, 0, &dd, 1)) d.id = dd.DeviceID;
 
         out->push_back(d);
         return TRUE;
     }
 
-    // Device string first, nearest rect second, primary last — the
-    // fallback chain the plan calls for.
-    const MonitorDesc* Resolve(const std::wstring& device) const {
+    // Ordered most stable first, and it says in the log which step
+    // matched -- because falling through to a later one means the
+    // monitor set moved under us, which used to happen silently and
+    // leave every window on the primary.
+    //
+    // The device NAME used to be tried first. That is the piece this
+    // rig renumbers: \\.\DISPLAY5 became DISPLAY1 and back again inside
+    // two days, with no cable touched, and each time the whole saved
+    // layout stopped matching at once.
+    const MonitorDesc* Resolve(const std::wstring& id,
+                               const std::wstring& device,
+                               const char* role) const {
         if (m_monitors.empty()) return nullptr;
+
+        // 1. The interface path: port- and hardware-derived.
+        if (!id.empty())
+            for (const auto& m : m_monitors)
+                if (!m.id.empty() && m.id == id) return &m;
+
+        // 2. The friendly name, for layouts written before ids existed.
         for (const auto& m : m_monitors)
-            if (m.device == device) return &m;
-        for (const auto& m : m_monitors)
-            if (!m.id.empty() && m.id == device) return &m;
+            if (m.device == device) {
+                if (!id.empty())
+                    Say(std::string("[LAYOUT] ") + role +
+                        ": monitor id not found, matched on name instead - "
+                        "the display set has changed, press Ctrl+Shift+End "
+                        "to re-save");
+                return &m;
+            }
+
+        // 3. Primary, and say so loudly: this is the case that used to
+        //    pile every window onto one screen without explanation.
+        Say(std::string("[LAYOUT] ") + role +
+            ": its monitor is GONE - falling back to the primary");
         for (const auto& m : m_monitors)
             if (m.primary) return &m;
         return &m_monitors[0];
@@ -547,6 +602,10 @@ private:
         for (size_t k = 1; k < tok.size(); ++k) {
             if (tok[k] == "maximized")       p.mode = PlaceMode::Maximized;
             else if (tok[k] == "fullscreen") p.mode = PlaceMode::Fullscreen;
+            else if (tok[k].rfind("id=", 0) == 0) {
+                const std::string v = tok[k].substr(3);
+                p.id.assign(v.begin(), v.end());
+            }
             else if (tok[k].size() > 1 && tok[k][0] == '@') {
                 long x, y, w, h;
                 if (sscanf_s(tok[k].c_str() + 1, "%ld,%ld,%ld,%ld",

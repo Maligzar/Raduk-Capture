@@ -103,6 +103,33 @@ class AIContextBuilder {
 public:
     AIContextBuilder() = default;
 
+    // Does this question touch safety?
+    //
+    // Decided in code, not by the model. The first version of the scope
+    // rule left that judgement to llama3.2:3b, and asked "is it safe to
+    // point the telescope at the sun" it produced the out-of-scope
+    // refusal -- the single most important question the help file
+    // answers, declined because it looked like astronomy. A 3B model
+    // pattern-matching its way to that answer is exactly the thing not
+    // to trust, so the app decides and tells it plainly.
+    //
+    // Deliberately broad. A false positive costs a paragraph of safety
+    // text in the prompt; a false negative costs somebody their sight.
+    static bool LooksLikeSafety(const std::string& q) {
+        std::string s = q;
+        for (auto& c : s) c = (char)tolower((unsigned char)c);
+        static const char* kTerms[] = {
+            "safe", "safety", "danger", "dangerous", "harm", "hurt",
+            "injur", "blind", "eye", "eyes", "eyesight", "sight",
+            "burn", "fire", "sun", "solar", "child", "kid", "son",
+            "daughter", "look through", "eyepiece", "damage", "risk",
+            "warn", "careful", "emergency", "stop"
+        };
+        for (const char* t : kTerms)
+            if (s.find(t) != std::string::npos) return true;
+        return false;
+    }
+
     // Pick the help sections worth sending for this question.
     //
     // Deliberately crude: split on markdown headings, score each section
@@ -134,15 +161,42 @@ public:
             sections.push_back(help.substr(start));
         }
 
-        // Question words worth matching on. Short ones are noise.
+        // Question words worth matching on.
+        //
+        // The first version threw away anything under four characters as
+        // noise, which quietly discarded this app's entire vocabulary:
+        // ROI, EAF, ADC, SER, USB, FPS, GH, PK, AV. Asked "what does the
+        // ROI button do" the only surviving terms were "what", "does"
+        // and "button", so it found nothing and the model answered that
+        // it had no information about a button documented three times in
+        // the help file. The short words here are the specific ones.
+        //
+        // So: keep everything from two characters up, and drop the
+        // common words by name instead. The list is short because the
+        // scoring only needs to stop "the" and "what" outvoting "ROI".
         std::vector<std::string> terms;
         {
+            static const char* kStop[] = {
+                "the","a","an","and","or","is","it","to","of","in","on",
+                "for","do","does","did","how","what","why","when","where",
+                "can","i","my","me","you","be","with","this","that","are",
+                "was","if","at","as","by","from","get","got","use","using",
+                "should","would","could","will","there","here","about"
+            };
+            auto isStop = [&](const std::string& w) {
+                for (const char* s : kStop) if (w == s) return true;
+                return false;
+            };
             std::string cur;
+            auto flush = [&]() {
+                if (cur.size() >= 2 && !isStop(cur)) terms.push_back(cur);
+                cur.clear();
+            };
             for (char c : question) {
                 if (isalnum((unsigned char)c)) cur += (char)tolower((unsigned char)c);
-                else { if (cur.size() >= 4) terms.push_back(cur); cur.clear(); }
+                else flush();
             }
-            if (cur.size() >= 4) terms.push_back(cur);
+            flush();
         }
 
         std::vector<std::pair<int, size_t>> scored;
@@ -152,7 +206,18 @@ public:
             int score = 0;
             for (const auto& t : terms) {
                 size_t at = 0;
-                while ((at = lower.find(t, at)) != std::string::npos) { ++score; at += t.size(); }
+                while ((at = lower.find(t, at)) != std::string::npos) {
+                    // Whole word only. Without this a two-letter term
+                    // scores on every word that happens to contain it,
+                    // and short terms are the ones that matter most.
+                    const bool leftOk  = (at == 0) ||
+                                         !isalnum((unsigned char)lower[at - 1]);
+                    const size_t end   = at + t.size();
+                    const bool rightOk = (end >= lower.size()) ||
+                                         !isalnum((unsigned char)lower[end]);
+                    if (leftOk && rightOk) score += (t.size() <= 3) ? 3 : 1;
+                    at = end;
+                }
             }
             scored.push_back({score, i});
         }
@@ -160,14 +225,32 @@ public:
                   [](const auto& a, const auto& b) { return a.first > b.first; });
 
         std::string out;
-        // The head of the file first: it is the safety section, and it
-        // should be in front of the model whatever was asked.
         out += sections.empty() ? std::string() : sections[0].substr(0, 1200);
         out += "\n";
 
+        // The safety section goes in every single time, whatever was
+        // asked and whatever it scored.
+        //
+        // Relying on the keyword score to pull it in was not good
+        // enough: it is the one section whose absence can get somebody
+        // hurt, and "did the scorer happen to like this question" is not
+        // an acceptable way to decide whether the model can see it.
+        size_t safetyIdx = sections.size();
+        for (size_t i = 0; i < sections.size(); ++i) {
+            std::string low = sections[i].substr(0, 120);
+            for (auto& c : low) c = (char)tolower((unsigned char)c);
+            if (low.find("safety") != std::string::npos ||
+                low.find("read this first") != std::string::npos) {
+                safetyIdx = i;
+                out += sections[i];
+                out += "\n";
+                break;
+            }
+        }
+
         for (const auto& [score, idx] : scored) {
             if (score <= 0) break;
-            if (idx == 0) continue;
+            if (idx == 0 || idx == safetyIdx) continue;   // already in
             if (out.size() + sections[idx].size() > BUDGET) continue;
             out += sections[idx];
             out += "\n";
@@ -217,8 +300,16 @@ public:
            << "You are RadukScope, an AI assistant embedded in the RadukCapture "
               "astrophotography application.\n"
            << "You are running locally on the capture PC. Observing site: "
+           // One decimal, as everywhere else that prints the site. That
+           // is about 11 km -- a town, not a house. It was full
+           // precision here, which put the exact location into the model
+           // context and therefore into anything that quotes it back.
+           // The model needs to know roughly where the sky is, and
+           // nothing finer than that.
+           << std::fixed << std::setprecision(1)
            << RigConfig::Get().siteLatDeg << ", "
-           << RigConfig::Get().siteLonDeg << " (configured in rig.ini).\n"
+           << RigConfig::Get().siteLonDeg
+           << std::defaultfloat << " (approx, from rig.ini).\n"
            << "Equipment: Celestron 8SE SCT (f/10, 2032mm FL), ZWO ASI678MC "
               "(Sony IMX678, 3840x2160, 2.9um), ZWO EAF, NexStar mount.\n"
            << "Plate scale: 0.203 arcsec/pixel. HCG threshold: gain 182.\n"
@@ -233,7 +324,78 @@ public:
               "user says they changed filters, tell them to update it, "
               "because every dispersion figure depends on it.\n"
            << "Answer concisely and practically. If unsure, say so. "
-              "Never invent equipment specs or sky positions.\n\n";
+              "Never invent equipment specs or sky positions.\n"
+
+           // ── Scope ─────────────────────────────────────────
+           //
+           // Hold it to what it can actually be right about.
+           //
+           // A 3B model asked for observing advice produces fluent,
+           // confident, wrong answers -- asked about planetary exposure
+           // it offered "typically around 1-10 seconds", which is out by
+           // three orders of magnitude. Questions about the APP are a
+           // different matter, because the reference section below is
+           // the real manual and the model is summarising rather than
+           // recalling.
+           //
+           // This telescope is shared with family, including children.
+           // An assistant that sounds authoritative about the sky and is
+           // not, is worse than no assistant, so it is told to decline
+           // and say where the real answer lives.
+           //
+           // Safety is the explicit exception. The reference opens with
+           // the safety rules, and those must always be answerable --
+           // refusing to repeat "never point it at the Sun" on the
+           // grounds that it is an astronomy question would be the exact
+           // wrong reading of this instruction.
+           // Short, concrete, and with the refusal written out.
+           //
+           // The first attempt explained the policy in prose and the
+           // model half-followed it: asked to recommend a telescope it
+           // declined the brand, then offered "general guidance on what
+           // to look for" -- which is the same out-of-scope answer with
+           // a disclaimer in front. A 3B model follows a rule it can
+           // copy far better than one it has to interpret, so it gets
+           // the exact sentence to use and an explicit instruction not
+           // to follow the refusal with an offer.
+           << "\n[SCOPE - FOLLOW EXACTLY]\n"
+              "You answer ONLY about: this application, this rig as "
+              "configured above, and the current session. The reference "
+              "and session state below are your only sources.\n"
+              "\n"
+              "SAFETY IS ALWAYS IN SCOPE. If asked anything about safe "
+              "operation, answer fully from the reference's safety "
+              "rules. Never refuse a safety question.\n"
+              "\n"
+              "Everything else is OUT OF SCOPE: buying or comparing "
+              "equipment, what to image tonight, exposure or gain for a "
+              "target, image processing, astronomy facts, anything about "
+              "hardware not listed above.\n"
+              "\n"
+              "For an out-of-scope question, reply with exactly this and "
+              "NOTHING else:\n"
+              "\"I only cover RadukCapture and this rig. I can't help "
+              "with that - try the target's profile, or the help file "
+              "(press ?).\"\n"
+              "\n"
+              "Do NOT then offer general guidance, tips, things to "
+              "consider, or ask if they would like you to continue. The "
+              "refusal is the whole reply.\n"
+              "Never state a number that is not in the reference or the "
+              "session state. If you need one you do not have, say so.\n\n";
+
+        // An unmissable, unambiguous override when the question touches
+        // safety. Placed last so it is the final instruction the model
+        // reads before the question itself.
+        if (LooksLikeSafety(userQuery)) {
+            ss << "[THIS IS A SAFETY QUESTION - OVERRIDE THE SCOPE RULE]\n"
+                  "The question above touches safety. It is IN SCOPE. Do "
+                  "NOT use the refusal sentence. Answer it directly and "
+                  "completely from the safety rules in the reference, and "
+                  "do not soften them. If the reference does not cover "
+                  "this exact case, say so and give the nearest rule it "
+                  "does state.\n\n";
+        }
 
         // ── [APP REFERENCE] ───────────────────────────────────
         // The sections that look relevant, not the whole manual.

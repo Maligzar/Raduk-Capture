@@ -129,8 +129,14 @@ private:
         }
 
         CreateControls();
-        AppendHistory(L"RadukScope AI ready. Ask me anything about your session, "
-                      L"the sky tonight, or how to use RadukCapture.\r\n\r\n"
+        // Says what it actually does. The old greeting offered "the sky
+        // tonight", which is the one thing it is now told to refuse --
+        // inviting a question and then declining it is worse than not
+        // inviting it.
+        AppendHistory(L"RadukScope AI ready. Ask about this app, your "
+                      L"equipment settings, or what is happening in this "
+                      L"session. For observing advice, use the target "
+                      L"profiles or the help file.\r\n\r\n"
                       L"Type your question below and press Enter or [Send].\r\n");
 
         // Check if Ollama is running and warn if not

@@ -92,13 +92,14 @@ regardless of whether any source changed.
 directory in the capture config; see
 [Configuration Reference](Configuration-Reference).
 
-**The version is declared in four files and they must stay in step.**
-`src/Version.h` is the authoritative one — the title bar shows
-`RADUK_VERSION_A` plus the compile timestamp of `main.cpp`, so a stale exe
-is immediately obvious. `CMakeLists.txt` and the two `.rc` files carry it
-too. All four read **1.2.3**; see
-[Roadmap and Phase History](Roadmap-and-Phase-History#where-the-version-is-declared)
-for what to touch when bumping it.
+**The version is declared once, in `src/Version.h`.** CMake reads that
+header before `project()` and derives the project version and the Win32
+version resource from it, expanding `src/RadukCapture.rc.in` into the build
+directory. To bump the version, edit those two `#define` lines and nothing
+else; configure re-runs on the next build. A missing macro, or the wide and
+narrow macros disagreeing, is a `FATAL_ERROR` rather than a silent wrong
+number. See
+[Roadmap and Phase History](Roadmap-and-Phase-History#where-the-version-is-declared).
 
 ---
 

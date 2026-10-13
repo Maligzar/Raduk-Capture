@@ -13,8 +13,8 @@ Line counts are from the revision this wiki was generated from.
 | File | Lines | Owns |
 |------|-------|------|
 | [`src/main.cpp`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/main.cpp) | **4,305** | `WinMain`, `RunApp()`, startup dialog, hardware check, crash handler, all callback wiring, the render loop, the profile editor modal, shutdown summary |
-| `src/Version.h` | 16 | `RADUK_VERSION_W` / `_A`. Bumped every pushed iteration; shown in the title bar with `main.cpp`'s compile timestamp |
-| `src/RadukCapture.rc` | — | Icon and version resources (Phase 44) |
+| `src/Version.h` | 16 | `RADUK_VERSION_W` / `_A`. **The single source of truth for the version** — CMake derives the project version and the `.rc` resource from it. Shown in the title bar with `main.cpp`'s compile timestamp |
+| `src/RadukCapture.rc.in` | 54 | Win32 resource **template** — icon and version info (Phase 44). Expanded by `configure_file` into `${CMAKE_BINARY_DIR}/RadukCapture.rc`, which is what compiles |
 
 `RunApp()` is the composition root: every device, thread, and panel is a
 local, wired with lambdas. Notable landmarks:
@@ -168,7 +168,7 @@ From `CMakeLists.txt`:
 
 ```cmake
 src/main.cpp
-src/RadukCapture.rc
+${RADUK_RC_GENERATED}      # configure_file'd from src/RadukCapture.rc.in
 ${DEVICE_SOURCES}          # empty in emulator mode
 src/core/CaptureThread.cpp  src/core/CaptureManager.cpp
 src/core/SERWriter.cpp      src/core/WriteBuffer.cpp

@@ -1,5 +1,76 @@
 cmake_minimum_required(VERSION 4.2)
-project(RadukCapture VERSION 1.2.3 LANGUAGES CXX)
+
+# ── Version — src/Version.h is the single source of truth ─────
+#
+# The title bar shows RADUK_VERSION_A together with main.cpp's compile
+# timestamp, so a stale exe (wrong build dir, or run before a rebuild
+# finished) is obvious at a glance. That only works if the number is
+# current, so it is written by hand in exactly one place and everything
+# else is derived from it here: this project's version, and the Win32
+# version resource in src/RadukCapture.rc.in.
+#
+# Why it is derived rather than copied: it used to live in four
+# hand-maintained places and they drifted to 1.1.9 (Version.h), 1.0.5
+# (here) and 1.0.8.0 (twice, in the two .rc files) while the help file
+# documented v1.2.3 as shipped. The authoritative runtime number was the
+# stalest of them, which is precisely the failure the title-bar check
+# exists to prevent.
+#
+# To bump the version, edit src/Version.h and nothing else. Editing it
+# re-runs this configure step (CMAKE_CONFIGURE_DEPENDS below), so the
+# resource follows on the next build without a manual re-configure.
+
+set(RADUK_VERSION_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Version.h")
+file(READ "${RADUK_VERSION_HEADER}" RADUK_VERSION_H_TEXT)
+
+string(REGEX MATCH
+    "#define[ \t]+RADUK_VERSION_A[ \t]+\"([0-9]+)\\.([0-9]+)\\.([0-9]+)\""
+    RADUK_VERSION_A_MATCH "${RADUK_VERSION_H_TEXT}")
+if(NOT RADUK_VERSION_A_MATCH)
+    message(FATAL_ERROR
+        "Could not parse RADUK_VERSION_A from ${RADUK_VERSION_HEADER}.\n"
+        "It must read:  #define RADUK_VERSION_A   \"MAJOR.MINOR.PATCH\"")
+endif()
+set(RADUK_VERSION "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
+
+# The wide and narrow macros are two literals that must agree. Nothing in
+# the compiler checks that, and a bump that updates one and not the other
+# would put a different version in the title bar than in the resource.
+string(REGEX MATCH
+    "#define[ \t]+RADUK_VERSION_W[ \t]+L\"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+    RADUK_VERSION_W_MATCH "${RADUK_VERSION_H_TEXT}")
+if(NOT RADUK_VERSION_W_MATCH)
+    message(FATAL_ERROR
+        "Could not parse RADUK_VERSION_W from ${RADUK_VERSION_HEADER}.\n"
+        "It must read:  #define RADUK_VERSION_W  L\"MAJOR.MINOR.PATCH\"")
+endif()
+if(NOT CMAKE_MATCH_1 STREQUAL RADUK_VERSION)
+    message(FATAL_ERROR
+        "Version mismatch in ${RADUK_VERSION_HEADER}:\n"
+        "  RADUK_VERSION_W = ${CMAKE_MATCH_1}\n"
+        "  RADUK_VERSION_A = ${RADUK_VERSION}\n"
+        "Both macros must carry the same version.")
+endif()
+
+project(RadukCapture VERSION ${RADUK_VERSION} LANGUAGES CXX)
+
+message(STATUS "RadukCapture version ${RADUK_VERSION} (from src/Version.h)")
+
+# Editing Version.h must re-run configure, or the generated resource keeps
+# the previous version until someone re-configures by hand. file(READ)
+# creates no such dependency on its own.
+set_property(DIRECTORY APPEND
+    PROPERTY CMAKE_CONFIGURE_DEPENDS "${RADUK_VERSION_HEADER}")
+
+# ── Win32 version resource, generated ─────────────────────────
+set(RADUK_RC_IN        "${CMAKE_CURRENT_SOURCE_DIR}/src/RadukCapture.rc.in")
+set(RADUK_RC_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/RadukCapture.rc")
+set(RADUK_ICON_PATH    "${CMAKE_CURRENT_SOURCE_DIR}/assets/RadukCapture.ico")
+set(RADUK_VERSION_COMMA
+    "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
+set(RADUK_VERSION_DOT
+    "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}.0")
+configure_file("${RADUK_RC_IN}" "${RADUK_RC_GENERATED}" @ONLY)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,8 +119,10 @@ endif()
 add_executable(RadukCapture WIN32
     src/main.cpp
 
-    # Win32 resources — application icon + version info (Phase 44)
-    src/RadukCapture.rc
+    # Win32 resources — application icon + version info (Phase 44).
+    # Generated from src/RadukCapture.rc.in with the version from
+    # src/Version.h; see the version block at the top of this file.
+    ${RADUK_RC_GENERATED}
 
     # Core
     ${DEVICE_SOURCES}
@@ -91,7 +164,9 @@ endif()
 # of Unicode characters in string literals when system codepage is not UTF-8.
 if(MSVC)
     target_compile_options(RadukCapture PRIVATE /utf-8)
-    # RC compiler needs the project root so assets/RadukCapture.ico resolves
+    # The generated resource names the icon by absolute path, so this is no
+    # longer required for it. Kept so a hand-written .rc added later can
+    # still use a project-relative path.
     set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} /I \"${CMAKE_SOURCE_DIR}\"")
 endif()
 

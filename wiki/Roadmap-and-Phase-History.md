@@ -180,18 +180,72 @@ control — loopback by default, LAN exposure an explicit opt-in. See
 
 ## Where the version is declared
 
-The version lives in **five declarations across four files**, all currently
-**1.2.3**:
+**`src/Version.h`, and nowhere else.** Everything else derives from it at
+configure time.
 
-| File | Declaration | Form |
-|------|-------------|------|
-| `src/Version.h` | `RADUK_VERSION_W` / `RADUK_VERSION_A` | `L"1.2.3"` / `"1.2.3"` |
-| `CMakeLists.txt` | `project(RadukCapture VERSION ...)` | `1.2.3` |
-| `src/RadukCapture.rc` | `FILEVERSION` / `PRODUCTVERSION`, plus the `FileVersion` / `ProductVersion` strings | `1,2,3,0` and `"1.2.3.0"` |
-| `assets/RadukCapture.rc` | the same four | `1,2,3,0` and `"1.2.3.0"` |
+```c
+#define RADUK_VERSION_W  L"1.2.3"
+#define RADUK_VERSION_A   "1.2.3"
+```
 
-**`src/Version.h` is the authoritative one.** It is what the title bar
-shows, and the comment explains why that matters:
+To bump the version, edit those two lines. Nothing else.
+
+### How it propagates
+
+`CMakeLists.txt` reads `src/Version.h` **before `project()`**, parses
+`RADUK_VERSION_A` with a regex, and uses it as the project version. It then
+expands `src/RadukCapture.rc.in` into `${CMAKE_BINARY_DIR}/RadukCapture.rc`
+and compiles that:
+
+| Consumer | Gets | Form |
+|----------|------|------|
+| Title bar | `RADUK_VERSION_A` directly, plus `main.cpp`'s compile timestamp | `1.2.3` |
+| `project(RadukCapture VERSION ...)` | Parsed from the header | `1.2.3` |
+| `FILEVERSION` / `PRODUCTVERSION` | `RADUK_VERSION_COMMA` | `1,2,3,0` |
+| `FileVersion` / `ProductVersion` strings | `RADUK_VERSION_DOT` | `1.2.3.0` |
+| Icon path in the resource | `RADUK_ICON_PATH`, absolute | — |
+
+The generated `.rc` is a build artefact and is not committed. The template
+`src/RadukCapture.rc.in` is. The icon is named by absolute path so the
+generated file resolves it from the build directory without depending on
+the RC compiler's include path.
+
+### Three guards
+
+Deriving a value is only an improvement if the derivation fails loudly:
+
+| Guard | Fires when | Result |
+|-------|-----------|--------|
+| `RADUK_VERSION_A` regex | The macro is missing or not `MAJOR.MINOR.PATCH` | `FATAL_ERROR` naming the file and the required form |
+| `RADUK_VERSION_W` vs `_A` | The two macros disagree — a bump that updated one and not the other | `FATAL_ERROR` printing both values |
+| `CMAKE_CONFIGURE_DEPENDS` on `Version.h` | Always | Editing the header re-runs configure on the next build, so the resource follows without a manual re-configure |
+
+That second guard matters because nothing in the compiler checks it. The
+wide macro feeds the title bar and the narrow one feeds the log and the
+resource, so a half-done bump would put two different versions in one
+binary.
+
+`file(READ)` creates no configure dependency on its own, which is what the
+third guard supplies. Without it a version bump would silently keep the
+previous number in the resource until someone re-configured by hand — the
+same class of staleness the whole arrangement exists to prevent.
+
+### What this replaced, and why
+
+The version used to live in **five hand-maintained declarations across four
+files**, and they had drifted:
+
+| File | Read |
+|------|------|
+| `src/Version.h` | 1.1.9 |
+| `CMakeLists.txt` | 1.0.5 |
+| `src/RadukCapture.rc` | 1.0.8.0 |
+| `assets/RadukCapture.rc` | 1.0.8.0 |
+
+while `RadukCapture-Help.md` documented **v1.2.3** as shipped. So the
+authoritative *runtime* number — the one in the title bar — was the stalest
+of the four, which is exactly the failure the `Version.h` comment is written
+to prevent:
 
 > The title bar shows it together with the compile timestamp of `main.cpp`
 > — so a stale exe (launched from the wrong build dir, or run before a
@@ -199,27 +253,14 @@ shows, and the comment explains why that matters:
 > automatically whenever `main.cpp` recompiles; bumping the version here
 > forces that recompile, so the two always move together.
 
-**`assets/RadukCapture.rc` is not compiled.** `CMakeLists.txt` adds
-`src/RadukCapture.rc`; the `assets/` copy differs only in the icon path
-separator (`assets\\RadukCapture.ico` against `assets/RadukCapture.ico`)
-and is otherwise identical. It is kept in step so a reader does not take a
-stale number from it, but one of the two should be deleted.
+The mechanism was sound and the bump had been missed, four times over. The
+lesson is about the count rather than the numbers: one declaration that is
+checked on every configure stays honest, five updated by hand do not.
 
-### They had drifted, and it defeated the mechanism
-
-Before this was aligned, the four files read **1.1.9**, **1.0.5**, and
-**1.0.8.0** twice, while the help file's phase history documented through
-**v1.2.3**. The authoritative runtime answer was therefore the stalest of
-them, which is precisely the failure the `Version.h` comment above is
-written to prevent: a number meant to prove the exe is fresh cannot do that
-if nobody bumps it.
-
-The lesson is about the count, not the numbers. One declaration that is
-checked on every push stays honest; five that are each updated by hand do
-not. If the version matters enough to appear in the title bar and the
-`.rc` resource, it is worth generating the `.rc` values and the CMake
-project version from `Version.h` — or at least adding a build-time assert
-that they agree.
+`assets/RadukCapture.rc` was a dead duplicate — nothing in CMake or the
+build scripts referenced it, and it differed from `src/RadukCapture.rc` only
+in the icon path separator. Both were deleted when the template replaced
+them.
 
 ---
 

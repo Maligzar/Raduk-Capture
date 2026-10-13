@@ -261,6 +261,33 @@ diagnostics used to be a `printf`, which a GUI-subsystem build discards
 — so the running explanation of what AE was doing had been invisible for
 its whole life, including while it was oscillating in the log above.
 
+## 11. Histogram against a real sensor
+
+**File:** `src/core/FrameAnalyzer.cpp`. Bench half done - see
+`docs/HISTOGRAM-ACCURACY.md` and `tests/histogram_accuracy.cpp`.
+
+The arithmetic is settled on the bench: channel assignment is correct,
+clip percentages count what they claim in both 8- and 16-bit, and the
+left-aligned RAW16 handling is right. Every one of those checks ran
+against frames with **no noise at all**, which is the part sky fixes.
+
+What to look at on a real target:
+
+1. **Gr/Gb imbalance.** The analyser averages the two greens, so the
+   histogram cannot show a split between them. If the colour looks off
+   in a way the histogram does not explain, this is a candidate, and it
+   needs a real sensor to appear at all.
+2. **Does the G row look narrower than R and B?** It will, slightly, by
+   construction - averaging two samples denoises only that channel. Worth
+   seeing how large the effect is on real data before deciding whether
+   to change it.
+3. **Clip onset.** Saturation near full well is not sharp on a real
+   sensor the way it is on a synthetic frame. Check that the clip
+   percentage starts moving before the highlights visibly block up.
+4. **The 99.9th-percentile highlight** that auto-exposure now drives.
+   It assumes the planet is at least 0.1% of the frame - fine for
+   Jupiter and Saturn here, marginal for anything smaller.
+
 ---
 
 ## Data, not code: five saved profiles hold the wrong resolution

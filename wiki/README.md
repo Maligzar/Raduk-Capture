@@ -80,5 +80,5 @@ The wiki is derived from the source tree plus:
 
 Where those documents and the code disagree, the wiki follows the code and
 says so. Known divergences are noted in
-`Roadmap-and-Phase-History.md` (version drift) and
+`Roadmap-and-Phase-History.md` (where the version is declared) and
 `Architecture-Overview.md` (the `PulseGuide` fire-and-forget claim).

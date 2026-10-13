@@ -92,13 +92,13 @@ regardless of whether any source changed.
 directory in the capture config; see
 [Configuration Reference](Configuration-Reference).
 
-**Version numbers are currently inconsistent across three places.**
-`src/Version.h` declares `1.1.9`, `CMakeLists.txt` declares project version
-`1.0.5`, and `RadukCapture-Help.md` documents through `v1.2.3`. The title
-bar shows `RADUK_VERSION_A` plus the compile timestamp of `main.cpp`, so
-the authoritative runtime answer is `Version.h` — which is the one that is
-stale. Noted in
-[Roadmap and Phase History](Roadmap-and-Phase-History#version-drift).
+**The version is declared in four files and they must stay in step.**
+`src/Version.h` is the authoritative one — the title bar shows
+`RADUK_VERSION_A` plus the compile timestamp of `main.cpp`, so a stale exe
+is immediately obvious. `CMakeLists.txt` and the two `.rc` files carry it
+too. All four read **1.2.3**; see
+[Roadmap and Phase History](Roadmap-and-Phase-History#where-the-version-is-declared)
+for what to touch when bumping it.
 
 ---
 

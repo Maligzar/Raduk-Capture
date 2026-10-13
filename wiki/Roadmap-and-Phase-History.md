@@ -178,22 +178,20 @@ control — loopback by default, LAN exposure an explicit opt-in. See
 
 ---
 
-## Version drift
+## Where the version is declared
 
-Three different version numbers are currently in the repository:
+The version lives in **five declarations across four files**, all currently
+**1.2.3**:
 
-| Source | Value |
-|--------|-------|
-| `src/Version.h` → `RADUK_VERSION_A` | **1.1.9** |
-| `CMakeLists.txt` → `project(... VERSION ...)` | **1.0.5** |
-| `RadukCapture-Help.md` phase history and footer | **v1.2.3** |
+| File | Declaration | Form |
+|------|-------------|------|
+| `src/Version.h` | `RADUK_VERSION_W` / `RADUK_VERSION_A` | `L"1.2.3"` / `"1.2.3"` |
+| `CMakeLists.txt` | `project(RadukCapture VERSION ...)` | `1.2.3` |
+| `src/RadukCapture.rc` | `FILEVERSION` / `PRODUCTVERSION`, plus the `FileVersion` / `ProductVersion` strings | `1,2,3,0` and `"1.2.3.0"` |
+| `assets/RadukCapture.rc` | the same four | `1,2,3,0` and `"1.2.3.0"` |
 
-The title bar shows `RADUK_VERSION_A` plus `main.cpp`'s compile timestamp,
-so the authoritative *runtime* answer is `Version.h` — and it is the one
-that is stale by four minor revisions' worth of phase history.
-
-`Version.h` says it is "bumped on EVERY pushed iteration", and the comment
-explains why that matters:
+**`src/Version.h` is the authoritative one.** It is what the title bar
+shows, and the comment explains why that matters:
 
 > The title bar shows it together with the compile timestamp of `main.cpp`
 > — so a stale exe (launched from the wrong build dir, or run before a
@@ -201,9 +199,27 @@ explains why that matters:
 > automatically whenever `main.cpp` recompiles; bumping the version here
 > forces that recompile, so the two always move together.
 
-The mechanism is sound; the bump has been missed. Worth fixing in one
-commit: set `Version.h` to `1.2.3`, set the CMake project version to match,
-and it stays a useful staleness check.
+**`assets/RadukCapture.rc` is not compiled.** `CMakeLists.txt` adds
+`src/RadukCapture.rc`; the `assets/` copy differs only in the icon path
+separator (`assets\\RadukCapture.ico` against `assets/RadukCapture.ico`)
+and is otherwise identical. It is kept in step so a reader does not take a
+stale number from it, but one of the two should be deleted.
+
+### They had drifted, and it defeated the mechanism
+
+Before this was aligned, the four files read **1.1.9**, **1.0.5**, and
+**1.0.8.0** twice, while the help file's phase history documented through
+**v1.2.3**. The authoritative runtime answer was therefore the stalest of
+them, which is precisely the failure the `Version.h` comment above is
+written to prevent: a number meant to prove the exe is fresh cannot do that
+if nobody bumps it.
+
+The lesson is about the count, not the numbers. One declaration that is
+checked on every push stays honest; five that are each updated by hand do
+not. If the version matters enough to appear in the title bar and the
+`.rc` resource, it is worth generating the `.rc` values and the CMake
+project version from `Version.h` — or at least adding a build-time assert
+that they agree.
 
 ---
 

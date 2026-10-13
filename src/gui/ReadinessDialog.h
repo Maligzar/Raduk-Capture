@@ -29,6 +29,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include "core/Readiness.h"
 
 namespace raduk::gui {
@@ -36,6 +37,78 @@ namespace raduk::gui {
 // reevaluate is called on a timer to rebuild the report. Returns true
 // if the user ticked every manual item before continuing, which the
 // caller may use to reset the cord-wrap count.
+// ── Dimming the other screens ─────────────────────────────────
+//
+// A borderless layered window over every monitor EXCEPT the one the
+// dialog is on, so the readiness list is the only lit thing on a
+// five-screen desk and cannot be missed or worked around by looking
+// somewhere else. This is the safety part of a safety gate.
+//
+// WS_EX_NOACTIVATE matters: these must never take focus, or tabbing
+// around the dialog would land on a black rectangle. WS_EX_TOOLWINDOW
+// keeps them out of Alt-Tab. They are TOPMOST, so the dialog is raised
+// above them after it is created.
+//
+// Deliberately NOT done by disabling input globally. The app keeps
+// running and keeps drawing underneath -- a capture in progress is not
+// interrupted by someone opening the checklist, and the mount can still
+// be stopped. The gate is about attention, not about freezing the
+// program; a modal that froze the UI cost most of an afternoon in
+// Phase 84 and is not a mistake worth repeating.
+namespace detail {
+
+struct ScreenDim {
+    std::vector<HWND> wins;
+
+    void Create(HMONITOR skip) {
+        static bool reg = false;
+        static const wchar_t* kCls = L"RadukScreenDim";
+        if (!reg) {
+            WNDCLASSEXW wc = {};
+            wc.cbSize        = sizeof(wc);
+            wc.lpfnWndProc   = DefWindowProcW;
+            wc.hInstance     = GetModuleHandleW(nullptr);
+            wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+            wc.lpszClassName = kCls;
+            RegisterClassExW(&wc);
+            reg = true;
+        }
+
+        struct Ctx { ScreenDim* self; HMONITOR skip; const wchar_t* cls; };
+        Ctx ctx{ this, skip, kCls };
+
+        EnumDisplayMonitors(nullptr, nullptr,
+            [](HMONITOR hm, HDC, LPRECT, LPARAM lp) -> BOOL {
+                auto* c = reinterpret_cast<Ctx*>(lp);
+                if (hm == c->skip) return TRUE;
+                MONITORINFO mi = { sizeof(mi) };
+                if (!GetMonitorInfo(hm, &mi)) return TRUE;
+                HWND h = CreateWindowExW(
+                    WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_NOACTIVATE |
+                    WS_EX_TOOLWINDOW,
+                    c->cls, L"", WS_POPUP,
+                    mi.rcMonitor.left, mi.rcMonitor.top,
+                    mi.rcMonitor.right  - mi.rcMonitor.left,
+                    mi.rcMonitor.bottom - mi.rcMonitor.top,
+                    nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+                if (!h) return TRUE;
+                // Dark enough to read as "not this one", light enough
+                // that you can still see a slew is happening behind it.
+                SetLayeredWindowAttributes(h, 0, 170, LWA_ALPHA);
+                ShowWindow(h, SW_SHOWNOACTIVATE);
+                c->self->wins.push_back(h);
+                return TRUE;
+            }, reinterpret_cast<LPARAM>(&ctx));
+    }
+
+    void Destroy() {
+        for (HWND h : wins) if (h) DestroyWindow(h);
+        wins.clear();
+    }
+};
+
+} // namespace detail
+
 inline bool ShowReadinessDialog(
         HWND owner, HWND panel,
         std::function<raduk::core::ReadyReport()> reevaluate,
@@ -59,13 +132,29 @@ inline bool ShowReadinessDialog(
 
     ReadyReport report = reevaluate();
 
-    const int DW = 620, DH = 470;
-    RECT wr = {};
-    if (owner) GetWindowRect(owner, &wr);
-    int dx = wr.left + ((wr.right - wr.left) - DW) / 2;
-    int dy = wr.top  + ((wr.bottom - wr.top) - DH) / 2;
-    if (dx < 0 || dx > 10000) dx = 200;
-    if (dy < 0 || dy > 10000) dy = 120;
+    // Count the rows a human has to answer before sizing, because the
+    // list height is whatever is left after them.
+    int manualCount = 0;
+    for (const auto& it : report.items)
+        if (it.state == ReadyState::Manual) ++manualCount;
+
+    // Sized from the screen it will appear on, not fixed at 620x470.
+    // This is the one dialog that must be impossible to overlook, and
+    // on a 1080p monitor the old size was a sixth of the width.
+    HMONITOR hmon = owner ? MonitorFromWindow(owner, MONITOR_DEFAULTTOPRIMARY)
+                          : MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
+    MONITORINFO mi = { sizeof(mi) };
+    GetMonitorInfo(hmon, &mi);
+    const int monW = mi.rcWork.right  - mi.rcWork.left;
+    const int monH = mi.rcWork.bottom - mi.rcWork.top;
+
+    const int DW = (std::max)(620, (std::min)(1100, (int)(monW * 0.55)));
+    const int DH = (std::max)(470, (std::min)(900,  (int)(monH * 0.70)));
+
+    // Centred on that monitor rather than on the owner window: the
+    // owner may be maximised across a different screen entirely.
+    int dx = mi.rcWork.left + (monW - DW) / 2;
+    int dy = mi.rcWork.top  + (monH - DH) / 2;
 
     HWND dlg = CreateWindowExW(WS_EX_DLGMODALFRAME, kClass,
                                L"Before you start",
@@ -90,18 +179,24 @@ inline bool ShowReadinessDialog(
        0, 14, 10, DW - 34, 34, -1);
 
     // Automatic rows in a read-only edit, so long explanations wrap and
+    // Whatever is left between the title and the tick rows. Fixed at
+    // 250 before, which left a growing band of nothing once the dialog
+    // could be larger than 470 tall.
+    const int LIST_H = (std::max)(160,
+        (DH - 72) - 16 - (manualCount * 22) - 48 - 8);
+
     // the whole thing stays selectable for copying into a bug report.
     HWND list = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
                                 WS_CHILD | WS_VISIBLE | WS_VSCROLL |
                                 ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
-                                14, 48, DW - 34, 250, dlg,
+                                14, 48, DW - 34, LIST_H, dlg,
                                 (HMENU)(INT_PTR)ID_LIST,
                                 GetModuleHandleW(nullptr), nullptr);
 
     // Manual items get real checkboxes: they are the only rows a human
     // can actually answer.
     std::vector<HWND> ticks;
-    int ty = 306;
+    int ty = 48 + LIST_H + 10;
     int manualIdx = 0;
     for (const auto& it : report.items) {
         if (it.state != ReadyState::Manual) continue;
@@ -196,11 +291,27 @@ inline bool ShowReadinessDialog(
 
     if (owner) EnableWindow(owner, FALSE);
     if (panel) EnableWindow(panel, FALSE);
+
+    // Grey out every screen except this one, then put the dialog above
+    // the dimmers -- they are TOPMOST, so without this it would be
+    // behind its own overlay.
+    detail::ScreenDim dim;
+    dim.Create(hmon);
+    SetWindowPos(dlg, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
     SetForegroundWindow(dlg);
+    SetFocus(dlg);
 
     MSG msg = {};
     while (!st.done) {
         if (!GetMessageW(&msg, nullptr, 0, 0)) break;
+        // Escape closes the gate without ticking anything, so it
+        // returns false and the manual items stay unconfirmed. A
+        // keyboard way out matters in the dark; silently counting it
+        // as confirmation would not.
+        if (msg.message == WM_KEYDOWN && msg.wParam == VK_ESCAPE) {
+            st.done = true;
+            continue;
+        }
         if (!IsDialogMessageW(dlg, &msg)) {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
@@ -212,6 +323,7 @@ inline bool ShowReadinessDialog(
         if (SendMessageW(t, BM_GETCHECK, 0, 0) != BST_CHECKED) allTicked = false;
 
     KillTimer(dlg, TIMER_ID);
+    dim.Destroy();
     if (owner) EnableWindow(owner, TRUE);
     if (panel) EnableWindow(panel, TRUE);
     DestroyWindow(dlg);

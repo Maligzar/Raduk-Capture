@@ -79,6 +79,20 @@ Full key reference, panel-by-panel documentation and a first-night
 walkthrough are in [RadukCapture-Help.md](RadukCapture-Help.md), which the
 app also loads as reference context for the AI assistant.
 
+## Documentation
+
+- **[Wiki](https://github.com/Maligzar/Raduk-Capture/wiki)** — deep
+  reference: architecture, threading, the capture pipeline, every subsystem,
+  and why each is built the way it is. Source lives in [`wiki/`](wiki) and is
+  published with `wiki\publish-wiki.bat` (or `wiki/publish-wiki.sh` under
+  bash).
+- [RadukCapture-Help.md](RadukCapture-Help.md) — operator reference and
+  first-night walkthrough, also the AI assistant's app knowledge.
+- [RadukCapture-Architecture.md](RadukCapture-Architecture.md) —
+  architecture and build plan, with the phase roadmap.
+- [docs/](docs) — code reviews, security review, tracking findings, phase
+  plans, and the clear-night checklist.
+
 ## Status and roadmap
 
 Built and in use: capture, tracking, GoTo, autofocus, the ADC advisor, the
@@ -101,5 +115,5 @@ that better. See **What is not built yet** in
 
 ## License
 
-MIT — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
+PolyForm Noncommercial 1.0.0 — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
 property of Suzhou ZWO Co., Ltd. under their own terms.

@@ -1,0 +1,54 @@
+// RadukCapture.rc.in — Win32 resource TEMPLATE. Do not edit the generated file.
+//
+// CMake expands this into ${CMAKE_BINARY_DIR}/RadukCapture.rc and compiles
+// that. The version comes from src/Version.h, which is the single place it
+// is written by hand — see the version block at the top of CMakeLists.txt.
+//
+// To change the version, edit src/Version.h. Nothing here.
+//
+// Three values are substituted: the comma form of the version for
+// FILEVERSION and PRODUCTVERSION (MAJOR,MINOR,PATCH,0), the dotted form for
+// the string table (MAJOR.MINOR.PATCH.0), and the absolute path to
+// assets/RadukCapture.ico. Their placeholder names are not written out here,
+// because configure_file would substitute them in this comment too and leave
+// it meaningless -- and a literal example version would be one more number
+// to go stale, which is the whole thing this template exists to stop.
+//
+// The icon path is absolute so the generated file resolves it from the
+// build directory without depending on the RC compiler's include path.
+
+#include <windows.h>
+
+// Application icon — replaces the default 'R' in the title bar and taskbar
+#define IDI_RADUK 101
+IDI_RADUK ICON "@RADUK_ICON_PATH@"
+
+// Version information
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     @RADUK_VERSION_COMMA@
+PRODUCTVERSION  @RADUK_VERSION_COMMA@
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "Raduk Astrophotography"
+            VALUE "FileDescription",  "RadukCapture - Planetary Imaging Capture"
+            VALUE "FileVersion",      "@RADUK_VERSION_DOT@"
+            VALUE "InternalName",     "RadukCapture"
+            VALUE "LegalCopyright",   "Copyright 2026 Raduk Astrophotography"
+            VALUE "OriginalFilename", "RadukCapture.exe"
+            VALUE "ProductName",      "RadukCapture"
+            VALUE "ProductVersion",   "@RADUK_VERSION_DOT@"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

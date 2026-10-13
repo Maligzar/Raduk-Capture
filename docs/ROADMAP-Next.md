@@ -258,6 +258,91 @@ the controller first, then wire the real controller to it.
 
 ---
 
+## P3.6 · Make the assistant worth asking
+
+**Bench. Medium. Not urgent — it is now honest about what it does not
+know, which was the dangerous part.**
+
+The assistant is currently llama3.2:3b, running on CPU, answering only
+questions about the app. That is a deliberately narrow box, drawn
+because the model outside it was confidently wrong: asked about
+planetary exposure it offered "typically around 1-10 seconds", out by
+three orders of magnitude.
+
+The box is the right short-term answer. This phase is about earning the
+right to widen it.
+
+### What is actually limiting it
+
+Three separate things, worth separating because the fixes differ:
+
+1. **The model is small.** 3B parameters is enough to paraphrase a
+   document in front of it and not enough to be trusted on domain
+   facts from memory.
+2. **It runs on CPU**, because of the driver/CUDA conflict in D4. That
+   caps how large a model is practical.
+3. **Its knowledge of the rig is a prompt**, rebuilt per question, and
+   capped at 8 KB of help text by relevance matching. It has no memory
+   of previous sessions and no access to what actually happened on
+   them.
+
+### Options, cheapest first
+
+**A · A larger model, still local.** 7-8B instruct models are
+materially better at not inventing numbers. On CPU, an 8B at ~5 tok/s
+is slow for chat but fine for the advisory loop, which writes one
+sentence every few minutes and nobody waits for. Worth measuring before
+assuming: the prompt-processing cost matters more than generation here,
+because the context is long and the answers are short.
+
+Blocked behind D4 if the GPU is wanted. An 8B on the 2060's 6 GB is
+feasible at 4-bit, which makes solving D4 worth more than it looks.
+
+**B · Retrieval over the real corpus.** The help file is already
+section-matched. The same approach extended to the architecture notes,
+the clear-night checklist and the session logs would let it answer
+"what did I do about focus drift last time" — questions nobody else can
+answer, because the data is local and private. This is the option with
+the highest ratio of usefulness to risk: it widens what the model can
+be *right* about without asking it to know more.
+
+**C · Ground the numbers in the app, not the model.** The cases where
+it was most wrong are exactly the cases the app already computes:
+exposure, gain, plate scale, dispersion, seeing. Rather than letting
+the model recall them, give it the app's own figures as facts in the
+prompt and let it do what it is good at, which is phrasing. The
+advisory loop already works this way and is the model of how to do it —
+it was restructured precisely so the model phrases concerns that code
+supplies.
+
+**D · A fine-tune or a domain model.** Most work, least certain payoff,
+and it would need a corpus that does not exist yet. Listed for
+completeness and not recommended.
+
+### Suggested order
+
+**C, then B, then A.** C is cheap and removes the worst failure mode
+without touching the model at all. B is where the real value is, and it
+gets better as the session logs accumulate. A is the one that costs
+hardware work, and it should come last because it makes the other two
+better rather than replacing them.
+
+### How to know it worked
+
+The scope rule stays until a candidate passes a written check: a set of
+questions with known answers drawn from the rig's own numbers — plate
+scale, the exposure slider's range, what the ROI button does, what the
+clip percentage means — plus the ones that caught the current model
+out, like planetary exposure times. Widen the scope one category at a
+time, and only for categories that pass.
+
+Safety stays out of the model's hands regardless of how good it gets.
+`LooksLikeSafety()` and the forced safety section are not a workaround
+for a small model; they are how a safety-critical answer should be
+produced on a telescope shared with children.
+
+---
+
 ## Tier 4 — new capability
 
 ### P4.1 · Xbox controller input
@@ -427,6 +512,7 @@ windows, and this is the second thing that silently depends on it.
 | 13 | Mount controller as gamepad | Bench | M | Prerequisite for the real controller |
 | 14 | Xbox controller input | Both | M | Usable in the dark, by feel |
 | 15 | Wiki + doc cleanup | Bench | M | Preserves the reasoning, which is the asset |
+| 15b | Assistant worth asking (P3.6) | Bench | M | Not urgent now it is honest about its limits |
 | 16 | Night-vision chrome (D2) | Bench | S | Deferred deliberately |
 | — | SHARP/PK/AV calibration | **Sky** | — | Clear-night item 1, already instrumented |
 | — | Histogram vs real sensor | **Sky** | — | New clear-night item, second half of 6 |

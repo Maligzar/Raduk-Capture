@@ -63,6 +63,12 @@ public:
         return RegisterAndCreate();
     }
 
+    // Assistant failures to the log as well as the panel. A panel that
+    // shows nothing is exactly the case where you go looking in the log.
+    void SetLogCallback(std::function<void(const std::string&)> cb) {
+        m_assistant.SetLogCallback(std::move(cb));
+    }
+
     // For WorkspaceLayout, which needs to move this onto a chosen screen.
     HWND Handle() const { return m_hwnd; }
 

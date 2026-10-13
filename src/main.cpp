@@ -1344,6 +1344,7 @@ static int RunApp(bool useEmulator) {
         if (slash2 != std::wstring::npos) exeDir2 = exeDir2.substr(0, slash2);
         aiChat.Create(window.Handle(), exeDir2);
     }
+    aiChat.SetLogCallback([](const std::string& s) { Log("%s\n", s.c_str()); });
     Log("[INIT] AI chat panel ready\n");
 
     // Phase 42b: the histogram as a window of its own, for one of the

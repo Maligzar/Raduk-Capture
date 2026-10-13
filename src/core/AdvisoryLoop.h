@@ -81,6 +81,7 @@ public:
     // from outside. Every decision it makes is logged instead.
     void SetLogger(std::function<void(const std::string&)> cb) {
         m_log = cb;
+        m_ai.SetLogCallback(cb);
     }
 
     void SetEnabled(bool on) {

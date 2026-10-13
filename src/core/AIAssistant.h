@@ -48,6 +48,10 @@ public:
     void SetOnToken(std::function<void(const std::string&)> cb)  { m_onToken    = cb; }
     void SetOnDone (std::function<void()> cb)                    { m_onDone     = cb; }
     void SetOnError(std::function<void(const std::string&)> cb)  { m_onError    = cb; }
+    // Failures also go to the log. Every error in here reached only the
+    // chat panel, which is the one place you are not looking when the
+    // answer is that nothing came back.
+    void SetLogCallback(std::function<void(const std::string&)> cb)  { m_log        = cb; }
 
     bool IsBusy() const { return m_busy.load(); }
 
@@ -206,6 +210,60 @@ private:
             FireError("No response from Ollama"); cleanup(); return;
         }
 
+        // ── Check the status BEFORE reading tokens ────────────
+        //
+        // This was missing, and it is why a broken model server looked
+        // like an app that had gone quiet. Ollama answers a failed
+        // generation with HTTP 500 and a body of {"error":"..."} -- no
+        // "content" field anywhere in it. The reader below would find no
+        // tokens, fire m_onDone, and the panel would sit there with
+        // nothing to show and nothing to say. The server had explained
+        // itself perfectly well; nobody read the explanation.
+        {
+            DWORD status = 0, len = sizeof(status);
+            if (WinHttpQueryHeaders(hRequest,
+                    WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                    WINHTTP_HEADER_NAME_BY_INDEX, &status, &len,
+                    WINHTTP_NO_HEADER_INDEX) && status >= 400) {
+
+                // Drain the body for the server's own description.
+                std::string errBody;
+                for (;;) {
+                    DWORD avail = 0;
+                    if (!WinHttpQueryDataAvailable(hRequest, &avail) || avail == 0) break;
+                    char ebuf[2048];
+                    DWORD want = (avail < sizeof(ebuf) - 1) ? avail : (DWORD)sizeof(ebuf) - 1;
+                    DWORD got = 0;
+                    if (!WinHttpReadData(hRequest, ebuf, want, &got) || got == 0) break;
+                    ebuf[got] = '\0';
+                    errBody += ebuf;
+                    if (errBody.size() > 8192) break;
+                }
+
+                const std::string detail = ExtractError(errBody);
+                std::string msg = "Ollama returned HTTP " + std::to_string(status);
+                if (!detail.empty()) msg += ":\n\n" + detail;
+
+                // The one failure worth naming, because the cause is not
+                // in this program and the fix is not in this program
+                // either. A machine with two NVIDIA cards of different
+                // generations can have the model split onto the older
+                // one, whose compute capability the shipped CUDA kernels
+                // were never built for.
+                if (detail.find("kernel image is invalid") != std::string::npos) {
+                    msg += "\n\nThis is a GPU problem, not a RadukCapture one. "
+                           "The model is being loaded onto a card whose compute "
+                           "capability the CUDA build does not support. On a "
+                           "two-card machine, restrict Ollama to the newer card "
+                           "with CUDA_VISIBLE_DEVICES and restart it.";
+                }
+
+                FireError(msg);
+                cleanup();
+                return;
+            }
+        }
+
         // Read streaming response line by line.
         // available == 0 does NOT mean done — LLM inference takes 1-3s before
         // first token. Retry with backoff up to 120s total wait.
@@ -254,7 +312,29 @@ private:
     }
 
     void FireError(const std::string& msg) {
+        if (m_log)     m_log("[AI] " + msg);
         if (m_onError) m_onError(msg);
+    }
+
+    // Pull "error":"..." out of a server response body.
+    static std::string ExtractError(const std::string& body) {
+        const std::string key = "\"error\":\"";
+        auto pos = body.find(key);
+        if (pos == std::string::npos) return "";
+        pos += key.size();
+        std::string val;
+        while (pos < body.size()) {
+            char c = body[pos++];
+            if (c == '"') break;
+            if (c == '\\' && pos < body.size()) {
+                char e = body[pos++];
+                if (e == 'n') val += ' ';
+                else          val += e;
+                continue;
+            }
+            val += c;
+        }
+        return val;
     }
 
     std::atomic<bool>   m_busy{false};
@@ -264,6 +344,7 @@ private:
     std::function<void(const std::string&)> m_onToken;
     std::function<void()>                   m_onDone;
     std::function<void(const std::string&)> m_onError;
+    std::function<void(const std::string&)> m_log;
 };
 
 } // namespace raduk::core

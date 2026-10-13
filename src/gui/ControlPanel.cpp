@@ -547,13 +547,22 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
             RECT cr; GetClientRect(hwnd, &cr);
+            // Fill the area below the controls, and nothing else.
+            //
+            // This used to clip to that region and then call PaintAll,
+            // which drew the STATUS strip there. Status has its own
+            // window now, so all that is left is painting the empty
+            // space the owning colour -- without which the parent shows
+            // whatever was last there, including controls that a
+            // collapse has since destroyed.
             if (self->m_contentBottom > 0) {
-                int screenBottom = self->m_contentBottom - self->m_scrollY;
-                HRGN clipRgn = CreateRectRgn(0, screenBottom, cr.right, cr.bottom);
-                SelectClipRgn(hdc, clipRgn);
-                DeleteObject(clipRgn);
+                const int top = self->m_contentBottom - self->m_scrollY;
+                if (top < cr.bottom) {
+                    RECT below = { 0, (top > 0 ? top : 0), cr.right, cr.bottom };
+                    HBRUSH bg = Theme::Brush(RGB(4, 8, 15));
+                    FillRect(hdc, &below, bg);
+                }
             }
-            self->PaintAll(hdc, cr);
             EndPaint(hwnd, &ps);
             return 0;
         }
@@ -568,7 +577,6 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 }
                 return false;
             };
-            if (hitGdi(self->m_gdiHdrStatus,      Section::Status))      return 0;
             break;
         }
         case WM_COMMAND:
@@ -1634,10 +1642,22 @@ void ControlPanel::UpdateAnalysis(const raduk::core::AnalysisResult& analysis) {
     m_analysis    = analysis;
     m_hasAnalysis = analysis.valid;
 
-    if (changed && m_panelHwnd) {
-        RECT histR = { 0, m_contentBottom, 32767, m_contentBottom + 110 };
-        InvalidateRect(m_panelHwnd, &histR, FALSE);
-    }
+    // No repaint from here any more.
+    //
+    // This used to invalidate a 110px band at m_contentBottom for the
+    // histogram. The histogram moved onto the preview and into its own
+    // window, and this was left behind, still firing on every change in
+    // seeing or sharpness -- which is most frames.
+    //
+    // Two things were wrong with it by then. The band had become the
+    // STATUS section rather than the histogram, so an unrelated reading
+    // was driving status repaints. And the rectangle was in unscrolled
+    // coordinates while PaintAll draws the strip at
+    // (m_contentBottom - m_scrollY + 2), so the moment the panel was
+    // scrolled the clip region and the drawing were in different
+    // places: the strip painted into a band that did not contain it,
+    // and what was already on screen stayed there.
+    (void)changed;
 }
 
 // ── UpdateTemperature ─────────────────────────────────────────
@@ -1791,128 +1811,6 @@ namespace {
 // Must be defined after the anonymous namespace so DrawSectionHeader
 // and kCyan()/kGreen()/kAmber() are visible.
 
-void ControlPanel::PaintAll(HDC hdc, const RECT& cr) {
-    const int scrollW = GetSystemMetrics(SM_CXVSCROLL) + 2;
-    const int panW    = cr.right - scrollW;  // exclude scrollbar column
-    const int screenY = m_contentBottom - m_scrollY + 2;
-    if (screenY >= cr.bottom) return;
-
-    const int HDR = 22;
-    int y = screenY;
-
-    HBRUSH bgBr = CreateSolidBrush(Theme::NV(RGB(4, 8, 15)));
-    RECT stripRc = { 0, screenY, cr.right, cr.bottom };  // full width fill
-    FillRect(hdc, &stripRc, bgBr);
-    DeleteObject(bgBr);
-
-    auto gdiHeader = [&](const char* title, COLORREF accent, Section s,
-                          RECT& outHitRect) -> int {
-        DrawSectionHeader(hdc, 0, y, panW, HDR, title, accent, IsCollapsed(s));
-        outHitRect = { 0, y, panW, y + HDR };
-        return y + HDR + 2;
-    };
-
-    // ── STATUS ────────────────────────────────────────────────
-    m_gdiHdrStatus = {};
-    y = gdiHeader("STATUS", kGreen(), Section::Status, m_gdiHdrStatus);
-    if (!IsCollapsed(Section::Status)) {
-        PaintStatus(hdc, 0, y, panW);
-        y += 66;
-    }
-
-}
-
-// ── Status — HDD/Buffer bars + FPS/Lost ──────────────────────
-void ControlPanel::PaintStatus(HDC hdc, int panX, int panY, int panW) {
-    const int padX  = 10;  // matches panel margin
-    const int BH    = 20;
-    const int GAP   = 3;
-
-    int y = panY + 3;
-
-    const int rightW = 90;   // wider right column for FPS/LOST values
-    const int lblW   = 44;   // label column width
-    const int barW   = panW - padX*2 - lblW - rightW - 4;
-
-    HFONT lf = MakeFont(13, true,  "Barlow Condensed");  // bold label
-    HFONT vf = MakeFont(12, false, "Space Mono");         // mono value
-    SetBkMode(hdc, TRANSPARENT);
-
-    // ── Row 1: HDD bar + FPS ─────────────────────────────────
-    {
-        HFONT old = (HFONT)SelectObject(hdc, lf);
-        SetTextColor(hdc, kDim());
-        RECT lr = {panX+padX, y, panX+padX+lblW, y+BH};
-        DrawTextA(hdc, "HDD", -1, &lr, DT_LEFT|DT_VCENTER|DT_SINGLELINE);
-        SelectObject(hdc, old);
-
-        float diskPct = m_status.recording
-            ? (m_status.diskUsedGB / 500.0f * 100.0f < 100.0f
-                ? m_status.diskUsedGB / 500.0f * 100.0f : 100.0f)
-            : 0.0f;
-        char diskLabel[24]; sprintf_s(diskLabel, "%.3f GB", m_status.diskUsedGB);
-        int bx = panX + padX + lblW;
-        DrawBar(hdc, bx, y, barW, BH, diskPct, kGreen(), kHistBg(), diskLabel, Theme::NV(RGB(200,232,240)));
-
-        // FPS label + value
-        old = (HFONT)SelectObject(hdc, lf);
-        SetTextColor(hdc, kDim());
-        RECT fl = {bx+barW+4, y, bx+barW+36, y+BH};
-        DrawTextA(hdc, "FPS", -1, &fl, DT_LEFT|DT_VCENTER|DT_SINGLELINE);
-        SelectObject(hdc, old);
-
-        old = (HFONT)SelectObject(hdc, vf);
-        char fpsBuf[12]; sprintf_s(fpsBuf, "%.1f", m_status.fps);
-        SetTextColor(hdc, kCyan());
-        RECT fv = {bx+barW+36, y, bx+barW+rightW, y+BH};
-        DrawTextA(hdc, fpsBuf, -1, &fv, DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
-        SelectObject(hdc, old);
-    }
-
-    y += BH + GAP;
-
-    // ── Row 2: BUF bar + LOST ─────────────────────────────────
-    {
-        HFONT old = (HFONT)SelectObject(hdc, lf);
-        SetTextColor(hdc, kDim());
-        RECT lr = {panX+padX, y, panX+padX+lblW, y+BH};
-        DrawTextA(hdc, "BUF", -1, &lr, DT_LEFT|DT_VCENTER|DT_SINGLELINE);
-        SelectObject(hdc, old);
-
-        // BUF bar — shows pending/total so user sees buffer filling and draining
-        char bufLabel[32];
-        int bPending = m_status.bufferFrames;
-        int bTotal   = m_status.bufferTotal > 0 ? m_status.bufferTotal : 512;
-        sprintf_s(bufLabel, "%d / %d slots", bPending, bTotal);
-
-        // Color shifts amber→red as buffer fills: green <50%, amber 50-80%, red >80%
-        COLORREF bufClr = (m_status.bufferPct > 80.0f) ? kRed()
-                        : (m_status.bufferPct > 50.0f) ? kAmber()
-                        : kGreen();
-
-        int bx = panX + padX + lblW;
-        DrawBar(hdc, bx, y, barW, BH, m_status.bufferPct,
-                bufClr, kHistBg(), bufLabel, Theme::NV(RGB(200,232,240)));
-
-        old = (HFONT)SelectObject(hdc, lf);
-        SetTextColor(hdc, kDim());
-        RECT ll = {bx+barW+4, y, bx+barW+44, y+BH};
-        DrawTextA(hdc, "LOST", -1, &ll, DT_LEFT|DT_VCENTER|DT_SINGLELINE);
-        SelectObject(hdc, old);
-
-        old = (HFONT)SelectObject(hdc, vf);
-        char lostBuf[8]; sprintf_s(lostBuf, "%d", m_status.framesLost);
-        SetTextColor(hdc, m_status.framesLost > 0 ? kRed() : kDim());
-        RECT lv = {bx+barW+44, y, bx+barW+rightW, y+BH};
-        DrawTextA(hdc, lostBuf, -1, &lv, DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
-        SelectObject(hdc, old);
-    }
-
-    DeleteObject(lf);
-    DeleteObject(vf);
-}
-
-// ── Temperature — rolling line chart ─────────────────────────
 // good saved value with an empty string.
 void ControlPanel::SnapshotUi() {
     auto grab = [](HWND h, std::wstring& dst) {

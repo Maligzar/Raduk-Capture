@@ -191,6 +191,50 @@ Three parts, in order:
 Step 3 is what the owner actually asked for and it is what removes the
 bleed's blast radius for good.
 
+### P3.1b · Status telemetry: all drives, and a disk figure that moves
+
+**Bench. Small-medium. Two separate things.**
+
+The status window exists now (`Shift+D`, on the telemetry screen). What
+it shows is the same four numbers the old panel section did. Two
+additions were asked for during the session that produced it.
+
+**1 · Every drive, by letter.** Show size and free space for each
+logical drive, not just a single figure for the capture directory. The
+machine writes SER files that run to gigabytes a minute, and "which
+disk still has room" is a question you want answered before a capture
+rather than during one.
+
+Mechanically simple: `GetLogicalDriveStringsW` for the list,
+`GetDiskFreeSpaceExW` per drive, skip anything that is not
+`DRIVE_FIXED` unless it is the capture target. The interesting part is
+layout, since the count is not known in advance and the window is
+resizable -- one row per drive with a bar, the capture drive marked,
+and the rows sized to fit whatever the window currently is.
+
+Worth showing **free** space rather than used. Used is what the current
+figure reports, and free is what actually decides whether the night's
+capture completes.
+
+**2 · The disk figure reads zero while recording.** Reported under a
+synthetic test. The number comes from:
+
+```cpp
+float diskGB = capturer.IsRecording()
+             ? (float)capturer.BytesWritten() / 1e9f : 0.0f;
+```
+
+So it is bytes written this session, not disk usage at all -- the label
+says HDD and the bar is scaled against 500 GB, which makes it read as
+free space when it is nothing of the kind. If `BytesWritten()` is not
+advancing during the emulator's synthetic recording, that is a second
+bug underneath the first and needs checking separately: a byte counter
+that stays at zero while frames are being written would also mean the
+capture-size estimate and any limit-by-size logic are wrong.
+
+Do the diagnosis before the display work. If `BytesWritten()` is
+genuinely stuck, that is worth more than the drive listing.
+
 ### P3.2 · Hide the viewfinder overlays — `U` / `Shift+U`
 **Bench. Small. Partially built already.**
 
@@ -504,7 +548,9 @@ windows, and this is the second thing that silently depends on it.
 | 5 | READY modal gate | Bench | M | Safety, explicitly requested |
 | 6 | Histogram deep dive (bench half) | Bench | M | Decides whether a core readout means anything |
 | 7 | Overlay hide `U` | Bench | S | Half-built already |
-| 8 | Status window + out of panel | Bench | M | Completes the workspace; closes the bleed |
+| 8 | Status window + out of panel | Bench | M | ✅ done — see P0.2 |
+| 8b | Status telemetry: all drives (P3.1b) | Bench | S–M | "Which disk has room" is a pre-capture question |
+| 8c | Disk figure reads zero while recording | Bench | S | May be a stuck byte counter, which would affect more than the display |
 | 9 | Display identity (D1) | Bench | S–M | Layout silently stops matching |
 | 10 | Help window resize + fonts | Bench | M | Proves the pattern cheaply |
 | 11 | GoTo + AI resize + fonts | Bench | M–H | Densest layouts in the app |

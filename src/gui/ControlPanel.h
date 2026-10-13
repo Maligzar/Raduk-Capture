@@ -68,8 +68,10 @@ public:
     // Status bar data — called from readout loop
     void UpdateStatus(float fps, int lost, float bufPct, int bufFrames,
                       int bufTotal, float diskGB, bool recording) {
+        // Cached only. The panel no longer draws this -- StatusWindow
+        // does. Kept because the readout loop still calls here and the
+        // values are wanted by whatever displays them.
         m_status = {fps, lost, bufPct, bufFrames, bufTotal, diskGB, recording};
-        if (m_panelHwnd) InvalidateRect(m_panelHwnd, nullptr, FALSE);
     }
 
     // ── Quality gate accessors (Phase 10) ─────────────────────
@@ -444,9 +446,7 @@ private:
                                           WPARAM wParam, LPARAM lParam);
 
     // GDI painting
-    void PaintAll(HDC hdc, const RECT& clientRect);
 
-    void PaintStatus(HDC hdc, int x, int y, int w);
 
 
     // Layout rebuild
@@ -559,16 +559,22 @@ private:
         auto it = m_collapsed.find(s);
         return it != m_collapsed.end() && it->second;
     }
-    // Dynamic height of the GDI-painted strip (STATUS header + content).
-    // HISTOGRAM and TEMPERATURE used to add 22 + 110 and 22 + 130 here;
-    // both are preview overlays now, which is the space this frees.
-    int GdiStripHeight() const {
-        const int HDR = 22;
-        int h = 0;
-        h += HDR + 2; // STATUS header always shown
-        if (!IsCollapsed(Section::Status)) h += 66;
-        return h;
-    }
+    // There is no GDI-painted strip any more.
+    //
+    // STATUS was the last of it, and it was the last thing the panel
+    // painted onto its OWN dc rather than building from child controls.
+    // That put it on a different plane from every other section: the
+    // children are clipped and composited over the parent, while the
+    // strip went underneath them, so each collapse toggle -- which
+    // destroys and recreates every child -- left the parent's painted
+    // strip showing through wherever a child had been. It also meant
+    // the STATUS header was drawn by a different code path from all the
+    // others, so collapsed it did not line up with them.
+    //
+    // Kept as a function returning zero rather than deleted, because
+    // the scroll extent maths reads it in several places and a zero is
+    // clearer there than removing the term.
+    int GdiStripHeight() const { return 0; }
     void ToggleCollapse(Section s) {
         // Preserve scroll position so panel doesn't jump to top on collapse
         int savedScroll = m_scrollY;
@@ -597,9 +603,6 @@ private:
     // Control IDs for collapse headers
     enum { ID_HDR_CAMERA = 2100, ID_HDR_EAF, ID_HDR_MOUNT };
 
-    // ── GDI section header hit rects (STATUS/HISTOGRAM/TEMPERATURE) ──
-    // Updated every PaintAll call; used by WM_LBUTTONDOWN for collapse clicks.
-    RECT m_gdiHdrStatus      = {};
 
     // ── Window handles ─────────────────────────────────────────
     HWND m_panelHwnd = nullptr;

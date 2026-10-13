@@ -318,6 +318,12 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
         case 'R':
             if (firstPress && m_onReticleToggle) m_onReticleToggle();
             return true;
+        case 'D':
+            // Shift+D is the status window. D is otherwise unused, and
+            // status no longer has a small version to sit beside the way
+            // the histogram and sharpness windows do.
+            if (shift && firstPress && m_onStatusToggle) m_onStatusToggle();
+            return true;
         case 'C':
             if (firstPress && m_onClipToggle) m_onClipToggle();
             return true;

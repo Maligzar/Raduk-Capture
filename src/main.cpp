@@ -65,6 +65,7 @@
 #include "gui/HistogramWindow.h"
 #include "gui/SharpnessWindow.h"
 #include "gui/TemperatureWindow.h"
+#include "gui/StatusWindow.h"
 #include "gui/MountController.h"
 #include "gui/StatusBar.h"
 #include "gui/HelpWindow.h"
@@ -1368,6 +1369,14 @@ static int RunApp(bool useEmulator) {
     tempWindow.Create(window.Handle(), 280, 280, 1100, 420);
     Log("[INIT] Temperature window ready\n");
 
+    // Phase 42f: status in a window of its own. It was the last section
+    // the control panel painted onto its own DC instead of building
+    // from child controls, which put it on a different plane from
+    // everything around it -- see StatusWindow.h.
+    raduk::gui::StatusWindow statusWindow;
+    statusWindow.Create(window.Handle(), 320, 320, 900, 220);
+    Log("[INIT] Status window ready\n");
+
     // ── Phase 42: place the windows ───────────────────────────
     // This has to be the point where the LAST window has been created,
     // and it has moved twice for that reason: Place() on a window that
@@ -1388,6 +1397,7 @@ static int RunApp(bool useEmulator) {
         { "histogram", histWindow.Handle() },
         { "sharpness", sharpWindow.Handle() },
         { "temperature", tempWindow.Handle() },
+        { "status", statusWindow.Handle() },
     };
     for (const auto& [role, hwnd] : kPlacedWindows)
         workspace.Place(role, hwnd);
@@ -3058,6 +3068,7 @@ static int RunApp(bool useEmulator) {
     window.SetHistogramToggleHandler([&]()  { histWindow.Toggle();   });
     window.SetSharpnessToggleHandler([&]()  { sharpWindow.Toggle();  });
     window.SetTemperatureToggleHandler([&]() { tempWindow.Toggle(); });
+    window.SetStatusToggleHandler([&]()      { statusWindow.Toggle(); });
     window.SetOverlayTelemetryHandler([&]() {
         preview.ToggleOverlayTelemetry();
         const bool on = preview.OverlayTelemetryVisible();
@@ -4106,6 +4117,8 @@ static int RunApp(bool useEmulator) {
                                  ? (float)capturer.BytesWritten() / 1e9f : 0.0f;
                 controls.UpdateStatus(fps, lost, bufPct, bufFr, bufTot, diskGB,
                                       capturer.IsRecording());
+                statusWindow.Update({ fps, lost, bufPct, bufFr, bufTot, diskGB,
+                                      capturer.IsRecording() });
             }
 
             // Capture status panel

@@ -1,0 +1,269 @@
+# Roadmap and Phase History
+
+What is built, what is not, and what was deliberately decided against.
+
+The project uses two parallel records, and the distinction matters:
+
+| Record | Is |
+|--------|-----|
+| [`RadukCapture-Architecture.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/RadukCapture-Architecture.md) phase table | The roadmap of **planned** features |
+| [`RadukCapture-Help.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/RadukCapture-Help.md) phase history | The record of **what shipped** |
+
+> **Phases 60–84 are not in the roadmap table.** They were reactive work —
+> reviews, defect fixes, and things the rig turned out to need — rather than
+> items from the plan.
+
+That split is worth keeping in mind when reading either document: roughly a
+third of the development effort went into work that was never planned,
+which is itself the honest shape of a project built against real hardware.
+
+---
+
+## Built and in use
+
+**Core capture:** SER v3 recording with capture-time trailer timestamps,
+RAM-first write buffering, per-frame lucky-imaging quality scores,
+resolution and bit-depth presets on the toolbar through one shared
+reconfigure path.
+
+**Control:** closed-loop planet tracking with measured guide calibration,
+GoTo with sky map and ASTAP plate solving, EAF V-curve autofocus with an
+honest report, NexStar direct serial with a runaway watchdog, cord-wrap
+tracking, keep-out sector.
+
+**Analysis:** per-channel histograms, the shared Bayer sharpness metric,
+relative seeing score, capture quality gate, quick-look stacker, dark and
+flat masters (preview only).
+
+**Guidance:** readiness check, atmospheric dispersion advisor over the
+fitted filter's band, auto-exposure assistant, local AI assistant and
+advisory loop.
+
+**Display:** night vision across the whole interface, display stretch with
+black and white points, single-channel R/G/B view, four-shape movable
+reticle, framing shot, six display FX modes, clipping warning, quality bar
+graph, RGB align, pixel readout.
+
+**Infrastructure:** full device emulators with closed tracking loop, fault
+injection, defocus and sensor noise; WebSocket telemetry and browser
+dashboard; session logging; profile management.
+
+---
+
+## Tier 0 — reliability, validated in emulation 2026-07-11
+
+The reliability block, and the one place where the review references in the
+source point:
+
+| Phase | Feature | Effort |
+|-------|---------|--------|
+| 51 | Guide calibration and axis transform | Hard |
+| 52 | Closed-loop tracking emulation | Medium |
+| 53 | Correction-loop dynamics | Medium |
+| 54 | Auto-sync repair (ASTAP + J2000) | Easy-Med |
+| 55 | Rig configuration | Easy-Med |
+| 56 | Frame-path memory safety | Medium |
+| 57 | Mount safety and remote hardening | Medium |
+| 58 | Camera fault recovery | Medium |
+| 59 | Capture and assist reliability | Medium |
+
+"Validated (emu)" is the honest claim: validated in emulation, which is not
+the same as validated on sky. See
+[what the emulator cannot tell you](Emulator-and-Testing#what-the-emulator-cannot-tell-you).
+
+### Phase 58 — the self-healing path, in detail
+
+Worth recording because it is the only automatic recovery in the system:
+
+| Step | Behaviour |
+|------|-----------|
+| **Detection** | `CaptureThread` monitors consecutive `ASI_ERROR_TIMEOUT` returns |
+| **Threshold** | 20 consecutive frames fail to arrive (~500 ms latency) → "pipeline wedge" |
+| **Recovery** | `ASICamera::RestartCapture()`: `StopVideoCapture`, **100 ms sleep** to let the USB controller flush and the camera's 256 MB DDR3 buffer clear, then `StartVideoCapture` |
+| **Telemetry** | Each reset increments a counter in `CaptureStats`, broadcast over WebSocket for health monitoring |
+
+The 100 ms sleep is the load-bearing part: restarting immediately leaves the
+camera's internal buffer in the state that wedged it.
+
+---
+
+## Outstanding plan
+
+> **Nothing in these rows is half-built: each is unstarted.** That claim is
+> from the architecture document, and it is a useful property — there is no
+> partially-wired feature waiting to surprise you, with one exception noted
+> below.
+
+### Tier 2
+
+| Phase | Feature | Effort |
+|-------|---------|--------|
+| 46 | Connect / disconnect all hardware | Medium |
+| 30 | Push-to assistant | Medium |
+| 35 | ADC **alignment** tool (distinct from the advisor) | Medium |
+| 47 | Pixel position / click to recentre | Medium |
+| 48 | Go to previous image (framing recall) | Medium |
+| 42 | Two-monitor mode | Hard |
+| 16 | Polar alignment assistant | Hard |
+
+### Tier 3
+
+| Phase | Feature | Effort |
+|-------|---------|--------|
+| 31 | Multi-star FWHM focus | Hard |
+| 32 | Bahtinov mask focus | Hard |
+| 18 | AVI / FITS output | Medium |
+| 19 | Multi-session stats dashboard | Medium |
+| 36 | Sensor analysis / smart histogram | Hard |
+| 43 | Deep sky image annotation | Hard |
+| 34 | Solar / lunar framing | Hard |
+| 33 | Stellar photometry | Very hard |
+| 20 | Distribution / ASCOM support | Very hard |
+
+### Partial
+
+| Phase | State |
+|-------|-------|
+| **6.6 GoTo map learning** | **◑ partial.** Auto solve+sync on lock ships; the accumulating map **reports but does not correct** — see [why](Sky-GoTo-and-Plate-Solving#why-it-reports-and-does-not-correct) |
+| 17 Live stacking preview | ◑ Superseded by the quick-look stacker (Phase 74) |
+| Phase 4 APEX items | `apex_bridge.py` RC telemetry forwarding, weather-aware capture suggestions |
+| Phase 77 AutoStakkert | CLI verified; **in-app launch does not work** |
+
+### Deferred indefinitely
+
+**OBS / RTSP streaming (Phase 7).** H.264 from the capture PC GPU (NVENC or
+Media Foundation) to OBS on the monitoring PC, ~5–10 Mbps.
+
+> Deferred until home WiFi bandwidth is confirmed sufficient for
+> low-latency video. No timeline — revisit after all Tier 1 and Tier 2
+> phases complete.
+
+### Superseded
+
+**Milestone 8 — ASCOM mount layer.** Built and tested, then superseded by
+NexStar direct. All known CPWI ASCOM drivers (CPWI Telescope, DeviceHub,
+ASIMount, JustAHub, all simulators) are blacklisted in
+`ASCOMMount::FindCPWIDriver()`. NexStar direct is faster, has no COM or
+registry dependencies, and supports all required commands.
+`ASCOMMount.h` is kept for potential future use.
+
+---
+
+## Deliberately not built
+
+Distinct from "not yet" — these are decisions:
+
+**Full stacking.** AutoStakkert does multi-point alignment and drizzle
+better, it is free, and nothing here would beat it. The
+[quick-look stacker](Image-Analysis#quick-look-stacker) answers "is this
+sharp" at the telescope; Phase 77 added the handoff rather than a
+competitor.
+
+**Calibration frames in the recording.** Dark and flat correction applies
+to the preview only. The SER stays raw, because a stacker does this better
+with the full frame set and raw data stays useful when a master turns out to
+have been wrong.
+
+**Automatic pointing correction.** See Phase 6.6 above. The sign is
+backwards and the recorded quantity is not the one a correction needs;
+settling which is right is a measurement on a real mount.
+
+**Auto-unwinding the cord wrap.** Shedding a turn means rotating up to
+360°, a long motion that can snag something by itself. The app forecasts
+and warns; the observer unwinds.
+
+**Authentication on the telemetry server.** The network boundary is the
+control — loopback by default, LAN exposure an explicit opt-in. See
+[Telemetry and Dashboard](Telemetry-and-Dashboard#loopback-by-default-and-why).
+
+---
+
+## Version drift
+
+Three different version numbers are currently in the repository:
+
+| Source | Value |
+|--------|-------|
+| `src/Version.h` → `RADUK_VERSION_A` | **1.1.9** |
+| `CMakeLists.txt` → `project(... VERSION ...)` | **1.0.5** |
+| `RadukCapture-Help.md` phase history and footer | **v1.2.3** |
+
+The title bar shows `RADUK_VERSION_A` plus `main.cpp`'s compile timestamp,
+so the authoritative *runtime* answer is `Version.h` — and it is the one
+that is stale by four minor revisions' worth of phase history.
+
+`Version.h` says it is "bumped on EVERY pushed iteration", and the comment
+explains why that matters:
+
+> The title bar shows it together with the compile timestamp of `main.cpp`
+> — so a stale exe (launched from the wrong build dir, or run before a
+> rebuild finished) is immediately obvious. The compile timestamp refreshes
+> automatically whenever `main.cpp` recompiles; bumping the version here
+> forces that recompile, so the two always move together.
+
+The mechanism is sound; the bump has been missed. Worth fixing in one
+commit: set `Version.h` to `1.2.3`, set the CMake project version to match,
+and it stays a useful staleness check.
+
+---
+
+## Version history
+
+Condensed from the help file's phase history. The full table is in
+[`RadukCapture-Help.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/RadukCapture-Help.md#phase-history).
+
+| Version | Highlights |
+|---------|-----------|
+| v0.9 | Phases 1–6: all devices communicating, centroid tracking, GoTo panel |
+| v1.0 | Full Win32 control panel and Direct2D preview |
+| v1.0.1–1.0.15 | Mount controller, ADC advisor, lucky-imaging tagger, auto-exposure, clipping overlay, snapshots, quality graph, pause, frame types, RGB align, pixel readout, display FX, night vision, single channel, help system |
+| v1.1.0–1.1.3 | Version in title bar, hold-last-frame, initial public release |
+| v1.1.4 | Hotkeys from the message pump; arrow-key jog fixes; mouse reaches the preview; sharpness crop follows the planet; port auto-detect; ROI and LOCK state **why** they refuse |
+| v1.1.5 | Site and clock to the mount; one-point ALIGN; true polar sky map; tracking verified by readback; **one-button acquisition**; guide rate measured; site auto-detect; ADC pressure from elevation |
+| v1.1.6 | Faint-vs-absent acquisition messages; `TRK: UNKNOWN`; azimuth surfaced; cord-wrap tracking; align helper |
+| v1.1.7 | Pre-slew cord-wrap forecast; keep-out sector; rig setup view; **readiness check** with live refresh |
+| v1.1.8 | `Esc` stops unconditionally; `Space` and `A` actually bound; exposure slider ceiling 10 → 60 ms |
+| v1.1.9 | READY button |
+| v1.2.0 | **Autofocus: real per-position averaging, honest reporting, reverts a bad fit.** Sharpness metric fixed — was measuring colour, not focus. Emulator models defocus and noise. Quick-look stacker |
+| v1.2.1 | Jog rate reaches the arrow keys; motion plot |
+| v1.2.2 | Per-frame quality scores; one shared sharpness definition; a ceiling that survives sensor noise; capture gate fixed |
+| v1.2.3 | Both configurations build from one script; ADC over the fitted filter's band; toolbar resolution and bit depth; one shared capture-format path; profiles apply resolution and limit; CAPTURE and PROFILE merged; assistant told the format and display modes; startup restores last camera state; night vision whole-interface and persisted; multi-reticle with move/size/rotate; framing shot; dark and flat masters; display stretch and real R/G/B histogram; advisory loop |
+
+### Two version boundaries that invalidate old numbers
+
+**v1.2.0 — sharpness changed scale.** The metric was computing a
+red-minus-green colour difference rather than detail. Readings from earlier
+sessions no longer compare, and autofocus results from before this version
+were not meaningful.
+
+**v1.2.2 — the seeing score became relative.** It is now relative to the
+best recent frame rather than an absolute scale. **A capture GATE threshold
+set before this does not behave as you remember** — see
+[Troubleshooting](Troubleshooting#nothing-is-being-recorded-or-almost-nothing).
+
+---
+
+## Review trail
+
+The `review C1` / `G4` / `S1` / `T17` references scattered through the
+source point into [`docs/`](https://github.com/Maligzar/Raduk-Capture/tree/master/docs):
+
+| Document | Covers |
+|----------|--------|
+| `CODE_REVIEW_2026-06-10.md` | Full sweep, 28 KB |
+| `CODE_REVIEW_2026-07-06.md` | Follow-up |
+| `SECURITY_REVIEW_2026-07-11.md` | Pre-public-release privacy and attack surface. **§2 records an action still outstanding** |
+| `Tracking-Findings-2026-10-08.md` | Tracking behaviour on the real rig |
+| `Tracking-Review-2026-10-09.md` | Tracking review |
+| `Control-Review-2026-10-09.md` | Control path |
+| `CLEAR-NIGHT-CHECKLIST.md` | The manual on-sky test plan |
+| `Phase66/67/68-Plan-*.md` | Phase design documents |
+| `NEXT-SESSION.md` | Working notes |
+
+Phase 80's review pass alone fixed eight confirmed defects. These documents
+are the nearest thing this project has to a regression record, since
+[there is no automated test suite](Emulator-and-Testing#there-is-no-automated-test-suite).
+
+---
+
+**Next:** [Code Map](Code-Map) · [Emulator and Testing](Emulator-and-Testing) · [Glossary](Glossary)

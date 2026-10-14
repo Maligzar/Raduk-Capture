@@ -63,6 +63,16 @@ public:
         float diskUsedGB   = 0.0f;
         bool  recording    = false;
         char  captureDrive = 0;      // letter captures are written to, 0 if unknown
+
+        // The rest of what the preview's LIVE line carries. FPS and
+        // dropped frames are deliberately NOT here: this window already
+        // shows them, on the REC and BUF rows, and a second copy would
+        // be one more thing to keep in step for no gain.
+        int      roiWidth  = 0;
+        int      roiHeight = 0;
+        int      bitDepth  = 8;
+        uint64_t frames    = 0;      // recorded this run
+        bool     streaming = false;  // camera actually delivering
     };
 
     // One fixed drive, as the scanner last saw it.
@@ -248,6 +258,54 @@ private:
         Fill(hdc, 0, 0, W, H, RGB(4, 8, 15));
         if (W < 120 || H < 50) return;
 
+        // ── What the preview's LIVE line says ───────────────────
+        //
+        // The capture's identity -- state, geometry, format, frame
+        // count -- rather than its rates. Put here so the one window
+        // that gets a screen to itself can answer "what is this
+        // recording" without anyone squinting at the status line across
+        // the room.
+        //
+        // Only the parts this window did not already have. FPS is on
+        // the REC row and dropped frames are on the BUF row as LOST;
+        // repeating them here would be two places to read the same
+        // number and two places for it to disagree.
+        const int hdrH = (std::max)(16, (std::min)(34, H / 8));
+        {
+            const int hp = (std::max)(6, W / 80);
+            char hdr[128];
+            const char* state = !m_data.streaming ? "IDLE"
+                              : m_data.recording  ? "REC" : "LIVE";
+            if (m_data.roiWidth > 0)
+                snprintf(hdr, sizeof(hdr), "%s   %dx%d   RAW%d",
+                         state, m_data.roiWidth, m_data.roiHeight,
+                         m_data.bitDepth);
+            else
+                snprintf(hdr, sizeof(hdr), "%s", state);
+
+            const int hf = (std::max)(11, (std::min)(22, hdrH * 2 / 3));
+            HFONT hfont = MakeFont(hf, true, "Barlow Condensed");
+            HGDIOBJ old = SelectObject(hdc, hfont);
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, m_data.recording ? Theme::NV(RGB(255, 60, 90))
+                                               : Theme::NV(RGB(0, 229, 255)));
+            RECT hr = { hp, 0, W / 2, hdrH };
+            DrawTextA(hdc, hdr, -1, &hr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+            // Frames, right-aligned. Shown only while there is a
+            // recording to count -- a FRAMES 0 sitting there between
+            // captures is noise.
+            if (m_data.recording || m_data.frames > 0) {
+                snprintf(hdr, sizeof(hdr), "FRAMES  %llu",
+                         (unsigned long long)m_data.frames);
+                SetTextColor(hdc, Theme::NV(RGB(200, 232, 240)));
+                RECT fr = { W / 2, 0, W - hp, hdrH };
+                DrawTextA(hdc, hdr, -1, &fr, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+            }
+            SelectObject(hdc, old);
+            DeleteObject(hfont);
+        }
+
         struct Row {
             char     label[8]      = {};
             float    pct           = 0.0f;
@@ -367,8 +425,9 @@ private:
         // screen of its own and the number of drives is not known until
         // the scanner has run.
         const int n     = (int)rows.size();
-        const int pad   = (std::max)(4,  (std::min)(W / 60, (H / (n + 1)) / 4));
-        const int rowH  = (std::max)(14, (H - pad * (n + 1)) / n);
+        const int bodyH = H - hdrH;
+        const int pad   = (std::max)(4,  (std::min)(W / 60, (bodyH / (n + 1)) / 4));
+        const int rowH  = (std::max)(14, (bodyH - pad * (n + 1)) / n);
         const int fontPx= (std::max)(10, (std::min)(30, rowH / 2));
         const int lblW  = fontPx * 4;
         const int rightW= fontPx * 8;
@@ -379,7 +438,7 @@ private:
         HFONT vf = MakeFont(fontPx, false, "Space Mono");
         SetBkMode(hdc, TRANSPARENT);
 
-        int y = pad;
+        int y = hdrH + pad;
         for (const Row& r : rows) {
             HGDIOBJ old = SelectObject(hdc, lf);
             SetTextColor(hdc, Theme::NV(RGB(120, 136, 156)));

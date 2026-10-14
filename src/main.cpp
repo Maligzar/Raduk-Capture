@@ -4319,8 +4319,24 @@ static int RunApp(bool useEmulator) {
                 if (outDir.size() >= 2 && outDir[1] == ':')
                     capDrive = (char)toupper((unsigned char)outDir[0]);
 
-                statusWindow.Update({ fps, lost, bufPct, bufFr, bufTot, diskGB,
-                                      capturer.IsRecording(), capDrive });
+                // The rest of the preview's LIVE line. Not fps or lost
+                // again -- the status window already carries those on
+                // its REC and BUF rows.
+                raduk::gui::StatusWindow::Data sd;
+                sd.fps          = fps;
+                sd.framesLost   = lost;
+                sd.bufferPct    = bufPct;
+                sd.bufferFrames = bufFr;
+                sd.bufferTotal  = bufTot;
+                sd.diskUsedGB   = diskGB;
+                sd.recording    = capturer.IsRecording();
+                sd.captureDrive = capDrive;
+                sd.roiWidth     = roiWidth;
+                sd.roiHeight    = roiHeight;
+                sd.bitDepth     = roiBits;
+                sd.frames       = capturer.FramesRecorded();
+                sd.streaming    = cam.IsCapturing();
+                statusWindow.Update(sd);
             }
 
             // ── ADC alignment (Phase 35) ───────────────────────

@@ -308,15 +308,45 @@ public:
         }
 
         if (!CaptionReachable(target)) {
-            Say(std::string("[LAYOUT] ") + role +
-                ": title bar would not be grabbable there - sent to primary");
-            const RECT pw = PrimaryWork();
+            // The saved rect is unreachable -- but the MONITOR was
+            // resolved, by interface path, and that is the part worth
+            // keeping. Pull the window onto that monitor's work area
+            // instead of giving up and sending it to the primary.
+            //
+            // The old behaviour threw away a successful identity match.
+            // When this rig's monitors renumbered and their desktop
+            // coordinates shifted with them -- DISPLAY4 becoming
+            // DISPLAY8, its origin moving from 1350,1072 to 1221,1088 --
+            // the sky map's saved rect no longer fell inside the panel
+            // it still correctly belonged to, so it was dumped on the
+            // primary ON TOP OF the main window. Identity matching had
+            // done its job and the fallback undid it.
+            //
+            // Primary is still the last resort, for the genuinely
+            // homeless: a monitor whose work area cannot hold a
+            // grabbable caption at all.
             const LONG tw = target.right - target.left;
             const LONG th = target.bottom - target.top;
-            target.left   = pw.left + 40;
-            target.top    = pw.top  + 40;
-            target.right  = target.left + (std::min)(tw, pw.right - pw.left - 80);
-            target.bottom = target.top  + (std::min)(th, pw.bottom - pw.top - 80);
+            RECT onMon;
+            onMon.left   = mon->work.left + 40;
+            onMon.top    = mon->work.top  + 40;
+            onMon.right  = onMon.left + (std::min)(tw, mw - 80);
+            onMon.bottom = onMon.top  + (std::min)(th, mh - 80);
+
+            if (CaptionReachable(onMon)) {
+                Say(std::string("[LAYOUT] ") + role +
+                    ": saved position is off " + Narrow(mon->device) +
+                    " now - pulled back onto it");
+                target = onMon;
+            } else {
+                Say(std::string("[LAYOUT] ") + role +
+                    ": title bar would not be grabbable there - sent to primary");
+                const RECT pw = PrimaryWork();
+                target.left   = pw.left + 40;
+                target.top    = pw.top  + 40;
+                target.right  = target.left + (std::min)(tw, pw.right - pw.left - 80);
+                target.bottom = target.top  + (std::min)(th, pw.bottom - pw.top - 80);
+            }
         }
 
         SetWindowPos(hwnd, nullptr, target.left, target.top,

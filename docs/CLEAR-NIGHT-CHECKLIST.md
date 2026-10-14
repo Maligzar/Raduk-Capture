@@ -332,6 +332,93 @@ What the bench cannot answer:
    star has no limb, only a seeing-blurred profile, which should work
    but has not been tried.
 
+## 13. The capture pipeline at real frame rates — never once exercised
+
+**The largest untested surface in the app, and the one with the most to
+gain.**
+
+Everything about recording has only ever run at 15–20 fps, because that
+is all the emulator can render — measured at 62 ms per synthetic frame,
+against a hardcoded 50 ms cap it already overruns. The real camera is
+specified far above that at 1280×960. So the entire write path has been
+exercised at roughly a seventh of its working rate.
+
+Two changes landed on 2026-10-14 off the back of that, and neither has
+seen a real frame:
+
+- **Recording moved off the render loop onto the capture thread.** It
+  used to take one frame per render pass via `GetLatestFrame()`, and
+  `Window::Run()` ends in a `Sleep(1)` measured at 15.98 ms — so the
+  loop capped near 62 passes a second before any rendering work, 40–55
+  with it. Everything in between was overwritten in the ring and lost.
+- **The write buffer is sized to the run** rather than a flat 512 slots,
+  so a bounded capture can be held entirely in memory and the disk comes
+  off the critical path.
+
+### The one measurement that settles it
+
+**Does the frame count in the SER match the camera's delivered rate?**
+
+Record a fixed duration with the frame limit set high enough not to
+intervene, and compare:
+
+```
+frames in the SER   vs   (FPS shown during capture) x (seconds recorded)
+```
+
+Before the change those two diverged and nothing said so — the missing
+frames were overwritten in the ring, which is not a drop and was never
+counted. They should now agree to within a frame or two. If they do not,
+the decoupling did not take.
+
+### What else to read off the same run
+
+1. **What rate does the camera actually give?** At 1280×960 RAW8, and
+   again at RAW16. Nobody here has ever measured it. Every throughput
+   figure below is quoted against guesses until this exists.
+
+2. **Does `BUF` stay near zero?** The status window shows buffer
+   occupancy. Near zero means the drive is keeping up. A steady climb
+   means a sustained deficit, and the rate of climb is the size of it —
+   that is the number worth writing down, not the fact that it climbed.
+
+3. **Does `DROPS` stay at zero?** Non-zero means the buffer filled,
+   which with a run-sized buffer means the drive fell behind for longer
+   than the whole run. Note the drive, the format and the rate.
+
+4. **Does the frame limit land exactly?** Ask for 3000 and count 3000.
+   The limit used to be checked against frames *written* rather than
+   frames *taken*, which overshot to 40 on a limit of 5 once submission
+   outran the writer. Fixed and unit-tested, but the test drives it with
+   synthetic frames and a 320×240 slot.
+
+5. **Does the preview survive it?** The render loop no longer feeds the
+   recorder, so at 120 fps it is displaying roughly one frame in three.
+   That is the right trade and it should look no worse — but check it,
+   because a preview that stutters at exactly the moment you are
+   focusing is worse than a slower recording.
+
+### What the bench already established, so the night need not
+
+- The capture drive sustains **292 MB/s** writing frame-sized chunks the
+  way `SERWriter` does, ranging **141–423 MB/s** second to second. At
+  1280×960 that covers RAW8 to past 180 fps, and RAW16 to about 110.
+  **Measured with the app idle**, though — not with five screens, the
+  preview, the analyser and the assistant all running. Worth one
+  re-check under real load.
+- Per-frame sharpness scoring on the writer thread costs **0.079 ms**,
+  about 1% of a core at 120 fps. Not a bottleneck.
+- Submission from the capture thread costs **3.7 µs/frame**.
+
+### Why this is worth a chunk of a clear night
+
+Lucky imaging pays in frame count. Jupiter gives roughly three minutes
+before derotation matters, and within that fixed window the only
+variable that raises the stack quality is how many frames landed. At 120
+fps that window holds ~21,000 frames; at the old ceiling, ~9,000.
+Stacking the best 10% is 2,100 against 900.
+
+
 ## Data, not code: five saved profiles hold the wrong resolution
 
 Not a sky test, but it will bite on the night and takes a minute to fix.

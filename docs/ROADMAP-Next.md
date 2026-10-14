@@ -769,14 +769,25 @@ the ranking below it is what to pick up next.
 
 ### Blocked on weather
 
-`CLEAR-NIGHT-CHECKLIST.md` items 1–12. Nothing here can be advanced
+`CLEAR-NIGHT-CHECKLIST.md` items 1–13. Nothing here can be advanced
 indoors, and the list exists to keep that distinction honest.
 
-The two worth doing first on the first clear night, because other
-numbers depend on them: **item 1** (`SHARP_CEIL`, which biases the
-capture gate and autofocus) and **item 3** (plate scale, never once
-checked against the sky, and every arcsecond figure in the app is
-derived from it — including the ADC tool's).
+Three worth doing first on the first clear night, because other numbers
+depend on them:
+
+- **Item 13 — the capture pipeline at real frame rates.** The largest
+  untested surface in the app and the one with the most to gain. The
+  whole write path has only ever run at 15–20 fps, because that is all
+  the emulator renders; the camera is specified far above it. Recording
+  was moved off the render loop and the write buffer resized to suit on
+  2026-10-14, and neither change has seen a real frame. One measurement
+  settles whether it worked: frames in the SER against delivered FPS ×
+  duration.
+- **Item 1 — `SHARP_CEIL`**, which biases the capture gate and
+  autofocus.
+- **Item 3 — plate scale**, never once checked against the sky, and
+  every arcsecond figure in the app derives from it, the ADC tool's
+  included.
 
 ### Unstarted features, not yet scheduled
 
@@ -817,3 +828,8 @@ this round:
   answer.
 - **12 · Sharpness readings on a real target.** Folds into item 1;
   listed so the owner's report is traceable to an answer.
+
+- **13 · The capture pipeline at real frame rates.** Added
+  2026-10-14 after measuring that the emulator caps at 16 fps and the
+  render loop capped recording at ~62. Both the decoupled recording
+  path and the run-sized write buffer are unexercised above 16 fps.

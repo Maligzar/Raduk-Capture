@@ -191,7 +191,10 @@ Three parts, in order:
 Step 3 is what the owner actually asked for and it is what removes the
 bleed's blast radius for good.
 
-### P3.1b · Status telemetry: all drives, and a disk figure that moves
+### P3.1b · Status telemetry: all drives, and a disk figure that moves ✅ DONE (v1.2.6)
+
+Both parts done. What follows is the original entry, with the outcome
+of each part at the end of it.
 
 **Bench. Small-medium. Two separate things.**
 
@@ -234,6 +237,38 @@ capture-size estimate and any limit-by-size logic are wrong.
 
 Do the diagnosis before the display work. If `BytesWritten()` is
 genuinely stuck, that is worth more than the drive listing.
+
+**Outcome, part 2 — the counter was not stuck.** The underlying bug was
+found earlier in the session: `StartRecording` was being handed a
+hardcoded `8` for bits-per-pixel instead of the ROI's actual depth, so
+the write buffer was sized wrong. With that fixed the counter advances
+correctly. Measured on the emulator at 1280x960 RAW8: 0.000 GB at
+start, 0.070 GB at 4s, 0.188 GB at 10s — 0.0197 GB/s against a
+predicted 1,228,800 bytes x 15 FPS = 0.0184 GB/s. Right, not merely
+non-zero.
+
+The display problem the entry describes was real and is also fixed: the
+row is now `REC`, not `HDD`, and is scaled against free space on the
+capture drive rather than a flat 500 GB.
+
+**Outcome, part 1 — one row per fixed drive**, by letter, with the
+capture drive marked `*`, the bar showing space used and the spelled-out
+number showing space free. Thresholds are in GB rather than percent, for
+the reason in the entry above. Verified against `Win32_LogicalDisk`:
+C: 352/499 GB, D: 641 GB/1.00 TB, S: 1.45/2.00 TB, percentages 71/64/72
+— exact matches.
+
+Two things the entry did not anticipate:
+
+- **The scan runs on a background thread**, every five seconds. A
+  sleeping external USB drive can take seconds to answer, and on the UI
+  thread that would stall the preview and the capture loop.
+  `SetThreadErrorMode(SEM_FAILCRITICALERRORS)` as well, or a removable
+  drive with no media pops a system dialog from a background thread
+  mid-exposure.
+- **Free space is the per-user figure**, not the raw free total. Under a
+  disk quota they differ, and the smaller one is what decides whether
+  the capture fits.
 
 ### P3.2 · Hide the viewfinder overlays — `U` ✅ DONE (v1.2.6)
 

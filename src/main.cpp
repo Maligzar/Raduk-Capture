@@ -4142,8 +4142,18 @@ static int RunApp(bool useEmulator) {
                                  ? (float)capturer.BytesWritten() / 1e9f : 0.0f;
                 controls.UpdateStatus(fps, lost, bufPct, bufFr, bufTot, diskGB,
                                       capturer.IsRecording());
+
+                // Which drive tonight lands on, so the status window can
+                // mark that row. Taken from the live capture config
+                // rather than rig.ini, because the output directory can
+                // be changed from the Capture card mid-session.
+                const std::string& outDir = capturer.Config().outputDir;
+                char capDrive = 0;
+                if (outDir.size() >= 2 && outDir[1] == ':')
+                    capDrive = (char)toupper((unsigned char)outDir[0]);
+
                 statusWindow.Update({ fps, lost, bufPct, bufFr, bufTot, diskGB,
-                                      capturer.IsRecording() });
+                                      capturer.IsRecording(), capDrive });
             }
 
             // Capture status panel

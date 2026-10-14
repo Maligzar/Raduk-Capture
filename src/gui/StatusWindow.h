@@ -40,6 +40,12 @@
 #include <dwmapi.h>
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
+#include <vector>
+#include <mutex>
+#include <thread>
+#include <atomic>
+#include <chrono>
 #include "Theme.h"
 
 #pragma comment(lib, "dwmapi.lib")
@@ -56,6 +62,14 @@ public:
         int   bufferTotal  = 512;
         float diskUsedGB   = 0.0f;
         bool  recording    = false;
+        char  captureDrive = 0;      // letter captures are written to, 0 if unknown
+    };
+
+    // One fixed drive, as the scanner last saw it.
+    struct DriveInfo {
+        char               letter    = 0;
+        unsigned long long totalBytes = 0;
+        unsigned long long freeBytes  = 0;
     };
 
     bool Create(HWND parent, int x, int y, int w, int h) {
@@ -78,10 +92,16 @@ public:
         DwmSetWindowAttribute(m_hwnd, 20, &dark, sizeof(dark));
         DwmSetWindowAttribute(m_hwnd, 19, &dark, sizeof(dark));
         ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
+        StartDriveScanner();
         return true;
     }
 
-    void Destroy() { if (m_hwnd) { DestroyWindow(m_hwnd); m_hwnd = nullptr; } }
+    void Destroy() {
+        StopDriveScanner();
+        if (m_hwnd) { DestroyWindow(m_hwnd); m_hwnd = nullptr; }
+    }
+
+    ~StatusWindow() { StopDriveScanner(); }
 
     HWND Handle() const { return m_hwnd; }
     bool IsVisible() const { return m_hwnd && IsWindowVisible(m_hwnd); }
@@ -158,16 +178,198 @@ private:
         }
     }
 
+    // ── Drive scanning ──────────────────────────────────────────
+    //
+    // On a worker thread, not in Draw(), and not in Update() either.
+    // Update() runs on the UI thread once per frame; GetDiskFreeSpaceEx
+    // against a sleeping external USB drive can take seconds to return
+    // while the platter spins up, and a stall there would stall the
+    // preview and the capture loop with it. A drive that is slow to
+    // answer here just shows stale numbers for a few seconds instead.
+    void StartDriveScanner() {
+        if (m_scanner.joinable()) return;
+        m_scanStop = false;
+        m_scanner = std::thread([this] {
+            // Without this a removable drive with no media in it pops a
+            // system "no disk" dialog, from a background thread, over a
+            // telescope that is mid-exposure.
+            SetThreadErrorMode(SEM_FAILCRITICALERRORS, nullptr);
+            while (!m_scanStop) {
+                ScanDrivesOnce();
+                // Sleep in slices so closing the window does not wait
+                // out the whole interval.
+                for (int i = 0; i < 50 && !m_scanStop; i++)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+        });
+    }
+
+    void StopDriveScanner() {
+        m_scanStop = true;
+        if (m_scanner.joinable()) m_scanner.join();
+    }
+
+    void ScanDrivesOnce() {
+        std::vector<DriveInfo> found;
+        const DWORD mask = GetLogicalDrives();
+        for (int i = 0; i < 26; i++) {
+            if (!(mask & (1u << i))) continue;
+            wchar_t root[4] = { (wchar_t)(L'A' + i), L':', L'\\', 0 };
+
+            // Fixed drives only. A network share can hang far longer
+            // than a spin-up, a CD-ROM's "free space" means nothing,
+            // and a RAM disk is not where anyone keeps a night's data.
+            if (GetDriveTypeW(root) != DRIVE_FIXED) continue;
+
+            ULARGE_INTEGER freeAvail{}, total{}, freeTotal{};
+            if (!GetDiskFreeSpaceExW(root, &freeAvail, &total, &freeTotal)) continue;
+            if (total.QuadPart == 0) continue;
+
+            DriveInfo d;
+            d.letter     = (char)('A' + i);
+            d.totalBytes = total.QuadPart;
+            // Free space available to THIS user, not the raw free total.
+            // Under a disk quota they differ, and the number that
+            // decides whether tonight's capture fits is this one.
+            d.freeBytes  = freeAvail.QuadPart;
+            found.push_back(d);
+        }
+        std::lock_guard<std::mutex> lk(m_drivesMx);
+        m_drives.swap(found);
+    }
+
+    std::vector<DriveInfo> DrivesSnapshot() {
+        std::lock_guard<std::mutex> lk(m_drivesMx);
+        return m_drives;
+    }
+
     void Draw(HDC hdc, const RECT& cr) {
         const int W = cr.right, H = cr.bottom;
         Fill(hdc, 0, 0, W, H, RGB(4, 8, 15));
         if (W < 120 || H < 50) return;
 
-        // Everything scales off the window, because this gets a screen
-        // of its own and a fixed 20px bar would waste it.
-        const int pad   = (std::max)(8,  W / 60);
-        const int rowH  = (std::max)(18, (H - pad * 3) / 2);
-        const int fontPx= (std::max)(11, (std::min)(30, rowH / 2));
+        struct Row {
+            char     label[8]      = {};
+            float    pct           = 0.0f;
+            COLORREF fill          = 0;
+            char     barText[64]   = {};
+            char     rightLabel[8] = {};
+            char     rightValue[24]= {};
+            COLORREF rightClr      = 0;
+        };
+        std::vector<Row> rows;
+
+        const std::vector<DriveInfo> drives = DrivesSnapshot();
+
+        // Free space on the drive tonight is landing on, for scaling the
+        // REC bar below.
+        unsigned long long captureFree = 0;
+        for (const DriveInfo& d : drives)
+            if (d.letter == m_data.captureDrive) captureFree = d.freeBytes;
+
+        // ── The two capture rows ────────────────────────────────
+        {
+            Row r;
+            // Called REC, not HDD. The figure is bytes written by THIS
+            // recording -- it is not disk usage and never was. That
+            // mattered less when it sat alone; directly above a list of
+            // real drive capacities, a row labelled HDD showing 0.188 GB
+            // reads as a disk with 0.188 GB on it.
+            strcpy_s(r.label, "REC");
+
+            // Scaled against the free space on the capture drive, so the
+            // bar answers the question actually being asked during a
+            // run: how much of tonight's headroom is gone. The old 500
+            // GB constant was arbitrary and meant nothing on any
+            // particular machine.
+            const double writtenB = (double)m_data.diskUsedGB * 1e9;
+            const double headroom = writtenB + (double)captureFree;
+            r.pct = (m_data.recording && headroom > 0.0)
+                  ? (float)(writtenB / headroom * 100.0) : 0.0f;
+
+            r.fill = (r.pct > 90.0f) ? Theme::NV(RGB(255, 60, 90))
+                   : (r.pct > 75.0f) ? Theme::NV(RGB(255, 170, 0))
+                                     : Theme::NV(RGB(0, 200, 110));
+            if (captureFree > 0)
+                sprintf_s(r.barText, "%.3f GB written to %c:",
+                          m_data.diskUsedGB, m_data.captureDrive);
+            else
+                sprintf_s(r.barText, "%.3f GB written", m_data.diskUsedGB);
+            strcpy_s(r.rightLabel, "FPS");
+            sprintf_s(r.rightValue, "%.1f", m_data.fps);
+            r.rightClr = Theme::NV(RGB(0, 229, 255));
+            rows.push_back(r);
+        }
+        {
+            Row r;
+            strcpy_s(r.label, "BUF");
+            r.pct  = m_data.bufferPct;
+            r.fill = (m_data.bufferPct > 80.0f) ? Theme::NV(RGB(255, 60, 90))
+                   : (m_data.bufferPct > 50.0f) ? Theme::NV(RGB(255, 170, 0))
+                                                : Theme::NV(RGB(0, 200, 110));
+            sprintf_s(r.barText, "%d / %d slots",
+                      m_data.bufferFrames,
+                      m_data.bufferTotal > 0 ? m_data.bufferTotal : 512);
+            strcpy_s(r.rightLabel, "LOST");
+            sprintf_s(r.rightValue, "%d", m_data.framesLost);
+            r.rightClr = m_data.framesLost > 0 ? Theme::NV(RGB(255, 60, 90))
+                                               : Theme::NV(RGB(120, 136, 156));
+            rows.push_back(r);
+        }
+
+        // ── One row per fixed drive, in letter order ────────────
+        //
+        // The bar is space USED, so a drive filling up grows a bar, the
+        // same direction as every other bar in the app. The number that
+        // decides whether tonight fits is FREE, so that is the one in
+        // words and in the right-hand column.
+        for (const DriveInfo& d : drives) {
+            const double totalGB = (double)d.totalBytes / 1e9;
+            const double freeGB  = (double)d.freeBytes  / 1e9;
+            const double freePct = (d.totalBytes > 0)
+                                 ? (double)d.freeBytes / (double)d.totalBytes * 100.0
+                                 : 0.0;
+            Row r;
+            // The capture drive is marked, because on a five-drive
+            // machine knowing which row is the one tonight lands on
+            // matters more than any single number in it.
+            if (d.letter == m_data.captureDrive)
+                sprintf_s(r.label, "%c: *", d.letter);
+            else
+                sprintf_s(r.label, "%c:", d.letter);
+
+            r.pct = (float)(100.0 - freePct);
+
+            // Thresholds in GB rather than percent. A 2% margin is
+            // ample on a 4 TB drive and nothing at all on a 256 GB one,
+            // and what matters is whether a night's SER files fit --
+            // those are tens of GB regardless of how big the drive is.
+            r.fill = (freeGB < 20.0)  ? Theme::NV(RGB(255, 60, 90))
+                   : (freeGB < 100.0) ? Theme::NV(RGB(255, 170, 0))
+                                      : Theme::NV(RGB(0, 200, 110));
+
+            // Both figures in the same unit. "1448 GB free of 2.00 TB"
+            // is two units in one sentence and needs arithmetic to read;
+            // the whole point of the row is to be read at a glance.
+            if (totalGB >= 1000.0)
+                sprintf_s(r.barText, "%.2f TB free of %.2f TB",
+                          freeGB / 1000.0, totalGB / 1000.0);
+            else
+                sprintf_s(r.barText, "%.0f GB free of %.0f GB", freeGB, totalGB);
+
+            strcpy_s(r.rightLabel, "FREE");
+            sprintf_s(r.rightValue, "%.0f%%", freePct);
+            r.rightClr = r.fill;
+            rows.push_back(r);
+        }
+
+        // Scale off the window AND the row count, because this gets a
+        // screen of its own and the number of drives is not known until
+        // the scanner has run.
+        const int n     = (int)rows.size();
+        const int pad   = (std::max)(4,  (std::min)(W / 60, (H / (n + 1)) / 4));
+        const int rowH  = (std::max)(14, (H - pad * (n + 1)) / n);
+        const int fontPx= (std::max)(10, (std::min)(30, rowH / 2));
         const int lblW  = fontPx * 4;
         const int rightW= fontPx * 8;
         const int barW  = W - pad * 2 - lblW - rightW - 8;
@@ -176,41 +378,6 @@ private:
         HFONT lf = MakeFont(fontPx, true,  "Barlow Condensed");
         HFONT vf = MakeFont(fontPx, false, "Space Mono");
         SetBkMode(hdc, TRANSPARENT);
-
-        struct Row {
-            const char* label;
-            float       pct;
-            COLORREF    fill;
-            char        barText[40];
-            const char* rightLabel;
-            char        rightValue[24];
-            COLORREF    rightClr;
-        } rows[2] = {};
-
-        // HDD + FPS
-        rows[0].label = "HDD";
-        rows[0].pct   = m_data.recording
-                      ? (std::min)(100.0f, m_data.diskUsedGB / 500.0f * 100.0f)
-                      : 0.0f;
-        rows[0].fill  = Theme::NV(RGB(0, 200, 110));
-        sprintf_s(rows[0].barText, "%.3f GB", m_data.diskUsedGB);
-        rows[0].rightLabel = "FPS";
-        sprintf_s(rows[0].rightValue, "%.1f", m_data.fps);
-        rows[0].rightClr = Theme::NV(RGB(0, 229, 255));
-
-        // BUF + LOST
-        rows[1].label = "BUF";
-        rows[1].pct   = m_data.bufferPct;
-        rows[1].fill  = (m_data.bufferPct > 80.0f) ? Theme::NV(RGB(255, 60, 90))
-                      : (m_data.bufferPct > 50.0f) ? Theme::NV(RGB(255, 170, 0))
-                                                   : Theme::NV(RGB(0, 200, 110));
-        sprintf_s(rows[1].barText, "%d / %d slots",
-                  m_data.bufferFrames,
-                  m_data.bufferTotal > 0 ? m_data.bufferTotal : 512);
-        rows[1].rightLabel = "LOST";
-        sprintf_s(rows[1].rightValue, "%d", m_data.framesLost);
-        rows[1].rightClr = m_data.framesLost > 0 ? Theme::NV(RGB(255, 60, 90))
-                                                 : Theme::NV(RGB(120, 136, 156));
 
         int y = pad;
         for (const Row& r : rows) {
@@ -288,6 +455,12 @@ private:
     Data            m_data;
     bool            m_fullscreen = false;
     WINDOWPLACEMENT m_savedPlacement = {};
+
+    // Written by the scanner thread, read by Draw() on the UI thread.
+    std::vector<DriveInfo> m_drives;
+    std::mutex             m_drivesMx;
+    std::thread            m_scanner;
+    std::atomic<bool>      m_scanStop{ false };
 };
 
 } // namespace raduk::gui

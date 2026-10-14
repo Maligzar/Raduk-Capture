@@ -317,6 +317,7 @@ fullscreen.
 | `Ctrl+Shift+End` | **Save the current arrangement** as the layout to open with. |
 | `Shift+H` | Close or reopen the **histogram window**. Open at startup. |
 | `Shift+Q` | Close or reopen the **sharpness window**. Open at startup. |
+| `Shift+D` | Close or reopen the **status window** — capture health and free space on every drive. |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |
@@ -841,6 +842,49 @@ deliberately, to stop a mis-click starting a slew while imaging. That
 was a fair worry when it opened over the imaging controls; it now sits
 on a screen of its own, well away from anything you touch during a
 capture. Press `G` if you would rather have it shut.
+
+### The status window (`Shift+D`, v1.2.6)
+
+Capture health and disk space, one bar per row.
+
+| Row | Bar | Right |
+|---|---|---|
+| `REC` | How much of the capture drive's free space this recording has used | Live FPS |
+| `BUF` | Ring-buffer slots in use — amber past 50%, red past 80% | Frames lost |
+| one per drive | Space **used** | Percent **free** |
+
+**`REC` is bytes written by the current recording**, not disk usage. It
+was labelled `HDD` until v1.2.6 and scaled against a flat 500 GB, which
+on a 2 TB drive meant nothing and, sitting directly above a list of real
+drive capacities, read as a disk with 0.188 GB on it. It is now scaled
+against the free space on the drive being written to, so the bar answers
+the question actually being asked mid-run: how much of tonight's
+headroom is gone.
+
+**One row per fixed drive**, by letter, with the capture drive marked
+`*`. The bar grows as a drive fills — the same direction as every other
+bar in the app — but the number spelled out is **free** space, because
+that is what decides whether tonight's capture completes. Free turns
+amber under 100 GB and red under 20 GB. Those thresholds are in
+gigabytes rather than percent on purpose: 2% is ample on a 4 TB drive
+and nothing on a 256 GB one, and a night of SER files is tens of GB
+whatever the drive's size.
+
+Fixed drives only. A network share can hang far longer than a sleeping
+disk, a CD-ROM's free space means nothing, and a RAM disk is not where
+anyone keeps a night's data.
+
+The free-space figure is the space available **to you**, which under a
+disk quota is smaller than the raw free total — and the smaller number
+is the one that decides whether the capture fits.
+
+Space is re-read every five seconds **on a background thread**. A
+sleeping external USB drive can take seconds to answer while it spins
+up, and doing that on the UI thread would stall the preview and the
+capture loop with it. A slow drive shows numbers a few seconds stale
+instead.
+
+`F11` fills the screen it is on, `Esc` closes it.
 
 ### Reticle (`R` key, or the `[+]` toolbar button)
 

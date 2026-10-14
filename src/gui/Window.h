@@ -94,6 +94,9 @@ public:
     void SetGatherWindowsHandler(std::function<void()> h) { m_onGatherWindows = h; }
     // Ctrl+Shift+End — record where the windows are now as the layout.
     void SetSaveLayoutHandler(std::function<void()> h) { m_onSaveLayout = h; }
+    // Screens came or went -- a monitor woke, slept, was unplugged, or a
+    // driver reset the topology.
+    void SetDisplayChangeHandler(std::function<void()> h) { m_onDisplayChange = h; }
     // Shift+H — the stand-alone histogram window.
     void SetHistogramToggleHandler(std::function<void()> h) { m_onHistogramToggle = h; }
     // Shift+Q — the stand-alone sharpness window.
@@ -248,6 +251,7 @@ private:
     std::function<void()>               m_onFullscreenToggle;
     std::function<void()>               m_onGatherWindows;
     std::function<void()>               m_onSaveLayout;
+    std::function<void()>               m_onDisplayChange;
     std::function<void()>               m_onHistogramToggle;
     std::function<void()>               m_onSharpnessToggle;
     std::function<void()>               m_onTemperatureToggle;

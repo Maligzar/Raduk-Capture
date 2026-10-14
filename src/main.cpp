@@ -1425,6 +1425,7 @@ static int RunApp(bool useEmulator) {
     if (!workspaceHadConfig && workspace.Save(kWorkspacePath))
         Log("[LAYOUT] wrote a starting %s\n", kWorkspacePath.c_str());
 
+
     // Ctrl+Shift+End records the arrangement as it stands. Drag the
     // windows where you want them, press it once, and that is what the
     // app opens with from then on. A generated default will never guess
@@ -1457,6 +1458,85 @@ static int RunApp(bool useEmulator) {
         notifBar.SnapToMainWindow();
     });
     Log("[INIT] Notification bar ready\n");
+
+    // Which card drives the preview. The rig runs five screens off two
+    // GPUs, and the live preview presents through whichever adapter
+    // drives the screen it is on; on the other card every frame costs a
+    // cross-adapter copy for no gain, since both show the same picture.
+    //
+    // Said once at startup and once per move, never per frame.
+    std::wstring previewAdapter = workspace.AdapterFor(window.Handle());
+    {
+        const std::wstring primaryAdapter = workspace.PrimaryAdapter();
+        if (!previewAdapter.empty())
+            Log("[LAYOUT] preview presents through %ls\n", previewAdapter.c_str());
+        if (!previewAdapter.empty() && !primaryAdapter.empty() &&
+            previewAdapter != primaryAdapter) {
+            Log("[LAYOUT] WARNING preview is on %ls, not the primary's %ls - "
+                "every frame costs a cross-adapter copy\n",
+                previewAdapter.c_str(), primaryAdapter.c_str());
+            notifBar.NotifyWarn(L"Preview is on the second GPU - every frame "
+                                L"costs a cross-adapter copy");
+        }
+    }
+
+    // ── The screens changed under us ──────────────────────────
+    //
+    // A monitor woke, slept, was unplugged, or a driver reset the
+    // topology. Deliberately dull and defensive, and it logs what it
+    // did: this fires during exactly the moments the rig is most
+    // fragile, and a 3am misbehaviour has to be diagnosable afterwards.
+    //
+    // It re-places by saved layout rather than only rescuing. A monitor
+    // coming back from sleep should get its windows back, not leave
+    // them piled on the primary where a bare rescue would put them.
+    window.SetDisplayChangeHandler([&]() {
+        const int before = workspace.MonitorCount();
+        const int now    = workspace.Detect();
+        Log("[LAYOUT] display change: %d screen(s) -> %d\n", before, now);
+        slog.Write("LAYOUT", "Display topology changed: %d screens -> %d",
+                   before, now);
+
+        // The profile is keyed by monitor count, so a changed count
+        // means a different layout applies.
+        if (now != before) workspace.SelectProfile();
+
+        for (const auto& [role, hwnd] : kPlacedWindows)
+            workspace.Place(role, hwnd);
+
+        // Anything still unreachable goes home. Place() already clamps
+        // to a live screen, so this should find nothing -- but "should"
+        // is not what you want standing between you and an unreachable
+        // window in the dark.
+        std::vector<HWND> stranded;
+        for (const auto& [role, hwnd] : kPlacedWindows) {
+            if (!hwnd || !IsWindow(hwnd) || !IsWindowVisible(hwnd)) continue;
+            RECT r{};
+            if (!GetWindowRect(hwnd, &r)) continue;
+            if (!workspace.WindowReachable(r)) {
+                Log("[LAYOUT]   %s was stranded - bringing it home\n", role);
+                stranded.push_back(hwnd);
+            }
+        }
+        if (!stranded.empty()) {
+            workspace.GatherToPrimary(stranded);
+            slog.Write("LAYOUT", "%d window(s) were stranded and recovered",
+                       (int)stranded.size());
+            notifBar.NotifyWarn(L"A screen went away - windows that were on "
+                                L"it have been brought back");
+        }
+
+        // The preview may now be presenting through the other card.
+        const std::wstring nowAdapter = workspace.AdapterFor(window.Handle());
+        if (!nowAdapter.empty() && nowAdapter != previewAdapter) {
+            Log("[LAYOUT] preview now presents through %ls\n", nowAdapter.c_str());
+            const std::wstring primaryAdapter = workspace.PrimaryAdapter();
+            if (!primaryAdapter.empty() && nowAdapter != primaryAdapter)
+                notifBar.NotifyWarn(L"Preview moved to the second GPU - every "
+                                    L"frame now costs a cross-adapter copy");
+            previewAdapter = nowAdapter;
+        }
+    });
 
     // Phase 72: one implementation for both entry points. Startup
     // calls it only when something is wrong; the READY button calls it

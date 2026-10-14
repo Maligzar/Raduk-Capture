@@ -79,6 +79,15 @@ struct MonitorDesc {
     RECT full    = {};          // whole monitor
     RECT work    = {};          // minus the taskbar
     bool primary = false;
+
+    // Which GPU drives this screen, e.g. "NVIDIA GeForce RTX 2060".
+    //
+    // Needed because this rig spreads five screens across two adapters,
+    // and the live preview presents through whichever adapter drives
+    // the monitor it is on. Moving the preview to a screen hanging off
+    // the other card costs a cross-adapter copy every frame -- for
+    // nothing, since both show the same picture.
+    std::wstring adapter;
 };
 
 enum class PlaceMode { Normal, Maximized, Fullscreen };
@@ -132,9 +141,38 @@ public:
                      m.full.right - m.full.left, m.full.bottom - m.full.top,
                      m.full.left, m.full.top, m.primary ? "  [primary]" : "");
             Say(buf);
+            if (!m.adapter.empty()) {
+                char ab[220];
+                snprintf(ab, sizeof(ab), "[LAYOUT]       driven by %ls",
+                         m.adapter.c_str());
+                Say(ab);
+            }
         }
         return (int)m_monitors.size();
     }
+
+    // Which adapter drives the screen a window is on, empty if unknown.
+    std::wstring AdapterFor(HWND hwnd) const {
+        HMONITOR hm = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFOEXW mi = {}; mi.cbSize = sizeof(mi);
+        if (!GetMonitorInfoW(hm, &mi)) return L"";
+        for (const auto& m : m_monitors)
+            if (m.device == mi.szDevice) return m.adapter;
+        return L"";
+    }
+
+    // The adapter driving the primary screen -- where the app starts and
+    // where the preview is pinned by default.
+    std::wstring PrimaryAdapter() const {
+        for (const auto& m : m_monitors)
+            if (m.primary) return m.adapter;
+        return m_monitors.empty() ? L"" : m_monitors[0].adapter;
+    }
+
+    // Can the top of this rect still be grabbed on some live
+    // screen? Public because the display-change handler has to ask
+    // the same question after the topology moves under it.
+    bool WindowReachable(const RECT& r) const { return CaptionReachable(r); }
 
     int  MonitorCount() const { return (int)m_monitors.size(); }
     const std::vector<MonitorDesc>& Monitors() const { return m_monitors; }
@@ -490,6 +528,19 @@ private:
         // EDD_GET_DEVICE_INTERFACE_NAME (1) puts the interface path in
         // DeviceID instead of the MONITOR\...\000N form.
         if (EnumDisplayDevicesW(mi.szDevice, 0, &dd, 1)) d.id = dd.DeviceID;
+
+        // The adapter behind this display. Enumerating ADAPTERS (null
+        // device) and matching DeviceName against this monitor's
+        // display gives the card's marketing name in DeviceString.
+        DISPLAY_DEVICEW ad = {};
+        ad.cb = sizeof(ad);
+        for (DWORD i = 0; EnumDisplayDevicesW(nullptr, i, &ad, 0); i++) {
+            if (wcscmp(ad.DeviceName, mi.szDevice) == 0) {
+                d.adapter = ad.DeviceString;
+                break;
+            }
+            ad = {}; ad.cb = sizeof(ad);
+        }
 
         out->push_back(d);
         return TRUE;

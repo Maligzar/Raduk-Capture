@@ -103,7 +103,6 @@ camera's internal buffer in the state that wedged it.
 
 | 47 | Pixel position / click to recentre | Medium |
 | 48 | Go to previous image (framing recall) | Medium |
-| 42 | Two-monitor mode | Hard |
 | 16 | Polar alignment assistant | Hard |
 
 ### Tier 3

@@ -236,3 +236,54 @@ coordinates means invalidating every stored layout.
 - The preview warns, once, when placed off the 2060.
 - Night vision is uniform across all five screens, or the limitation is
   documented.
+
+---
+
+## Outcome (2026-10-13)
+
+All six acceptance items met.
+
+| Acceptance | State |
+|---|---|
+| Each window assignable to a named screen | ✅ roles in `workspace.ini`, matched on device interface path |
+| Assignments survive a restart | ✅ `Ctrl+Shift+End` saves, startup applies |
+| Unplugging a monitor leaves nothing stranded | ✅ `WM_DISPLAYCHANGE` re-detects, re-places, then rescues anything still unreachable |
+| The rescue keystroke recovers every window | ✅ `Ctrl+Shift+Home`, works from the background |
+| The preview warns, once, when placed off the 2060 | ✅ adapter read per monitor; warned at startup and on any move between cards |
+| Night vision uniform across five screens | ✅ fixed during the five-screen work; the remaining button-tint gap is recorded as debt |
+
+Three things worth recording, because the plan did not anticipate them.
+
+**The adapter name comes free.** Enumerating adapters with
+`EnumDisplayDevicesW(nullptr, i, ...)` and matching `DeviceName` against
+the monitor's `\.\DISPLAYn` yields the card's marketing name in
+`DeviceString`. No WMI, no COM, no NVAPI. Confirmed on this rig:
+
+```
+\.\DISPLAY5  [primary]  NVIDIA GeForce RTX 2060
+\.\DISPLAY1/2/3/4       NVIDIA Quadro P1000
+```
+
+so the warning can name the card rather than say "the other GPU".
+
+**`WM_DISPLAYCHANGE` should re-place, not merely rescue.** The plan said
+"clamp and rescue anything whose monitor is gone". Rescuing alone is
+wrong for the commonest case by far: a monitor waking from sleep. Its
+windows should go back to where they belong, not pile onto the primary
+and need rearranging by hand. The handler re-applies the whole saved
+layout first and only then rescues whatever is still unreachable --
+which, if `Place()` has done its job, is nothing.
+
+**`WM_DPICHANGED` is one case, not a project.** The process already
+declared PER_MONITOR_AWARE_V2; what was missing was taking the rect
+Windows offers. Five lines.
+
+### Not verified
+
+**An actual unplug.** The handler was exercised by posting
+`WM_DISPLAYCHANGE` with a window parked at (7000,7000), outside the
+virtual desktop; it re-detected, re-placed all twelve windows and
+returned that one to its saved position. Physically pulling a cable
+would have disrupted a live five-screen desktop, so the OS half of the
+path — that Windows sends the message when a monitor actually goes —
+is taken on trust. It is the documented behaviour of the message.

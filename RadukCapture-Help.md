@@ -566,6 +566,53 @@ the sharpness window DISPLAY1, with the map on DISPLAY4, the main window
 and mount controller on DISPLAY5, and help, AI chat and GoTo sharing
 DISPLAY3. A copy lives in `docs/workspace-5monitor.ini`.
 
+### When a screen comes or goes (v1.2.6)
+
+Unplug a monitor, let one sleep, change a resolution, or have a driver
+reset the topology, and the app reapplies the whole saved layout by
+itself. No restart, no keystroke.
+
+It **re-places** rather than merely rescuing. A monitor waking from
+sleep is by far the commonest case, and its windows should go back
+where they belong rather than pile onto the main screen for you to sort
+out by hand. Anything still unreachable afterwards is brought home and
+the notification bar says so.
+
+What it did goes to the session log, because this fires during exactly
+the moments the rig is most fragile — driver installs, resolution
+changes, a panel waking — and a 3am misbehaviour has to be diagnosable
+the next morning.
+
+A window dragged to a screen with a different scale factor is resized to
+match it. Five panels of mixed vintage will not share a scale, and
+without this a window keeps its old pixel size and either overflows the
+smaller screen or shrinks on the larger one.
+
+### Which GPU the preview is on
+
+The rig drives five screens from two cards. The live preview presents
+through whichever adapter drives the screen it is on, so moving it to a
+screen hanging off the other card costs a cross-adapter copy on every
+single frame — for nothing, since both show the same picture.
+
+The app reads which card drives each screen at startup and names it in
+the log:
+
+```
+[LAYOUT]   \.\DISPLAY5  1920x1080 at (0,0)  [primary]
+[LAYOUT]       driven by NVIDIA GeForce RTX 2060
+[LAYOUT]   \.\DISPLAY2  1920x1080 at (-562,1080)
+[LAYOUT]       driven by NVIDIA Quadro P1000
+```
+
+If the preview ends up on a card other than the primary's, you get one
+warning in the notification bar — at startup, and again if a display
+change moves it. Once each, never per frame.
+
+This is also why the generated default layout pins the main window to
+the primary screen and never moves it. Every other window can go
+anywhere; the preview is the one with a cost attached.
+
 ### Why a window can be stuck
 
 A window can be on screen, fully drawn, and still impossible to move,

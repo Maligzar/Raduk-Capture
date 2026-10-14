@@ -672,6 +672,39 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             }
             return 0;
 
+        // ── The screens changed under us ────────────────────────
+        //
+        // Fires when a monitor is unplugged, wakes from sleep, changes
+        // resolution, or a driver resets the topology. Those are
+        // exactly the moments this rig is most fragile, and a window
+        // left on a screen that no longer exists is unreachable without
+        // the rescue hotkey -- which assumes the owner knows it has
+        // happened and remembers the keystroke, at 3am, in the dark.
+        //
+        // The handler itself re-applies the layout; this just forwards.
+        case WM_DISPLAYCHANGE:
+            if (m_onDisplayChange) m_onDisplayChange();
+            return 0;
+
+        // ── Dragged to a screen with a different scale ──────────
+        //
+        // The process is PER_MONITOR_AWARE_V2, so Windows offers a
+        // rect already scaled for the new screen and expects us to take
+        // it. Without this the window keeps its old pixel size and
+        // either overflows or shrinks -- five panels of mixed vintage
+        // will not share a scale factor.
+        case WM_DPICHANGED: {
+            const RECT* sug = reinterpret_cast<const RECT*>(lParam);
+            if (sug) {
+                SetWindowPos(m_hwnd, nullptr,
+                             sug->left, sug->top,
+                             sug->right - sug->left, sug->bottom - sug->top,
+                             SWP_NOZORDER | SWP_NOACTIVATE);
+                if (m_onMove) m_onMove();   // re-snap the docked panel
+            }
+            return 0;
+        }
+
         case WM_COMMAND:
             // Forward toolbar button commands to the registered handler.
             // ControlPanel WM_COMMAND is handled inside its own WndProc.

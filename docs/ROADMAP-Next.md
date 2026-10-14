@@ -337,23 +337,20 @@ stay at their original pixel sizes. **Check before planning work.** If
 they already scale, this is closed; if not, it is the same font-scaling
 job as P3.3 and should be done alongside it.
 
-### P3.5 · Mount controller enlarged, laid out like a gamepad
-**Bench. Medium.**
+### P3.5 · Mount controller enlarged, laid out like a gamepad — ❌ DROPPED (2026-10-14)
 
-Requested: considerably larger, and arranged like an Xbox controller so
-it reads at a glance.
+Owner's call: the current mount panel is fine as it is, and the real
+Xbox controller does not need an on-screen twin to be wired against.
 
-Good fit for a redesign because the current panel is 210x326 and fixed —
-nothing about it is worth preserving verbatim. A gamepad arrangement
-also maps naturally onto what the controls already are: a direction
-pad for N/S/E/W, face buttons for STOP and ALIGN, shoulder positions
-for rate selection.
+The earlier entry had this as a prerequisite for P4.1 on the reasoning
+"design the on-screen layout around the controller first, then wire the
+real controller to it". That reasoning does not survive contact with
+what P4.1 actually is. Wiring a physical controller is a mount-command
+and input-mapping job; it reads nothing from the on-screen panel and
+would not be made easier by the panel resembling a gamepad. The
+dependency was invented, not found.
 
-It needs the same `WM_SIZE` layout pass as P3.3, so sequence it after
-that pattern is established.
-
-This is a **prerequisite for P4.1**: design the on-screen layout around
-the controller first, then wire the real controller to it.
+P4.1 is therefore independent and can be done at any time.
 
 ---
 
@@ -445,26 +442,146 @@ produced on a telescope shared with children.
 ## Tier 4 — new capability
 
 ### P4.1 · Xbox controller input
-**Bench, then sky. Medium.**
+**Bench — needs a controller, not a clear night. Medium.**
 
-The owner's own sequencing: layout first, functionality later.
+Operate the mount, focuser and capture by feel, in the dark, with
+gloves on, standing at the telescope instead of at the keyboard. That
+is a bigger quality change than the feature list suggests, and unlike
+most of what is left it can be finished indoors.
 
-Technically straightforward — XInput is a small API and polling it in
-the existing readout loop is natural. The design questions are the ones
-worth thinking about before writing code:
+It also buys something a keyboard physically cannot give: **a
+proportional slew rate.** Arrow keys are on or off, so centring a
+planet is a series of taps; a stick is a continuous rate control, which
+is the right instrument for the job.
 
-- **Which stick does what.** Left stick to slew is obvious; the rate
-  wants to be a shoulder button rather than a mode you can forget.
-- **Dead zones.** A resting stick must not creep the mount. This is the
-  one place a bug moves the telescope on its own.
-- **A hardware STOP.** Something unmissable by feel in the dark.
-- **Focus on the right stick** is the obvious pairing, and worth
-  guarding: a fat-fingered focus command during a capture is wasted
-  frames.
+#### The blocker, which is not in the controller
 
-Real value: it is usable in the dark, by feel, with gloves on, standing
-at the telescope rather than at the keyboard. That is a bigger quality
-change than the feature list suggests.
+`NexStarMount::SlewFixed()` sends only the fixed-rate command:
+
+```
+P 2 16|17 36|37 <rate 0-9> 0 0 0
+```
+
+Nine discrete rates. Wire a stick to that and the stick is a
+nine-position switch — all the analog resolution is thrown away at the
+last step, and the thing that made the controller worth having is gone.
+
+The NexStar protocol also has a **variable-rate** command in the same
+`P` family:
+
+```
+P 3 16|17 6|7 <rate_hi> <rate_lo> 0 0      rate = arcsec/sec x 4
+```
+
+So step one is `SlewVariable(axis, dir, arcsecPerSec)` alongside
+`SlewFixed`, on the same fire-and-forget path. Small, and independently
+useful — continuous rate is also what any future centring or
+closed-loop nudge wants, and `GuideRateArcsecPerSec` already exists in
+`RigConfig` for a related purpose.
+
+**Verify it against the mount before building on it.** The command is
+documented but hand-controller firmware varies. If this mount rejects
+it, the fallback is quantising the stick to the nine fixed rates — the
+phase still works, it is just coarser, and the roadmap should say which
+of the two shipped rather than leaving it ambiguous.
+
+#### Input layer
+
+XInput: two functions, ships with Windows, made for this controller.
+
+- Poll connected pads in the existing readout loop and use
+  `dwPacketNumber` to skip unchanged state.
+- **Do not poll empty slots every frame.** `XInputGetState` on a
+  disconnected slot walks the device tree and is documented as slow;
+  scan for newly-connected pads about once a second instead.
+- **On disconnect, stop both axes immediately.** A controller battery
+  dying mid-slew must not leave the mount running. This is the single
+  most important line in the phase.
+
+#### Deadzone and response curve
+
+Pure arithmetic on a struct, so this part is unit-testable with no
+hardware and belongs in `tests/` as a merge gate.
+
+**Radial deadzone, not per-axis.** Per-axis thresholds carve a *square*
+dead region: push diagonally and each axis clears its own threshold
+while the stick is barely off centre, so a near-resting stick creeps
+the mount diagonally. Take the magnitude, subtract the deadzone,
+rescale the remainder.
+
+`XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE` (7849 of 32767) is a starting
+point, not an answer — a worn stick drifts past it. Configurable, and
+default generous. This is the one place a bug moves the telescope with
+nobody touching it.
+
+**Expo response**, not linear: `rate = maxRate * magnitude^k`, k around
+2.5–3. Linear spends the first tenth of stick travel on the entire
+useful centring range and the rest on speeds nobody wants. The curve is
+what makes the stick feel like an instrument rather than a switch.
+
+#### Arming — the part that deserves the most thought
+
+This telescope is shared with family, children included, and a gamepad
+is the most inviting object in the room to a child. The READY gate
+exists for that reason and this needs the same care.
+
+- **A deadman, not a mode.** The mount moves only while a shoulder
+  button is held; release and it stops. A mode you toggle is a mode you
+  forget, and a forgotten armed state plus a knocked stick is an
+  unattended slew. The deadman also solves the controller-set-down-on-a
+  -table case for free.
+- Disarmed on connect, on disconnect, and when the app loses focus.
+- A resting stick produces no motion in any state.
+- **STOP is one button, ungated by the deadman, and never a combo.**
+  Combinations fail in the dark with gloves on, which is exactly when
+  STOP is needed.
+- The mount panel shows ARMED. "Is it live" has to be answerable by
+  looking, not by remembering.
+
+#### Mapping
+
+A starting point, not settled — the ordering wants trying by hand.
+
+| Control | Action |
+|---|---|
+| Left stick | Slew, proportional. Deadman held |
+| D-pad | Single fine nudges, one step per press |
+| Shoulder (hold) | Deadman / arm |
+| Shoulder (tap) | Step the rate preset |
+| Face button | STOP. Ungated, always live |
+| Face buttons | Snapshot, record, reticle cycle |
+| Start / Back | GoTo panel, READY screen |
+
+**Focus is a trap worth naming.** Analog triggers have no detent, so a
+resting hand creeps the focuser, and a stray focus command during a
+capture is wasted frames. Put focus on the D-pad as discrete steps, or
+behind its own hold — not on a free-running analog axis.
+
+#### Rumble, as an output channel
+
+`XInputSetState`. Worth more here than it sounds, because during a
+session you are at the eyepiece and not looking at any of the five
+screens: slew limit reached, cord-wrap warning, recording started or
+stopped, autofocus finished. The controller is in your hands and not on
+the mount, so none of it can shake the image.
+
+#### Configuration
+
+Deadzone, curve exponent, maximum rate, button mapping and rumble
+on/off in `rig.ini`, like every other preference.
+
+#### What gates a merge
+
+The deadzone, curve, arming state machine and mapping are all pure
+logic driven by synthetic `XINPUT_GAMEPAD` values — `tests/` can cover
+every one of them, including the cases that matter: a resting stick
+produces zero rate, a diagonal near-centre stick produces zero rate,
+STOP works while disarmed, and a disconnect produces a stop command.
+
+What needs the hardware is only the feel of the curve and whether the
+mount accepts the variable-rate command. Neither needs sky.
+
+---
 
 ### P4.2 · A deep wiki, and a documentation cleanup
 **Bench. Medium — mostly writing.**
@@ -610,8 +727,8 @@ windows, and this is the second thing that silently depends on it.
 | 10 | Help window resize + fonts | Bench | M | Proves the pattern cheaply |
 | 11 | GoTo + AI resize + fonts | Bench | M–H | Densest layouts in the app |
 | 12 | Map contents scaling | Bench | S | Check first — may be closed already |
-| 13 | Mount controller as gamepad | Bench | M | Prerequisite for the real controller |
-| 14 | Xbox controller input | Both | M | Usable in the dark, by feel |
+| 13 | Mount controller as gamepad | — | — | ❌ dropped — the current panel is fine, and it was never really a prerequisite |
+| 14 | Xbox controller input (P4.1) | Bench | M | Usable in the dark, by feel. Needs variable-rate slewing added first, or the stick is a 9-position switch |
 | 15 | Wiki + doc cleanup | Bench | M | Preserves the reasoning, which is the asset |
 | 15b | Assistant worth asking (P3.6) | Bench | M | Not urgent now it is honest about its limits |
 | 16 | Night-vision chrome (D2) | Bench | S | Deferred deliberately |

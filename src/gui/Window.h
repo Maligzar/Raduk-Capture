@@ -100,8 +100,8 @@ public:
     void SetSharpnessToggleHandler(std::function<void()> h) { m_onSharpnessToggle = h; }
     // Shift+T — the stand-alone temperature window.
     void SetTemperatureToggleHandler(std::function<void()> h) { m_onTemperatureToggle = h; }
-    // Shift+O — the preview's own telemetry overlays.
-    void SetOverlayTelemetryHandler(std::function<void()> h) { m_onOverlayTelemetry = h; }
+    // U — everything drawn over the viewfinder except the reticle.
+    void SetOverlayToggleHandler(std::function<void()> h) { m_onOverlayToggle = h; }
     // Shift+D — the stand-alone status window (disk, buffer, FPS, lost).
     void SetStatusToggleHandler(std::function<void()> h) { m_onStatusToggle = h; }
     void SetJogHandler(std::function<void(int,int,bool)> h)  { m_onJog              = h; }
@@ -249,7 +249,7 @@ private:
     std::function<void()>               m_onHistogramToggle;
     std::function<void()>               m_onSharpnessToggle;
     std::function<void()>               m_onTemperatureToggle;
-    std::function<void()>               m_onOverlayTelemetry;
+    std::function<void()>               m_onOverlayToggle;
     std::function<void()>               m_onStatusToggle;
     std::function<void(int,int,bool)>   m_onJog;
     std::function<void()>               m_onAutofocusToggle;

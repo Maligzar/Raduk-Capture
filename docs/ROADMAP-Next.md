@@ -235,18 +235,38 @@ capture-size estimate and any limit-by-size logic are wrong.
 Do the diagnosis before the display work. If `BytesWritten()` is
 genuinely stuck, that is worth more than the drive listing.
 
-### P3.2 · Hide the viewfinder overlays — `U` / `Shift+U`
-**Bench. Small. Partially built already.**
+### P3.2 · Hide the viewfinder overlays — `U` ✅ DONE (v1.2.6)
 
-Requested: one key hides everything drawn over the viewfinder *except
-the reticle*.
+One key hides everything drawn over the viewfinder *except* the
+reticle. Done as `U`, either case.
 
-An uncommitted change in the tree already does most of this on
-`Shift+O`, gating the histogram/temperature side panels and the quality
-graph. What is missing is the rest of the overlay set — caption, zoom
-hint, ADC readout, pixel readout, HUD status line — and the binding the
-owner asked for. Finish it as `U`, leave the reticle out of the gate,
-and keep the setting in `rig.ini` as the current version does.
+The earlier `Shift+O` version gated only the side panels and the
+quality graph, so pressing it left the caption, zoom hint, ADC arrow,
+pixel readout and HUD status line still over the image — the view was
+not actually cleared. The rest turned out to be nearly free: caption,
+zoom hint, mode labels, pixel readout and the LIVE line all live inside
+one `if (m_hudFont && m_titleFont)` block in `PreviewRenderer::Render`,
+so gating that block plus the ADC call covered everything outstanding.
+
+The reticle is drawn *before* that block and is deliberately left
+ungated: it is the one overlay you look through the image with rather
+than read off it, and clearing the view to judge a target is exactly
+when you still want to know where centre is.
+
+Measured on the emulator, lit pixels per region, `U` on vs off:
+
+| Region | Overlays on | Overlays off |
+|---|---:|---:|
+| Caption + zoom hint | 2904 | 22 |
+| Histogram panel | 5316 | 218 |
+| Temperature panel | 2415 | 218 |
+| Sharpness graph + LIVE line | 2976 | 0 |
+| Reticle (vertical arm, dark sky) | 320 | **320** |
+| Status bar — a GDI control, not an overlay | 4807 | 4817 |
+
+The setting persists in `rig.ini`. The key there is still
+`OverlayTelemetry`, from when the gate was narrower; renaming it would
+have thrown away the saved state to buy a tidier word.
 
 ### P3.3 · Resizable AI / GoTo / Help, with larger fonts
 **Bench. Medium-Hard. The biggest of the workspace items.**

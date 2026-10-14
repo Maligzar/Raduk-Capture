@@ -3013,7 +3013,7 @@ static int RunApp(bool useEmulator) {
         rg.Save();
         Log("[NIGHT] Night Vision %s (saved)\n", on ? "ON" : "OFF");
     };
-    preview.SetShowOverlayTelemetry(raduk::core::RigConfig::Get().overlayTelemetry);
+    preview.SetShowOverlays(raduk::core::RigConfig::Get().overlayTelemetry);
 
     // Restore it before the first frame is drawn.
     if (raduk::core::RigConfig::Get().nightVision) {
@@ -3094,13 +3094,13 @@ static int RunApp(bool useEmulator) {
     window.SetSharpnessToggleHandler([&]()  { sharpWindow.Toggle();  });
     window.SetTemperatureToggleHandler([&]() { tempWindow.Toggle(); });
     window.SetStatusToggleHandler([&]()      { statusWindow.Toggle(); });
-    window.SetOverlayTelemetryHandler([&]() {
-        preview.ToggleOverlayTelemetry();
-        const bool on = preview.OverlayTelemetryVisible();
+    window.SetOverlayToggleHandler([&]() {
+        preview.ToggleOverlays();
+        const bool on = preview.OverlaysVisible();
         auto& rg = raduk::core::RigConfig::Get();
         rg.overlayTelemetry = on;
         rg.Save();
-        Log("[OVERLAY] preview telemetry %s (saved)\n", on ? "ON" : "OFF");
+        Log("[OVERLAY] viewfinder overlays %s (saved)\n", on ? "ON" : "OFF");
     });
     window.SetAutofocusToggleHandler([&]() {
         // A key: same as clicking the AF button — toggle start/abort

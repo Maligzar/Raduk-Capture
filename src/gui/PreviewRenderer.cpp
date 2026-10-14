@@ -876,15 +876,21 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
         DrawReticle(reticleCX, reticleCY, reticleW, reticleH);
 
     // ADC overlay — dispersion arrow + severity label
-    if (m_showADC && m_mountAltDeg > 0.0)
+    if (m_showOverlays && m_showADC && m_mountAltDeg > 0.0)
         DrawADCOverlay(pw, ph);
 
     // Quality bar graph — per-frame sharpness history (Phase 25a)
-    if (m_showOverlayTelemetry && m_showQualityGraph && m_qualCount > 0)
+    if (m_showOverlays && m_showQualityGraph && m_qualCount > 0)
         DrawQualityGraph(px, pw, ph);
 
-    // HUD
-    if (m_hudFont && m_titleFont) {
+    // HUD — caption, zoom hint, mode labels, pixel readout and the
+    // LIVE status line, all inside this one block.
+    //
+    // Gated as a unit by U. Everything drawn over the image goes except
+    // the reticle, which is the one overlay you are using the image
+    // THROUGH rather than reading off it -- hiding it while centring a
+    // target would defeat the point of being able to clear the view.
+    if (m_showOverlays && m_hudFont && m_titleFont) {
         wchar_t buf[256];
         const wchar_t* debayerTag =
             m_debayerMode == DebayerMode::Color ? L"COLOR" : L"RAW";
@@ -1124,7 +1130,7 @@ void PreviewRenderer::DrawSidePanels(const raduk::core::AnalysisResult& analysis
                                      int previewX, int previewWidth,
                                      int windowHeight, int statusBarHeight) {
     if (!m_renderTarget || !m_hudFont) return;
-    if (!m_showOverlayTelemetry) return;
+    if (!m_showOverlays) return;
 
     const float px = (float)previewX;
     const float pw = (float)previewWidth;
@@ -1134,17 +1140,41 @@ void PreviewRenderer::DrawSidePanels(const raduk::core::AnalysisResult& analysis
     const float HIST_H  = 104.0f;
     const float TEMP_H  = 116.0f;
     const float MARGIN  = 12.0f;
+    const float BOTTOM_PAD = 108.0f;  // clearance above the sharpness graph / ADC box
+    const float TOP_LIMIT  = 100.0f;  // never ride up into the caption
 
     // Give up rather than overprint the image when there is no room to
     // either side -- at a small window or a heavy zoom the two panels
     // would meet in the middle and cover the target itself.
     if (pw < PANEL_W * 2.0f + MARGIN * 4.0f + 160.0f) return;
-    if (ph < HIST_H + 120.0f) return;
+    if (ph < TEMP_H + BOTTOM_PAD + TOP_LIMIT) return;
+
+    // Both panels sit low and share a bottom edge, rather than being
+    // vertically centred as they were through v1.2.5.
+    //
+    // Centred put them level with the target. A planet is centred too
+    // -- that is what the reticle is for -- so at any real zoom the
+    // panels were the two things closest to the thing being judged, one
+    // either side of it. Low and bottom-aligned keeps the whole middle
+    // band of the image clear, and reads as one row of instruments
+    // instead of two floating boxes.
+    //
+    // BOTTOM_PAD clears what already lives along the bottom: the
+    // sharpness graph starts at ph-80 on the left and the ADC box at
+    // ph-100 on the right, so ph-108 is below neither.
+    const float bottom = ph - BOTTOM_PAD;
+    float histY = bottom - HIST_H;
+    float tempY = bottom - TEMP_H;
+
+    // At an unusually short window, lowering them would push the panels
+    // up into the caption instead. Stop at TOP_LIMIT and let them sit
+    // higher rather than overprint it.
+    if (histY < TOP_LIMIT) histY = TOP_LIMIT;
+    if (tempY < TOP_LIMIT) tempY = TOP_LIMIT;
 
     DrawHistogramPanel(analysis, analysisValid,
-                       px + MARGIN, ph * 0.5f - HIST_H * 0.5f, PANEL_W, HIST_H);
-    DrawTempPanel(px + pw - PANEL_W - MARGIN,
-                  ph * 0.5f - TEMP_H * 0.5f, PANEL_W, TEMP_H);
+                       px + MARGIN, histY, PANEL_W, HIST_H);
+    DrawTempPanel(px + pw - PANEL_W - MARGIN, tempY, PANEL_W, TEMP_H);
 }
 
 void PreviewRenderer::DrawHistogramPanel(const raduk::core::AnalysisResult& a,

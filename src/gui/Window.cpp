@@ -417,19 +417,17 @@ bool Window::HandleChar(WPARAM wParam) {
     if (wParam == L'?' && m_onHelpToggle) { m_onHelpToggle(); return true; }
     // / key -- toggle AI chat panel
     if (wParam == L'/' && m_onAIToggle)   { m_onAIToggle();   return true; }
-    // o -- ghost frame overlay.
-    if (wParam == L'o' && m_onGhostToggle) {
+    // o / O -- ghost frame overlay, either case.
+    if ((wParam == L'o' || wParam == L'O') && m_onGhostToggle) {
         m_onGhostToggle();
         return true;
     }
-    // O (shift) -- hide the readouts drawn ON the preview. They are
-    // duplicates once the histogram, sharpness and temperature each
-    // have a window of their own, and on a five-screen desk a duplicate
-    // sitting on top of the image is just something covering the image.
-    // This used to be the same branch as the ghost frame, which took
-    // both cases of the letter.
-    if (wParam == L'O' && m_onOverlayTelemetry) {
-        m_onOverlayTelemetry();
+    // u / U -- clear the view. Hides everything drawn over the
+    // viewfinder except the reticle, so the image can be judged on its
+    // own. Either case, because this is a thing you reach for in the
+    // dark and caps lock is not a mode anyone tracks at 2am.
+    if ((wParam == L'u' || wParam == L'U') && m_onOverlayToggle) {
+        m_onOverlayToggle();
         return true;
     }
     return false;

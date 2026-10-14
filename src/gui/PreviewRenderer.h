@@ -302,14 +302,24 @@ public:
     // ── Quality bar graph — Phase 25a ─────────────────────────
     // Rolling per-frame sharpness history drawn as a vertical bar
     // chart in the bottom-left of the preview. Toggle via Q key.
-    // The histogram, temperature and sharpness readouts drawn ON the
-    // preview. Each now also exists as a window of its own, so on a
-    // multi-screen desk they are duplicates sitting on top of the
-    // image. Off hides all three at once and leaves everything that is
-    // NOT duplicated -- reticle, ADC, caption, pixel readout, HUD line.
-    void SetShowOverlayTelemetry(bool on) { m_showOverlayTelemetry = on; }
-    bool OverlayTelemetryVisible() const  { return m_showOverlayTelemetry; }
-    void ToggleOverlayTelemetry()         { m_showOverlayTelemetry = !m_showOverlayTelemetry; }
+    // Everything drawn over the viewfinder, except the reticle.
+    //
+    // Covers the histogram/temperature side panels, the sharpness
+    // graph, the ADC arrow, the caption, the zoom hint, the mode
+    // labels, the pixel readout and the LIVE status line. Off leaves
+    // the image and the reticle and nothing else.
+    //
+    // The reticle is deliberately exempt: it is the one overlay you
+    // look THROUGH the image with rather than read off it, and clearing
+    // the view to judge a target is exactly when you still want it.
+    //
+    // It started narrower -- just the readouts that had been duplicated
+    // onto their own screens -- which is why the saved setting is still
+    // called OverlayTelemetry in rig.ini. Renaming the key would lose
+    // everyone's saved state to buy a tidier word.
+    void SetShowOverlays(bool on) { m_showOverlays = on; }
+    bool OverlaysVisible()  const { return m_showOverlays; }
+    void ToggleOverlays()         { m_showOverlays = !m_showOverlays; }
 
     void SetShowQualityGraph(bool show) { m_showQualityGraph = show; }
     bool QualityGraphVisible()    const { return m_showQualityGraph; }
@@ -578,7 +588,7 @@ private:
     float                   m_qualHistory[200] = {};
     int                     m_qualHead      = 0;
     int                     m_qualCount     = 0;
-    bool                    m_showOverlayTelemetry = true;
+    bool                    m_showOverlays = true;
     bool                    m_showQualityGraph = true; // on by default
 
     // Last drawn frame rect — used for hit testing frame bar clicks

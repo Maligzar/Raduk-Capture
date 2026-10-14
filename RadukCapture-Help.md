@@ -324,6 +324,7 @@ fullscreen.
 | `Q` | Toggle Quality Bar Graph |
 | `R` | Reticle: off → crosshair → circle → rings → box → off |
 | `S` | Save Snapshot (PNG) |
+| `U` | **Clear the view** — hide everything drawn over the image except the reticle. Remembered between sessions |
 | `V` | Toggle RGB Align |
 | `X` | Toggle Pixel Value Readout |
 | `Z` | Cycle Zoom (FIT → 50% → 100% → 200%) |
@@ -715,12 +716,46 @@ is off, and is exactly what tracking exists to cancel.
 
 ## Preview Overlays
 
+### Clearing the view — `U` (v1.2.6)
+
+`U` hides everything drawn over the image **except the reticle**: both
+side panels, the sharpness graph, the ADC arrow, the caption, the zoom
+hint, the mode labels, the pixel readout and the LIVE status line. Press
+it again to bring them back. The setting is saved, so the app opens the
+way you left it.
+
+The reticle stays because it is the one overlay you look *through* the
+image with rather than read off it. Clearing the view to judge focus or
+contrast is exactly when you still want to know where centre is.
+
+Two reasons to reach for it:
+
+- **Judging the image.** Numbers next to an image change how you read
+  the image. With five screens the readouts already have screens of
+  their own, so on the preview they are a second copy sitting on top of
+  the thing they describe.
+- **Showing someone.** Handing over a view of Saturn is better without
+  a HUD across it.
+
+It is `U` for **u**ncluttered, and it takes either case — this is a key
+you reach for in the dark, and caps lock is not a mode anyone tracks at
+2am. It replaced an earlier `Shift+O` that only covered the side panels
+and the sharpness graph, which meant pressing it left the caption and
+HUD line still over the image and the view not actually cleared.
+
 ### Side panels — histogram and temperature (v1.2.4)
 
-Always on, one either side of the image, vertically centred. They sit
-in the middle of each edge because every corner is already taken: the
-caption and the zoom hint top-left and top-right, the sharpness graph
-and the ADC readout bottom-left and bottom-right.
+Always on, one either side of the image, low down and sharing a
+bottom edge — just above the sharpness graph on the left and the ADC
+readout on the right. `U` hides them along with the rest.
+
+They were vertically centred until v1.2.6, which put them level with
+the target: a planet is centred too, so at any real zoom the two panels
+were the things closest to the thing being judged, one either side of
+it. Low and bottom-aligned leaves the whole middle band of the image
+clear and reads as one row of instruments rather than two floating
+boxes. At a very short window they stop short rather than ride up into
+the caption.
 
 **Left — histogram.** One row per Bayer channel, R, G and B, each with
 its own bar chart, a white tick at the channel mean and the **clipped

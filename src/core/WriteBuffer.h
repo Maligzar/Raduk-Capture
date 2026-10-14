@@ -41,6 +41,81 @@ struct WriteSlot {
     std::atomic<bool>     ready{false};
 };
 
+// ── How big should the write buffer be? ─────────────────────
+//
+// It used to be a flat 512 slots, sized against an assumption written
+// into this header: "at 47fps x 1.2MB/frame = ~56MB/s sustained".
+// Both halves of that have been overtaken.
+//
+// Measured on this rig 2026-10-14: the capture drive sustains 292 MB/s
+// writing frame-sized chunks the way SERWriter does, but with
+// per-second figures ranging 141-423 MB/s. The average is comfortable
+// and the dips are not -- 141 MB/s is below what 1280x960 RAW16 at 120
+// fps demands, and absorbing exactly that kind of dip is what the
+// buffer is FOR.
+//
+// The other thing that changed is the machine: 64 GB of RAM against a
+// 512-slot buffer of 630 MB. A planetary run is bounded -- the capture
+// limit is 3000 frames, which is 3.7 GB at 1280x960 RAW8 -- so there is
+// no reason the buffer cannot simply hold the entire run. Then a disk
+// stall of any length cannot drop a frame, because the disk is never on
+// the critical path at all; the writer drains throughout and finishes
+// shortly after the camera stops.
+//
+// Enlarging it does not DELAY any writing. The writer thread drains
+// continuously either way; a bigger buffer only raises the ceiling on
+// how much stall can be absorbed before frames are lost.
+//
+//   limitFrames    the run's frame limit, 0 if unbounded
+//   limitSeconds   the run's time limit, 0 if unbounded
+//   expectedFps    used only to convert a time limit into frames
+//   frameBytes     one frame
+//   availableBytes free PHYSICAL memory right now
+//
+// Returns a slot count, never 0.
+inline int PlanWriteBufferSlots(uint32_t limitFrames,
+                                double   limitSeconds,
+                                double   expectedFps,
+                                size_t   frameBytes,
+                                uint64_t availableBytes) {
+    // Never smaller than the old fixed size: this change must not make
+    // any existing configuration worse.
+    constexpr int FLOOR = 512;
+
+    // Never more than this share of free physical memory. The app is
+    // not the only thing running, and a buffer that forces the machine
+    // to page has turned a disk problem into a worse disk problem.
+    constexpr double RAM_SHARE = 0.5;
+
+    // A backstop for an unbounded run, where "the whole run" has no
+    // meaning. 4096 slots is 5 GB at 1280x960 RAW8 -- about 34 seconds
+    // of total disk silence at 120 fps, which is far past any plausible
+    // stall.
+    constexpr int CEILING = 4096;
+
+    if (frameBytes == 0) return FLOOR;
+
+    // What the run actually needs.
+    int wanted = 0;
+    if (limitFrames > 0) {
+        wanted = (int)limitFrames;
+    } else if (limitSeconds > 0.0 && expectedFps > 0.0) {
+        wanted = (int)(limitSeconds * expectedFps + 0.5);
+    }
+    if (wanted <= 0) wanted = CEILING;        // unbounded run
+    if (wanted > CEILING) wanted = CEILING;
+    if (wanted < FLOOR)   wanted = FLOOR;
+
+    // What memory allows. This wins even over the floor -- on a machine
+    // that cannot spare 630 MB, allocating it anyway is how you get a
+    // failed allocation and no recording at all.
+    const uint64_t budget = (uint64_t)(availableBytes * RAM_SHARE);
+    int affordable = (int)(budget / frameBytes);
+    if (affordable < 1) affordable = 1;
+
+    return (wanted < affordable) ? wanted : affordable;
+}
+
 class WriteBuffer {
 public:
     WriteBuffer() = default;
@@ -51,8 +126,7 @@ public:
 
     // Allocate numSlots slots of frameSizeBytes each.
     // numSlots should be large enough to absorb disk write bursts.
-    // At 47fps x 1.2MB/frame = ~56MB/s sustained. With 512 slots
-    // (~600MB) we can absorb ~10 seconds of stall before overrun.
+    // Sized by PlanWriteBufferSlots() below, not by a constant.
     bool Allocate(int numSlots, size_t frameSizeBytes);
 
     void Deallocate();

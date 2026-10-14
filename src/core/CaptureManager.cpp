@@ -34,13 +34,38 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
                  width, height, bitDepth, frameBytes);
         Say(b);
     }
+    // Size the buffer to the RUN, not to a constant. A planetary
+    // capture is bounded -- 3000 frames is 3.7 GB at 1280x960 RAW8 --
+    // and this machine has the memory to hold one outright, which takes
+    // the disk off the critical path entirely rather than merely
+    // cushioning it. See PlanWriteBufferSlots().
+    MEMORYSTATUSEX mem{};
+    mem.dwLength = sizeof(mem);
+    GlobalMemoryStatusEx(&mem);
+
+    const double planFps = (m_lastKnownFps > 1.0) ? m_lastKnownFps : 60.0;
+    const int slots = PlanWriteBufferSlots(
+        m_config.limitType == LimitType::Frames ? m_config.limitFrames : 0,
+        m_config.limitType == LimitType::Time   ? m_config.limitTimeSec : 0.0,
+        planFps, frameBytes, mem.ullAvailPhys);
+
+    {
+        char b[220];
+        snprintf(b, sizeof(b),
+                 "Write buffer %d slots = %.0f MB, absorbs %.1f s of total "
+                 "disk stall at %.0f fps",
+                 slots, slots * (double)frameBytes / 1048576.0,
+                 slots / planFps, planFps);
+        Say(b);
+    }
+
     if (!m_writeBuffer.IsAllocated() ||
-        m_writeBuffer.NumSlots() != m_config.writeBufferSlots ||
+        m_writeBuffer.NumSlots() != slots ||
         m_writeBuffer.SlotCapacity() < frameBytes) {
-        if (!m_writeBuffer.Allocate(m_config.writeBufferSlots, frameBytes)) {
+        if (!m_writeBuffer.Allocate(slots, frameBytes)) {
             printf("[CaptureManager] Write buffer allocation FAILED "
                    "(%d x %zu bytes) — recording not started\n",
-                   m_config.writeBufferSlots, frameBytes);
+                   slots, frameBytes);
             std::lock_guard<std::mutex> lk(m_mutex);
             m_status.lastError = "Write buffer allocation failed (RAM)";
             if (m_log) m_log->Capture("ERROR: write buffer allocation failed");

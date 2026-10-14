@@ -67,6 +67,13 @@ public:
 
     void SetSessionLog(SessionLog* log) { m_log = log; }
 
+    // The rate the camera is actually delivering, fed from the readout
+    // loop. Used only to size the write buffer at StartRecording: how
+    // many seconds of disk stall a given slot count absorbs depends
+    // entirely on the frame rate, and the manager cannot know it
+    // otherwise. 0 until the first measurement arrives.
+    void SetObservedFps(double fps) { m_lastKnownFps = fps; }
+
     // ── Recording control ──────────────────────────────────────
 
     // Start recording. Allocates write buffer, opens SER file, starts writer thread.
@@ -165,6 +172,7 @@ private:
     std::atomic<bool> m_pushFailureReported{false};
     std::atomic<bool> m_paused{false};         // Phase 41: pause without closing SER
 
+    double    m_lastKnownFps = 0.0;
     int       m_frameWidth  = 0;
     int       m_frameHeight = 0;
     int       m_bitDepth    = 8;

@@ -27,6 +27,18 @@ bool WriteBuffer::Allocate(int numSlots, size_t frameSizeBytes) {
         m_slots[i].ready.store(false, std::memory_order_relaxed);
     }
 
+    // Touch every page now, while nothing is being captured.
+    //
+    // MEM_COMMIT reserves and commits but the pages stay demand-zero
+    // until first written, so the first pass through the buffer pays a
+    // soft fault per 4K page. At a few hundred slots that was invisible;
+    // sized to a whole run it is roughly a million faults landing in the
+    // middle of the capture they are supposed to be protecting. Paying
+    // it here costs a fraction of a second at a moment when nothing is
+    // waiting on us.
+    for (int i = 0; i < numSlots; i++)
+        memset(m_slots[i].data, 0, frameSizeBytes);
+
     m_writePos.store(0, std::memory_order_relaxed);
     m_readPos.store(0, std::memory_order_relaxed);
     m_overruns.store(0, std::memory_order_relaxed);

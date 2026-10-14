@@ -4281,6 +4281,10 @@ static int RunApp(bool useEmulator) {
                 controls.UpdateStatus(fps, lost, bufPct, bufFr, bufTot, diskGB,
                                       capturer.IsRecording());
 
+                // Let the capture manager size its write buffer against
+                // the rate actually being delivered rather than a guess.
+                if (fps > 1.0f) capturer.SetObservedFps(fps);
+
                 // Which drive tonight lands on, so the status window can
                 // mark that row. Taken from the live capture config
                 // rather than rig.ini, because the output directory can

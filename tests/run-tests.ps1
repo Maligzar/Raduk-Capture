@@ -22,6 +22,7 @@ $Tests = @(
     @{ Name = "histogram_accuracy"; Sources = @("src\core\FrameAnalyzer.cpp") }
     @{ Name = "adc_alignment";      Sources = @("src\core\ADCAlignment.cpp") }
     @{ Name = "sensor_analysis";    Sources = @("src\core\FrameAnalyzer.cpp") }
+    @{ Name = "write_buffer_sizing"; Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

@@ -318,6 +318,7 @@ fullscreen.
 | `Shift+H` | Close or reopen the **histogram window**. Open at startup. |
 | `Shift+Q` | Close or reopen the **sharpness window**. Open at startup. |
 | `Shift+D` | Close or reopen the **status window** — capture health and free space on every drive. |
+| `Shift+A` | **ADC alignment window** — for dialling in a dispersion corrector. Inert unless *ADC fitted* is ticked on the READY screen. |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |
@@ -842,6 +843,86 @@ deliberately, to stop a mis-click starting a slew while imaging. That
 was a fair worry when it opened over the imaging controls; it now sits
 on a screen of its own, well away from anything you touch during a
 capture. Press `G` if you would rather have it shut.
+
+### The ADC alignment window (`Shift+A`, v1.2.6)
+
+For dialling in an atmospheric dispersion corrector. **Hidden, and
+inert, unless *ADC fitted to the imaging train* is ticked on the READY
+screen** — see below.
+
+The ADC *advisor* (the FOCUSER readout and the arrow on the preview)
+predicts how much dispersion the atmosphere is producing at the current
+altitude. It is a model and it never looks at the image, so it cannot
+tell you whether the corrector you fitted is doing its job. This window
+measures the dispersion **actually present in the live frame**, which is
+what is left after the corrector has done whatever it is currently
+doing. Turn the prisms, watch the residual fall, stop when it stops
+falling.
+
+| What it shows | Meaning |
+|---|---|
+| **Measured residual** | Arcsec and pixels of red-to-blue displacement still in the image. Green below 0.15″, amber to 0.40″, red beyond |
+| **Predicted, uncorrected** | What the model says would be there with no corrector, and what percentage of it is left. A small residual at 70° altitude proves nothing; a percentage is comparable between nights |
+| **Guidance** | What to do with your hands — spread the prisms, back them off, or rotate the ADC body |
+| **Dial** | Which way the residual points, against the zenith axis. A correctly *rotated* corrector leaves a residual at 0° or 180°; off that axis means the ADC body itself is turned wrong, which no prism angle will fix |
+| **Residual over time** | Whether the last nudge helped. Seeing moves the current number by more than a good nudge does, so the trend is the honest answer |
+
+Three things about how it measures, because they decide whether to
+believe it:
+
+- **It reads the raw sensor mosaic, not the preview.** The preview's
+  debayer takes red from a 2×2 block's top-left and blue from its
+  bottom-right, which bakes a one-pixel diagonal offset into the two
+  channels. Measured against the preview buffer on a target with no
+  dispersion at all, that read **1.70 px of residual that no corrector
+  could ever remove**. Reading the mosaic exposes the sampling grid, so
+  the offset is a known constant to subtract.
+- **It matches structure, not centroids.** Jupiter's and Saturn's belts
+  are red-brown, so red's centre of brightness sits elsewhere on the
+  disc than blue's for reasons that have nothing to do with the
+  atmosphere. A centroid difference read **0.63″ on a banded planet with
+  no dispersion**, drifting as the planet rotated — a number that would
+  have you chasing cloud belts with a corrector.
+- **It matches on edges.** Same reason an experienced imager watches the
+  *limb* rather than the disc: the limb is in both channels at the same
+  place with the same shape, while the belts are in both at wildly
+  different contrast. On the same banded target, matching brightness
+  invented 0.24″; matching edges reads 0.04″.
+
+Together those take a dispersion-free target from 0.63″ of phantom
+residual to **0.01″**. The floor is about 0.05″, set by red and blue
+each being sampled on half the sensor grid.
+
+It keeps a rolling window of 45 frames and shows the median, not the
+latest frame. A single frame's reading at this plate scale is dominated
+by seeing — consecutive frames disagree by more than the residual being
+hunted, and dialling a corrector against a number that jumps is
+guesswork.
+
+**Use a bright target at the altitude you intend to image at.** There is
+no dispersion worth correcting near the zenith, so there is nothing to
+dial against up there.
+
+`F11` fills the screen it is on, `Esc` closes it.
+
+#### "ADC fitted to the imaging train" (READY screen)
+
+A checkbox at the bottom of the READY list, **off by default**. It is
+not a readiness condition — not owning a corrector never blocks
+Continue — it is a statement about what is bolted to the train, and it
+is remembered between sessions.
+
+With it off, the ADC arrow on the preview, the FOCUSER readout (which
+reads `ADC: not fitted`) and `Shift+A` all stay dark. The figures would
+still be *true* with no corrector fitted, because the atmosphere
+disperses either way — but a readout about a part you do not own is
+noise, and an alignment window showing a residual is an invitation to go
+and adjust something that is not there.
+
+It saves the moment you tick it rather than when you press Continue,
+because `Esc` and the close box also end that dialog, and a setting that
+only persists down one of three exits is one that sometimes silently
+does not.
 
 ### The status window (`Shift+D`, v1.2.6)
 

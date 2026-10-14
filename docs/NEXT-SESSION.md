@@ -45,9 +45,12 @@ Three things specifically cannot be checked without sky or hardware:
 - **Should a profile own the capture format?** ANSWERED 2026-10-11:
   neither. Startup simply retains the last settings (Phase 88), and a
   profile load still applies its own format when you pick a target.
-- **Phase 35, the ADC alignment tool.** The advisor knows the filter band
-  and reports honestly. Whether a tool to help dial a corrector in is
-  worth building depends on whether a corrector gets bought.
+- **Phase 35, the ADC alignment tool.** ANSWERED 2026-10-13: there is no
+  corrector in the imaging train yet, and the tool was built anyway and
+  gated behind an *ADC fitted* checkbox on the READY screen, off by
+  default. With it off the alignment window, the preview arrow and the
+  FOCUSER readout all stay dark. Tick it when a corrector is bought and
+  the whole set turns on.
 - **Should dark subtraction feed the sharpness metric?** Hot pixels do
   inflate a Laplacian, so dark-subtracting before analysis would improve
   focusing. It would also move the capture gate and the SHARP_CEIL scale

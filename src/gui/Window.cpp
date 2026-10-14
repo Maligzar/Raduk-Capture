@@ -430,6 +430,13 @@ bool Window::HandleChar(WPARAM wParam) {
         m_onOverlayToggle();
         return true;
     }
+    // A (shift) -- the ADC alignment window. Case-sensitive here, since
+    // plain 'a' is autofocus; Shift+<letter> is what the other
+    // telemetry windows already use.
+    if (wParam == L'A' && m_onADCAlign) {
+        m_onADCAlign();
+        return true;
+    }
     return false;
 }
 

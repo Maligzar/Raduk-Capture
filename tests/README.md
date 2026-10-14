@@ -50,3 +50,4 @@ which exists precisely to keep that distinction honest.
 | Test | Covers |
 |---|---|
 | `histogram_accuracy` | Bayer channel assignment, what the G channel contains, clip percentages in 8- and 16-bit, left-aligned RAW16 handling, sampling coverage. Findings in [`docs/HISTOGRAM-ACCURACY.md`](../docs/HISTOGRAM-ACCURACY.md). |
+| `adc_alignment` | That the dispersion the ADC alignment window reports is the displacement actually in the frame: a known shift comes back, sub-pixel residuals resolve, direction is right, and — the one that matters — a banded planet with no dispersion reads zero rather than inventing a residual out of its cloud belts. |

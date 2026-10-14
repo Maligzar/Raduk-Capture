@@ -195,6 +195,15 @@ struct RigConfig {
     // it gets turned off once and should stay off.
     bool overlayTelemetry = true;
 
+    // Is an atmospheric dispersion corrector actually in the imaging
+    // train? Default NO, because most trains do not have one and a
+    // readout about a part you do not own is noise at best and, in the
+    // case of the alignment tool, a number inviting you to adjust
+    // something that is not there. Ticked on the readiness dialog when
+    // one is fitted. Everything ADC -- the preview arrow, the FOCUSER
+    // readout and the Shift+A alignment window -- keys off this.
+    bool adcFitted = false;
+
     // Phase 12b: unprompted advice from the local LLM. Off by default --
     // it costs GPU time and not everyone wants a running commentary.
     bool advisoryEnabled = false;
@@ -267,6 +276,7 @@ struct RigConfig {
         wf("ShowReadinessCheck", showReadinessCheck ? 1.0 : 0.0);
         wf("NightVision", nightVision ? 1.0 : 0.0);
         wf("OverlayTelemetry", overlayTelemetry ? 1.0 : 0.0);
+        wf("ADCFitted", adcFitted ? 1.0 : 0.0);
         wf("AdvisoryEnabled",   advisoryEnabled ? 1.0 : 0.0);
         wf("AdvisoryIntervalS", (double)advisoryIntervalS);
         wf("LastRoiWidth",   (double)lastRoiWidth);
@@ -336,6 +346,7 @@ private:
         cfg.showReadinessCheck    = rf("ShowReadinessCheck", 1.0) != 0.0;
         cfg.nightVision           = rf("NightVision", 0.0) != 0.0;
         cfg.overlayTelemetry      = rf("OverlayTelemetry", 1.0) != 0.0;
+        cfg.adcFitted             = rf("ADCFitted", 0.0) != 0.0;
         cfg.advisoryEnabled       = rf("AdvisoryEnabled", 0.0) != 0.0;
         cfg.advisoryIntervalS     = (int)rf("AdvisoryIntervalS", 180.0);
         if (cfg.advisoryIntervalS < 30 || cfg.advisoryIntervalS > 3600)

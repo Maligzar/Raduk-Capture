@@ -290,6 +290,48 @@ What to look at on a real target:
 
 ---
 
+---
+
+## 12. ADC alignment — only once there is a corrector to align
+
+Dormant until one is bought. `ADC fitted` on the READY screen is off, so
+the window, the preview arrow and the FOCUSER readout are all dark.
+
+The arithmetic is settled on the bench — `tests/adc_alignment.cpp`
+drives it with synthetic mosaics whose answer is known by construction,
+and on a dispersion-free target it reads 0.01″ against a 0.05″ floor.
+What the bench cannot answer:
+
+1. **Does the residual actually fall as the prisms turn?** Everything
+   above establishes that the number is the displacement in the frame.
+   Nothing establishes that turning an ADC moves it the way the guidance
+   text claims, because there has been no ADC to turn. The first night
+   with one: point at something bright at 25-30° altitude, open
+   `Shift+A`, and confirm the residual falls toward zero rather than
+   wandering.
+
+2. **Is the sense of the guidance right?** "Spread the prisms further
+   apart" versus "back the prisms off" is derived from which side of the
+   zenith axis the residual sits on. The geometry says blue toward the
+   zenith is undercorrected. One real adjustment confirms or inverts it,
+   and getting it backwards would have you turning the wrong way with
+   the number telling you so only after the fact.
+
+3. **Is 0.15″ the right threshold for ALIGNED?** It was chosen as
+   roughly the seeing floor, so below it there is nothing left to chase.
+   On a poor night the real floor is higher and the window will keep
+   saying there is work to do.
+
+4. **Does a real sensor's noise hold the measurement steady?** Every
+   bench number came from frames with no read noise at all. The rolling
+   median over 45 frames exists for exactly this and has never been
+   tested against real noise.
+
+5. **Does it work on a star as well as a planet?** Edge matching was
+   chosen because the limb is the colour-neutral feature on a disc. A
+   star has no limb, only a seeing-blurred profile, which should work
+   but has not been tried.
+
 ## Data, not code: five saved profiles hold the wrong resolution
 
 Not a sky test, but it will bite on the night and takes a minute to fix.

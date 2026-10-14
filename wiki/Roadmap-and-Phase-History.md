@@ -100,7 +100,7 @@ camera's internal buffer in the state that wedged it.
 |-------|---------|--------|
 | 46 | Connect / disconnect all hardware | Medium |
 | 30 | Push-to assistant | Medium |
-| 35 | ADC **alignment** tool (distinct from the advisor) | Medium |
+
 | 47 | Pixel position / click to recentre | Medium |
 | 48 | Go to previous image (framing recall) | Medium |
 | 42 | Two-monitor mode | Hard |

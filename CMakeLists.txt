@@ -131,6 +131,7 @@ add_executable(RadukCapture WIN32
     src/core/SERWriter.cpp
     src/core/WriteBuffer.cpp
     src/core/FrameAnalyzer.cpp
+    src/core/ADCAlignment.cpp
     src/core/CentroidTracker.cpp
     src/core/USBTrafficManager.cpp
 

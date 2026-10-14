@@ -23,6 +23,7 @@
 #define NOMINMAX
 #endif
 #include "Theme.h"
+#include "core/RigConfig.h"
 #include <windows.h>
 #include <commctrl.h>
 #include <functional>
@@ -163,7 +164,7 @@ inline bool ShowReadinessDialog(
                                owner, nullptr, GetModuleHandleW(nullptr), nullptr);
     if (!dlg) return false;
 
-    enum { ID_LIST = 4001, ID_CONTINUE, ID_RECHECK, ID_HELP, ID_TICK0 };
+    enum { ID_LIST = 4001, ID_CONTINUE, ID_RECHECK, ID_HELP, ID_ADC, ID_TICK0 };
     const UINT_PTR TIMER_ID = 1;
 
     auto mk = [&](const wchar_t* cls, const wchar_t* text, DWORD style,
@@ -183,7 +184,7 @@ inline bool ShowReadinessDialog(
     // 250 before, which left a growing band of nothing once the dialog
     // could be larger than 470 tall.
     const int LIST_H = (std::max)(160,
-        (DH - 72) - 16 - (manualCount * 22) - 48 - 8);
+        (DH - 72) - 16 - (manualCount * 22) - 24 - 48 - 8);
 
     // the whole thing stays selectable for copying into a bug report.
     HWND list = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
@@ -208,6 +209,30 @@ inline bool ShowReadinessDialog(
         ty += 22;
         manualIdx++;
     }
+
+    // ── A statement about the rig, not about tonight ────────────
+    //
+    // The ticks above are per-night confirmations: dust cap off, tube
+    // cooled, cables dressed. This one is different in kind. It says
+    // what is bolted to the imaging train, it is remembered between
+    // sessions, and it never blocks Continue -- not owning a corrector
+    // is not a readiness failure.
+    //
+    // It lives here anyway because this is the one screen that already
+    // asks about the physical train, and because an ADC readout with no
+    // ADC in the train is worse than no readout: the alignment window
+    // would show a residual and invite you to adjust a part that is not
+    // there.
+    HWND adcTick = mk(L"BUTTON",
+        L"ADC fitted to the imaging train  -  enables the ADC arrow, the "
+        L"FOCUSER readout and the Shift+A alignment window",
+        BS_AUTOCHECKBOX, 16, ty, DW - 44, 20, ID_ADC);
+    if (adcTick)
+        SendMessageW(adcTick, BM_SETCHECK,
+                     raduk::core::RigConfig::Get().adcFitted ? BST_CHECKED
+                                                             : BST_UNCHECKED,
+                     0);
+    ty += 24;
 
     // Opens the Help section for the first failing row. Naming a
     // heading is only half the job if the reader then has to find it.
@@ -275,6 +300,18 @@ inline bool ShowReadinessDialog(
                 int id = LOWORD(wp);
                 if (id == ID_RECHECK)  { if (rf) (*rf)(); return 0; }
                 if (id == ID_HELP)     { if (s->onHelp) s->onHelp(); return 0; }
+                if (id == ID_ADC) {
+                    // Written the moment it is toggled, not on
+                    // Continue. Escape and the close box both end this
+                    // dialog too, and a setting that only persists down
+                    // one of three exits is one that sometimes silently
+                    // does not.
+                    auto& rg = raduk::core::RigConfig::Get();
+                    rg.adcFitted = (SendMessageW((HWND)lp, BM_GETCHECK, 0, 0)
+                                    == BST_CHECKED);
+                    rg.Save();
+                    return 0;
+                }
                 if (id == ID_CONTINUE) { s->done = true; return 0; }
             }
             if (m == WM_CLOSE) { s->done = true; return 0; }

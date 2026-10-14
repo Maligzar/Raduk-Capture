@@ -135,6 +135,18 @@ overwritten. The SETUP picker then shows blank rather than overwriting.
 dispersion there is and whether a corrector is worth fitting. It does not
 help you dial one in.
 
+Dialling one in is [`src/core/ADCAlignment.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ADCAlignment.h)
+and the `Shift+A` window (Phase 35), which is a different kind of thing
+entirely: the advisor predicts from a model and never looks at the
+image, while the alignment tool measures the red-to-blue displacement
+actually present in the live frame and uses the model only to express
+that result as a percentage of it.
+
+Both are gated on `RigConfig::adcFitted`, ticked on the READY screen and
+off by default. A readout about a part that is not in the train is noise;
+an alignment window showing a residual for one is worse, because it
+invites an adjustment to something that is not there.
+
 ---
 
 ## Auto-exposure assistant

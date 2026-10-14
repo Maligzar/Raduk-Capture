@@ -875,8 +875,14 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
     if (m_showReticle && m_reticleBrush)
         DrawReticle(reticleCX, reticleCY, reticleW, reticleH);
 
-    // ADC overlay — dispersion arrow + severity label
-    if (m_showOverlays && m_showADC && m_mountAltDeg > 0.0)
+    // ADC overlay — dispersion arrow + severity label.
+    //
+    // Also gated on there BEING a corrector in the train. The arrow
+    // says how far a corrector would have to work; with no corrector
+    // fitted it is a readout about a part you do not own, and the
+    // owner asked for all of it to stay dark until one is.
+    if (m_showOverlays && m_showADC && m_mountAltDeg > 0.0 &&
+        raduk::core::RigConfig::Get().adcFitted)
         DrawADCOverlay(pw, ph);
 
     // Quality bar graph — per-frame sharpness history (Phase 25a)

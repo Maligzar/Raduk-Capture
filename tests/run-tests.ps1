@@ -20,6 +20,7 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 # name -> extra source files it needs to link
 $Tests = @(
     @{ Name = "histogram_accuracy"; Sources = @("src\core\FrameAnalyzer.cpp") }
+    @{ Name = "adc_alignment";      Sources = @("src\core\ADCAlignment.cpp") }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

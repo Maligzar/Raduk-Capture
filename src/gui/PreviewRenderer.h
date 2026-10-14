@@ -287,6 +287,9 @@ public:
     // ── ADC overlay ────────────────────────────────────────────
     // Feed current mount altitude so the ADC dispersion arrow updates live.
     void SetMountAltitude(double altDeg) { m_mountAltDeg = altDeg; }
+    // -1 until the mount has reported one. The ADC overlay and the
+    // ADC alignment window both key off this.
+    double MountAltitude() const { return m_mountAltDeg; }
     void SetShowADC(bool show)           { m_showADC = show; }
     bool ADCVisible() const              { return m_showADC; }
     void ToggleADC()                     { m_showADC = !m_showADC; }
@@ -331,6 +334,14 @@ public:
         if (m_qualCount < QUAL_HISTORY) ++m_qualCount;
     }
     bool HasFrame() const { return m_rgbBuffer && m_frameWidth > 0 && m_frameHeight > 0; }
+
+    // Raw debayer output, RGB24, tightly packed. Raw in the sense that
+    // matters to the ADC alignment tool: before display FX, before the
+    // stretch, and before the RGB Align shift -- measuring dispersion
+    // on the aligned image would be measuring our own correction.
+    const uint8_t* RawRGB() const { return m_rgbBuffer; }
+    int FrameWidth()  const { return m_frameWidth; }
+    int FrameHeight() const { return m_frameHeight; }
     // Save the current debayered RGB frame as PNG using WIC.
     bool SaveSnapshotPNG(const std::wstring& path);
 

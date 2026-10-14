@@ -66,6 +66,8 @@
 #include "gui/SharpnessWindow.h"
 #include "gui/TemperatureWindow.h"
 #include "gui/StatusWindow.h"
+#include "gui/ADCAlignWindow.h"
+#include "core/ADCAlignment.h"
 #include "gui/MountController.h"
 #include "gui/StatusBar.h"
 #include "gui/HelpWindow.h"
@@ -1384,6 +1386,15 @@ static int RunApp(bool useEmulator) {
     // everything around it -- see StatusWindow.h.
     raduk::gui::StatusWindow statusWindow;
     statusWindow.Create(window.Handle(), 320, 320, 900, 220);
+
+    // Phase 35: the ADC alignment tool. Starts hidden -- it is a job you
+    // do once at the start of a session, not something you watch all
+    // night, and on this desk a screen is worth more to anything you do
+    // watch. Shift+A.
+    raduk::gui::ADCAlignWindow adcAlignWindow;
+    adcAlignWindow.Create(window.Handle(), 360, 360, 980, 560);
+    raduk::core::ADCAlignment adcAlign;
+    bool adcHaveFrame = false;   // set by the measuring pass each loop
     Log("[INIT] Status window ready\n");
 
     // ── Phase 42: place the windows ───────────────────────────
@@ -1407,6 +1418,7 @@ static int RunApp(bool useEmulator) {
         { "sharpness", sharpWindow.Handle() },
         { "temperature", tempWindow.Handle() },
         { "status", statusWindow.Handle() },
+        { "adcalign", adcAlignWindow.Handle() },
     };
     for (const auto& [role, hwnd] : kPlacedWindows)
         workspace.Place(role, hwnd);
@@ -3094,6 +3106,25 @@ static int RunApp(bool useEmulator) {
     window.SetSharpnessToggleHandler([&]()  { sharpWindow.Toggle();  });
     window.SetTemperatureToggleHandler([&]() { tempWindow.Toggle(); });
     window.SetStatusToggleHandler([&]()      { statusWindow.Toggle(); });
+    window.SetADCAlignHandler([&]() {
+        // Nothing to align without a corrector in the train. The window
+        // would still show a residual -- the atmosphere disperses
+        // whether or not you own the part -- and that reads as
+        // something to go and adjust.
+        if (!raduk::core::RigConfig::Get().adcFitted) {
+            Log("[ADC] Shift+A ignored - no ADC in the imaging train. "
+                "Tick \"ADC fitted\" on the readiness dialog once one is.\n");
+            notifBar.NotifyInfo(L"No ADC in the imaging train - tick "
+                                L"\"ADC fitted\" on the READY screen first");
+            return;
+        }
+        // Clear the rolling window on open. Samples from the last time
+        // it was up could be from a different target at a different
+        // altitude, and a median built from those would read as a
+        // residual that no amount of dialling changes.
+        if (!adcAlignWindow.IsVisible()) adcAlign.Reset();
+        adcAlignWindow.Toggle();
+    });
     window.SetOverlayToggleHandler([&]() {
         preview.ToggleOverlays();
         const bool on = preview.OverlaysVisible();
@@ -3579,6 +3610,25 @@ static int RunApp(bool useEmulator) {
         // Submit to frame analyzer (non-blocking, always)
         if (frame)
             analyzer.Submit(frame);
+
+        // ── ADC alignment (Phase 35) ──────────────────────────
+        //
+        // Here rather than in the readout block below, because the
+        // readout runs on a slower tick and GetLatestFrame() has usually
+        // been consumed by then -- measured against it, the window sat
+        // on "No frame - start the camera" with the camera streaming.
+        //
+        // Only while the window is up: a full pass over both Bayer
+        // planes per frame is not worth spending on a window nobody is
+        // looking at.
+        if (adcAlignWindow.IsVisible() && frame && frame->data &&
+            frame->width > 16 && frame->height > 16) {
+            adcAlign.Push(raduk::core::ADCAlignment::MeasureBayer(
+                frame->data, (int)frame->width, (int)frame->height,
+                (int)frame->bitDepth,
+                raduk::core::RigConfig::Get().plateScaleArcsecPx));
+            adcHaveFrame = true;
+        }
 
         // Submit latest frame to GoTo panel (for manual plate solving)
         // Also snapshot for Phase 6.6 auto-solve on Stage 3 lock
@@ -4110,7 +4160,15 @@ static int RunApp(bool useEmulator) {
                         auto adcText   = raduk::core::ADCAssistant::SuggestionText(adcResult);
                         wchar_t adcBuf[64];
                         MultiByteToWideChar(CP_UTF8, 0, adcText.c_str(), -1, adcBuf, 64);
-                        controls.SetADCStatus(adcBuf);
+                        // Only when there is a corrector to act on it.
+                        // Without one the figure is still true -- the
+                        // atmosphere disperses regardless -- but it
+                        // reads as something to go and adjust, and the
+                        // owner asked for all of it to stay dark until
+                        // an ADC is in the train.
+                        controls.SetADCStatus(
+                            raduk::core::RigConfig::Get().adcFitted
+                                ? adcBuf : L"ADC: not fitted");
                         // Log the band with the figure. The same
                         // number means different things through
                         // different filters, and nothing else on
@@ -4154,6 +4212,33 @@ static int RunApp(bool useEmulator) {
 
                 statusWindow.Update({ fps, lost, bufPct, bufFr, bufTot, diskGB,
                                       capturer.IsRecording(), capDrive });
+            }
+
+            // ── ADC alignment (Phase 35) ───────────────────────
+            //
+            // Only while the window is up. It is a full-frame pass over
+            // two channels per frame, and there is no reason to spend it
+            // on a window nobody is looking at.
+            if (adcAlignWindow.IsVisible()) {
+                raduk::gui::ADCAlignWindow::Data ad;
+                ad.frameAvailable = adcHaveFrame;
+                if (ad.frameAvailable) {
+                    const float plate =
+                        raduk::core::RigConfig::Get().plateScaleArcsecPx;
+                    ad.measured = adcAlign.Smoothed(plate);
+                    ad.samples  = adcAlign.SampleCount();
+
+                    // What the model says SHOULD be there, so the
+                    // measurement can be read as a fraction corrected
+                    // rather than as a bare number.
+                    const double altDeg = preview.MountAltitude();
+                    if (altDeg > 0.0) {
+                        auto adc = raduk::core::ADCAssistant::Compute(altDeg);
+                        ad.predictedArcsec = adc.separationArcsec;
+                        ad.altitudeDeg     = (float)altDeg;
+                    }
+                }
+                adcAlignWindow.Update(ad);
             }
 
             // Capture status panel

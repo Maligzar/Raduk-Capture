@@ -939,6 +939,14 @@ static int RunApp(bool useEmulator) {
     }
     Log("[INIT] Capture manager ready\n");
 
+    // Recording takes EVERY frame, from the capture thread, rather than
+    // one per render pass. See the comment in the render loop for what
+    // that was costing. The ring is untouched: it feeds the preview,
+    // which is supposed to skip frames.
+    capture.SetFrameSink([&capturer](const raduk::core::FrameSlot* slot) {
+        capturer.SubmitFromCaptureThread(slot);
+    });
+
     // ── Session summary accumulators ───────────────────────────
     // Accumulate across all capture runs; written to log at shutdown.
     uint32_t summaryFramesRecorded = 0;
@@ -3664,27 +3672,44 @@ static int RunApp(bool useEmulator) {
         // Submit to capture manager — Phase 10 quality gate
         // If GATE is enabled: only record frames meeting the seeing threshold.
         // The gate is checked against the rolling seeing score (updated ~2Hz).
-        if (frame && capturer.IsRecording()) {
+        if (capturer.IsRecording()) {
             bool gateEnabled   = controls.GateEnabled();
             float gateThresh   = controls.GateThreshold();
             bool seenOk        = !gateEnabled
                                  || !lastAnalysis.valid
                                  || lastAnalysis.seeingScore >= gateThresh;
-            if (seenOk) {
-                // Phase 76: the sharpness argument is now only a hint for
-                // the live gate; the writer thread scores each frame
-                // itself. What it genuinely needs from here is WHERE to
-                // measure, since it cannot see the planet.
-                capturer.SubmitFrame(frame,
-                    lastAnalysis.valid ? lastAnalysis.sharpnessPct : 0.0f,
-                    (lastAnalysis.valid && lastAnalysis.centroidValid)
-                        ? (uint32_t)lastAnalysis.centroidX : 0u,
-                    (lastAnalysis.valid && lastAnalysis.centroidValid)
-                        ? (uint32_t)lastAnalysis.centroidY : 0u);
-                if (gateEnabled) controls.SetGateActive(false);  // show green STOP
-            } else {
-                controls.SetGateActive(true);  // show amber GATED (waiting)
-            }
+
+            // Publish the policy; the CAPTURE thread does the
+            // submitting now, once per frame the camera delivers.
+            //
+            // This loop used to call SubmitFrame() with the frame it had
+            // just taken from GetLatestFrame() -- one per pass. That
+            // made the recorded frame rate a property of the UI:
+            // Window::Run() ends in Sleep(1), 16 ms at default Windows
+            // timer granularity, so the loop tops out near 62 passes a
+            // second before any rendering work at all. Everything the
+            // camera produced in between was overwritten in the ring and
+            // lost without a trace.
+            //
+            // Nothing is lost by publishing instead of deciding per
+            // frame: the gate keys off a seeing score that updates at
+            // about 2 Hz, and the centroid is only a hint telling the
+            // writer where to measure sharpness.
+            capturer.SetGateOpen(seenOk);
+            capturer.SetFrameHints(
+                (lastAnalysis.valid && lastAnalysis.centroidValid)
+                    ? (uint32_t)lastAnalysis.centroidX : 0u,
+                (lastAnalysis.valid && lastAnalysis.centroidValid)
+                    ? (uint32_t)lastAnalysis.centroidY : 0u,
+                lastAnalysis.valid ? lastAnalysis.sharpnessPct : 0.0f);
+
+            if (gateEnabled) controls.SetGateActive(!seenOk);
+
+            // The capture thread raises this and stops there, because
+            // StopRecording() joins the writer thread and a buffer sized
+            // to a whole run can take seconds to drain -- far too long
+            // to stall frame acquisition for.
+            if (capturer.LimitReached()) capturer.StopRecording();
         }
 
         // Submit to frame analyzer (non-blocking, always)
@@ -4598,6 +4623,15 @@ static int RunApp(bool useEmulator) {
 
     // Shut down Phase 50 AI before hardware teardown
     aiChat.Destroy();
+
+    // Unhook the recorder from the capture thread FIRST.
+    //
+    // `capture` is declared before `capturer`, so on scope exit
+    // `capturer` is destroyed first and ~CaptureThread() then joins a
+    // thread whose sink still points at it. The explicit capture.Stop()
+    // further down covers the normal path, but clearing the sink here
+    // makes the ordering requirement independent of it.
+    capture.SetFrameSink(nullptr);
 
     if (capturer.IsRecording()) capturer.StopRecording(false);  // app shutting down - do not auto-stack
     tracker.Reset();

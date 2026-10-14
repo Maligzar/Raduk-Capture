@@ -1,4 +1,6 @@
 #pragma once
+
+#include <functional>
 // ============================================================
 // CaptureThread.h — High-priority capture loop for RadukCapture
 // Section 6.2 of Architecture Doc
@@ -44,6 +46,16 @@ public:
     // Stop capture. Blocks until thread exits.
     void Stop();
 
+    // Called for EVERY frame, on the capture thread, before the frame
+    // is committed to the ring. This is the recording path: the ring is
+    // for the preview, which is allowed to skip frames.
+    //
+    // Must not block -- anything slow here stalls frame acquisition and
+    // overflows the camera's own buffer.
+    void SetFrameSink(std::function<void(const FrameSlot*)> sink) {
+        m_frameSink = std::move(sink);
+    }
+
     // True if the capture thread is running.
     bool IsRunning() const { return m_running.load(std::memory_order_relaxed); }
 
@@ -63,7 +75,8 @@ private:
     std::atomic<double>     m_exposureMs{8.0};
     int                     m_cpuCore = -1;
 
-    std::thread             m_thread;
+    std::thread             m_thread;
+    std::function<void(const FrameSlot*)> m_frameSink;
     std::atomic<bool>       m_running{false};
     CaptureStats            m_stats;
 

@@ -105,6 +105,46 @@ public:
         m_onComplete = std::move(cb);
     }
 
+    // ── Recording from the capture thread (Phase: decoupling) ──
+    //
+    // SubmitFrame() below is called from the render loop, which takes
+    // ONE frame per pass via GetLatestFrame(). That made the recorded
+    // frame rate a property of the UI: Window::Run() ends in Sleep(1),
+    // which on a default-granularity Windows costs 16 ms, so the loop
+    // tops out near 62 passes a second before any rendering work. Every
+    // frame the camera produced in between was overwritten in the ring
+    // and silently lost -- on a camera that does well over 100 fps at
+    // this ROI, more than half of every capture.
+    //
+    // So the capture thread submits directly now, and these carry what
+    // it needs from the render loop, which still owns the policy.
+    //
+    // The gate decision is published rather than recomputed: it keys off
+    // a seeing score that only updates at about 2 Hz, so there is
+    // nothing to gain by evaluating it per frame and a shared analysis
+    // object to race if we tried.
+    void SetGateOpen(bool open) { m_gateOpen.store(open, std::memory_order_relaxed); }
+
+    // Where to measure sharpness, and the live gate's hint. The writer
+    // thread scores each frame itself; this only tells it where to look.
+    void SetFrameHints(uint32_t cropCX, uint32_t cropCY, float sharpnessHint) {
+        m_hintCX.store(cropCX, std::memory_order_relaxed);
+        m_hintCY.store(cropCY, std::memory_order_relaxed);
+        m_hintSharp.store(sharpnessHint, std::memory_order_relaxed);
+    }
+
+    // Called ON THE CAPTURE THREAD, once per frame the camera delivers.
+    // Never blocks and never stops the recording: StopRecording() joins
+    // the writer thread, and a buffer sized to a whole run can take
+    // seconds to drain. Stalling frame acquisition for that long would
+    // overflow the camera's own buffer -- so hitting the limit only
+    // raises a flag, and the render loop does the stopping.
+    bool SubmitFromCaptureThread(const FrameSlot* slot);
+
+    // Set when a frame or time limit was reached. The render loop polls
+    // this and calls StopRecording() on its own thread.
+    bool LimitReached() const { return m_limitReached.load(std::memory_order_relaxed); }
+
     bool SubmitFrame(const FrameSlot* slot, float sharpness = 0.0f,
                      uint32_t cropCX = 0, uint32_t cropCY = 0);
 
@@ -172,7 +212,28 @@ private:
     std::atomic<bool> m_pushFailureReported{false};
     std::atomic<bool> m_paused{false};         // Phase 41: pause without closing SER
 
+    void      ReportPushFailure(size_t frameBytes);
+
+    // Frames handed to the write buffer, which is what a frame LIMIT
+    // actually means. Deliberately not m_status.framesRecorded: that is
+    // incremented by the WRITER thread once a frame reaches the disk,
+    // so checking a limit against it asks "how many have landed" when
+    // the question is "how many have I taken".
+    //
+    // The difference did not show while the render loop did the
+    // submitting, because at ~60 submissions a second the writer kept
+    // pace and the two counts stayed within a frame or two. Submitting
+    // from the capture thread runs far ahead of the disk by design --
+    // that is the entire point of the buffer -- and a 5-frame limit
+    // then recorded 40 frames before the writer caught up enough to
+    // trip it.
+    std::atomic<uint32_t> m_framesSubmitted{0};
+
     double    m_lastKnownFps = 0.0;
+    std::atomic<bool>     m_gateOpen{true};
+    std::atomic<bool>     m_limitReached{false};
+    std::atomic<uint32_t> m_hintCX{0}, m_hintCY{0};
+    std::atomic<float>    m_hintSharp{0.0f};
     int       m_frameWidth  = 0;
     int       m_frameHeight = 0;
     int       m_bitDepth    = 8;

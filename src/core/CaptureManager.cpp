@@ -97,6 +97,8 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     }
 
     m_pushFailureReported.store(false);
+    m_framesSubmitted.store(0);
+    m_limitReached.store(false);
 
     // Start writer thread
     m_writerRunning.store(true);
@@ -143,6 +145,79 @@ void CaptureManager::StopRecording(bool normal) {
     if (m_onComplete) m_onComplete(m_lastPath, normal);
 }
 
+// Why a Push() failed, said once per recording -- the failing case
+// fails on every frame and a line each would bury everything else.
+//
+// The two causes need opposite fixes: a full buffer means the disk is
+// not keeping up, a frame too large means the buffer was sized for a
+// different format than the camera is sending. Calling both "FULL"
+// sent anyone reading the log after the wrong one.
+void CaptureManager::ReportPushFailure(size_t frameBytes) {
+    if (m_pushFailureReported.exchange(true)) return;
+    char b[200];
+    const size_t cap = m_writeBuffer.SlotCapacity();
+    if (frameBytes > cap)
+        snprintf(b, sizeof(b),
+                 "FRAME TOO LARGE for the write buffer: frame is %zu "
+                 "bytes, slots hold %zu. Nothing will be recorded. The "
+                 "buffer was sized for a different format than the "
+                 "camera is sending.",
+                 frameBytes, cap);
+    else
+        snprintf(b, sizeof(b),
+                 "Write buffer FULL (%llu of %d slots pending) - the "
+                 "disk is not keeping up",
+                 (unsigned long long)m_writeBuffer.Pending(),
+                 m_writeBuffer.NumSlots());
+    Say(b);
+}
+
+// Called ON THE CAPTURE THREAD. See the header for why this exists.
+bool CaptureManager::SubmitFromCaptureThread(const FrameSlot* slot) {
+    if (!m_status.recording.load()) return false;
+    if (!slot || !slot->data) return false;
+    if (m_paused.load()) return false;
+
+    // Limits are checked here but acted on elsewhere. StopRecording()
+    // joins the writer thread, and with a buffer sized to a whole run
+    // that drain can take seconds -- during which this thread would not
+    // be pulling frames and the camera's own buffer would overflow. So
+    // raise the flag and let the render loop stop us.
+    if (m_config.limitType == LimitType::Frames &&
+        m_framesSubmitted.load(std::memory_order_relaxed) >= m_config.limitFrames) {
+        m_limitReached.store(true, std::memory_order_relaxed);
+        return false;
+    }
+    if (m_config.limitType == LimitType::Time) {
+        const double elapsed = std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - m_startTime).count();
+        m_status.elapsedSec.store(elapsed);
+        if (elapsed >= m_config.limitTimeSec) {
+            m_limitReached.store(true, std::memory_order_relaxed);
+            return false;
+        }
+    }
+
+    // A gated frame is deliberately skipped, not lost, so it must not
+    // count as a drop.
+    if (!m_gateOpen.load(std::memory_order_relaxed)) return false;
+
+    const bool ok = m_writeBuffer.Push(
+        slot->data, slot->dataSize, slot->timestamp,
+        slot->width, slot->height, slot->bitDepth,
+        m_hintSharp.load(std::memory_order_relaxed),
+        m_hintCX.load(std::memory_order_relaxed),
+        m_hintCY.load(std::memory_order_relaxed));
+
+    if (ok) {
+        m_framesSubmitted.fetch_add(1, std::memory_order_relaxed);
+    } else {
+        m_status.framesDropped.fetch_add(1);
+        ReportPushFailure(slot->dataSize);
+    }
+    return ok;
+}
+
 bool CaptureManager::SubmitFrame(const FrameSlot* slot, float sharpness,
                                  uint32_t cropCX, uint32_t cropCY) {
     if (!m_status.recording.load()) return false;
@@ -175,34 +250,7 @@ bool CaptureManager::SubmitFrame(const FrameSlot* slot, float sharpness,
 
     if (!ok) {
         m_status.framesDropped.fetch_add(1);
-        // Push fails for two quite different reasons and this message
-        // only ever named one of them: the buffer being full, or the
-        // frame not fitting a slot. They need opposite fixes -- a full
-        // buffer means the disk is not keeping up, a frame too large
-        // means the buffer was sized for a different format than the
-        // camera is sending -- and calling both "FULL" sent anyone
-        // reading the log after the wrong one.
-        //
-        // Said once per recording, because the failing case fails on
-        // every single frame and a line each would bury everything.
-        if (!m_pushFailureReported.exchange(true)) {
-            char b[200];
-            const size_t cap = m_writeBuffer.SlotCapacity();
-            if (slot->dataSize > cap)
-                snprintf(b, sizeof(b),
-                         "FRAME TOO LARGE for the write buffer: frame is %zu "
-                         "bytes, slots hold %zu. Nothing will be recorded. The "
-                         "buffer was sized for a different format than the "
-                         "camera is sending.",
-                         slot->dataSize, cap);
-            else
-                snprintf(b, sizeof(b),
-                         "Write buffer FULL (%llu of %d slots pending) - the "
-                         "disk is not keeping up",
-                         (unsigned long long)m_writeBuffer.Pending(),
-                         m_writeBuffer.NumSlots());
-            Say(b);
-        }
+        ReportPushFailure(slot->dataSize);
         return false;
     }
 

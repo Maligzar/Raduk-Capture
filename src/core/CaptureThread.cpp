@@ -151,6 +151,16 @@ void CaptureThread::Run() {
             slot->bitDepth = bitDepth;
             slot->imgType = roiType;
 
+            // Hand it to the recorder BEFORE committing to the ring.
+            //
+            // This thread owns the slot at this moment, so the sink can
+            // copy from it safely; and this is the only place that sees
+            // every frame. The render loop takes the LATEST frame once
+            // per pass, which is right for a preview and wrong for a
+            // recording -- it capped recorded fps at the loop rate and
+            // silently dropped everything in between.
+            if (m_frameSink) m_frameSink(slot);
+
             // Commit the frame to the ring buffer
             m_ringBuffer->CommitWrite(slot);
             m_stats.framesCaptured.fetch_add(1, std::memory_order_relaxed);

@@ -485,15 +485,36 @@ it, the fallback is quantising the stick to the nine fixed rates — the
 phase still works, it is just coarser, and the roadmap should say which
 of the two shipped rather than leaving it ambiguous.
 
+#### Feasibility — checked on this machine, 2026-10-14
+
+| | |
+|---|---|
+| `XInput1_4.dll` | present (10.0.22621.1) |
+| SDK 10.0.26100.0 | `XInput.h` and x64 `xinput.lib` both present |
+| Compiles and links | yes — a probe was built and run, all four slots enumerate |
+| USB headroom | two independent USB 3 host controllers, Intel and ASMedia, so the camera need not share one with a pad |
+| **Bluetooth** | **none. No radio in this machine at all** |
+
+So the software side is free and the hardware side needs one purchase:
+a cable, an Xbox Wireless Adapter, or a generic USB Bluetooth dongle.
+The adapter is the one that matches the phase's purpose, because a
+cable tethers you back to the desk and standing at the telescope is the
+entire point.
+
 #### Input layer
 
 XInput: two functions, ships with Windows, made for this controller.
 
 - Poll connected pads in the existing readout loop and use
   `dwPacketNumber` to skip unchanged state.
-- **Do not poll empty slots every frame.** `XInputGetState` on a
-  disconnected slot walks the device tree and is documented as slow;
-  scan for newly-connected pads about once a second instead.
+- **Polling empty slots is fine, contrary to the usual advice.** An
+  earlier draft of this entry repeated the received wisdom that
+  `XInputGetState` on a disconnected slot is slow enough to need a
+  once-a-second scan instead. Measured here it is **21-24 us**, so all
+  four empty slots cost 89 us -- 0.27% of a 33 ms frame at 30 fps. That
+  warning appears to date from older XInput versions; on this machine
+  it is not worth engineering around, and a plain poll every frame
+  gives hot-plug detection for free.
 - **On disconnect, stop both axes immediately.** A controller battery
   dying mid-slew must not leave the mount running. This is the single
   most important line in the phase.
@@ -741,7 +762,7 @@ the ranking below it is what to pick up next.
 | 1 | **Resizable AI / GoTo / Help, bigger fonts** (P3.3) | Bench | M–H | Largest item left from the owner's own list, and the densest layouts in the app. Everything else in Tier 3 is finished, so this is what "the five-screen workspace" still means |
 | 2 | **Map contents scaling** (P3.4) | Bench | S | Check first — the window already maximises, so this may be closed. If open it is the same font-scaling job as 1 and should ride along with it |
 | 3 | **Night-vision repaint beyond the layout list** (D3) | Bench | XS–S | Cheap, and the risk compounds: `kPlacedWindows` is now the third thing that silently depends on being complete, and it just grew again for the ADC window |
-| 4 | **Xbox controller input** (P4.1) | Bench | M | Replanned 2026-10-14. Needs `SlewVariable()` on the mount first or the stick is a nine-position switch. Bench work needing a controller, not a clear night |
+| 4 | **Xbox controller input** (P4.1) | Bench | M | Replanned 2026-10-14, feasibility checked. Software side is free; needs `SlewVariable()` on the mount first, and a controller plus **an adapter — this machine has no Bluetooth** |
 | 5 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
 | 6 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
 | — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3; see the memory note about keeping Windows Update away from the GPU drivers |

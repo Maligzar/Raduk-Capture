@@ -711,30 +711,78 @@ windows, and this is the second thing that silently depends on it.
 
 ## Ranked summary
 
+Updated 2026-10-14. Everything above the line is finished and pushed;
+the ranking below it is what to pick up next.
+
+### Done
+
+| Item | Shipped as |
+|---|---|
+| AI assistant stopped answering (P0.1) | HTTP status checked before token reading; errors surfaced |
+| Status panel bleed (P0.2) | Status moved to its own window, out of the GDI strip |
+| Map selection sets the GoTo target (P1.2) | `b192682` |
+| READY as a modal, everything else dimmed (P1.1) | `8cdf3ef` |
+| Display identity (D1) | `812672a` — matched on device interface path |
+| Wiki + doc cleanup (P4.2) | `43e915e` — 26 pages |
+| Histogram accuracy, bench half (P2.0) | `898c546` + the test suite that gates merges |
+| Overlay hide on `U` (P3.2) | `ffe917d` |
+| Status telemetry: all drives (P3.1b) | `fb99470` |
+| ADC alignment tool (phase 35) | `9360842` — gated on *ADC fitted* |
+| Five-monitor workspace finished (phase 42) | `66d62a1` |
+| Sensor analysis / smart histogram (phase 36) | `665bb78` |
+| Mount controller as a gamepad (P3.5) | ❌ dropped — the panel is fine as it is |
+
+---
+
+### Next, in order
+
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
-| 1 | AI not answering | Bench | S–M | Advertised feature doing nothing; may indicate driver damage |
-| 2 | Status panel bleed | Bench | S–M | Corrupts neighbouring UI |
-| 3 | Log AI errors | Bench | XS | Prerequisite for 1; third instance of invisible diagnostics |
-| 4 | Map → GoTo target sync | Bench | S | Cheapest safety win available |
-| 5 | READY modal gate | Bench | M | Safety, explicitly requested |
-| 6 | Histogram deep dive (bench half) | Bench | M | Decides whether a core readout means anything |
-| 7 | Overlay hide `U` | Bench | S | Half-built already |
-| 8 | Status window + out of panel | Bench | M | ✅ done — see P0.2 |
-| 8b | Status telemetry: all drives (P3.1b) | Bench | S–M | "Which disk has room" is a pre-capture question |
-| 8c | Disk figure reads zero while recording | Bench | S | May be a stuck byte counter, which would affect more than the display |
-| 9 | Display identity (D1) | Bench | S–M | Layout silently stops matching |
-| 10 | Help window resize + fonts | Bench | M | Proves the pattern cheaply |
-| 11 | GoTo + AI resize + fonts | Bench | M–H | Densest layouts in the app |
-| 12 | Map contents scaling | Bench | S | Check first — may be closed already |
-| 13 | Mount controller as gamepad | — | — | ❌ dropped — the current panel is fine, and it was never really a prerequisite |
-| 14 | Xbox controller input (P4.1) | Bench | M | Usable in the dark, by feel. Needs variable-rate slewing added first, or the stick is a 9-position switch |
-| 15 | Wiki + doc cleanup | Bench | M | Preserves the reasoning, which is the asset |
-| 15b | Assistant worth asking (P3.6) | Bench | M | Not urgent now it is honest about its limits |
-| 16 | Night-vision chrome (D2) | Bench | S | Deferred deliberately |
-| — | SHARP/PK/AV calibration | **Sky** | — | Clear-night item 1, already instrumented |
-| — | Histogram vs real sensor | **Sky** | — | New clear-night item, second half of 6 |
-| — | AE convergence | **Sky** | — | Clear-night item 10 |
+| 1 | **Resizable AI / GoTo / Help, bigger fonts** (P3.3) | Bench | M–H | Largest item left from the owner's own list, and the densest layouts in the app. Everything else in Tier 3 is finished, so this is what "the five-screen workspace" still means |
+| 2 | **Map contents scaling** (P3.4) | Bench | S | Check first — the window already maximises, so this may be closed. If open it is the same font-scaling job as 1 and should ride along with it |
+| 3 | **Night-vision repaint beyond the layout list** (D3) | Bench | XS–S | Cheap, and the risk compounds: `kPlacedWindows` is now the third thing that silently depends on being complete, and it just grew again for the ADC window |
+| 4 | **Xbox controller input** (P4.1) | Bench | M | Replanned 2026-10-14. Needs `SlewVariable()` on the mount first or the stick is a nine-position switch. Bench work needing a controller, not a clear night |
+| 5 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
+| 6 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
+| — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3; see the memory note about keeping Windows Update away from the GPU drivers |
+
+### Blocked on weather
+
+`CLEAR-NIGHT-CHECKLIST.md` items 1–12. Nothing here can be advanced
+indoors, and the list exists to keep that distinction honest.
+
+The two worth doing first on the first clear night, because other
+numbers depend on them: **item 1** (`SHARP_CEIL`, which biases the
+capture gate and autofocus) and **item 3** (plate scale, never once
+checked against the sky, and every arcsecond figure in the app is
+derived from it — including the ADC tool's).
+
+### Unstarted features, not yet scheduled
+
+Nothing below is half-built. Ranked by value to this rig rather than by
+the original tier numbers.
+
+| Phase | Feature | Effort | Note |
+|---|---|---|---|
+| 47 | Pixel position / click to recentre | M | Pairs naturally with the controller work |
+| 46 | Connect / disconnect all hardware | M | Operational quality; currently all-or-nothing at startup |
+| 48 | Go to previous image (framing recall) | M | |
+| 30 | Push-to assistant | M | |
+| 31/32 | FWHM / Bahtinov focus | H | Star focus; autofocus is tuned for a planetary disc |
+| 18 | AVI / FITS output | M | |
+| 19 | Multi-session stats dashboard | M | |
+| 34 | Solar / lunar framing | H | |
+| 43 | Deep sky image annotation | H | |
+| 33 | Stellar photometry | VH | |
+| 20 | Distribution / ASCOM support | VH | |
+| 16 | Polar alignment assistant | H | **Worth confirming this applies.** The 8SE is alt-az unless it is on a wedge, and polar alignment is a wedge-only procedure |
+
+### Partial, and known broken
+
+| Item | State |
+|---|---|
+| 6.6 GoTo map learning | ◑ Auto solve+sync on lock ships; the accumulating map **reports but does not correct** |
+| 77 AutoStakkert in-app launch | Broken, and proven not to be ours — the identical command fails from a bare prompt |
 
 ---
 

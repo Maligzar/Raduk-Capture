@@ -88,6 +88,7 @@ void FrameAnalyzer::Run() {
         r.histogram.fill(0);
 
         uint64_t sumR = 0, sumG = 0, sumB = 0, sumL = 0;
+        uint64_t sumGr = 0, sumGb = 0;   // the two greens, kept apart
         uint32_t cntR = 0, cntG = 0, cntB = 0;
 
         // ASI RAW16 data is left-aligned in the 16-bit word (full 0-65535
@@ -115,6 +116,12 @@ void FrameAnalyzer::Run() {
                 r.histG[gV]++; sumG += gV; cntG++;
                 r.histB[bV]++; sumB += bV; cntB++;
 
+                // The two greens kept apart as well as averaged, so a
+                // Gr/Gb split can be stated. The averaged histG above
+                // is what the display still shows; this only adds a
+                // number beside it.
+                sumGr += g1V; sumGb += g2V;
+
                 // Luminance proxy: standard rec709 weights scaled to 8-bit
                 uint8_t lum = (uint8_t)((rV * 77u + gV * 150u + bV * 29u) >> 8);
                 r.histogram[lum]++;
@@ -123,6 +130,15 @@ void FrameAnalyzer::Run() {
         }
 
         uint32_t countL = cntR; // same number of superpixels
+        if (cntR > 0) {
+            r.meanGr = (float)sumGr / cntR;
+            r.meanGb = (float)sumGb / cntR;
+            const float gAvg = (r.meanGr + r.meanGb) * 0.5f;
+            // Guarded: on a frame with no green signal at all the split
+            // is undefined, not infinite.
+            r.greenSplitPct = (gAvg > 0.5f)
+                            ? (r.meanGr - r.meanGb) / gAvg * 100.0f : 0.0f;
+        }
         if (cntR > 0) {
             r.meanR = (float)sumR / cntR;
             r.meanG = (float)sumG / cntG;
@@ -143,6 +159,59 @@ void FrameAnalyzer::Run() {
             for (int i = 255; i >= 0; i--) {
                 seen += r.histogram[i];
                 if (seen > want) { r.highlightDN = (float)i; break; }
+            }
+
+            // ── Headroom per channel (Phase 36) ───────────────
+            //
+            // How much more exposure each channel could take before it
+            // clips, in stops, from its OWN 99.9th-percentile highlight
+            // rather than its mean. The mean is the wrong statistic for
+            // the same reason auto-exposure stopped using it: on a
+            // planetary frame the mean is sky and barely moves however
+            // the planet is exposed.
+            //
+            // Already clipping reads negative, by how far past 255 the
+            // highlight would have had to sit.
+            auto HeadroomOf = [&](const std::array<uint32_t, 256>& h,
+                                  uint32_t count, float clipPct) -> float {
+                if (count == 0) return 0.0f;
+                const uint32_t w2 = (uint32_t)((1.0f - AnalysisResult::HIGHLIGHT_PCTILE)
+                                               * (float)count);
+                uint32_t acc = 0;
+                int hi = 0;
+                for (int i = 255; i >= 0; i--) {
+                    acc += h[i];
+                    if (acc > w2) { hi = i; break; }
+                }
+                if (hi <= 0) return 8.0f;          // nothing there; all the room
+                // A clipped channel has lost the information needed to
+                // say how far past 255 it went, so there is no honest
+                // stop count to give. The sign carries the meaning
+                // instead: negative means clipping, and the magnitude
+                // is the clipped FRACTION, not stops. Returning a
+                // log-of-clip-percent here read as "lose 6.7 stops" on
+                // a saturated frame, which is a number with no physical
+                // meaning at all.
+                if (clipPct > 0.1f) return -clipPct / 100.0f;
+                return (float)(std::log(255.0 / (double)hi) / std::log(2.0));
+            };
+
+            r.headroomR = HeadroomOf(r.histR, cntR, r.clipR);
+            r.headroomG = HeadroomOf(r.histG, cntG, r.clipG);
+            r.headroomB = HeadroomOf(r.histB, cntB, r.clipB);
+
+            // The channel that clips first is the one that decides the
+            // exposure; the others have room to spare. On an RGGB
+            // sensor under a warm-ish light that is usually red, but
+            // which it is depends on the target and the filter, so it
+            // is measured rather than assumed.
+            r.limitingChannel = 'R';
+            r.headroomStops   = r.headroomR;
+            if (r.headroomG < r.headroomStops) {
+                r.headroomStops = r.headroomG; r.limitingChannel = 'G';
+            }
+            if (r.headroomB < r.headroomStops) {
+                r.headroomStops = r.headroomB; r.limitingChannel = 'B';
             }
         }
 

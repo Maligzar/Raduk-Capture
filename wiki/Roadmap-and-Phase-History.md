@@ -113,7 +113,6 @@ camera's internal buffer in the state that wedged it.
 | 32 | Bahtinov mask focus | Hard |
 | 18 | AVI / FITS output | Medium |
 | 19 | Multi-session stats dashboard | Medium |
-| 36 | Sensor analysis / smart histogram | Hard |
 | 43 | Deep sky image annotation | Hard |
 | 34 | Solar / lunar framing | Hard |
 | 33 | Stellar photometry | Very hard |

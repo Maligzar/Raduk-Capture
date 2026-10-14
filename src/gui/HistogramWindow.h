@@ -212,9 +212,17 @@ private:
         m_rt->Clear(Theme::NVf(D2D1::ColorF(0.016f, 0.031f, 0.059f, 1.0f)));
 
         const float w = (float)m_w, h = (float)m_h;
-        // Three rows plus a line for the seeing score; the rows take
-        // what is left after a margin.
-        const float rowH = (std::max)(16.0f, (h - 16.0f - h * 0.10f) / 3.0f);
+        // Three bar rows, then three single-line readouts under them:
+        // the seeing score, the exposure headroom and the Gr/Gb split.
+        // The rows take what is left after a margin and those three
+        // lines, so the footer always has somewhere to go -- sized at
+        // three rows' worth rather than measured, because the painter
+        // lays the footer out in units of rowH.
+        //
+        // The preview's overlay copy gets no footer: it is 104 px tall
+        // and already full, and the painter skips the footer when the
+        // height cannot hold it.
+        const float rowH = (std::max)(16.0f, (h - 16.0f - h * 0.10f) / 5.6f);
 
         histogram::Brushes br;
         br.r = m_br.rB; br.g = m_br.gB; br.b = m_br.bB;

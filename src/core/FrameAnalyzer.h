@@ -18,6 +18,8 @@
 #include <atomic>
 #include <mutex>
 #include <array>
+#include <string>
+#include <cstdio>
 #include <vector>
 #include <deque>
 #include <chrono>
@@ -47,6 +49,50 @@ struct AnalysisResult {
     // Per-channel mean (0-255)
     float meanR = 0.0f, meanG = 0.0f, meanB = 0.0f;
     float meanBrightness = 0.0f;
+
+    // ── Sensor analysis (Phase 36) ────────────────────────────
+    //
+    // The two greens, kept apart.
+    //
+    // histG above is their MEAN, and that is what the display shows,
+    // which hides two things the deep dive measured (see
+    // docs/HISTOGRAM-ACCURACY.md):
+    //
+    //  - A Gr/Gb split is invisible. A frame with Gr=20 and Gb=180
+    //    produces a G histogram occupying ONE bin, at 100, identical to
+    //    a frame with Gr=Gb=100. Every colour sensor has some split,
+    //    from crosstalk differing between the green next to red and the
+    //    green next to blue; a large one means something is wrong, and
+    //    nothing on screen could say so.
+    //  - Averaging two samples cuts noise by about root two, and only G
+    //    gets it. So the G row always looks tighter than R and B for a
+    //    reason that is not the sensor's colour response -- which
+    //    undercuts the whole point of per-channel rows, namely reading
+    //    colour balance off how far each row extends.
+    //
+    // Keeping both means the split can be stated as a number without
+    // changing a display in nightly use.
+    float meanGr = 0.0f, meanGb = 0.0f;
+
+    // Gr-Gb as a percentage of their mean. Signed: positive means the
+    // green beside red reads higher.
+    float greenSplitPct = 0.0f;
+
+    // Headroom to clipping, in stops, per channel. Computed from the
+    // 99.9th-percentile highlight rather than the mean, for the same
+    // reason auto-exposure uses it: on a planetary frame the mean is
+    // sky and barely moves however the planet is exposed.
+    //
+    // Negative means that channel is already clipping, and then the
+    // magnitude is the clipped FRACTION rather than stops -- a clipped
+    // channel has lost the information needed to say how far past 255
+    // it went, so there is no honest stop count to give.
+    float headroomR = 0.0f, headroomG = 0.0f, headroomB = 0.0f;
+
+    // The channel that will clip first, and its headroom. This is the
+    // one that decides the exposure -- the others have room to spare.
+    char  limitingChannel = 'R';
+    float headroomStops   = 0.0f;
 
     // Luminance below which HIGHLIGHT_PCTILE of superpixels fall: the
     // brightness of the brightest real thing in the frame, which on a
@@ -92,6 +138,80 @@ struct AnalysisResult {
     uint32_t width  = 0;
     uint32_t height = 0;
 };
+// ── The smart part: what the numbers mean (Phase 36) ────────
+//
+// Free functions rather than members, so tests can drive them with a
+// hand-built AnalysisResult and no camera.
+//
+// The histogram shows what IS. These say what to DO about it, which is
+// the whole difference between a readout and an assistant -- and they
+// are deliberately terse, because this is read at a glance in the dark
+// between adjustments.
+
+// Exposure verdict from the headroom of the channel that clips first.
+//
+// Thresholds in stops rather than DN. A stop is the unit the adjustment
+// is actually made in: "half a stop under" tells you to move the
+// exposure slider by a factor of 1.4, where "highlight at 181 DN" does
+// not.
+inline std::string ExposureAdvice(const AnalysisResult& a) {
+    if (!a.valid) return "no frame";
+    // Negative headroom is a flag, not a measurement: a clipped
+    // channel cannot say how far past 255 it went. The magnitude is the
+    // clipped fraction, so report that instead of inventing stops.
+    if (a.headroomStops < 0.0f) {
+        char b[96];
+        snprintf(b, sizeof(b), "CLIPPING in %c - %.1f%% of pixels at 255",
+                 a.limitingChannel, -a.headroomStops * 100.0f);
+        return b;
+    }
+    if (a.headroomStops < 0.25f) return "at the limit - any more clips";
+    if (a.headroomStops < 1.0f) {
+        char b[96];
+        snprintf(b, sizeof(b), "good - %.1f stops left in %c",
+                 a.headroomStops, a.limitingChannel);
+        return b;
+    }
+    if (a.headroomStops < 3.0f) {
+        char b[96];
+        snprintf(b, sizeof(b), "under by %.1f stops", a.headroomStops);
+        return b;
+    }
+    return "far under - the planet is near the noise floor";
+}
+
+// What a Gr/Gb split means.
+//
+// Every colour sensor has some, from crosstalk differing between the
+// green beside red and the green beside blue, and a few percent is
+// normal and uninteresting. A large one is a real signal: it is what a
+// failing column, a bad flat, or debayer applied to the wrong Bayer
+// phase looks like, and until now nothing on screen could show it at
+// all, because the histogram averages the two greens into one row.
+inline std::string GreenSplitAdvice(const AnalysisResult& a) {
+    if (!a.valid) return "no frame";
+    const float m = (a.greenSplitPct < 0.0f) ? -a.greenSplitPct : a.greenSplitPct;
+    if (m < 3.0f)  return "normal";
+    if (m < 10.0f) return "slight - usually just crosstalk";
+    if (m < 25.0f) return "high - suspect the flat, or the Bayer phase";
+    return "very high - wrong Bayer phase, or a sensor fault";
+}
+
+// Colour balance, read off the per-channel means.
+//
+// Stated as a ratio against green rather than as absolute numbers,
+// because green is the reference the other two are white-balanced
+// against and the absolute level is a function of exposure.
+inline std::string BalanceAdvice(const AnalysisResult& a) {
+    if (!a.valid || a.meanG < 1.0f) return "no frame";
+    const float r = a.meanR / a.meanG, b = a.meanB / a.meanG;
+    char buf[96];
+    snprintf(buf, sizeof(buf), "R/G %.2f  B/G %.2f%s", r, b,
+             (r > 1.6f || b > 1.6f || r < 0.4f || b < 0.4f)
+                 ? "  - check white balance" : "");
+    return buf;
+}
+
 class FrameAnalyzer {
 public:
     FrameAnalyzer() = default;

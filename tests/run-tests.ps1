@@ -21,6 +21,7 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 $Tests = @(
     @{ Name = "histogram_accuracy"; Sources = @("src\core\FrameAnalyzer.cpp") }
     @{ Name = "adc_alignment";      Sources = @("src\core\ADCAlignment.cpp") }
+    @{ Name = "sensor_analysis";    Sources = @("src\core\FrameAnalyzer.cpp") }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

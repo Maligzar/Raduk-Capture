@@ -1,4 +1,7 @@
 #pragma once
+
+#include <string>
+#include <algorithm>
 // ============================================================
 // HistogramDraw.h — Phase 42b
 //
@@ -173,10 +176,70 @@ inline void Draw(ID2D1RenderTarget* rt, IDWriteTextFormat* font,
         (a.seeingScore >= 7.0f) ? br.green :
         (a.seeingScore >= 4.0f) ? br.amber : br.red;
     if (!sBrush) sBrush = br.dim;
+    // Bounded to its own row rather than running to the bottom of the
+    // panel. The font centres text vertically in whatever rect it is
+    // given, so a rect reaching the bottom edge put this line in the
+    // middle of the empty space below the bars -- and once the footer
+    // below was added, straight on top of it.
     if (sBrush)
         rt->DrawText(line, (UINT32)wcslen(line), font,
-                     D2D1::RectF(x + PAD, y + PAD + 3 * rowH, x + w - PAD, y + h),
+                     D2D1::RectF(x + PAD, y + PAD + 3 * rowH,
+                                 x + w - PAD,
+                                 (std::min)(y + h, y + PAD + 4 * rowH)),
                      sBrush);
+
+    // ── Sensor analysis (Phase 36) ──────────────────────────
+    //
+    // Only where there is room for it. The overlay version of this
+    // panel is 104 px tall and already full; the stand-alone window has
+    // a screen to itself. Drawn from the same painter so the two cannot
+    // drift, gated on height so the overlay is untouched.
+    const float footer = y + PAD + 4 * rowH;
+    // The overlay copy of this panel has no room for any of it, and
+    // says so by being short. 1.6 rather than 2 because the last line
+    // only needs its text to fit, not a whole row below it.
+    if (!valid || footer + rowH * 1.6f > y + h) return;
+
+    // Exposure headroom, in stops, for the channel that clips first --
+    // the one that decides the exposure. The others have room to spare.
+    {
+        std::string adv = raduk::core::ExposureAdvice(a);
+        wchar_t w1[96];
+        MultiByteToWideChar(CP_UTF8, 0, adv.c_str(), -1, w1, 96);
+        ID2D1SolidColorBrush* eb =
+            (a.headroomStops < 0.0f)  ? br.red   :
+            (a.headroomStops < 0.25f) ? br.amber :
+            (a.headroomStops < 3.0f)  ? br.green : br.amber;
+        if (!eb) eb = br.dim;
+        if (eb)
+            rt->DrawText(w1, (UINT32)wcslen(w1), font,
+                         D2D1::RectF(x + PAD, footer, x + w - PAD, footer + rowH),
+                         eb);
+    }
+
+    // The Gr/Gb split. Invisible in the rows above by construction --
+    // they show the MEAN of the two greens, so a frame with Gr=20 and
+    // Gb=180 draws exactly like one with Gr=Gb=100. Stating it here is
+    // the only place it can be seen at all.
+    {
+        std::string adv = raduk::core::GreenSplitAdvice(a);
+        char utf[128];
+        snprintf(utf, sizeof(utf), "Gr/Gb  %+.1f%%  %s",
+                 a.greenSplitPct, adv.c_str());
+        wchar_t w2[128];
+        MultiByteToWideChar(CP_UTF8, 0, utf, -1, w2, 128);
+        const float m = (a.greenSplitPct < 0.0f) ? -a.greenSplitPct
+                                                 : a.greenSplitPct;
+        ID2D1SolidColorBrush* gb = (m < 3.0f)  ? br.dim :
+                                   (m < 10.0f) ? br.green :
+                                   (m < 25.0f) ? br.amber : br.red;
+        if (!gb) gb = br.dim;
+        if (gb)
+            rt->DrawText(w2, (UINT32)wcslen(w2), font,
+                         D2D1::RectF(x + PAD, footer + rowH,
+                                     x + w - PAD, footer + rowH * 2),
+                         gb);
+    }
 }
 
 } // namespace raduk::gui::histogram

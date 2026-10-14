@@ -63,14 +63,29 @@ per-channel histograms were added was to read colour balance off how far
 each row extends, and one of the three rows is being quietly denoised
 relative to the others.
 
-**Not changed**, because it alters a display in daily use and the right
-answer depends on what you want from it. Options, cheapest first:
+**Resolved 2026-10-13 (Phase 36), by the third option.** The G row
+still shows the average, so nothing in nightly use moved, but the
+analyser now keeps `meanGr` and `meanGb` apart and states the split as
+a signed percentage under the bars in the histogram window.
 
-| Option | Effect |
-|---|---|
-| Use Gr only | G becomes directly comparable to R and B. Loses half the green samples. |
-| Draw Gr and Gb as separate rows | Four rows; makes imbalance visible; busier. |
-| Keep the average, label it | No code change; stops the comparison being read as more precise than it is. |
+The options were, cheapest first:
+
+| Option | Effect | |
+|---|---|---|
+| Keep the average, state the split | No change to a display in daily use; stops the averaging being silent | **chosen** |
+| Use Gr only | G becomes directly comparable to R and B. Loses half the green samples | |
+| Draw Gr and Gb as separate rows | Four rows; makes imbalance visible; busier | |
+
+The first was chosen because the complaint was never that the average
+is wrong — it is a reasonable G — but that it was *invisible*, and both
+consequences above are now stated rather than hidden. The split carries
+a verdict with it, so a few percent reads `normal` and over 25% reads
+`very high - wrong Bayer phase, or a sensor fault`.
+
+Covered by `tests/sensor_analysis.cpp`, which drives the exact case
+measured above: Gr=20, Gb=180 now reports a -160% split and is called
+out as a fault, while the G histogram still occupies its single bin at
+100.
 
 ### 2. It measures the raw frame, not the calibrated one
 

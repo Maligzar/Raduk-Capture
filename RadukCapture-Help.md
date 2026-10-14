@@ -856,6 +856,64 @@ screen or with the preview full screen.
 framing shot — and `H` already cycles the channel display mode, which is
 the same question asked a different way.
 
+### What the histogram window adds below the bars (v1.2.6)
+
+Three single lines under the three bar charts. The copy drawn on the
+preview has none of them — it is 104 px tall and already full — so this
+is the stand-alone window only (`Shift+H`).
+
+**SEEING n/10.** Unchanged.
+
+**Exposure headroom.** How much more exposure the channel that clips
+*first* could take, in stops. That channel is the one that decides the
+exposure; the others have room to spare, and raising exposure to suit
+them would clip it.
+
+| Reads | Means |
+|---|---|
+| `CLIPPING in R - 4.2% of pixels at 255` | Already lost. The percentage, not a stop count — a clipped channel has lost the information needed to say how far past 255 it went, so any stop figure would be invented |
+| `at the limit - any more clips` | Under a quarter stop left |
+| `good - 0.6 stops left in R` | Where you want to be |
+| `under by 2.0 stops` | Room to raise exposure |
+| `far under - the planet is near the noise floor` | Over three stops under |
+
+Stops rather than DN because a stop is the unit the adjustment is made
+in: "half a stop under" tells you to move the exposure by a factor of
+1.4, where "highlight at 181 DN" does not. It is measured from the
+99.9th-percentile highlight, not the mean, for the same reason
+auto-exposure stopped using the mean — on a planetary frame the mean is
+sky and barely moves however the planet is exposed.
+
+**Gr/Gb split.** The difference between the two greens, as a percentage.
+
+This is the one number here that **cannot be seen in the bars above at
+all**, by construction. A Bayer quad has two greens and the G row is
+their mean, so a frame with Gr=20 and Gb=180 draws a G histogram
+occupying one bin at 100 — identical to a frame with Gr=Gb=100. A
+160-count split, completely invisible.
+
+| Split | Reads |
+|---|---|
+| under 3% | `normal` |
+| 3–10% | `slight - usually just crosstalk` |
+| 10–25% | `high - suspect the flat, or the Bayer phase` |
+| over 25% | `very high - wrong Bayer phase, or a sensor fault` |
+
+Every colour sensor has some, from crosstalk differing between the
+green next to red and the green next to blue, which is why a few percent
+says `normal` rather than warning. A large one is a real signal: it is
+what a bad flat, or a debayer applied to the wrong Bayer phase, looks
+like.
+
+Worth knowing while reading the rows: because G is the mean of two
+samples and R and B are single samples, **the G row is about √2 quieter
+than the other two for a reason that is not the sensor's colour
+response.** Comparing how far each row extends is the point of having
+three rows, and one of them is being quietly denoised relative to the
+others. The split figure is there so the averaging is at least visible
+rather than silent.
+
+
 ### The sharpness window (`Shift+Q`, v1.2.4)
 
 The rolling sharpness graph on a screen of its own, and **not** just a

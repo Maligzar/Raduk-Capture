@@ -66,6 +66,7 @@
 #include "gui/SharpnessWindow.h"
 #include "gui/TemperatureWindow.h"
 #include "gui/StatusWindow.h"
+#include "gui/ConfirmToast.h"
 #include "gui/ADCAlignWindow.h"
 #include "core/ADCAlignment.h"
 #include "core/SkyConditions.h"
@@ -1442,11 +1443,69 @@ static int RunApp(bool useEmulator) {
     // an arrangement somebody built by hand.
     window.SetSaveLayoutHandler([&]() {
         workspace.CaptureCurrent(kPlacedWindows);
-        if (workspace.Save(kWorkspacePath))
-            Log("[LAYOUT] saved the current arrangement to %s\n",
-                kWorkspacePath.c_str());
+        const bool wrote = workspace.Save(kWorkspacePath);
+
+        // Confirm against the FILE, not against Save() returning true.
+        // fprintf not complaining is not the same as the arrangement
+        // being on disk: buffering, a full disk, or a handle held by
+        // something else can all leave a truthful-looking true beside a
+        // file that is empty or stale. Re-reading costs a few
+        // milliseconds and is the difference between telling the owner
+        // it saved and knowing that it did.
+        const auto proof = workspace.VerifyOnDisk(kWorkspacePath,
+                                                  workspace.MonitorCount());
+        const int expected = (int)kPlacedWindows.size();
+        const bool ok = wrote && proof.Good(expected);
+
+        if (ok)
+            Log("[LAYOUT] saved %d window(s) to %s (%ld bytes, verified)\n",
+                proof.rolesOnDisk, kWorkspacePath.c_str(), proof.bytes);
         else
-            Log("[LAYOUT] could not write %s\n", kWorkspacePath.c_str());
+            Log("[LAYOUT] SAVE FAILED for %s - wrote=%d exists=%d section=%d "
+                "roles=%d/%d bytes=%ld\n",
+                kWorkspacePath.c_str(), wrote ? 1 : 0, proof.fileExists ? 1 : 0,
+                proof.sectionFound ? 1 : 0, proof.rolesOnDisk, expected,
+                proof.bytes);
+
+        // Name the windows that were written. The owner asked whether
+        // the mount panel was included; a count alone cannot answer
+        // that, and a list answers it for every role at once.
+        // Wrapped at six per line. Eleven roles on one line overflowed
+        // the toast and ellipsed the tail -- which hid exactly the kind
+        // of question the list is there to answer.
+        std::vector<std::wstring> roleLines;
+        {
+            std::wstring cur;
+            int onLine = 0;
+            for (const auto& [role, hwnd] : kPlacedWindows) {
+                if (!hwnd || !IsWindow(hwnd)) continue;
+                const std::string r(role);
+                if (onLine == 6) { roleLines.push_back(cur); cur.clear(); onLine = 0; }
+                if (!cur.empty()) cur += L"  ";
+                cur += std::wstring(r.begin(), r.end());
+                onLine++;
+            }
+            if (!cur.empty()) roleLines.push_back(cur);
+        }
+
+        std::vector<std::wstring> lines;
+        if (ok) {
+            wchar_t b[200];
+            swprintf(b, 200, L"%d windows on %d screens, %ld bytes on disk",
+                     proof.rolesOnDisk, proof.monitorCount, proof.bytes);
+            lines.push_back(b);
+            for (const std::wstring& rl : roleLines) lines.push_back(rl);
+            lines.push_back(L"This is what the app will open with.");
+        } else {
+            lines.push_back(L"The file could not be verified after writing.");
+            lines.push_back(L"The arrangement has NOT been saved.");
+            lines.push_back(L"See raduk_log.txt for what failed.");
+        }
+
+        raduk::gui::ConfirmToast::Show(
+            window.Handle(),
+            ok ? L"LAYOUT SAVED" : L"LAYOUT NOT SAVED",
+            lines, ok, 5000);
     });
 
     // Ctrl+Shift+Home brings everything home. Registered globally, so it

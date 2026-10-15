@@ -521,6 +521,60 @@ public:
     }
 
     // Write the active profile out so it can be hand-edited.
+    // What a save actually left on disk.
+    //
+    // Save() returning true means fprintf did not complain, which is
+    // not the same as the file now holding the arrangement. Buffering,
+    // a full disk, a file open elsewhere, an antivirus scanner holding
+    // a handle -- any of those can leave a truthful-looking true and a
+    // file that is empty, stale or half-written.
+    //
+    // So this re-opens and re-parses what was written and reports what
+    // it found. A confirmation worth showing has to be a confirmation
+    // of the bytes, not of the intent.
+    struct SaveProof {
+        bool   fileExists  = false;
+        bool   sectionFound = false;
+        int    rolesOnDisk = 0;
+        long   bytes       = 0;
+        int    monitorCount = 0;
+        std::string path;
+        bool Good(int expectedRoles) const {
+            return fileExists && sectionFound && bytes > 0 &&
+                   rolesOnDisk >= expectedRoles;
+        }
+    };
+
+    SaveProof VerifyOnDisk(const std::string& path, int monitorCount) const {
+        SaveProof pr;
+        pr.path = path;
+        pr.monitorCount = monitorCount;
+
+        FILE* f = nullptr;
+        if (fopen_s(&f, path.c_str(), "r") != 0 || !f) return pr;
+        pr.fileExists = true;
+
+        char want[32];
+        snprintf(want, sizeof(want), "[monitors.%d]", monitorCount);
+
+        char line[512];
+        bool inSection = false;
+        while (fgets(line, sizeof(line), f)) {
+            pr.bytes += (long)strlen(line);
+            std::string t = Trim(line);
+            if (t.empty() || t[0] == '#') continue;
+            if (t[0] == '[') {
+                inSection = (t.rfind(want, 0) == 0);
+                if (inSection) pr.sectionFound = true;
+                continue;
+            }
+            if (inSection && t.find('=') != std::string::npos)
+                pr.rolesOnDisk++;
+        }
+        fclose(f);
+        return pr;
+    }
+
     bool Save(const std::string& path) const {
         FILE* f = nullptr;
         if (fopen_s(&f, path.c_str(), "w") != 0 || !f) return false;

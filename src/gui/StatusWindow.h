@@ -47,6 +47,7 @@
 #include <atomic>
 #include <chrono>
 #include "Theme.h"
+#include "core/SkyConditions.h"
 
 #pragma comment(lib, "dwmapi.lib")
 
@@ -73,6 +74,11 @@ public:
         int      bitDepth  = 8;
         uint64_t frames    = 0;      // recorded this run
         bool     streaming = false;  // camera actually delivering
+
+        // How much atmosphere the scope is looking through. Useful with
+        // or without a corrector in the train: an ADC cancels the colour
+        // smear, nothing cancels the extra air.
+        raduk::core::SkyQuality sky;
     };
 
     // One fixed drive, as the scanner last saw it.
@@ -372,6 +378,44 @@ private:
             sprintf_s(r.rightValue, "%d", m_data.framesLost);
             r.rightClr = m_data.framesLost > 0 ? Theme::NV(RGB(255, 60, 90))
                                                : Theme::NV(RGB(120, 136, 156));
+            rows.push_back(r);
+        }
+
+        // ── Where the scope is pointing, and what it costs ─────
+        //
+        // The mount panel reports altitude as a number. This says what
+        // the number MEANS: how much air is in the way, what that costs
+        // in resolution, and whether to shoot now or wait.
+        //
+        // The bar is the imaging window itself -- full at the zenith,
+        // empty at 20 degrees -- so "is it worth shooting" is answerable
+        // from across the room without reading any digits.
+        if (m_data.sky.valid) {
+            using namespace raduk::core;
+            const SkyQuality& sk = m_data.sky;
+            Row r;
+            strcpy_s(r.label, "SKY");
+
+            // Mapped over 20-90 rather than 0-90: below 20 there is
+            // nothing to decide, and spending a quarter of the bar on
+            // altitudes nobody images at wastes the part that matters.
+            float pct = (float)((sk.altitudeDeg - 20.0) / 70.0 * 100.0);
+            r.pct = pct < 0.0f ? 0.0f : pct > 100.0f ? 100.0f : pct;
+
+            r.fill = (sk.window == SkyWindow::Prime)    ? Theme::NV(RGB(0, 200, 110))
+                   : (sk.window == SkyWindow::Good)     ? Theme::NV(RGB(120, 200, 80))
+                   : (sk.window == SkyWindow::Marginal) ? Theme::NV(RGB(255, 170, 0))
+                                                        : Theme::NV(RGB(255, 60, 90));
+
+            // Airmass next to the altitude, because the altitude alone
+            // does not say that 30 degrees is twice the air of overhead.
+            snprintf(r.barText, sizeof(r.barText),
+                     "%.0f deg alt   %.2f air   %s",
+                     sk.altitudeDeg, sk.airmass, WindowAdvice(sk).c_str());
+
+            strcpy_s(r.rightLabel, "SEE");
+            snprintf(r.rightValue, sizeof(r.rightValue), "x%.2f", sk.seeingFactor);
+            r.rightClr = r.fill;
             rows.push_back(r);
         }
 

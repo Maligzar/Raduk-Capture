@@ -59,6 +59,31 @@ public:
     SERWriter() = default;
     ~SERWriter() { if (IsOpen()) Close(); }
 
+    // Where the scope was pointing while this ran, recorded into the
+    // sidecar. Call as often as you like; the first and last are kept
+    // along with the extremes, which is the right granularity -- a
+    // planet's altitude moves a quarter of a degree a minute, so
+    // per-frame values would be the same number thousands of times.
+    void NoteSkyConditions(double altitudeDeg, double azimuthDeg,
+                           double airmass, double seeingFactor,
+                           double dispersionArcsec) {
+        if (!m_skySeen) {
+            m_skyAltStart = altitudeDeg;
+            m_skyAltMin = m_skyAltMax = altitudeDeg;
+            m_skyAzStart = azimuthDeg;
+            m_skySeen = true;
+        }
+        m_skyAltEnd = altitudeDeg;
+        m_skyAzEnd  = azimuthDeg;
+        if (altitudeDeg < m_skyAltMin) m_skyAltMin = altitudeDeg;
+        if (altitudeDeg > m_skyAltMax) m_skyAltMax = altitudeDeg;
+        m_skyAirmassSum += airmass;
+        m_skyAirmassMax  = (airmass > m_skyAirmassMax) ? airmass : m_skyAirmassMax;
+        m_skySeeingEnd   = seeingFactor;
+        m_skyDispersion  = dispersionArcsec;
+        m_skySamples++;
+    }
+
     SERWriter(const SERWriter&) = delete;
     SERWriter& operator=(const SERWriter&) = delete;
 
@@ -108,6 +133,14 @@ private:
     int64_t               m_ftBase    = 0;
     std::vector<int64_t>  m_timestamps;
     std::vector<float>    m_sharpnessScores;  // Phase 11: one per frame
+
+    // Scope position across the run, for the sidecar.
+    bool   m_skySeen        = false;
+    int    m_skySamples     = 0;
+    double m_skyAltStart = 0, m_skyAltEnd = 0, m_skyAltMin = 0, m_skyAltMax = 0;
+    double m_skyAzStart  = 0, m_skyAzEnd  = 0;
+    double m_skyAirmassSum = 0, m_skyAirmassMax = 0;
+    double m_skySeeingEnd  = 1.0, m_skyDispersion = 0.0;
 };
 
 } // namespace raduk::core

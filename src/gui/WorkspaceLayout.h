@@ -278,9 +278,30 @@ public:
         const LONG mw = mon->work.right - mon->work.left;
         const LONG mh = mon->work.bottom - mon->work.top;
 
+        // A window the user cannot resize keeps the size its code gave
+        // it; the layout supplies the position only.
+        //
+        // Several of these panels have no WS_SIZEBOX -- they lay their
+        // controls out at absolute positions, so a size is a property
+        // of the build, not a preference. Letting a saved rect override
+        // it means any later change to the panel is silently defeated
+        // by a layout file written before it, with the new controls
+        // clipped off the bottom edge and no way for anyone to drag it
+        // bigger. That is exactly what happened when the mount panel
+        // grew to carry the sky lamp.
+        const bool resizable =
+            (GetWindowLongW(hwnd, GWL_STYLE) & WS_SIZEBOX) != 0;
+
         RECT target;
         if (p.hasAbs) {
             target = p.abs;
+            if (!resizable) {
+                RECT own = {};
+                if (GetWindowRect(hwnd, &own)) {
+                    target.right  = target.left + (own.right - own.left);
+                    target.bottom = target.top  + (own.bottom - own.top);
+                }
+            }
         } else if (p.hasFrac) {
             target.left   = mon->work.left + (LONG)(p.fx * mw);
             target.top    = mon->work.top  + (LONG)(p.fy * mh);

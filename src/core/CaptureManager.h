@@ -74,6 +74,16 @@ public:
     // otherwise. 0 until the first measurement arrives.
     void SetObservedFps(double fps) { m_lastKnownFps = fps; }
 
+    // Where the scope is pointing, forwarded into the SER sidecar so a
+    // morning-after review can tell one run from another by how much
+    // atmosphere it was shot through. Fed from the readout loop.
+    void NoteSky(double altDeg, double azDeg, double airmass,
+                 double seeingFactor, double dispersionArcsec) {
+        if (m_status.recording.load())
+            m_writer.NoteSkyConditions(altDeg, azDeg, airmass,
+                                       seeingFactor, dispersionArcsec);
+    }
+
     // ── Recording control ──────────────────────────────────────
 
     // Start recording. Allocates write buffer, opens SER file, starts writer thread.

@@ -152,6 +152,44 @@ bool SERWriter::Close() {
             fprintf(qf, "# RadukCapture quality scores - sharpness, one per frame\n");
             fprintf(qf, "# Frames: %u\n", m_framesWritten);
             fprintf(qf, "# Format: one score per line, frame order\n");
+            // ── Where the scope was pointing ──────────────────
+            //
+            // Altitude decides how much atmosphere every frame in this
+            // file was shot through, which is the biggest thing
+            // separating one run from another on the same night. A
+            // morning-after review comparing two captures of the same
+            // target wants this before it wants anything else.
+            //
+            // In the header rather than per frame, because a planet's
+            // altitude moves about a quarter of a degree a minute: a
+            // per-frame column would be the same number thousands of
+            // times over. Start, end and extremes carry everything a
+            // run-length capture can honestly say.
+            //
+            // Comment lines, so the body stays exactly one score per
+            // line and anything already reading this file keeps working.
+            if (m_skySeen) {
+                const double meanAir = (m_skySamples > 0)
+                                     ? m_skyAirmassSum / m_skySamples : 0.0;
+                fprintf(qf, "#\n");
+                fprintf(qf, "# Scope position\n");
+                fprintf(qf, "#   Altitude:    %.1f deg at start, %.1f at end (range %.1f to %.1f)\n",
+                        m_skyAltStart, m_skyAltEnd, m_skyAltMin, m_skyAltMax);
+                fprintf(qf, "#   Azimuth:     %.1f deg at start, %.1f at end\n",
+                        m_skyAzStart, m_skyAzEnd);
+                fprintf(qf, "#   Airmass:     %.3f mean, %.3f worst (1.000 = overhead)\n",
+                        meanAir, m_skyAirmassMax);
+                fprintf(qf, "#   Seeing cost: x%.2f vs the zenith (airmass^0.6)\n",
+                        m_skySeeingEnd);
+                fprintf(qf, "#   Dispersion:  %.2f arcsec red-to-blue, uncorrected\n",
+                        m_skyDispersion);
+                fprintf(qf, "#   Window:      %s\n",
+                        m_skyAltMax >= 60.0 ? "PRIME (60 deg or above)"
+                      : m_skyAltMax >= 45.0 ? "GOOD (45-60 deg)"
+                      : m_skyAltMax >= 30.0 ? "MARGINAL (30-45 deg)"
+                                            : "POOR (below 30 deg)");
+                fprintf(qf, "#\n");
+            }
 
             float sum = 0, peak = 0;
             for (float s : m_sharpnessScores) {
@@ -169,6 +207,9 @@ bool SERWriter::Close() {
 
     m_timestamps.clear();
     m_sharpnessScores.clear();
+    m_skySeen = false;
+    m_skySamples = 0;
+    m_skyAirmassSum = m_skyAirmassMax = 0.0;
     return true;
 }
 

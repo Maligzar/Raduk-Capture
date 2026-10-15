@@ -68,6 +68,7 @@
 #include "gui/StatusWindow.h"
 #include "gui/ADCAlignWindow.h"
 #include "core/ADCAlignment.h"
+#include "core/SkyConditions.h"
 #include "gui/MountController.h"
 #include "gui/StatusBar.h"
 #include "gui/HelpWindow.h"
@@ -1403,6 +1404,7 @@ static int RunApp(bool useEmulator) {
     adcAlignWindow.Create(window.Handle(), 360, 360, 980, 560);
     raduk::core::ADCAlignment adcAlign;
     bool adcHaveFrame = false;   // set by the measuring pass each loop
+    raduk::core::SkyTracker skyTracker;
     Log("[INIT] Status window ready\n");
 
     // ── Phase 42: place the windows ───────────────────────────
@@ -4259,6 +4261,24 @@ static int RunApp(bool useEmulator) {
                             warned = false;
                         }
                     }
+                    // How much atmosphere the scope is looking through.
+                    // Measured from the mount's own reports rather than
+                    // ephemeris, so it is right even pointing somewhere
+                    // unplanned.
+                    //
+                    // Fed on ANY valid reading, including a negative
+                    // altitude. The ADC readout below is gated on being
+                    // above the horizon because dispersion means nothing
+                    // underneath it; "you are pointing below the horizon"
+                    // is the single most useful thing this row can say,
+                    // and gating it the same way would have hidden it.
+                    // az < 0 is the sentinel for no reading yet.
+                    if (az >= 0.0f) {
+                        skyTracker.Push(alt, az,
+                            std::chrono::duration<double>(
+                                std::chrono::steady_clock::now()
+                                    .time_since_epoch()).count());
+                    }
                     if (alt >= 0.0f) {
                         preview.SetMountAltitude(alt);
                         auto adcResult = raduk::core::ADCAssistant::Compute(alt);
@@ -4336,6 +4356,22 @@ static int RunApp(bool useEmulator) {
                 sd.bitDepth     = roiBits;
                 sd.frames       = capturer.FramesRecorded();
                 sd.streaming    = cam.IsCapturing();
+                sd.sky          = skyTracker.Evaluate();
+
+                // Both places, as asked: the status window for the
+                // desk, the mount panel's lamp for the eyepiece.
+                mountCtrl.SetSkyQuality(sd.sky);
+
+                // Into the SER sidecar too, while recording. Altitude
+                // is the biggest thing separating two runs of the same
+                // target on the same night.
+                if (sd.sky.valid) {
+                    const auto adc = raduk::core::ADCAssistant::Compute(
+                                         sd.sky.altitudeDeg);
+                    capturer.NoteSky(sd.sky.altitudeDeg, sd.sky.azimuthDeg,
+                                     sd.sky.airmass, sd.sky.seeingFactor,
+                                     adc.separationArcsec);
+                }
                 statusWindow.Update(sd);
             }
 

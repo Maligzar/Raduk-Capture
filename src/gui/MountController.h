@@ -9,6 +9,7 @@
 #define NOMINMAX
 #endif
 #include "Theme.h"
+#include "core/SkyConditions.h"
 #include <windows.h>
 #include <uxtheme.h>
 #include <windowsx.h>
@@ -160,7 +161,11 @@ private:
     // this is the WINDOW height, so it must also cover the caption and
     // borders (~32px) or the plot's readout line is clipped off the
     // bottom edge - which it was at 312.
-    static constexpr int H      = 326;
+    // Elongated from 326 to carry the sky-conditions readout below the
+    // RA/Dec lines: three more label rows at 18px plus a separator.
+    // This panel is where pointing lives, so what the pointing COSTS
+    // belongs here rather than beside the disk figures.
+    static constexpr int H      = 378;
     static constexpr int MARGIN = 8;
     static constexpr int TIMER_READOUT = 1;
 
@@ -169,6 +174,7 @@ private:
         ID_BTN_STOP = 100,
         ID_BTN_N, ID_BTN_S, ID_BTN_E, ID_BTN_W,
         ID_BTN_RATE9, ID_BTN_RATE8, ID_BTN_RATE7, ID_BTN_RATE5,
+        ID_LBL_SKY, ID_CANVAS_SKY,
         ID_BTN_ALIGN,
         ID_CANVAS_MOTION,
         ID_LBL_RA, ID_LBL_DEC, ID_LBL_TRK,
@@ -582,7 +588,29 @@ private:
         // RA/Dec readout
         m_lblRA  = MakeLbl(L"RA  --h --m --s",  x, y, w,    16, ID_LBL_RA);  y += 18;
         m_lblDec = MakeLbl(L"Dec --\u00B0 --' --\"", x, y, w, 16, ID_LBL_DEC); y += 18;
-        m_lblTrk = MakeLbl(L"TRK: OFF",           x, y, w/2, 16, ID_LBL_TRK); y += 22;
+        m_lblTrk = MakeLbl(L"TRK: OFF",           x, y, w/2, 16, ID_LBL_TRK); y += 20;
+
+        // ── What the pointing costs ───────────────────────────
+        //
+        // Altitude is implicit in RA/Dec above, but nothing there says
+        // that 30 degrees is twice the air of overhead, or whether to
+        // shoot now or wait twenty minutes. Useful with or without a
+        // corrector in the train: an ADC cancels the colour smear,
+        // nothing cancels the extra air.
+        //
+        // A lamp rather than only text, and a big one. The question it
+        // answers -- is it worth shooting right now -- is the one asked
+        // most often and from furthest away, usually from the eyepiece
+        // rather than the screen. A colour carries across a dark room;
+        // a line of digits does not.
+        m_canvasSky = CreateWindowExW(
+            0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_OWNERDRAW,
+            x, y, w, 54, m_hwnd, (HMENU)(INT_PTR)ID_CANVAS_SKY,
+            GetModuleHandleW(nullptr), nullptr);
+        SetWindowSubclass(m_canvasSky, SkyProc, 1, (DWORD_PTR)this);
+        y += 58;
+
+        m_lblSky  = MakeLbl(L"", x, y, w, 16, ID_LBL_SKY);  y += 18;
 
         // Rate row
         int rw = (w - 6) / 4;
@@ -655,6 +683,150 @@ public:
     // No ResetMotion(): it never had a caller, which is this codebase's
     // commonest defect. MotionMonitor re-anchors itself once the trail
     // runs past RE_ANCHOR_AS, so nothing has to remember to call it.
+private:
+    // ── The sky lamp ──────────────────────────────────────────
+    //
+    // One large disc, coloured by the imaging window, with the numbers
+    // beside it. Double-buffered like the motion plot: it repaints on
+    // every readout tick and would otherwise flicker.
+    static LRESULT CALLBACK SkyProc(HWND h, UINT m, WPARAM wp,
+                                    LPARAM lp, UINT_PTR, DWORD_PTR ref) {
+        auto* self = reinterpret_cast<MountController*>(ref);
+        if (m == WM_PAINT && self) {
+            PAINTSTRUCT ps;
+            HDC dc = BeginPaint(h, &ps);
+            RECT rc; GetClientRect(h, &rc);
+            HDC     mem = CreateCompatibleDC(dc);
+            HBITMAP bmp = CreateCompatibleBitmap(dc, rc.right, rc.bottom);
+            HGDIOBJ old = SelectObject(mem, bmp);
+
+            HBRUSH bg = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
+            FillRect(mem, &rc, bg);
+            DeleteObject(bg);
+
+            self->PaintSkyLamp(mem, rc);
+
+            BitBlt(dc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY);
+            SelectObject(mem, old);
+            DeleteObject(bmp);
+            DeleteDC(mem);
+            EndPaint(h, &ps);
+            return 0;
+        }
+        return DefSubclassProc(h, m, wp, lp);
+    }
+
+    void PaintSkyLamp(HDC dc, const RECT& rc) {
+        using namespace raduk::core;
+
+        const int d  = (std::min)(44, (int)(rc.bottom - 8));   // lamp diameter
+        const int cx = 6 + d / 2;
+        const int cy = rc.bottom / 2;
+
+        COLORREF lit;
+        const char* name;
+        if (!m_sky.valid) {
+            lit  = Theme::NV(RGB(60, 72, 88));
+            name = "NO ALT";
+        } else {
+            switch (m_sky.window) {
+                case SkyWindow::Prime:    lit = Theme::NV(RGB(0, 220, 120)); break;
+                case SkyWindow::Good:     lit = Theme::NV(RGB(140, 210, 70)); break;
+                case SkyWindow::Marginal: lit = Theme::NV(RGB(255, 170, 0));  break;
+                case SkyWindow::Poor:     lit = Theme::NV(RGB(255, 110, 40)); break;
+                default:                  lit = Theme::NV(RGB(255, 60, 90));  break;
+            }
+            name = WindowName(m_sky.window);
+        }
+
+        // A dim halo first, so the lit colour reads as a lamp rather
+        // than a flat sticker, and so a green lamp is unmistakable at
+        // the edge of vision.
+        {
+            HBRUSH halo = CreateSolidBrush(Blend(lit, Theme::NV(RGB(7, 13, 22)), 0.22f));
+            HGDIOBJ ob = SelectObject(dc, halo);
+            HGDIOBJ op = SelectObject(dc, GetStockObject(NULL_PEN));
+            Ellipse(dc, cx - d/2 - 5, cy - d/2 - 5, cx + d/2 + 5, cy + d/2 + 5);
+            SelectObject(dc, op); SelectObject(dc, ob);
+            DeleteObject(halo);
+        }
+        {
+            HBRUSH b = CreateSolidBrush(lit);
+            HPEN   p = CreatePen(PS_SOLID, 1, Blend(lit, RGB(255,255,255), 0.35f));
+            HGDIOBJ ob = SelectObject(dc, b);
+            HGDIOBJ op = SelectObject(dc, p);
+            Ellipse(dc, cx - d/2, cy - d/2, cx + d/2, cy + d/2);
+            SelectObject(dc, op); SelectObject(dc, ob);
+            DeleteObject(b); DeleteObject(p);
+        }
+
+        // Text beside the lamp.
+        SetBkMode(dc, TRANSPARENT);
+        const int tx = cx + d/2 + 10;
+        HFONT big = CreateFontW(-15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                                CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                                DEFAULT_PITCH, L"Barlow Condensed");
+        HGDIOBJ of = SelectObject(dc, big);
+        SetTextColor(dc, lit);
+        RECT tr = { tx, 4, rc.right - 2, 4 + 18 };
+        DrawTextA(dc, name, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(dc, of);
+        DeleteObject(big);
+
+        HFONT sm = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                               CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                               DEFAULT_PITCH, L"Space Mono");
+        of = SelectObject(dc, sm);
+        SetTextColor(dc, Theme::NV(RGB(160, 182, 200)));
+        char line[96];
+        if (m_sky.valid)
+            snprintf(line, sizeof(line), "%.0f deg   %.2f air",
+                     m_sky.altitudeDeg, m_sky.airmass);
+        else
+            snprintf(line, sizeof(line), "mount has not reported");
+        RECT lr = { tx, 22, rc.right - 2, 22 + 16 };
+        DrawTextA(dc, line, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+        if (m_sky.valid) {
+            snprintf(line, sizeof(line), "seeing x%.2f vs zenith", m_sky.seeingFactor);
+            RECT sr = { tx, 36, rc.right - 2, 36 + 16 };
+            DrawTextA(dc, line, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        }
+        SelectObject(dc, of);
+        DeleteObject(sm);
+    }
+
+    static COLORREF Blend(COLORREF a, COLORREF b, float t) {
+        auto mix = [&](int x, int y) { return (int)(x + (y - x) * t); };
+        return RGB(mix(GetRValue(a), GetRValue(b)),
+                   mix(GetGValue(a), GetGValue(b)),
+                   mix(GetBValue(a), GetBValue(b)));
+    }
+
+public:
+    // Fed from the readout loop. Same figures the status window shows;
+    // the owner asked for it in both places, and this is the one that
+    // can be read from the eyepiece.
+    void SetSkyQuality(const raduk::core::SkyQuality& q) {
+        m_sky = q;
+        if (m_canvasSky) InvalidateRect(m_canvasSky, nullptr, FALSE);
+        if (m_lblSky) {
+            // Drop the leading window name: the lamp beside this line
+            // already shows it in colour and in words, and at 210px the
+            // repeat pushed the part that is NOT on the lamp -- how
+            // long until prime, or how long is left of it -- off the
+            // right edge.
+            std::string adv = raduk::core::WindowAdvice(q);
+            const size_t dash = adv.find(" - ");
+            if (dash != std::string::npos) adv = adv.substr(dash + 3);
+            wchar_t b[128];
+            MultiByteToWideChar(CP_UTF8, 0, adv.c_str(), -1, b, 128);
+            SetText(m_lblSky, b);
+        }
+    }
+
 private:
     static LRESULT CALLBACK MotionProc(HWND h, UINT m, WPARAM wp,
                                        LPARAM lp, UINT_PTR, DWORD_PTR ref) {
@@ -892,6 +1064,9 @@ private:
 
     HWND m_lblRA    = nullptr;
     HWND m_lblDec   = nullptr;
+    HWND m_lblSky     = nullptr;
+    HWND m_canvasSky  = nullptr;
+    raduk::core::SkyQuality m_sky;
     HWND m_lblTrk   = nullptr;
     HWND m_btnN     = nullptr;
     HWND m_btnS     = nullptr;

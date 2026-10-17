@@ -37,7 +37,11 @@ namespace raduk::core {
 // ── Jupiter emulator static data (namespace scope for MSVC constexpr) ──────
 
 struct JupBelt { float lat, hw, r, g, b; };
-struct JupMoon { float dist, period_d, radius_px_base, r, g, b; };
+// dist is in Jupiter radii; radiusArcsec is the moon's own apparent
+// radius. Phase 91: both are angular now, like everything else in the
+// synthetic sky -- this used to carry an absolute pixel radius, which
+// was the last thing in the scene whose size did not come from the sky.
+struct JupMoon { float dist, period_d, radiusArcsec, r, g, b; };
 
 // ── What the emulator is actually pointed at (Phase 81) ──────────
 //
@@ -46,13 +50,24 @@ struct JupMoon { float dist, period_d, radius_px_base, r, g, b; };
 // that matters most here, because its rings are the high-contrast
 // detail focus and sharpness get judged on.
 //
-// Sizes are relative to Jupiter at its existing 0.22 of frame height,
-// scaled by true apparent diameter (Jupiter 45", Saturn 18" disc with
-// rings to 42", Mars 15", Venus 25"). Jupiter keeps its old size so
-// every existing bench result stays comparable.
+// ── Phase 91: sizes are ANGULAR, not a fraction of the frame ──
+//
+// Every size here used to be a fraction of frame height, which meant
+// the synthetic sky had no field of view at all: the disc and its
+// moons were laid out relative to whatever the sensor format happened
+// to be, so widening the ROI drew the same picture larger and narrowing
+// it drew the same picture smaller. The one question an emulator exists
+// to answer indoors -- "will the moons fit in my frame?" -- was the one
+// question it could not answer, because the answer was always "the
+// frame is exactly as wide as the picture".
+//
+// Angular radii, in arcseconds, at a representative opposition. The
+// renderer divides by the plate scale, so the number of pixels the
+// planet covers now follows from the sensor format exactly as it does
+// on the real rig.
 struct EmuTargetDef {
     const char* name;
-    float radiusFrac;      // disc radius as a fraction of frame height
+    float radiusArcsec;    // apparent disc RADIUS on the sky
     float oblate;          // polar flattening
     float r, g, b;         // base tint
     bool  belts;           // Jupiter-style banding and Red Spot
@@ -61,12 +76,15 @@ struct EmuTargetDef {
     float ringOuter;
 };
 static const EmuTargetDef EMU_TARGETS[] = {
-    // name        rad     oblate  r     g     b     belt  moon  rIn   rOut
-    { "Jupiter", 0.220f, 0.0649f, 0.93f,0.86f,0.68f, true,  true, 0.0f, 0.0f },
-    { "Saturn",  0.088f, 0.0980f, 0.94f,0.87f,0.66f, false, false,1.24f,2.33f },
-    { "Mars",    0.073f, 0.0059f, 0.86f,0.45f,0.28f, false, false,0.0f, 0.0f },
-    { "Venus",   0.122f, 0.0000f, 0.98f,0.96f,0.90f, false, false,0.0f, 0.0f },
-    { "Moon",    0.820f, 0.0000f, 0.80f,0.78f,0.74f, false, false,0.0f, 0.0f },
+    // name        rad"    oblate  r     g     b     belt  moon  rIn   rOut
+    { "Jupiter",  22.5f, 0.0649f, 0.93f,0.86f,0.68f, true,  true, 0.0f, 0.0f },
+    { "Saturn",    9.0f, 0.0980f, 0.94f,0.87f,0.66f, false, false,1.24f,2.33f },
+    { "Mars",      7.5f, 0.0059f, 0.86f,0.45f,0.28f, false, false,0.0f, 0.0f },
+    { "Venus",    12.5f, 0.0000f, 0.98f,0.96f,0.90f, false, false,0.0f, 0.0f },
+    // Half a degree. It overflows every sensor this rig owns, which is
+    // what the Moon actually does -- there is no limb in frame at prime
+    // focus and there never was on the sky either.
+    { "Moon",    900.0f, 0.0000f, 0.80f,0.78f,0.74f, false, false,0.0f, 0.0f },
 };
 static const int NUM_EMU_TARGETS =
     (int)(sizeof(EMU_TARGETS)/sizeof(EMU_TARGETS[0]));
@@ -86,10 +104,11 @@ static const JupBelt JUP_BELTS[] = {
 static const int NUM_JUP_BELTS = 10;
 
 static const JupMoon JUP_MOONS[] = {
-    {  5.9f,  1.769f, 4.5f, 0.92f, 0.80f, 0.40f }, // Io — yellow-orange
-    {  9.4f,  3.551f, 4.0f, 0.90f, 0.90f, 0.88f }, // Europa — white-grey
-    { 15.0f,  7.155f, 5.5f, 0.60f, 0.55f, 0.45f }, // Ganymede — brown-grey
-    { 26.4f, 16.689f, 4.8f, 0.68f, 0.62f, 0.50f }, // Callisto — dark brown
+    //  dist   period    rad"   r      g      b
+    {  5.9f,  1.769f, 0.82f, 0.92f, 0.80f, 0.40f }, // Io — yellow-orange
+    {  9.4f,  3.551f, 0.51f, 0.90f, 0.90f, 0.88f }, // Europa — white-grey
+    { 15.0f,  7.155f, 0.86f, 0.60f, 0.55f, 0.45f }, // Ganymede — brown-grey
+    { 26.4f, 16.689f, 0.79f, 0.68f, 0.62f, 0.50f }, // Callisto — dark brown
 };
 static const int NUM_JUP_MOONS = 4;
 
@@ -126,9 +145,11 @@ public:
         m_info.IsColor   = ASI_TRUE;
         m_info.BayerPattern = ASI_BAYER_RG;
         m_isOpen = true;
-        // Emulator renders at 1280x960 regardless of requested ROI
-        // — prevents 8MP render at 20fps which causes frame drops
-        m_roiW = 1280; m_roiH = 960;
+        // Open at the full sensor, like the real camera does. The app's
+        // own startup default is 3840x2160 and was being silently
+        // clamped here, so the emulator reported a 1280x960 camera and
+        // that got persisted as the last session format.
+        m_roiW = EMU_MAX_ROI_W; m_roiH = EMU_MAX_ROI_H;
         m_binning = 1; m_imgType = ASI_IMG_RAW8;
         printf("[CameraEmulator] Opened: %s (%dx%d, ROI changeable up to %dx%d)\n",
                m_info.Name, m_roiW, m_roiH, EMU_MAX_ROI_W, EMU_MAX_ROI_H);
@@ -147,15 +168,24 @@ public:
 
     // ── Configuration ──────────────────────────────────────────
 
-    // The widest mode the emulator will stream. MaxWidth/MaxHeight still
-    // report the real 3840x2160, because that is what the app uses to
-    // place an ROI on the sensor -- this is only the streaming limit,
-    // which is a real property of a software renderer. Measured: above
-    // this, the per-pixel shade plus a 64-slot ring of multi-megabyte
-    // frames stops delivering frames inside the capture timeout at all,
-    // so a larger cap would trade a testable emulator for a dead one.
-    static constexpr int EMU_MAX_ROI_W = 1280;
-    static constexpr int EMU_MAX_ROI_H = 960;
+    // The widest mode the emulator will stream.
+    //
+    // Phase 91: this was 1280x960, and the limit was real -- the disc
+    // was sized as a fraction of the frame, so a 4K frame meant a 4K
+    // planet and every one of its 8.3 million pixels took the expensive
+    // shaded path. Now that the disc is sized by the sky it covers
+    // about 200 px however wide the sensor is, the moons walk their own
+    // bounding boxes instead of being tested against every pixel, and
+    // the rest of the frame is background. So the cap can be what the
+    // sensor actually is.
+    //
+    // It matters beyond frame rate: at 1280x960 the emulated field was
+    // 4.3 arcmin and Jupiter's moons fell outside it, which made the
+    // one thing this emulator is for -- checking a field of view
+    // indoors -- impossible. The full sensor is 14 arcmin and holds
+    // Io, Europa and Ganymede, with Callisto in and out as it swings.
+    static constexpr int EMU_MAX_ROI_W = 3840;
+    static constexpr int EMU_MAX_ROI_H = 2160;
 
     bool SetROI(int width, int height, int binning, ASI_IMG_TYPE imgType) {
         if (!m_isOpen) return false;
@@ -248,10 +278,22 @@ public:
     bool SetStartPos(int /*x*/, int /*y*/)      { return true; } // no-op in emulator
 
     // ── Phase 52: closed-loop pointing input ───────────────────
-    // Plate scale of the synthetic frames (arcsec/pixel). Deliberately NOT
-    // the value CentroidTracker assumes for the real rig — a realistic
-    // mismatch the Phase 51 calibration must measure, not assume.
-    static constexpr float EMU_PLATE_SCALE_AS_PX = 0.61f;
+    // Plate scale of the synthetic frames (arcsec/pixel). This is the
+    // scale of the whole synthetic sky: the disc, the rings, the moons
+    // and the pointing-error injection all divide by it, because they
+    // are all on the same sky and a renderer with two scales is a
+    // renderer that is wrong somewhere.
+    //
+    // Phase 91: was 0.61, chosen only as a deliberate mismatch against
+    // the 0.203 CentroidTracker assumes, so the Phase 51 calibration
+    // had something real to measure. That intent is kept -- this is
+    // still NOT the assumed value -- but 3x was never a realistic error
+    // for a rig to have about its own focal length, and at 0.61 the
+    // synthetic field was three times too wide for the rig it stands
+    // in for. 0.223 is 10% off: the size of error an actual C8 has
+    // between its nominal 2032 mm and what it really is, which is the
+    // error calibration exists to find.
+    static constexpr float EMU_PLATE_SCALE_AS_PX = 0.223f;
 
     // Provider returns the mount's pointing error (target − pointing) in
     // arcsec; the planet renders displaced from frame centre by that error.
@@ -633,7 +675,13 @@ private:
         const int   W  = m_roiW, H = m_roiH;
         const float CX = W*0.5f, CY = H*0.5f;
         const EmuTargetDef& TG = EMU_TARGETS[m_target];
-        const float JR = H*TG.radiusFrac, JRy = JR*(1.0f-TG.oblate);
+        // Phase 91: pixels per arcsecond, so the disc is the size the
+        // sky makes it and the frame decides how much sky is in it.
+        // A floor of 2 px keeps a distant target from collapsing to
+        // nothing if the scale is ever configured absurdly.
+        const float JR  = (std::max)(2.0f,
+                              TG.radiusArcsec / EMU_PLATE_SCALE_AS_PX);
+        const float JRy = JR*(1.0f-TG.oblate);
         const float ROT = 9.9f*3600.0f, PI = 3.14159265f;
         const float iR = 1.0f/JR, iRy = 1.0f/JRy;
         static const int LUT_N = 512;
@@ -727,13 +775,32 @@ private:
                 float angle = (2.f*PI*tSurf/(moon.period_d*86400.f)) + m*1.1f;
                 moonPos[m].x  = PCX + JR*moon.dist*cosf(angle);
                 moonPos[m].y  = PCY + JRy*0.15f*sinf(angle);
-                moonPos[m].r  = moon.radius_px_base;
+                // Two pixels minimum: below that a moon stops being a
+                // thing you can see and the emulator stops being able
+                // to show you whether it is in frame.
+                moonPos[m].r  = (std::max)(2.0f,
+                                    moon.radiusArcsec / EMU_PLATE_SCALE_AS_PX);
                 float b = brightness>1.f?1.f:brightness;
                 moonPos[m].r8 = (uint8_t)(moon.r*b*255.f);
                 moonPos[m].g8 = (uint8_t)(moon.g*b*255.f);
                 moonPos[m].b8 = (uint8_t)(moon.b*b*255.f);
             }
             const uint8_t bgVal = (uint8_t)(4.f*brightness);
+
+            // Phase 91: hoisted out of the per-pixel loop.
+            //
+            // m_frameCounter is a std::atomic, and it was being read
+            // once per PIXEL -- 8.3 million atomic loads a frame at the
+            // full sensor. On x86 the load itself is cheap, but the
+            // compiler may not hoist it or vectorise around it, so the
+            // whole inner loop was pinned to scalar code for the sake
+            // of a value that does not change within a frame. Same for
+            // the noise amplitude and the ring flag: members reachable
+            // through `this`, reloaded because the writes to backBuf
+            // could in principle alias them.
+            const uint32_t frameSalt = (uint32_t)m_frameCounter * 83492791u;
+            const int      noiseAmp  = m_noiseAmp;
+            const bool     hasRings  = (TG.ringOuter > 0.0f);
 
             // Main loop — LUT lookup + sqrtf only, no asinf/sinf/fmod per pixel
             for (int py = 0; py < H; py++) {
@@ -755,27 +822,28 @@ private:
                         rv = (uint8_t)(e.r*br>255?255:e.r*br);
                         gv = (uint8_t)(e.g*br>255?255:e.g*br);
                         bv = (uint8_t)(e.b*br>255?255:e.b*br);
-                    } else if (TG.ringOuter > 0.0f &&
+                    } else if (hasRings &&
                                RingSample(px, py, PCX, PCY, JR, TG,
                                           brightness, rv, gv, bv)) {
                         // On the ring system - RingSample filled rv/gv/bv.
                     } else {
                         uint32_t h = (uint32_t)(px*7919+py*6271);
                         h^=h>>16; h*=0x45d9f3b; h^=h>>16;
-                        uint8_t sv = ((h%3000)==0) ?
-                            (uint8_t)(((h%200)/200.f)*brightness*255.f) : bgVal;
+                        // Masks, not modulo. Two integer divisions per
+                        // background pixel is 16 million divisions on a
+                        // full-sensor frame, for a sprinkle of faint
+                        // stars. 1-in-4096 is the same sparseness.
+                        uint8_t sv = ((h & 4095u)==0) ?
+                            (uint8_t)((((h>>12)&255u)/255.f)*brightness*255.f)
+                            : bgVal;
                         rv=gv=bv=sv;
-                    }
-                    for (int m=0; m<(TG.moons ? NUM_JUP_MOONS : 0); m++) {
-                        float mdx=px-moonPos[m].x, mdy=py-moonPos[m].y, mr=moonPos[m].r;
-                        if (mdx*mdx+mdy*mdy < mr*mr) { rv=moonPos[m].r8; gv=moonPos[m].g8; bv=moonPos[m].b8; }
                     }
                     bool eR=(py%2==0), eC=(px%2==0);
                     uint8_t mv = (eR&&eC)?rv:(!eR&&!eC)?bv:gv;
-                    if (m_noiseAmp > 0) {
+                    if (noiseAmp > 0) {
                         uint32_t hh = (uint32_t)px * 73856093u
                                     ^ (uint32_t)py * 19349663u
-                                    ^ (uint32_t)m_frameCounter * 83492791u;
+                                    ^ frameSalt;
                         hh ^= hh >> 13; hh *= 0x5bd1e995u; hh ^= hh >> 15;
                         const int nz = (int)(hh & 1023u) - 512;   // -512..511
                         // The +m_noiseAmp pedestal stands in for a sensor
@@ -786,11 +854,52 @@ private:
                         // any estimator calibrated on the background
                         // under-corrects. Real sensors carry an offset for
                         // exactly this reason.
-                        int val = (int)mv + m_noiseAmp
-                                + (nz * m_noiseAmp) / 512;
+                        int val = (int)mv + noiseAmp
+                                + (nz * noiseAmp) / 512;
                         mv = (uint8_t)(val < 0 ? 0 : (val > 255 ? 255 : val));
                     }
                     backBuf[py*W+px] = mv;
+                }
+            }
+
+            // ── Moons, after the disc ─────────────────────────
+            //
+            // Phase 91: these used to be four distance tests inside the
+            // per-pixel loop, which on a full-sensor frame is 33 million
+            // tests to paint about three hundred pixels. Each moon now
+            // walks only its own bounding box, clipped to the frame --
+            // and clipping is the whole point, because a moon at
+            // elongation genuinely falls off the edge of this sensor and
+            // the emulator has to be able to show that.
+            for (int m = 0; m < (TG.moons ? NUM_JUP_MOONS : 0); m++) {
+                const float mx = moonPos[m].x, my = moonPos[m].y;
+                const float mr = moonPos[m].r, mr2 = mr*mr;
+                int x0 = (int)floorf(mx - mr), x1 = (int)ceilf(mx + mr);
+                int y0 = (int)floorf(my - mr), y1 = (int)ceilf(my + mr);
+                if (x1 < 0 || y1 < 0 || x0 >= W || y0 >= H) continue;
+                if (x0 < 0) x0 = 0;  if (y0 < 0) y0 = 0;
+                if (x1 > W-1) x1 = W-1;  if (y1 > H-1) y1 = H-1;
+                for (int py = y0; py <= y1; py++) {
+                    const float mdy = py - my, mdy2 = mdy*mdy;
+                    for (int px = x0; px <= x1; px++) {
+                        const float mdx = px - mx;
+                        if (mdx*mdx + mdy2 >= mr2) continue;
+                        const bool eR = (py%2==0), eC = (px%2==0);
+                        uint8_t mv = (eR&&eC) ? moonPos[m].r8
+                                   : (!eR&&!eC) ? moonPos[m].b8
+                                   : moonPos[m].g8;
+                        if (noiseAmp > 0) {
+                            uint32_t hh = (uint32_t)px * 73856093u
+                                        ^ (uint32_t)py * 19349663u
+                                        ^ frameSalt;
+                            hh ^= hh >> 13; hh *= 0x5bd1e995u; hh ^= hh >> 15;
+                            const int nz = (int)(hh & 1023u) - 512;
+                            int val = (int)mv + noiseAmp
+                                    + (nz * noiseAmp) / 512;
+                            mv = (uint8_t)(val < 0 ? 0 : (val > 255 ? 255 : val));
+                        }
+                        backBuf[py*W+px] = mv;
+                    }
                 }
             }
 
@@ -867,6 +976,14 @@ private:
             m_frameCounter++;
             int renderMs = (int)std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now()-frameStart).count();
+            // Phase 91: the emulator's frame rate is a property of this
+            // renderer, and it was only ever known by inference from the
+            // app's fps readout -- which also contains the app. Say it
+            // directly, once every few seconds.
+            if ((m_frameCounter % 120) == 0)
+                printf("[EMU] render %dx%d: %d ms (%.1f fps ceiling)\n",
+                       W, H, renderMs,
+                       renderMs > 0 ? 1000.0 / renderMs : 999.0);
             if (renderMs < TARGET_MS)
                 std::this_thread::sleep_for(std::chrono::milliseconds(TARGET_MS-renderMs));
         }
@@ -875,7 +992,7 @@ private:
     ASI_CAMERA_INFO             m_info{};
     bool                        m_isOpen      = false;
     bool                        m_isCapturing = false;
-    int                         m_roiW = 1280, m_roiH = 960;
+    int                         m_roiW = 3840, m_roiH = 2160;
     int                         m_usbBandwidth = 80;
     bool                        m_highSpeed    = true;
     int                         m_binning = 1;

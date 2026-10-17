@@ -777,14 +777,63 @@ and the real cause behind it — the emulator's defocus blur — is fixed.
 |---|---|---|---|---|
 | 1 | **GoTo and AI Chat font scaling** (P3.3, the rest) | Bench | M–H | The largest thing left from the owner's own list. Help is done and proved the pattern (`ef736e1`); the map is done (P3.4, which turned out to be open after all). `GoToPanel.h` is 1902 lines with **no `WM_SIZE` handler at all** and is the densest layout in the app, which is why it was left for last. `AIChatPanel.h` still unexamined |
 | 2 | **Night-vision repaint beyond the layout list** (D3) | Bench | XS–S | Cheap, and the risk keeps compounding: `kPlacedWindows` is the *sixth* list in `main.cpp` that silently depends on being complete, and it grew twice this week. Phase 90 answered it locally by iterating a `kMaps[]` array instead of repeating lines; this is the same idea applied to the window list |
-| 3 | **Emulator frame rate above 20 fps** (P4.3, rescoped) | Bench | S | The replay buffer this was filed as is **not needed** — the 16 fps was `sleep_for` rounding, and in the app `timeBeginPeriod(1)` already gets it to 19.6. What is left is that `TARGET_MS = 50` hard-caps the emulator at 20 fps, so the decoupled recording path, the run-sized write buffer and the SER writer have still never been exercised at the 120 fps they were built for. Make the rate configurable and the bench can finally run at 147 MB/s — which is the only way clear-night item 13 gets de-risked indoors |
-| 4 | **Xbox controller input** (P4.1) | Bench | M | Feasibility proven on this machine. Needs `SlewVariable()` on the mount first, or the stick is a nine-position switch — plus a controller and **an adapter, since this machine has no Bluetooth** |
-| 5 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
-| 6 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
+| 3 | **Xbox controller input** (P4.1) | Bench | M | Feasibility proven on this machine. Needs `SlewVariable()` on the mount first, or the stick is a nine-position switch — plus a controller and **an adapter, since this machine has no Bluetooth** |
+| 4 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
+| 5 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
 | — | **Emulator blur, further** (P4.4a tail) | Bench | S | Only if full-sensor bench work becomes routine. 128 ms of honest work remains and would need SIMD or fewer passes. Focusing the emulated EAF to 168000 skips it entirely today |
 | — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3; see the memory note about keeping Windows Update away from the GPU drivers |
 
-### P4.3 · Emulator frame rate — **premise corrected 2026-10-17**
+### P4.3 · Emulator frame rate — DONE 2026-10-17
+
+`RADUK_EMU_FPS=N` lifts the 20 fps cap. Measured in the app, not just
+on the bench: **1280×960 at 120.3 fps, 147.5 MB/s, zero drops** —
+which is the rate and the throughput clear-night item 13 exists to
+de-risk, and which had never once been reached indoors.
+
+Three things were wrong, not one:
+
+1. `TARGET_MS = 50` was a hard 20 fps ceiling.
+2. `sleep_for(TARGET_MS - renderMs)` sleeps for a DURATION measured
+   after the work, so each frame's error fed the next, and at the
+   default timer granularity it rounded 50 ms up to 62.4. That is the
+   whole of the long-reported "16 fps". It is `sleep_until` a running
+   deadline now.
+3. Lifting the cap alone left every format pinned at exactly 64 fps —
+   15.6 ms, the timer tick again. `Window::Run` raises the resolution
+   for the app's own loop, which is why the app saw 19.6 where a bench
+   harness saw 15.9; depending on that is depending on a side effect
+   of the GUI. The generator raises it for the life of a capture now.
+
+A frame is also never delivered faster than it is exposed. An emulator
+that beat its own exposure would validate the pipeline against a
+regime that cannot occur live, which is the trap the Phase 52 note
+describes for `GetVideoFrame`.
+
+**The one thing to know when using it:** the defocus blur dominates at
+high rates. Measured at 1280×960 asking 120 —
+
+| | delivered | render |
+|---|---|---|
+| no focuser | 120.2 fps | 4.0 ms |
+| focuser **at** true focus | 120.0 fps | 4.0 ms |
+| focuser 1500 steps out | **41.8 fps** | 22.0 ms |
+
+So set `RADUK_EMU_TRUE_FOCUS` to wherever the emulated EAF actually
+is, or `RADUK_EMU_BLUR_PX_STEP=0`, for a high-rate bench run. Leave it
+defocused for autofocus work, where the blur is the point.
+
+**Still unproven: the WRITE path at 120 fps.** The run above exercises
+camera to capture thread to ring, which is most of the pipeline and
+all of what was previously impossible. Driving an actual recording at
+that rate needs the record button pressed — the WM_COMMAND id did not
+reach the panel from outside — so the run-sized write buffer and the
+SER writer have still not been seen at 147 MB/s. That is now a
+five-minute manual check rather than a blocked one: launch with
+`RADUK_EMU_FPS=120`, set 1280×960, press record, watch BUF and DROPS.
+
+`tests/manual-emulator-delivery-rate.cpp` reproduces the table.
+
+### P4.3 · the original entry, **premise corrected 2026-10-17**
 
 > **The diagnosis below was wrong, and the correction is worth more
 > than the plan was.** Driven directly, with no app around it, the

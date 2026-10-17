@@ -18,6 +18,8 @@
 #define NOMINMAX  // keep windows.h min/max macros away from std::min/max
 #endif
 #include <windows.h>
+#include <timeapi.h>
+#pragma comment(lib, "winmm.lib")   // timeBeginPeriod, for frame pacing
 #include <cstdlib>
 #include <vector>
 #include <string>
@@ -309,6 +311,36 @@ public:
     // Seeing-like centroid wander amplitude, arcsec.
     void SetSeeingJitterArcsec(float amp) { m_jitterAs = amp; }
 
+    // ── Delivery rate (P4.3) ──────────────────────────────────
+    //
+    // Frames per second the generator aims for. 20 is the historical
+    // value and stays the default, so nothing changes for anyone who
+    // does not ask. Set before StartVideoCapture: the generator thread
+    // reads it once, unguarded, like the other providers here.
+    //
+    // The real limit is still what the renderer can produce. At the
+    // full sensor it cannot make a frame in 8 ms whatever this says;
+    // at 640x480, the format high frame rates are actually used at, it
+    // can.
+    void SetTargetFps(double fps) {
+        m_targetFps = (fps < 0.1) ? 0.1 : ((fps > 1000.0) ? 1000.0 : fps);
+    }
+    double TargetFps() const { return m_targetFps; }
+
+    // Frames per second the generator is really managing, smoothed.
+    double GeneratedFps() const {
+        return m_genFps.load(std::memory_order_relaxed);
+    }
+    // The exposure the pacing is honouring, in ms. A camera cannot
+    // deliver faster than it exposes, and this says what that floor is.
+    double ExposureMsForPacing() const { return (double)m_exposureUs / 1000.0; }
+    // How long one frame takes to MAKE, as opposed to how long the
+    // generator then waits. If these two do not add up to the period,
+    // the time is going somewhere neither of them is looking.
+    double RenderMs() const {
+        return m_genRenderMs.load(std::memory_order_relaxed);
+    }
+
     // ── Defocus (Phase 73) ────────────────────────────────────
     // Until this existed the synthetic planet was equally sharp at every
     // focuser position, so an autofocus sweep fitted a parabola to noise
@@ -428,6 +460,23 @@ public:
         m_isCapturing = true;
         m_frameCounter = 0;
 
+        // ── 1 ms timer resolution, for the life of the capture ──
+        //
+        // Frame pacing is a sleep, and at the default granularity a
+        // sleep rounds up to the next 15.6 ms tick -- so whatever rate
+        // is asked for, delivery lands on a multiple of 64 fps. That is
+        // the whole of the emulator's long-reported "16 fps" (62.4 ms
+        // is four ticks) and it reappeared the moment the 20 fps cap
+        // came off: every format plateaued at 64.
+        //
+        // Window::Run already raises it for the app's own loop, which
+        // is why the app saw 19.6 fps where a bench harness saw 15.9.
+        // Depending on that is depending on a side effect of the GUI;
+        // the generator needs it whoever is running it. The calls nest
+        // and are reference counted, so doing both is correct.
+        timeBeginPeriod(1);
+        m_timerRaised = true;
+
         // Pre-render one frame synchronously so GetVideoFrame succeeds immediately
         // — prevents NO SIGNAL flash on startup before generator thread runs
         {
@@ -481,6 +530,10 @@ public:
         if (!m_isCapturing) return;
         m_isCapturing = false;
         if (m_genThread.joinable()) m_genThread.join();
+        // Released here rather than at Close: raised timer resolution
+        // costs power across the whole system, and a stopped camera has
+        // no reason to hold it.
+        if (m_timerRaised) { timeEndPeriod(1); m_timerRaised = false; }
         printf("[CameraEmulator] Video capture stopped — %llu frames generated\n",
                m_frameCounter.load());
     }
@@ -690,7 +743,24 @@ private:
         struct MoonPos { float x, y, r; uint8_t r8, g8, b8; };
         MoonPos moonPos[NUM_JUP_MOONS];
         std::vector<uint8_t> backBuf(W*H, 0);
-        const int TARGET_MS = 50;
+        // ── Frame pacing (P4.3) ───────────────────────────
+        //
+        // This was a fixed 50 ms, so the emulator could never deliver
+        // more than 20 fps. Planetary capture is a 100-200 fps game at
+        // a small ROI, which meant the decoupled recording path, the
+        // run-sized write buffer and the SER writer had never once been
+        // exercised at the rate they were built for -- only at a fifth
+        // of it. The cap, not the renderer, was the limit: a 640x480
+        // frame takes a couple of milliseconds to make.
+        //
+        // sleep_for(TARGET_MS - renderMs) was also the wrong shape. It
+        // sleeps for a DURATION measured after the work, so every
+        // frame's error accumulates into the next, and at the default
+        // Windows timer granularity it rounded 50 ms up to 62.4 --
+        // which is where the emulator's long-reported "16 fps" came
+        // from. sleep_until a running deadline has no such drift.
+        const double periodMs = 1000.0 / m_targetFps;
+        auto nextDue = std::chrono::steady_clock::now();
         auto startTime = std::chrono::steady_clock::now();
 
         while (m_isCapturing) {
@@ -982,12 +1052,50 @@ private:
             // renderer, and it was only ever known by inference from the
             // app's fps readout -- which also contains the app. Say it
             // directly, once every few seconds.
+            m_genRenderMs.store((double)renderMs, std::memory_order_relaxed);
             if ((m_frameCounter % 120) == 0)
                 printf("[EMU] render %dx%d: %d ms (%.1f fps ceiling)\n",
                        W, H, renderMs,
                        renderMs > 0 ? 1000.0 / renderMs : 999.0);
-            if (renderMs < TARGET_MS)
-                std::this_thread::sleep_for(std::chrono::milliseconds(TARGET_MS-renderMs));
+            // A real camera cannot deliver frames faster than it can
+            // expose them, and an emulator that does would validate the
+            // pipeline against a regime that cannot occur live -- the
+            // same trap the Phase 52 note describes for GetVideoFrame.
+            const double expMs  = (double)m_exposureUs / 1000.0;
+            const double period = (periodMs > expMs) ? periodMs : expMs;
+
+            // What the generator is ACTUALLY producing, as opposed to
+            // what it was asked for. Separating this from the rate the
+            // app takes frames at is the measurement that was missing
+            // every time this came up: "the camera is slow" and "we
+            // are slow at collecting" look identical from outside.
+            {
+                const auto nowG = std::chrono::steady_clock::now();
+                if (m_genLast.time_since_epoch().count() != 0) {
+                    const double dt = std::chrono::duration<double>(
+                                          nowG - m_genLast).count();
+                    if (dt > 0.0) {
+                        const double inst = 1.0 / dt;
+                        const double prev = m_genFps.load(
+                                                std::memory_order_relaxed);
+                        m_genFps.store(prev <= 0.0 ? inst
+                                                   : prev * 0.9 + inst * 0.1,
+                                       std::memory_order_relaxed);
+                    }
+                }
+                m_genLast = nowG;
+            }
+
+            nextDue += std::chrono::microseconds((long long)(period * 1000.0));
+            const auto now2 = std::chrono::steady_clock::now();
+            if (nextDue > now2) {
+                std::this_thread::sleep_until(nextDue);
+            } else {
+                // Behind. Do not try to catch up: a burst of frames
+                // emitted back to back is not something a camera does,
+                // and it would hide the overrun being measured.
+                nextDue = now2;
+            }
         }
     }
 
@@ -1029,6 +1137,11 @@ private:
     bool                        m_freezeSurface = false;
     int                         m_noiseAmp      = 0;
     float                       m_seeingBlurAs  = 0.0f;
+    double                      m_targetFps     = 20.0;   // P4.3
+    bool                        m_timerRaised   = false;  // P4.3
+    std::atomic<double>         m_genFps{0.0};            // P4.3
+    std::atomic<double>         m_genRenderMs{0.0};       // P4.3
+    std::chrono::steady_clock::time_point m_genLast{};    // generator only
     int                         m_peakTargetDn  = 0;
     int                         m_target        = 0;   // index into EMU_TARGETS
     std::vector<int>            m_blurScratch;   // generator thread only

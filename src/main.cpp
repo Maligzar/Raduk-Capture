@@ -837,6 +837,20 @@ static int RunApp(bool useEmulator) {
         if (GetEnvironmentVariableA("RADUK_EMU_NOISE", fb, 32))
             noiseDn = atoi(fb);
         cam.SetNoiseAmplitude(noiseDn);
+        // RADUK_EMU_FPS=N lifts the emulator's 20 fps delivery cap.
+        // Planetary capture is a 100-200 fps game at a small ROI, and
+        // until this existed the decoupled recording path, the
+        // run-sized write buffer and the SER writer had never been run
+        // above 20 -- a fifth of what they were built for. 640x480 at
+        // 120 fps is 37 MB/s; at 200 it is 61.
+        if (GetEnvironmentVariableA("RADUK_EMU_FPS", fb, 32)) {
+            const double want = atof(fb);
+            if (want > 0.0) {
+                cam.SetTargetFps(want);
+                Log("[EMU] delivery rate set to %.0f fps (RADUK_EMU_FPS)\n",
+                    cam.TargetFps());
+            }
+        }
         // RADUK_EMU_SEEING_AS gives frames a per-frame atmospheric
         // blur, so frame QUALITY varies and not just position. Without
         // it every frame is equally sharp and the seeing score, the
@@ -4259,6 +4273,16 @@ static int RunApp(bool useEmulator) {
                 tLoop - (tRender + tPanels + tEnd) / tPasses,
                 stats.fps.load(),
                 (unsigned long long)stats.droppedFrames.load());
+#ifdef RADUK_EMULATOR
+            // What the synthetic camera is really producing, beside the
+            // rate we collect at. Without both numbers "the camera is
+            // slow" and "we are slow at collecting" look the same.
+            Log("[PERF]   emulator generating %.1f fps  (asked %.0f, "
+                "exposure floor %.1f ms)\n",
+                cam.GeneratedFps(), cam.TargetFps(),
+                cam.ExposureMsForPacing());
+            Log("[PERF]   emulator render %.1f ms/frame\n", cam.RenderMs());
+#endif
             tRender = tPanels = tEnd = 0.0;
             tPasses = 0;
             tLast   = PClock::now();

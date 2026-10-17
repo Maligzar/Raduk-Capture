@@ -320,6 +320,7 @@ fullscreen.
 | `Shift+D` | Close or reopen the **status window** — capture health and free space on every drive. |
 | `Shift+A` | **ADC alignment window** — for dialling in a dispersion corrector. Inert unless *ADC fitted* is ticked on the READY screen. |
 | `Shift+V` | **Share view** — the image alone, filling a second screen, for people who are not you. See **The share view**. |
+| `Ctrl+Shift+V` | Share view in and out of a **movable window**. Works from the control screen, which is the point. |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |
@@ -859,8 +860,22 @@ screen when you open it, which matters — the arrow keys jog the
 mount, and a window that quietly captured them would be a hazard
 rather than an inconvenience.
 
-Inside it: `C` hides the caption, for photographing the screen. `F11`
-and `Esc` leave and re-enter fullscreen.
+**Getting it back into a movable window:** `Ctrl+Shift+V`, from the
+control screen. It fills its screen borderlessly, so there is no
+caption to drag and no close button, and it does not take focus on its
+own — which is why the way out is a key you press where you are
+standing rather than one you press over there. Once it is windowed it
+has a normal caption and edges, so drag and resize it as usual, and
+`Ctrl+Shift+V` again puts it back. Whichever state you leave it in is
+the state it comes back in next time you open it.
+
+A reminder of all this appears across the top for a few seconds
+whenever the view goes fullscreen, then fades so the screen is clean.
+
+If you click on the view it takes focus, and then `F11` fills and
+unfills the screen and `C` hides the caption for photographing it.
+Those two keys are the only ones this window takes — everything else,
+`Escape` above all, still goes where it always goes.
 
 **Where it opens.** On whatever screen your saved layout puts it — it
 is an ordinary workspace role called `share`. Drag it where you want

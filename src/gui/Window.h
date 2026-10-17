@@ -45,6 +45,7 @@ public:
     void SetPauseHandler(std::function<void()> h)             { m_onPause              = h; }
     void SetRGBAlignHandler(std::function<void()> h)          { m_onRGBAlign           = h; }
     void SetShareViewToggleHandler(std::function<void()> h)   { m_onShareViewToggle    = h; }  // Shift+V
+    void SetShareViewFullscreenHandler(std::function<void()> h){ m_onShareViewFullscreen = h; } // Ctrl+Shift+V
     void SetPixelReadoutHandler(std::function<void()> h)      { m_onPixelReadout        = h; }
     void SetFXCycleHandler(std::function<void()> h)           { m_onFXCycle             = h; }
     void SetStackLastHandler(std::function<void()> h)         { m_onStackLast           = h; }
@@ -223,6 +224,7 @@ private:
     std::function<void()>               m_onPause;
     std::function<void()>               m_onRGBAlign;
     std::function<void()>               m_onShareViewToggle;
+    std::function<void()>               m_onShareViewFullscreen;
     std::function<void()>               m_onPixelReadout;
     std::function<void()>               m_onFXCycle;
     std::function<void()>               m_onStackLast;

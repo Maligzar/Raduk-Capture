@@ -73,13 +73,29 @@ public:
         wc.lpszClassName = L"RadukShareView";
         RegisterClassExW(&wc);
 
-        // WS_EX_NOACTIVATE: showing this must never move focus off the
-        // control screen. The owner presses Shift+V with one hand while
-        // doing something else, and a keystroke that silently redirects
-        // the NEXT keystroke -- including the arrow keys, which jog the
-        // mount -- is a safety problem and not an annoyance.
+        // No WS_EX_NOACTIVATE.
+        //
+        // It was here for a good reason: showing this must never move
+        // focus off the control screen, because the owner presses
+        // Shift+V with one hand while doing something else, and a
+        // keystroke that silently redirects the NEXT keystroke --
+        // including the arrow keys, which jog the mount -- is a safety
+        // problem and not an annoyance.
+        //
+        // But NOACTIVATE does not mean "do not take focus when shown".
+        // It means the window can NEVER be focused, by any route --
+        // not by clicking it, not through Alt-Tab. Combined with a
+        // borderless fullscreen window, which has no caption to drag
+        // and no close button, that left the view with no way in and
+        // no way out: F11, Escape and C could not arrive, and hiding
+        // and reshowing it only made it fullscreen again.
+        //
+        // SW_SHOWNA on Show() is what actually keeps the promise --
+        // it shows without activating. Focus is then available to
+        // anyone who deliberately clicks on the window, which is the
+        // only way it should ever be taken.
         m_hwnd = CreateWindowExW(
-            WS_EX_NOACTIVATE,
+            0,
             L"RadukShareView", L"RadukCapture — View",
             WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_SIZEBOX | WS_MAXIMIZEBOX,
             x, y, w, h,
@@ -97,16 +113,23 @@ public:
         if (m_hwnd) { DestroyWindow(m_hwnd); m_hwnd = nullptr; }
     }
 
-    HWND Handle()    const { return m_hwnd; }
-    bool IsVisible() const { return m_hwnd && IsWindowVisible(m_hwnd); }
+    HWND Handle()      const { return m_hwnd; }
+    bool IsVisible()   const { return m_hwnd && IsWindowVisible(m_hwnd); }
+    bool IsFullscreen() const { return m_full; }
 
     void Show() {
         if (!m_hwnd) return;
-        // SW_SHOWNA, not SW_SHOW: show without activating, to match the
-        // WS_EX_NOACTIVATE promise above.
+        // SW_SHOWNA, not SW_SHOW: shows without activating, which is
+        // what keeps focus on the control screen.
         ShowWindow(m_hwnd, SW_SHOWNA);
-        FillMonitor();
+        // Only fill the screen if that is the state it was left in.
+        // Filling unconditionally meant F11 could put it in a window
+        // and the next Shift+V would undo that -- so a view that had
+        // been made movable could not be kept movable.
+        if (m_wantFull) FillMonitor();
         m_lastPresent = {};              // present the next frame at once
+        m_hintUntil = std::chrono::steady_clock::now()
+                    + std::chrono::seconds(8);
         Redraw();
     }
     void Hide()   { if (m_hwnd) ShowWindow(m_hwnd, SW_HIDE); }
@@ -188,7 +211,29 @@ public:
         m_full = false;
     }
 
-    void ToggleFullscreen() { m_full ? RestoreWindowed() : FillMonitor(); }
+    // m_wantFull is what the owner last asked for, and survives hiding
+    // and reshowing; m_full is what the window currently is.
+    void ToggleFullscreen() {
+        m_wantFull = !m_full;
+        m_full ? RestoreWindowed() : FillMonitor();
+        // Deliberate, and the one place focus is taken: the owner has
+        // just asked for this window specifically. Without it, F11
+        // pressed from the control screen would restore a window that
+        // still could not receive the next key.
+        if (m_hwnd && IsWindowVisible(m_hwnd)) SetForegroundWindow(m_hwnd);
+        // Going fullscreen is the moment the caption and the close box
+        // disappear, so it is the moment to say how to get them back.
+        if (m_full) ShowHint(); else Redraw();
+    }
+
+    // Fullscreen without the caption, and not focused, is a window with
+    // no visible way out. The hint says how, then gets out of the way
+    // so the screen is clean for the people it is pointed at.
+    void ShowHint() {
+        m_hintUntil = std::chrono::steady_clock::now()
+                    + std::chrono::seconds(8);
+        Redraw();
+    }
 
 private:
     // ── D2D ────────────────────────────────────────────────────
@@ -295,9 +340,39 @@ private:
         }
 
         if (m_showCaption) DrawCaption();
+        DrawHint();
 
         HRESULT hr = m_rt->EndDraw();
         if (hr == D2DERR_RECREATE_TARGET) { ReleaseD2D(); InitD2D(); }
+    }
+
+    // Top-left, dim, and only for the first few seconds after the view
+    // is shown or its fullscreen state changes. A borderless window
+    // with no caption and no focus gives no clue how to leave it, and
+    // the answer has to be on the window itself -- the owner reading
+    // it is standing at a different screen from the help file.
+    void DrawHint() {
+        if (!m_full || !m_smallFormat) return;
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= m_hintUntil) return;
+
+        const double left = std::chrono::duration<double>(
+                                m_hintUntil - now).count();
+        const float a = (float)((left < 1.5) ? left / 1.5 : 1.0) * 0.6f;
+
+        ID2D1SolidColorBrush* b = nullptr;
+        m_rt->CreateSolidColorBrush(
+            Theme::NVf(D2D1::ColorF(0.60f, 0.75f, 0.90f, a)), &b);
+        if (!b) return;
+        const wchar_t* t = L"Ctrl+Shift+V on the control screen for a window"
+                           L"  ·  Shift+V closes it"
+                           L"  ·  or click here, then F11 / C";
+        const float pad = (std::max)(24.0f, (float)m_w / 60.0f);
+        m_smallFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+        m_rt->DrawText(t, (UINT32)wcslen(t), m_smallFormat,
+                       D2D1::RectF(pad, pad, (float)m_w - pad,
+                                   pad + m_fontPx), b);
+        b->Release();
     }
 
     void DrawCentredNotice(const wchar_t* text) {
@@ -429,13 +504,42 @@ private:
             }
             case WM_ERASEBKGND: return 1;
 
-            // WS_EX_NOACTIVATE means these only arrive if the window has
-            // somehow been focused anyway. Handled so that someone who
-            // does click on it is not stuck in a borderless window with
-            // no caption and no way out.
+            // A click is how this window gets focus, so it is also the
+            // moment to say what the keys are -- and to make sure the
+            // click that took focus actually raised it.
+            case WM_LBUTTONDOWN:
+                SetForegroundWindow(hwnd);
+                self->ShowHint();
+                return 0;
+
+            // ── Claiming our own keys ─────────────────────────
+            //
+            // Window::RouteThreadKey intercepts every key message in
+            // the thread before dispatch, so that the app's hotkeys
+            // work whichever window holds focus. That is deliberate and
+            // right -- but it means a secondary window's own key
+            // handler never runs. F11 pressed here was going to the
+            // MAIN window's fullscreen toggle, which is how the share
+            // view ended up unable to leave fullscreen.
+            //
+            // The escape hatch already exists and is the one edit boxes
+            // use: answer WM_GETDLGCODE. Claim ONLY the two keys this
+            // window owns, so every other hotkey still works from here.
+            //
+            // Escape is deliberately NOT claimed. It is the emergency
+            // stop, it must reach the mount from every window, and an
+            // emergency stop conditional on which window has focus is
+            // not one. F11 toggles both ways, so nothing is lost.
+            case WM_GETDLGCODE:
+                if (lp && (wp == VK_F11 || wp == 'C'))
+                    return DLGC_WANTMESSAGE;
+                return 0;
+
+            // These arrive once the window has been clicked. That is
+            // the only way it ever takes focus, and the reason the
+            // hint's first words are "click here first".
             case WM_KEYDOWN:
-                if (wp == VK_F11)   { self->ToggleFullscreen(); return 0; }
-                if (wp == VK_ESCAPE){ self->RestoreWindowed();  return 0; }
+                if (wp == VK_F11) { self->ToggleFullscreen(); return 0; }
                 if (wp == 'C') {
                     self->m_showCaption = !self->m_showCaption;
                     self->Redraw();
@@ -467,13 +571,15 @@ private:
     int   m_bmpW = 0, m_bmpH = 0;
     bool  m_haveFrame   = false;
     bool  m_showCaption = true;
-    bool  m_full        = false;
+    bool  m_full        = false;   // what the window is
+    bool  m_wantFull    = true;    // what the owner last asked for
     float m_fontPx      = 0.0f;
     double m_maxFps     = 30.0;
 
     Caption          m_cap;
     WINDOWPLACEMENT  m_savedPlacement = { sizeof(WINDOWPLACEMENT) };
     std::chrono::steady_clock::time_point m_lastPresent{};
+    std::chrono::steady_clock::time_point m_hintUntil{};
 };
 
 } // namespace raduk::gui

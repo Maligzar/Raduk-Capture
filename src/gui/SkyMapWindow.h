@@ -1145,17 +1145,32 @@ private:
                 self->OnResize(LOWORD(lParam), HIWORD(lParam));
                 return 0;
 
-            // This window had no key handling whatsoever. F11 matches the
-            // main window's fullscreen key; Escape is the way back out,
-            // which matters because fullscreen removes the caption bar and
-            // with it every visible way to restore the window.
+            // ── Claiming F11 ──────────────────────────────────
+            //
+            // This handler has been dead since Phase 60. RouteThreadKey
+            // intercepts every key message in the thread before
+            // dispatch so the app's hotkeys work from any window --
+            // right, and deliberate -- but it also means F11 pressed
+            // with the map focused went to the MAIN window's fullscreen
+            // toggle and this case never ran. It was verified with
+            // SendMessage at the time, which bypasses the pump, so the
+            // test passed and the feature did not work.
+            //
+            // The escape hatch is the one edit boxes already use:
+            // answer WM_GETDLGCODE for the key we own, and only that
+            // key, so every other hotkey still reaches the main window
+            // from here.
+            //
+            // Escape is NOT claimed. It is the emergency stop and must
+            // reach the mount from every window; the branch below that
+            // used it to leave fullscreen is gone, since F11 toggles
+            // both ways and hiding the map is what M is for.
+            case WM_GETDLGCODE:
+                if (lParam && wParam == VK_F11) return DLGC_WANTMESSAGE;
+                return 0;
+
             case WM_KEYDOWN:
                 if (wParam == VK_F11) { self->ToggleFullscreen(); return 0; }
-                if (wParam == VK_ESCAPE) {
-                    if (self->m_fullscreen) self->ToggleFullscreen();
-                    else                    ShowWindow(hwnd, SW_HIDE);
-                    return 0;
-                }
                 break;
 
             case WM_TIMER:

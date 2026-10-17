@@ -370,7 +370,22 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             // Shift+V is the share view -- the screen pointed at other
             // people. On the same letter rather than taking a new one,
             // the way Shift+H, Shift+Q, Shift+T and Shift+D all do.
+            //
+            // Ctrl+Shift+V takes it in and out of fullscreen FROM HERE.
+            // The view fills its screen borderlessly, so it has no
+            // caption to drag and no close button, and it only takes
+            // focus when it is deliberately clicked. That is the right
+            // default for a window on a screen nobody is working at --
+            // but it means the keys that get it back to a movable
+            // window live on a screen the owner may not be standing at.
+            // This is the route that needs no focus at all.
             if (shift) {
+                const bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+                if (ctrl) {
+                    if (firstPress && m_onShareViewFullscreen)
+                        m_onShareViewFullscreen();
+                    return true;
+                }
                 if (firstPress && m_onShareViewToggle) m_onShareViewToggle();
                 return true;
             }

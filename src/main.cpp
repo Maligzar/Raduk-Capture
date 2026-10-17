@@ -3275,6 +3275,15 @@ static int RunApp(bool useEmulator) {
         shareView.Toggle();
         Log("[SHARE] view %s\n", shareView.IsVisible() ? "on" : "off");
     });
+    // Ctrl+Shift+V. The view is borderless on a screen nobody works
+    // at, so the way back to a window it can be dragged by has to be
+    // reachable from the screen the owner IS at.
+    window.SetShareViewFullscreenHandler([&]() {
+        if (!shareView.IsVisible()) shareView.Show();
+        shareView.ToggleFullscreen();
+        Log("[SHARE] view %s\n",
+            shareView.IsFullscreen() ? "filling its screen" : "windowed");
+    });
     window.SetHistogramToggleHandler([&]()  { histWindow.Toggle();   });
     window.SetSharpnessToggleHandler([&]()  { sharpWindow.Toggle();  });
     window.SetTemperatureToggleHandler([&]() { tempWindow.Toggle(); });

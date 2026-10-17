@@ -89,6 +89,11 @@ public:
     raduk::core::ObjectKnowledgeDB& GetKnowledgeDB() { return m_knowledgeDB; }
 
 private:
+    // P3.3: scaled with the window, rebuilt on resize.
+    HFONT m_histFont  = nullptr;
+    HFONT m_inputFont = nullptr;
+    int   m_fontPx    = 0;
+
     static constexpr int PANEL_W = 500;
     static constexpr int PANEL_H = 620;
 
@@ -116,10 +121,20 @@ private:
         int wy = (sh - PANEL_H) / 2;
 
         m_hwnd = CreateWindowExW(
-            WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+            // WS_EX_TOOLWINDOW dropped with it. That style suppresses
+            // the minimise and maximise buttons outright, so a
+            // WS_MAXIMIZEBOX beside it would do nothing -- the same
+            // pair that left the sky map unable to fill a screen. It
+            // also puts the panel in the taskbar and Alt-Tab, which is
+            // wanted once it can live on a screen of its own.
+            WS_EX_TOPMOST,
             L"RadukAIChat",
             L"RadukCapture AI  \u00B7  llama3.2:3b",
-            WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX,
+            // P3.3: the maximise box is back. It was removed when the
+            // contents could not follow the window; now that the fonts
+            // and the furniture both scale, filling a screen with this
+            // panel is a reasonable thing to want on a five-screen desk.
+            WS_OVERLAPPEDWINDOW,
             wx, wy, PANEL_W, PANEL_H,
             nullptr, nullptr, GetModuleHandle(nullptr), this);
 
@@ -153,7 +168,8 @@ private:
     void CreateControls() {
         RECT cr; GetClientRect(m_hwnd, &cr);
         int cw = cr.right, ch = cr.bottom;
-        const int PAD = 6, BH = 28, IH = 28;
+        m_fontPx = FontPxFor(ch);
+        const int PAD = Pad(), BH = RowH(), IH = RowH();
 
         // History EDIT — read-only, multiline, scrollable
         m_editHistory = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
@@ -182,20 +198,7 @@ private:
             PAD + sendW + PAD, btnY, clearW, BH,
             m_hwnd, (HMENU)ID_BTN_CLEAR, GetModuleHandle(nullptr), nullptr);
 
-        // Fonts
-        HFONT histFont = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-        HFONT inputFont = CreateFontW(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-        if (!histFont)  histFont  = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
-        if (!inputFont) inputFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
-
-        SendMessage(m_editHistory, WM_SETFONT, (WPARAM)histFont,  TRUE);
-        SendMessage(m_editInput,   WM_SETFONT, (WPARAM)inputFont, TRUE);
-        SendMessage(m_btnSend,     WM_SETFONT, (WPARAM)inputFont, TRUE);
-        SendMessage(m_btnClear,    WM_SETFONT, (WPARAM)inputFont, TRUE);
+        ApplyFonts(ch);
 
         // Subclass input edit to catch Enter key
         SetWindowLongPtrW(m_editInput, GWLP_USERDATA, (LONG_PTR)this);
@@ -203,8 +206,61 @@ private:
             m_editInput, GWLP_WNDPROC, (LONG_PTR)InputEditSubclass);
     }
 
+    // ── Fonts sized from the window (P3.3) ───────────────────
+    //
+    // They were fixed at 12 and 13 px, so this panel could be dragged
+    // to fill a 1080p screen and still answer in the type size it used
+    // in a 620 px window. The layout already followed the window; only
+    // the text did not, which is the half of "resizable" that matters
+    // when the screen is across the room.
+    //
+    // Off HEIGHT. Width here buys line length, which a wrapped chat
+    // transcript happily takes; height is what says how far away the
+    // reader is. The input line and the buttons are sized from the same
+    // number so the furniture stays in proportion to the text rather
+    // than sitting in 28 px boxes around 26 px type.
+    static int FontPxFor(int ch) {
+        int px = ch / 40;
+        if (px < 12) px = 12;
+        if (px > 28) px = 28;
+        return px;
+    }
+    int RowH() const { return m_fontPx * 2 + 6; }
+    int Pad()  const { return (m_fontPx < 14) ? 6 : m_fontPx / 2; }
+
+    void ApplyFonts(int ch) {
+        const int px = FontPxFor(ch);
+        if (m_histFont && px == m_fontPx) return;
+        m_fontPx = px;
+
+        HFONT oldHist = m_histFont, oldInput = m_inputFont;
+
+        auto make = [](int size) {
+            HFONT f = CreateFontW(-size, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+            return f ? f : (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+        };
+        m_histFont  = make(px);
+        m_inputFont = make(px + 1);
+
+        if (m_editHistory) SendMessage(m_editHistory, WM_SETFONT, (WPARAM)m_histFont,  TRUE);
+        if (m_editInput)   SendMessage(m_editInput,   WM_SETFONT, (WPARAM)m_inputFont, TRUE);
+        if (m_btnSend)     SendMessage(m_btnSend,     WM_SETFONT, (WPARAM)m_inputFont, TRUE);
+        if (m_btnClear)    SendMessage(m_btnClear,    WM_SETFONT, (WPARAM)m_inputFont, TRUE);
+
+        // Only now. A font still selected into a live control must not
+        // be deleted -- the control keeps drawing through the handle,
+        // and the symptom is text that renders as boxes or not at all.
+        if (oldHist  && oldHist  != (HFONT)GetStockObject(DEFAULT_GUI_FONT))
+            DeleteObject(oldHist);
+        if (oldInput && oldInput != (HFONT)GetStockObject(DEFAULT_GUI_FONT))
+            DeleteObject(oldInput);
+    }
+
     void OnResize(int cw, int ch) {
-        const int PAD = 6, BH = 28, IH = 28;
+        ApplyFonts(ch);
+        const int PAD = Pad(), BH = RowH(), IH = RowH();
         if (m_editHistory) SetWindowPos(m_editHistory, nullptr,
             PAD, PAD, cw-PAD*2, ch-IH-BH-PAD*4, SWP_NOZORDER);
         int inputY = ch - IH - BH - PAD*2;

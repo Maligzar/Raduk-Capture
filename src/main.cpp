@@ -4203,11 +4203,32 @@ static int RunApp(bool useEmulator) {
         // windowHeight = full child height; statusBarHeight drawn at bottom
         int windowH = previewW > 0 ? (int)(pvRect.bottom / dpiScale) : previewH + stDIPs;
 
+        // ── Phase 93: where the render pass actually goes ─────
+        //
+        // The full sensor previews at under 2 fps against 9.7 at
+        // 1920x1080, and four full-frame passes are plausible causes.
+        // Guessing between them is what produced the wrong diagnosis
+        // for the emulator's frame rate, so this says which it is.
+        //
+        // Accumulated and logged every 120 passes, which at the rate
+        // being investigated is about a minute. steady_clock::now() is
+        // tens of nanoseconds; against passes that take hundreds of
+        // milliseconds it is not worth gating behind a flag.
+        using PClock = std::chrono::steady_clock;
+        static double tRender = 0, tPanels = 0, tEnd = 0, tLoop = 0;
+        static int    tPasses = 0;
+        static auto   tLast   = PClock::now();
+        const auto    tPassStart = PClock::now();
+        auto Elapsed = [](PClock::time_point a, PClock::time_point b) {
+            return std::chrono::duration<double, std::milli>(b - a).count();
+        };
+
         preview.RenderFrame(
             frame, 0, previewW, windowH, stDIPs,
             stats.fps.load(),
             stats.framesCaptured.load(),
             stats.droppedFrames.load());
+        const auto tAfterRender = PClock::now();
 
         // Unconditional, and told separately whether the analysis is
         // valid: the temperature half needs no frame at all, and the
@@ -4220,8 +4241,28 @@ static int RunApp(bool useEmulator) {
         if (!window.IsFullscreen())
             statusBar.Draw(previewW, windowH);
 
+        const auto tAfterPanels = PClock::now();
         preview.EndFrame();
+        const auto tAfterEnd = PClock::now();
         ring.ReleaseRead(frame);
+
+        tRender += Elapsed(tPassStart,    tAfterRender);
+        tPanels += Elapsed(tAfterRender,  tAfterPanels);
+        tEnd    += Elapsed(tAfterPanels,  tAfterEnd);
+        if (++tPasses >= 600) {
+            const double wall = Elapsed(tLast, tAfterEnd);
+            tLoop = wall / tPasses;
+            Log("[PERF] %dx%d  pass %.1f ms (%.1f/s)  render %.1f  panels %.1f  "
+                "present %.1f  other %.1f  | capture %.1f fps  dropped %llu\n",
+                roiWidth, roiHeight, tLoop, tLoop > 0 ? 1000.0 / tLoop : 0.0,
+                tRender / tPasses, tPanels / tPasses, tEnd / tPasses,
+                tLoop - (tRender + tPanels + tEnd) / tPasses,
+                stats.fps.load(),
+                (unsigned long long)stats.droppedFrames.load());
+            tRender = tPanels = tEnd = 0.0;
+            tPasses = 0;
+            tLast   = PClock::now();
+        }
 
         // Phase 56 (review G2): rubber-band auto-ROI is applied only here,
         // after the frame is back in the ring — the callback reallocates

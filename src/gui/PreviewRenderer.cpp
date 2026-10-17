@@ -150,6 +150,13 @@ bool PreviewRenderer::SetFrameSize(int width, int height) {
     }
 
     // CPU-path D2D bitmap — only needed when debayer mode is CPU or Off
+    //
+    // Phase 93: a new bitmap holds nothing, so the upload cache has to
+    // forget what it thought was in the old one. Without this a format
+    // change would draw an empty bitmap until the frame number happened
+    // to differ.
+    m_haveUpload      = false;
+    m_lastFrameNumber = UINT64_MAX;
     if (m_bitmap) { m_bitmap->Release(); m_bitmap = nullptr; }
     {
         D2D1_SIZE_U bmpSize = D2D1::SizeU(width, height);
@@ -618,8 +625,52 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
         D2D1_RECT_F destRect = CalculateZoomedRect(
             frame->width, frame->height, previewX, previewWidth, previewHeight);
 
+        // ── Phase 93: produce the pixels only when they changed ──
+        //
+        // Measured: at the full sensor the render loop makes 31 passes
+        // a second while the camera delivers 1.9 frames a second, so 94
+        // per cent of passes were re-debayering, re-stretching and
+        // re-uploading a frame they had already done. That is about
+        // 100 MB of memory traffic per pass at 3840x2160 -- near 3 GB
+        // a second of it -- for a picture identical to the one already
+        // on screen, and it was starving the capture thread of the
+        // bandwidth it needed to take frames off the camera.
+        //
+        // This is NOT a frame-rate cap. The loop still repaints at its
+        // own rate and every overlay stays live; only the work that
+        // derives new pixels is skipped, and the already-uploaded
+        // bitmap is drawn again instead.
+        //
+        // Gated on the frame AND on everything that changes what the
+        // pixels look like, so toggling debayer, FX, the stretch or
+        // RGB align takes effect on the next pass rather than waiting
+        // for the camera. Miss one and the symptom is a stale image
+        // until the next frame arrives, so the list is explicit rather
+        // than clever.
+        const uint64_t pixelKey =
+              (uint64_t)(m_debayerMode == DebayerMode::Color ? 1u : 0u)
+            | ((uint64_t)m_displayFX        <<  1)
+            | ((uint64_t)(m_showClip ? 1 : 0) << 8)
+            | ((uint64_t)(m_showClip ? (m_clipFlash / 8) & 0xFF : 0) << 9)
+            | ((uint64_t)(m_stretchOn ? 1 : 0) << 17)
+            | ((uint64_t)(m_black & 0xFF)   << 18)
+            | ((uint64_t)(m_white & 0xFF)   << 26)
+            | ((uint64_t)(m_rgbAlignEnabled ? 1 : 0) << 34)
+            | ((uint64_t)((m_rgbAlignManual + 64) & 0x7F) << 35)
+            | ((uint64_t)(m_calEnabled && m_cal ? 1 : 0) << 42)
+            | ((uint64_t)(frame->bitDepth & 0x3F) << 43);
+
+        const bool needUpload = !m_haveUpload
+                             || frame->frameNumber != m_lastFrameNumber
+                             || pixelKey           != m_lastPixelKey;
+        m_lastFrameNumber = frame->frameNumber;
+        m_lastPixelKey    = pixelKey;
+
         // ── Draw sensor image ──────────────────────────────────
-        if (m_debayerMode == DebayerMode::Color) {
+        if (!needUpload) {
+            // Nothing to do: the bitmap already holds this frame,
+            // processed these same ways. It is drawn below.
+        } else if (m_debayerMode == DebayerMode::Color) {
             DebayerRGGB(rawSrc, m_rgbBuffer,
                         frame->width, frame->height, frame->bitDepth);
 
@@ -817,8 +868,7 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             if (m_bitmap) {
                 D2D1_RECT_U srcRect = D2D1::RectU(0, 0, frame->width, frame->height);
                 m_bitmap->CopyFromMemory(&srcRect, rgba.data(), frame->width * 4);
-                m_renderTarget->DrawBitmap(m_bitmap, destRect, 1.0f,
-                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
+                m_haveUpload = true;
             }
         } else { // DebayerMode::Raw — grayscale Bayer
             size_t n = (size_t)frame->width * frame->height;
@@ -848,10 +898,18 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             if (m_bitmap) {
                 D2D1_RECT_U srcRect = D2D1::RectU(0, 0, frame->width, frame->height);
                 m_bitmap->CopyFromMemory(&srcRect, rgba.data(), frame->width * 4);
-                m_renderTarget->DrawBitmap(m_bitmap, destRect, 1.0f,
-                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
+                m_haveUpload = true;
             }
         }
+
+        // The draw is unconditional; only the work that PRODUCES the
+        // pixels is skipped above. That is the whole of this change:
+        // the overlays, the reticle, the zoom and the rubber band all
+        // keep repainting at the loop's rate, because the bitmap is
+        // already on the GPU and drawing it again is nearly free.
+        if (m_bitmap && m_haveUpload)
+            m_renderTarget->DrawBitmap(m_bitmap, destRect, 1.0f,
+                D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
 
         // ── Frame control bar (outside clip — drawn after PopClip below) ──
         // Store destRect for bar drawing and hit testing

@@ -899,14 +899,15 @@ a 2.25× enlargement.
 means the full sensor. Press **FULL** on the toolbar. At 1280×960 the
 field is 4.3 arcmin and even Io falls outside it; the whole sensor is
 about 14 arcmin and holds Io, Europa and Ganymede, with Callisto
-drifting in and out as it swings around. Be aware the preview runs
-slowly at the full sensor — see the note below.
+drifting in and out as it swings around.
 
-> **Full sensor is slow to preview.** 3840×2160 runs the live preview
-> at under 2 frames a second. Nothing is wrong and nothing is being
-> lost from the file; the display pipeline simply has four times the
-> pixels to push. It is fine for framing and for showing people the
-> moons. For capturing detail on the planet itself, crop back down.
+> **An earlier version of this page warned that the full sensor is
+> slow to preview. That was wrong** and the measurement behind it was
+> misread — the figure quoted was the camera's frame rate, not the
+> preview's, and the cause was a cost that exists only in the
+> emulator. On the real camera the whole sensor previews at the rate
+> the loop runs. Crop for frame rate when you want frame rate, not
+> because the display cannot keep up.
 
 ### Reading the histogram (v1.2.7)
 

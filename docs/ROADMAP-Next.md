@@ -831,45 +831,89 @@ The frames need not be interesting. Nothing being measured at that
 rate cares what the planet looks like; it cares about bytes per second
 and whether any go missing.
 
-### P4.4 · Full-sensor preview costs 65 ns a pixel
-**Bench. Medium. Added 2026-10-17.**
+### P4.4 · Full-sensor frame rate — **diagnosis was wrong, 2026-10-17**
 
-Found while fixing the emulator's field of view, and it is the larger
-finding of the two because it is true of the real rig as well.
+> This entry claimed the display pipeline costs about 65 ns per sensor
+> pixel per frame, that the full-sensor preview therefore runs at 1.7
+> fps, and that this is true of the real rig. **All three are wrong**,
+> and the error was the same one that produced the first P4.3
+> diagnosis: a number was read off the screen and reasoned about
+> instead of being measured at its source.
+>
+> **The 1.7 fps was the CAPTURE rate, not the preview's.** The preview
+> and the camera rate are two different numbers and the LIVE line
+> shows the camera's. Instrumented, the render loop was making **31
+> passes a second** at 3840×2160 and 60 at 1920×1080 — it was never
+> slow.
+>
+> | | pass | render | panels | present | capture |
+> |---|---|---|---|---|---|
+> | 1920×1080 | 16.7 ms | 7.0 | 0.8 | 0.5 | 10.4 fps |
+> | 3840×2160 | 32.0 ms | 27.1 | 1.1 | 0.5 | 1.9 fps |
+>
+> **The slow capture is the emulator's defocus blur, and nothing
+> else.** It had been measured at a flat 63 ms per frame at every
+> format — but that benchmark never set a focus provider, so the whole
+> defocus block was skipped, while in the app the focuser is connected
+> and the emulated EAF sits 1500 steps off true focus. Measured both
+> ways:
+>
+> | Format | no focuser | defocused |
+> |---|---|---|
+> | 640×480 | 62.3 ms | 62.1 ms |
+> | 1280×960 | 61.9 ms | 63.5 ms |
+> | 1920×1080 | 62.0 ms | **95.9 ms** |
+> | 3840×2160 | 62.1 ms | **556.4 ms** |
+>
+> 556 ms is 1.8 fps, which is exactly what the app reports. 95.9 ms is
+> 10.4 fps, likewise. The app accounts for none of it.
+>
+> **So there is nothing here for the real rig.** A real ASI678MC has no
+> software blur; it delivers what USB and the sensor allow. Nothing in
+> this entry describes a limitation in the field, and the help's
+> warning that "full sensor is slow to preview" was wrong and has been
+> removed.
 
-With the app running, measured from its own readout:
+### P4.4a · The emulator's blur is super-linear in frame width
+**Bench. Small-medium. What is actually left of P4.4.**
 
-| Format | Pixels | fps | Per pass |
-|---|---|---|---|
-| 1920×1080 | 2.07 MP | 9.7 | 103 ms |
-| 3840×2160 | 8.29 MP | **1.7** | **588 ms** |
+The defocus blur costs 33 ms of extra work at 2.07 MP and 494 ms at
+8.29 MP. Four times the pixels, fifteen times the time — so it is not
+pixel count, it is cache behaviour: `BlurBayer` walks columns with a
+stride of the frame width, and at 3840 wide every step is a miss.
 
-Roughly linear in pixel count: about 65 ns per sensor pixel per frame.
-The emulator is not the cause — driven directly it delivers 15.9 fps
-at the full sensor (see P4.3), so the 588 ms is the app.
+It only bites when the emulated focuser is away from true focus, which
+by default it is. **Focusing the emulated EAF to 168000 skips the blur
+entirely** (`diaPx` becomes 0, `rf` becomes 0, and the block is gated
+on `r0 >= 1 || frac > 0.01`), which is the cheap way to get full-sensor
+bench rates today.
 
-**Why it matters now.** The full sensor is 14 arcmin and is the only
-format that holds Jupiter's moons; 1280×960 is 4.3 arcmin and holds
-none of them. So "the format you want for the thing people most want
-to see" and "the format that runs at 1.7 fps" are the same format.
+Worth fixing properly if full-sensor bench work becomes routine, since
+a defocused sweep is exactly what autofocus testing needs. Tiled or
+transposed box passes would do it. Not urgent, and emulator-only.
 
-**What is not known yet.** Which pass dominates. Candidates, all
-full-frame, all per displayed frame:
+### P4.5 · Preview no longer re-derives pixels it already has — DONE
+**Shipped 2026-10-17.**
 
-- `DebayerRGGB` into `m_rgbBuffer` (24.9 MB at the full sensor)
-- the `std::vector<uint8_t> rgba` built fresh every frame — 33 MB
-  allocated and filled, twice over if a display FX is on
-- `FrameAnalyzer`'s pass
-- `CopyFromMemory` of 33 MB into the D2D bitmap
+Found while measuring the above and kept, because it is a real saving
+on the real rig and not just the bench. The render loop ran at 31
+passes a second against a camera delivering 1.9, so **94% of passes
+were re-debayering, re-stretching and re-uploading a frame already on
+screen** — roughly 100 MB of memory traffic a pass at the full sensor,
+near 3 GB a second, for a picture identical to the one already there.
 
-Also unexplained: the *capture* rate falls with it. The emulator alone
-sustains 15.9 fps at this format and the recording path was moved off
-the render loop in `37b8c50`, so the capture thread should not care
-how slow the preview is. It does. That is worth understanding before
-optimising anything, because it may be the whole story.
+The pixel work is now gated on the frame number and on a key covering
+everything that changes what the pixels look like; the bitmap is drawn
+again regardless, so every overlay stays live and interactive.
 
-Profile first. Four plausible culprits and no measurement is exactly
-the state that produced the wrong P4.3 diagnosis above.
+| | before | after |
+|---|---|---|
+| render, 3840×2160 | 27.1 ms | **2.0 ms** |
+| loop | 31 passes/s | **57 passes/s** |
+
+It did **not** raise the capture rate, which is how the bandwidth-
+starvation theory got ruled out and the defocus blur found. Kept on its
+own merits.
 
 ### Blocked on weather
 

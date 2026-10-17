@@ -508,6 +508,12 @@ private:
     ID2D1HwndRenderTarget*  m_renderTarget  = nullptr;
     IDWriteFactory*         m_dwriteFactory = nullptr;
     PresentSink             m_presentSink;               // Phase 89 — share view
+
+    // Phase 93: what the uploaded bitmap currently holds, so a pass
+    // that would reproduce it exactly can skip the pixel work.
+    uint64_t                m_lastFrameNumber = UINT64_MAX;
+    uint64_t                m_lastPixelKey    = 0;
+    bool                    m_haveUpload      = false;
     ID2D1Bitmap*            m_bitmap        = nullptr;   // CPU-path D2D bitmap
     ID2D1SolidColorBrush*   m_textBrush     = nullptr;
     ID2D1SolidColorBrush*   m_accentBrush   = nullptr;

@@ -94,6 +94,8 @@ public:
     bool IsVisible() const { return m_hwnd && IsWindowVisible(m_hwnd); }
     void Destroy() {
         if (m_hwnd) { DestroyWindow(m_hwnd); m_hwnd = nullptr; }
+        if (m_monoFont) { DeleteObject(m_monoFont); m_monoFont = nullptr; }
+        if (m_uiFont)   { DeleteObject(m_uiFont);   m_uiFont   = nullptr; }
     }
 
 private:
@@ -257,7 +259,7 @@ private:
         const int PAD = 4;
 
         // "Search:" label
-        HWND lblSearch = CreateWindowExW(0, L"STATIC", L"Filter:",
+        m_lblSearch = CreateWindowExW(0, L"STATIC", L"Filter:",
             WS_CHILD | WS_VISIBLE | SS_CENTERIMAGE,
             PAD, PAD, 50, SH,
             m_hwnd, nullptr, GetModuleHandle(nullptr), nullptr);
@@ -300,7 +302,7 @@ private:
         SendMessage(m_editContent, WM_SETFONT, (WPARAM)monoFont, TRUE);
         SendMessage(m_editSearch,  WM_SETFONT, (WPARAM)uiFont,   TRUE);
         SendMessage(m_btnClear,    WM_SETFONT, (WPARAM)uiFont,   TRUE);
-        SendMessage(lblSearch,     WM_SETFONT, (WPARAM)uiFont,   TRUE);
+        SendMessage(m_lblSearch,   WM_SETFONT, (WPARAM)uiFont,   TRUE);
 
         // Set initial content
         SetWindowTextW(m_editContent, m_fullText.c_str());
@@ -311,12 +313,123 @@ private:
             m_editSearch, GWLP_WNDPROC, (LONG_PTR)SearchEditSubclassProc);
     }
 
+    // ── Fonts sized from the window ───────────────────────────
+    //
+    // The controls already reflowed on WM_SIZE; the fonts did not.
+    // Fixed at 13px, this window filling a 1920x1080 screen showed the
+    // same tiny text it showed at 745px wide, which is most of the way
+    // to not being resizable at all -- more text on screen at a size
+    // you still cannot read from the eyepiece.
+    //
+    // Bounded by BOTH dimensions, and width is the one that bites.
+    //
+    // This is a monospace document with a natural column width: the
+    // prose is hard-wrapped at about 72 characters. Size the font off
+    // height alone and a tall narrow window gets text too wide for
+    // itself -- at 745x900 an height-only rule picked 19px, which
+    // pushed 72 columns past the right edge and introduced horizontal
+    // scrolling on a window that had none before. Making a window
+    // bigger must not make it worse.
+    //
+    // The width bound is MEASURED, not assumed. A first attempt
+    // divided by a constant derived from "Courier New advances about
+    // 0.6 em", which left prose two columns short of fitting -- close
+    // enough to look deliberate and wrong enough to scroll. Asking the
+    // font how wide 72 characters actually are costs one memory DC and
+    // removes the guess for good.
+    //
+    // The tables in the help file run to 459 characters and will scroll
+    // sideways whatever this returns. That was always true and is not
+    // what this is protecting.
+    static constexpr int PROSE_COLS = 72;
+
+    static int FontPxFor(int cw, int ch) {
+        // Height sets what a reader wants; width sets what fits.
+        int px = ch / 46;
+        if (px > 30) px = 30;
+
+        // Room the content edit actually has: padding both sides, the
+        // client edge, and the vertical scrollbar.
+        const int avail = cw - (px / 3) * 2 - 6
+                        - GetSystemMetrics(SM_CXVSCROLL);
+        if (avail > 40) {
+            HDC dc = CreateCompatibleDC(nullptr);
+            if (dc) {
+                wchar_t sample[PROSE_COLS + 1];
+                for (int i = 0; i < PROSE_COLS; i++) sample[i] = L'M';
+                sample[PROSE_COLS] = 0;
+                while (px > 13) {
+                    HFONT f = CreateFontW(-px, 0, 0, 0, FW_NORMAL, FALSE,
+                                          FALSE, FALSE, DEFAULT_CHARSET,
+                                          OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                          CLEARTYPE_QUALITY,
+                                          FIXED_PITCH | FF_MODERN, L"Courier New");
+                    if (!f) break;
+                    HGDIOBJ old = SelectObject(dc, f);
+                    SIZE sz = {};
+                    GetTextExtentPoint32W(dc, sample, PROSE_COLS, &sz);
+                    SelectObject(dc, old);
+                    DeleteObject(f);
+                    if (sz.cx <= avail) break;
+                    px--;
+                }
+                DeleteDC(dc);
+            }
+        }
+        return (px < 13) ? 13 : px;
+    }
+
+    void MakeFonts(int cw, int ch) {
+        const int px = FontPxFor(cw, ch);
+        if (px == m_fontPx && m_monoFont && m_uiFont) return;   // nothing to do
+        m_fontPx = px;
+
+        HFONT oldMono = m_monoFont, oldUi = m_uiFont;
+
+        m_monoFont = CreateFontW(-px, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                                 CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                                 FIXED_PITCH | FF_MODERN, L"Courier New");
+        // The chrome stays a little smaller than the body: a filter box
+        // as tall as a heading is just wasted space at the top of a
+        // screen-filling window.
+        const int uiPx = (px * 11) / 13;
+        m_uiFont = CreateFontW(-uiPx, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                               DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                               CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                               DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+
+        if (m_editContent) SendMessage(m_editContent, WM_SETFONT, (WPARAM)m_monoFont, TRUE);
+        if (m_editSearch)  SendMessage(m_editSearch,  WM_SETFONT, (WPARAM)m_uiFont,   TRUE);
+        if (m_btnClear)    SendMessage(m_btnClear,    WM_SETFONT, (WPARAM)m_uiFont,   TRUE);
+        if (m_lblSearch)   SendMessage(m_lblSearch,   WM_SETFONT, (WPARAM)m_uiFont,   TRUE);
+
+        // Deleted only after the controls have been given the new ones.
+        // A font still selected into a control is not freed, and the
+        // text goes blank.
+        if (oldMono) DeleteObject(oldMono);
+        if (oldUi)   DeleteObject(oldUi);
+    }
+
     void OnResize(int cw, int ch) {
         if (!m_editContent || !m_editSearch || !m_btnClear) return;
-        const int SH = 24, PAD = 4;
-        SetWindowPos(m_editSearch,  nullptr, PAD+54,   PAD,        cw-PAD*2-54-70, SH,           SWP_NOZORDER);
-        SetWindowPos(m_btnClear,    nullptr, cw-PAD-66, PAD,       66,             SH,           SWP_NOZORDER);
-        SetWindowPos(m_editContent, nullptr, PAD,       SH+PAD*2,  cw-PAD*2,       ch-SH-PAD*3, SWP_NOZORDER);
+        MakeFonts(cw, ch);
+
+        // The search row grows with its font, or a 30px filter box
+        // holds 13px text with a band of dead space under it.
+        const int PAD   = (std::max)(4, m_fontPx / 3);
+        const int SH    = m_fontPx * 2;
+        const int lblW  = m_fontPx * 4;
+        const int btnW  = m_fontPx * 5;
+
+        if (m_lblSearch)
+            SetWindowPos(m_lblSearch, nullptr, PAD, PAD, lblW, SH, SWP_NOZORDER);
+        SetWindowPos(m_editSearch,  nullptr, PAD + lblW, PAD,
+                     cw - PAD*3 - lblW - btnW, SH, SWP_NOZORDER);
+        SetWindowPos(m_btnClear,    nullptr, cw - PAD - btnW, PAD,
+                     btnW, SH, SWP_NOZORDER);
+        SetWindowPos(m_editContent, nullptr, PAD, SH + PAD*2,
+                     cw - PAD*2, ch - SH - PAD*3, SWP_NOZORDER);
     }
 
     // ── Window procedure ─────────────────────────────────────
@@ -393,6 +506,10 @@ private:
     HWND            m_editSearch  = nullptr;
     HWND            m_editContent = nullptr;
     HWND            m_btnClear    = nullptr;
+    HWND            m_lblSearch   = nullptr;
+    HFONT           m_monoFont    = nullptr;
+    HFONT           m_uiFont      = nullptr;
+    int             m_fontPx      = 0;
     WNDPROC         m_origSearchProc = nullptr;
     std::wstring    m_exeDir;
     std::wstring    m_fullText;

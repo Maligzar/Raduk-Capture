@@ -907,18 +907,44 @@ private:
         DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED,
             __uuidof(IDWriteFactory), (IUnknown**)&dw);
         if (dw) {
-            dw->CreateTextFormat(L"Barlow Condensed", nullptr,
-                DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL, 14.0f, L"en-us", &m_labelFormat);
-            dw->CreateTextFormat(L"Space Mono", nullptr,
-                DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL, 11.0f, L"en-us", &m_statusFormat);
-            dw->CreateTextFormat(L"Barlow Condensed", nullptr,
-                DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL, 15.0f, L"en-us", &m_titleFormat);
-            dw->Release();
+            m_dwrite = dw;          // kept: the formats are rebuilt on resize
+            MakeFonts();
         }
         return true;
+    }
+
+    // ── Fonts sized from the window ───────────────────────────
+    //
+    // They used to be created once at 14/11/15px and never touched
+    // again, so the map could fill a 1920x1080 screen and still letter
+    // its stars at the size it used in a 600px window. More sky at the
+    // same unreadable label size is not what "larger" was asking for.
+    //
+    // Off HEIGHT: the map is a projection, so width buys sky rather
+    // than text, and it is the height that says how far away the
+    // reader is.
+    void MakeFonts() {
+        if (!m_dwrite) return;
+        const float px = (std::max)(12.0f,
+                         (std::min)(30.0f, (float)m_h / 44.0f));
+        if (m_labelFormat && px == m_fontPx) return;
+        m_fontPx = px;
+
+        if (m_labelFormat)  { m_labelFormat->Release();  m_labelFormat  = nullptr; }
+        if (m_statusFormat) { m_statusFormat->Release(); m_statusFormat = nullptr; }
+        if (m_titleFormat)  { m_titleFormat->Release();  m_titleFormat  = nullptr; }
+
+        m_dwrite->CreateTextFormat(L"Barlow Condensed", nullptr,
+            DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL, px, L"en-us", &m_labelFormat);
+        // The status line stays the smallest of the three: it is read
+        // once, not scanned, and at full size it competes with the sky.
+        m_dwrite->CreateTextFormat(L"Space Mono", nullptr,
+            DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL, px * 0.8f, L"en-us", &m_statusFormat);
+        m_dwrite->CreateTextFormat(L"Barlow Condensed", nullptr,
+            DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL, px * 1.08f, L"en-us", &m_titleFormat);
     }
 
     void ReleaseD2D() {
@@ -926,11 +952,16 @@ private:
         if (m_statusFormat) { m_statusFormat->Release(); m_statusFormat = nullptr; }
         if (m_titleFormat)  { m_titleFormat->Release();  m_titleFormat  = nullptr; }
         if (m_rt)           { m_rt->Release();           m_rt           = nullptr; }
+        // Released last: MakeFonts() creates the formats through it
+        // and must never see it null while they are being rebuilt.
+        if (m_dwrite)       { m_dwrite->Release();       m_dwrite       = nullptr; }
+        m_fontPx = 0.0f;
     }
 
     void OnResize(int w, int h) {
         m_w = w; m_h = h;
         if (m_rt) m_rt->Resize(D2D1::SizeU(w, h));
+        MakeFonts();
         BuildObjectList();
         Redraw();
     }
@@ -1161,6 +1192,8 @@ private:
 
     // D2D
     ID2D1HwndRenderTarget* m_rt           = nullptr;
+    IDWriteFactory*        m_dwrite       = nullptr;
+    float                  m_fontPx       = 0.0f;
     IDWriteTextFormat*     m_labelFormat  = nullptr;
     IDWriteTextFormat*     m_statusFormat = nullptr;
     IDWriteTextFormat*     m_titleFormat  = nullptr;  // bold, larger — Sun/Moon/bright planets

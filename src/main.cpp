@@ -1468,6 +1468,39 @@ static int RunApp(bool useEmulator) {
     //
     // Still ahead of the message loop, so the app comes up already
     // arranged instead of visibly rearranging itself.
+    // ── D3: every window we own, found rather than listed ────
+    //
+    // kPlacedWindows is the roster the workspace places and saves by
+    // NAME, and it has to be hand-maintained because a saved layout
+    // needs a role for each entry. Three other things had quietly come
+    // to depend on it being COMPLETE, which is a different and much
+    // weaker claim -- a window added without a line here simply fell
+    // out of each of them, silently, and the only symptom was a panel
+    // left in day colours on a dark night or one that Ctrl+Shift+Home
+    // did not rescue.
+    //
+    // Anything that just wants "all our windows" asks the OS instead.
+    // EnumThreadWindows returns every top-level window on the UI
+    // thread, which includes a few the system creates there (IME,
+    // tooltips), so the filter is our own class prefix. Every window
+    // class this app registers begins with "Raduk", and a new one that
+    // did not would not be ours.
+    //
+    // The preview is a CHILD of the main window and so is not returned
+    // here. It does not need to be: RDW_ALLCHILDREN reaches it.
+    auto ourWindows = []() {
+        std::vector<HWND> v;
+        EnumThreadWindows(GetCurrentThreadId(),
+            [](HWND h, LPARAM lp) -> BOOL {
+                wchar_t cls[64] = {};
+                if (GetClassNameW(h, cls, 64) > 0 &&
+                    wcsncmp(cls, L"Raduk", 5) == 0)
+                    reinterpret_cast<std::vector<HWND>*>(lp)->push_back(h);
+                return TRUE;
+            }, reinterpret_cast<LPARAM>(&v));
+        return v;
+    };
+
     const std::vector<std::pair<const char*, HWND>> kPlacedWindows = {
         { "main",   window.Handle()    },
         { "skymap",  skyMap.Handle()  },
@@ -1564,9 +1597,11 @@ static int RunApp(bool useEmulator) {
     // still works when the window you would otherwise click is sitting
     // on a monitor that has gone away.
     window.SetGatherWindowsHandler([&]() {
-        std::vector<HWND> all;
-        for (const auto& [role, hwnd] : kPlacedWindows) all.push_back(hwnd);
-        workspace.GatherToPrimary(all);
+        // D3: everything we own. The help calls this "bring EVERY
+        // window back", and a window stranded on a monitor that has
+        // gone away is exactly as unreachable whether or not the
+        // layout file happens to know its name.
+        workspace.GatherToPrimary(ourWindows());
     });
     // Phase 50a DB wire — both AI panel and object info panel share the same DB
     objectInfo.SetKnowledgeDB(&aiChat.GetKnowledgeDB());
@@ -1629,13 +1664,19 @@ static int RunApp(bool useEmulator) {
         // to a live screen, so this should find nothing -- but "should"
         // is not what you want standing between you and an unreachable
         // window in the dark.
+        // D3: checked across every window we own. Place() above moves
+        // only the ones with a role; this is the net under all of
+        // them, and a window with no line in the layout file is the
+        // one most likely to be left somewhere unreachable.
         std::vector<HWND> stranded;
-        for (const auto& [role, hwnd] : kPlacedWindows) {
-            if (!hwnd || !IsWindow(hwnd) || !IsWindowVisible(hwnd)) continue;
+        for (HWND hwnd : ourWindows()) {
+            if (!IsWindowVisible(hwnd)) continue;
             RECT r{};
             if (!GetWindowRect(hwnd, &r)) continue;
             if (!workspace.WindowReachable(r)) {
-                Log("[LAYOUT]   %s was stranded - bringing it home\n", role);
+                wchar_t cls[64] = {};
+                GetClassNameW(hwnd, cls, 64);
+                Log("[LAYOUT]   %ls was stranded - bringing it home\n", cls);
                 stranded.push_back(hwnd);
             }
         }
@@ -3221,11 +3262,16 @@ static int RunApp(bool useEmulator) {
         // child controls whose colours come from WM_CTLCOLOR*, and
         // repainting only the parent would leave every edit box and
         // button behind.
-        for (const auto& [role, hwnd] : kPlacedWindows)
-            if (hwnd && IsWindow(hwnd))
-                RedrawWindow(hwnd, nullptr, nullptr,
-                             RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN |
-                             RDW_UPDATENOW);
+        //
+        // D3: every window we own, not every window in the layout
+        // roster. The object info popup, the ADC tool and the share
+        // view are all ours and none of them had a line in that list,
+        // so each stayed in day colours until something else happened
+        // to invalidate it.
+        for (HWND hwnd : ourWindows())
+            RedrawWindow(hwnd, nullptr, nullptr,
+                         RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN |
+                         RDW_UPDATENOW);
         // Persist immediately rather than at shutdown: the app can be
         // killed at the mount, and losing this setting means the next
         // launch blinds you in the dark.

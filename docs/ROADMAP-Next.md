@@ -719,14 +719,44 @@ Three ways out, none of them urgent now that it works:
 3. **Leave it on CPU.** For short advisory answers this is fine, and it
    is one less thing coupled to the driver.
 
-### D3 · Night-vision repaint reaches only what is in the layout list
-**Severity: low. Introduced 2026-10-12.**
+### D3 · Repaint and rescue reach only the layout list — DONE 2026-10-17
 
-Toggling night vision now repaints every window in `kPlacedWindows`,
-which fixed an entire monitor staying bright. Any window *not* in that
-list — the object-info popup, for one — still will not repaint until
-something else invalidates it. The list is the single place to add new
-windows, and this is the second thing that silently depends on it.
+`kPlacedWindows` is the roster the workspace places and saves BY NAME,
+so it has to be maintained by hand: a saved layout needs a role for
+each entry. Three other things had come to depend on it being
+**complete**, which is a different and much weaker claim. A window
+added without a line there fell silently out of all three.
+
+Measured on the running app: **14 top-level windows of ours, 12 roles.**
+`RadukObjectInfo` was the one outside, which is the window the original
+note named.
+
+Anything that just wants "all our windows" now asks the OS.
+`EnumThreadWindows` returns every top-level window on the UI thread,
+filtered to our own class prefix — every class this app registers
+begins with `Raduk`, and one that did not would not be ours. Three
+uses converted:
+
+| | was | now |
+|---|---|---|
+| Night-vision repaint | the 12 roles | every window we own |
+| `Ctrl+Shift+Home` gather | the 12 roles | every window we own |
+| Stranded-window rescue on a display change | the 12 roles | every window we own |
+
+The toolbar strip and the notification bar turned out to be CHILDREN
+of the main window rather than top-level, so `RDW_ALLCHILDREN` had
+them covered all along; the preview is a child too, for the same
+reason.
+
+What is left depending on the list is placement, capture and save,
+which genuinely need names. That is a real requirement rather than an
+accident, and a window with no role simply is not part of the saved
+arrangement.
+
+Verified: `tests/manual-window-coverage.ps1` lists our top-level
+windows against the roles and names the gap. The repaint itself was
+checked by sampling six window bodies across a toggle — all six moved
+together, red-dominant to blue-dominant.
 
 ---
 
@@ -776,7 +806,7 @@ and the real cause behind it — the emulator's defocus blur — is fixed.
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
 | 1 | **P3.3 — DONE 2026-10-17** | Bench | — | Help (`ef736e1`), the map (P3.4), AI chat (`179f8aa`) and now GoTo all scale. GoTo also had a Unicode defect that had hidden every object name in the catalogue since it was written |
-| 2 | **Night-vision repaint beyond the layout list** (D3) | Bench | XS–S | Cheap, and the risk keeps compounding: `kPlacedWindows` is the *sixth* list in `main.cpp` that silently depends on being complete, and it grew twice this week. Phase 90 answered it locally by iterating a `kMaps[]` array instead of repeating lines; this is the same idea applied to the window list |
+| 2 | **D3 — DONE 2026-10-17** | Bench | — | Repaint, gather and stranded-rescue now find every window we own instead of reading a hand-kept list. Measured: 14 windows, 12 roles |
 | 3 | **Xbox controller input** (P4.1) | Bench | M | Feasibility proven on this machine. Needs `SlewVariable()` on the mount first, or the stick is a nine-position switch — plus a controller and **an adapter, since this machine has no Bluetooth** |
 | 4 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
 | 5 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |

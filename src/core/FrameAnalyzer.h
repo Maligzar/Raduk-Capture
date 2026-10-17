@@ -89,6 +89,23 @@ struct AnalysisResult {
     // it went, so there is no honest stop count to give.
     float headroomR = 0.0f, headroomG = 0.0f, headroomB = 0.0f;
 
+    // Phase 92: the per-channel highlight the headroom above is derived
+    // FROM, in DN, 0-255. Each is that channel's HIGHLIGHT_PCTILE
+    // level: the brightness of the brightest real thing in it, which on
+    // a planetary target is the planet.
+    //
+    // Kept because it is the number an imager actually sets exposure by
+    // -- "get the histogram up to about three quarters" -- and it was
+    // being computed and discarded. The histogram panel showed the
+    // CLIPPED FRACTION in its place, which reads 0.0% on every
+    // correctly exposed frame and so said nothing about exposure at
+    // all, for either channel balance or level.
+    //
+    // Not the maximum: a single hot pixel would own that. A percentile
+    // over the whole frame survives one, and on a planetary frame the
+    // mean cannot be used at all, for the reason set out above.
+    float highlightR = 0.0f, highlightG = 0.0f, highlightB = 0.0f;
+
     // The channel that will clip first, and its headroom. This is the
     // one that decides the exposure -- the others have room to spare.
     char  limitingChannel = 'R';

@@ -172,17 +172,29 @@ void FrameAnalyzer::Run() {
             //
             // Already clipping reads negative, by how far past 255 the
             // highlight would have had to sit.
-            auto HeadroomOf = [&](const std::array<uint32_t, 256>& h,
-                                  uint32_t count, float clipPct) -> float {
-                if (count == 0) return 0.0f;
+            //
+            // Phase 92: the percentile itself is now kept, not just the
+            // stop count derived from it. It is the brightness of the
+            // brightest real thing in that channel -- the planet -- and
+            // it is the number an imager actually sets exposure by
+            // ("get the histogram to about three quarters"). It was
+            // being computed here and thrown away, while the display
+            // showed the clipped fraction instead: a figure that reads
+            // 0.0% on every correctly exposed frame.
+            auto HighlightOf = [&](const std::array<uint32_t, 256>& h,
+                                   uint32_t count) -> int {
+                if (count == 0) return 0;
                 const uint32_t w2 = (uint32_t)((1.0f - AnalysisResult::HIGHLIGHT_PCTILE)
                                                * (float)count);
                 uint32_t acc = 0;
-                int hi = 0;
                 for (int i = 255; i >= 0; i--) {
                     acc += h[i];
-                    if (acc > w2) { hi = i; break; }
+                    if (acc > w2) return i;
                 }
+                return 0;
+            };
+
+            auto HeadroomOf = [&](int hi, float clipPct) -> float {
                 if (hi <= 0) return 8.0f;          // nothing there; all the room
                 // A clipped channel has lost the information needed to
                 // say how far past 255 it went, so there is no honest
@@ -196,9 +208,13 @@ void FrameAnalyzer::Run() {
                 return (float)(std::log(255.0 / (double)hi) / std::log(2.0));
             };
 
-            r.headroomR = HeadroomOf(r.histR, cntR, r.clipR);
-            r.headroomG = HeadroomOf(r.histG, cntG, r.clipG);
-            r.headroomB = HeadroomOf(r.histB, cntB, r.clipB);
+            r.highlightR = (float)HighlightOf(r.histR, cntR);
+            r.highlightG = (float)HighlightOf(r.histG, cntG);
+            r.highlightB = (float)HighlightOf(r.histB, cntB);
+
+            r.headroomR = HeadroomOf((int)r.highlightR, r.clipR);
+            r.headroomG = HeadroomOf((int)r.highlightG, r.clipG);
+            r.headroomB = HeadroomOf((int)r.highlightB, r.clipB);
 
             // The channel that clips first is the one that decides the
             // exposure; the others have room to spare. On an RGGB

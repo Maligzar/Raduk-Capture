@@ -321,6 +321,7 @@ fullscreen.
 | `Shift+A` | **ADC alignment window** — for dialling in a dispersion corrector. Inert unless *ADC fitted* is ticked on the READY screen. |
 | `Shift+V` | **Share view** — the image alone, filling a second screen, for people who are not you. See **The share view**. |
 | `Ctrl+Shift+V` | Share view in and out of a **movable window**. Works from the control screen, which is the point. |
+| `Shift+M` | **A second sky map**, on the control screen, so the first can stay where other people can see it. |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |

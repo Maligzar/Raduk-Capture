@@ -762,6 +762,8 @@ the ranking below it is what to pick up next.
 | Observing site moved to the map's upper left, at full precision | `20385c1` |
 | Share view for a second screen (phase 89) | `c48c6de` — Shift+V, workspace role `share` |
 | The emulator gets a field of view (phase 91) | `4af73e6` — angular sizes, cap lifted to the full sensor |
+| Share view focus trap, and the sky map's dead F11 | `6ba0167` — `WM_GETDLGCODE`, and `Ctrl+Shift+V` |
+| A second sky map (phase 90) | Shift+M, `skymap2` role on the control screen |
 
 ---
 
@@ -774,9 +776,8 @@ the ranking below it is what to pick up next.
 | 4 | **Xbox controller input** (P4.1) | Bench | M | Feasibility proven on this machine. Needs `SlewVariable()` on the mount first, or the stick is a nine-position switch — plus a controller and **an adapter, since this machine has no Bluetooth** |
 | 5 | **Full-sensor preview cost** (new, P4.4) | Bench | M | **Measured 2026-10-17 and it is the biggest open number in the app.** The display pipeline costs about 65 ns per sensor pixel per frame: 9.7 fps at 1920×1080 and **1.7 fps at the full 3840×2160**. That is on the real rig too, not an emulator artefact, and full sensor is exactly the format you want for Jupiter's moons. Needs profiling before any fix is chosen — debayer, the per-frame RGBA rebuild, the analyzer and the bitmap upload are all full-frame passes and it is not yet known which dominates |
 | 6 | **Emulator frame rate** (P4.3, premise corrected) | Bench | S | The plan said the emulator caps at 16 fps because it *renders* every frame at 62 ms. **That is wrong.** Driven directly it costs 63 ms at *every* format from 640×480 to 3840×2160 — flat, so it is not per-pixel work at all. It is `sleep_for()` rounding up to the 15.6 ms Windows timer granularity, the same thing that capped `Window::Run()` near 62 passes a second. `timeBeginPeriod(1)` or a precise wait is most of the fix, and the pre-rendered replay buffer may not be needed at all |
-| 7 | **A second sky map** (phase 90) | Bench | S | Planned in `Phase89-Plan-Share-View-And-Second-Map.md`, and feasibility checked rather than assumed: `SkyMapWindow` is already safe to instantiate twice. Mostly wiring — a `skymap2` role, Shift+M, and both instances fed from the same readout |
-| 8 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
-| 9 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
+| 7 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
+| 8 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
 | — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3; see the memory note about keeping Windows Update away from the GPU drivers |
 
 ### P4.3 · Emulator frame rate — **premise corrected 2026-10-17**

@@ -1119,18 +1119,37 @@ static int RunApp(bool useEmulator) {
     // ── Sky Map (Phase 6.1) ────────────────────────────────────
     // Positioned to the right of the GoTo panel
     // Click any object → GoTo fires automatically
-    raduk::gui::SkyMapWindow skyMap;
-    skyMap.SetMount(mount);
+    //
+    // ── Phase 90: there are two ────────────────────────────────
+    //
+    // A sky map is the single best thing to have on a wall at a star
+    // party -- it answers "what are we looking at and where is it"
+    // without anyone having to ask. But that is the map doing a job for
+    // other people, and it leaves the owner without one to drive from.
+    //
+    // So: skyMap stays where it is, maximised on whichever screen the
+    // layout gives it, and skyMap2 opens on the control screen. M and
+    // Shift+M. Everything either of them can do, both can do -- they
+    // are fed and wired through kMaps below rather than by repeating
+    // each line, because a pair of objects that must be kept in step by
+    // hand is the shape of defect this file already has five of (D3).
+    raduk::gui::SkyMapWindow skyMap;    // the one on the wall
+    raduk::gui::SkyMapWindow skyMap2;   // the one to drive from
+    raduk::gui::SkyMapWindow* const kMaps[] = { &skyMap, &skyMap2 };
+
     {
-        // Always open centered on the primary monitor
-        int sw = GetSystemMetrics(SM_CXSCREEN);
-        int sh = GetSystemMetrics(SM_CYSCREEN);
-        int mw = 620, mh = 640;
-        int mx = (sw - mw) / 2;
-        int my = (sh - mh) / 2;
-        skyMap.Create(window.Handle(), mx, my, mw, mh);
+        // Both open centred on the primary; the workspace layout moves
+        // them afterwards. The second is smaller because its default
+        // home is the control screen, where it shares space with the
+        // preview rather than owning a monitor.
+        const int sw = GetSystemMetrics(SM_CXSCREEN);
+        const int sh = GetSystemMetrics(SM_CYSCREEN);
+        const int mw = 620, mh = 640;
+        skyMap.Create(window.Handle(), (sw - mw) / 2, (sh - mh) / 2, mw, mh);
+        const int w2 = 560, h2 = 580;
+        skyMap2.Create(window.Handle(), (sw - w2) / 2, (sh - h2) / 2, w2, h2);
     }
-    skyMap.Hide(); // hidden by default — M key or [★ MAP] to show
+    for (auto* m : kMaps) { m->SetMount(mount); m->Hide(); }
 
     // ── Phase 42: five-monitor workspace ──────────────────────
     // Detect how many screens there are, pick the layout profile for
@@ -1161,11 +1180,16 @@ static int RunApp(bool useEmulator) {
         controls.SetGoToTarget(name);
     });
 
-    skyMap.SetGoToCallback([&](double ra, double dec, const std::string& name) {
-        Log("[SKYMAP] GoTo: %s (%.4fh, %.4f\u00B0)\n", name.c_str(), ra, dec);
-        slog.Mount("SkyMap GoTo: %s", name.c_str());
-        gotoPanel.RequestGoTo(ra, dec, name);
-    });
+    // Both maps, same handler. Either can start a slew, and both ask
+    // for the click-to-confirm first -- that guard is the reason a map
+    // is safe to leave on a screen at an event, and it does not become
+    // optional just because there are two of them now.
+    for (auto* m : kMaps)
+        m->SetGoToCallback([&](double ra, double dec, const std::string& name) {
+            Log("[SKYMAP] GoTo: %s (%.4fh, %.4f\u00B0)\n", name.c_str(), ra, dec);
+            slog.Mount("SkyMap GoTo: %s", name.c_str());
+            gotoPanel.RequestGoTo(ra, dec, name);
+        });
 
     // Phase 50a: Object Info Panel — shown on right-click (sky map) or
     // double-click (Tonight planner)
@@ -1176,11 +1200,12 @@ static int RunApp(bool useEmulator) {
     objectInfo.SetGoToCallback([&](const std::string& name) {
         gotoPanel.RequestGoToByName(name);
     });
-    // Wire sky map right-click → info panel
-    skyMap.SetInfoCallback([&](const std::string& name,
+    // Wire sky map right-click → info panel, from either map
+    for (auto* m : kMaps)
+        m->SetInfoCallback([&](const std::string& name,
                                float alt, float az, float mag) {
-        objectInfo.ShowObject(name, alt, az, mag);
-    });
+            objectInfo.ShowObject(name, alt, az, mag);
+        });
     // Wire Tonight planner double-click → info panel
     gotoPanel.SetInfoCallback([&](const std::string& name,
                                   float alt, float az, float mag) {
@@ -1431,7 +1456,8 @@ static int RunApp(bool useEmulator) {
     // arranged instead of visibly rearranging itself.
     const std::vector<std::pair<const char*, HWND>> kPlacedWindows = {
         { "main",   window.Handle()    },
-        { "skymap", skyMap.Handle()    },
+        { "skymap",  skyMap.Handle()  },
+        { "skymap2", skyMap2.Handle() },
         { "goto",   gotoPanel.Handle() },
         { "mount",  mountCtrl.Handle() },
         { "help",   helpWindow.Handle()},
@@ -1802,7 +1828,7 @@ static int RunApp(bool useEmulator) {
                        synced ? "ok" : "refused",
                        tracking ? "alt-az" : "refused");
         }
-        skyMap.SetMountPosition(ra_h, dec_deg, true);
+        for (auto* m : kMaps) m->SetMountPosition(ra_h, dec_deg, true);
         std::wstring wname(name.begin(), name.end());
         if (synced && tracking)
             notifBar.NotifyInfo(L"★ Aligned on " + wname + L" - tracking ALT-AZ");
@@ -3271,6 +3297,13 @@ static int RunApp(bool useEmulator) {
     window.SetFullscreenToggleHandler([&]() { doFullscreen();        });
     window.SetGoToToggleHandler([&]()       { gotoPanel.ShowCentered(); });
     window.SetSkyMapToggleHandler([&]()     { skyMap.Toggle();       });
+    // Shift+M. The second map, for the control screen, so the first
+    // can stay where people can see it.
+    window.SetSkyMap2ToggleHandler([&]() {
+        skyMap2.Toggle();
+        if (skyMap2.IsVisible()) skyMap2.Tick();
+        Log("[SKYMAP] second map %s\n", skyMap2.IsVisible() ? "on" : "off");
+    });
     window.SetShareViewToggleHandler([&]() {
         shareView.Toggle();
         Log("[SHARE] view %s\n", shareView.IsVisible() ? "on" : "off");
@@ -3847,7 +3880,7 @@ static int RunApp(bool useEmulator) {
 
         // Keep frame bar GoTo button in sync with panel visibility
         preview.SetGoToPanelVisible(gotoPanel.IsVisible());
-        preview.SetSkyMapVisible(skyMap.IsVisible());
+        preview.SetSkyMapVisible(skyMap.IsVisible() || skyMap2.IsVisible());
 
         // Grab latest analysis result — push to ControlPanel for GDI histogram
         bool freshAnalysis = false;
@@ -3969,7 +4002,7 @@ static int RunApp(bool useEmulator) {
                 tracker.IsStable(),
                 tracker.IsDwellMet(),
                 preview.GetDebayerMode() == raduk::gui::DebayerMode::Color,
-                skyMap.IsVisible(),
+                skyMap.IsVisible() || skyMap2.IsVisible(),
                 gotoPanel.IsVisible(),
                 preview.ReticleVisible(),
                 preview.ClipVisible(),
@@ -4243,9 +4276,9 @@ static int RunApp(bool useEmulator) {
             else
                 gotoPanel.TickSlewStatus();
 
-            // Sky map — update mount crosshair and redraw
-            if (skyMap.IsVisible())
-                skyMap.Tick();
+            // Sky maps — update mount crosshair and redraw
+            for (auto* m : kMaps)
+                if (m->IsVisible()) m->Tick();
 
             // Centroid tracker — dispatch callbacks on main thread
             if (tracker.Stage() != raduk::core::AcquisitionStage::Off)

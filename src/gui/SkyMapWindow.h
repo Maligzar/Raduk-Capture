@@ -91,14 +91,24 @@ public:
     bool Create(HWND parent, int x, int y, int w, int h) {
         m_w = w; m_h = h;
 
-        WNDCLASSEXW wc = {};
-        wc.cbSize        = sizeof(wc);
-        wc.lpfnWndProc   = WndProc;
-        wc.hInstance     = GetModuleHandle(nullptr);
-        wc.hCursor       = LoadCursor(nullptr, IDC_CROSS);
-        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(4, 8, 16)));
-        wc.lpszClassName = L"RadukSkyMap";
-        RegisterClassExW(&wc);
+        // Registered once for the process, not once per window. There
+        // are two of these now (phase 90): the big one that stays on a
+        // screen other people can see, and a second on the control
+        // screen to drive from. A second RegisterClassExW on an
+        // existing class fails harmlessly, but the background brush it
+        // was handed would be leaked every time.
+        static bool s_registered = false;
+        if (!s_registered) {
+            WNDCLASSEXW wc = {};
+            wc.cbSize        = sizeof(wc);
+            wc.lpfnWndProc   = WndProc;
+            wc.hInstance     = GetModuleHandle(nullptr);
+            wc.hCursor       = LoadCursor(nullptr, IDC_CROSS);
+            wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(4, 8, 16)));
+            wc.lpszClassName = L"RadukSkyMap";
+            RegisterClassExW(&wc);
+            s_registered = true;
+        }
 
         // No WS_EX_TOOLWINDOW, and WS_MAXIMIZEBOX added.
         //

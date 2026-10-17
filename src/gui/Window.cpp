@@ -424,6 +424,14 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (firstPress && m_onGoToToggle) m_onGoToToggle();
             return true;
         case 'M':
+            // Shift+M is the SECOND sky map (phase 90), for the control
+            // screen, so the first can stay maximised on a screen other
+            // people are looking at. Same letter rather than a new one,
+            // like every other Shift+<letter> window on this desk.
+            if (shift) {
+                if (firstPress && m_onSkyMap2Toggle) m_onSkyMap2Toggle();
+                return true;
+            }
             if (firstPress && m_onSkyMapToggle) m_onSkyMapToggle();
             return true;
         case 'F':

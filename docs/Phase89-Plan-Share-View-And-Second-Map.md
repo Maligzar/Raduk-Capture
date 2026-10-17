@@ -251,3 +251,35 @@ render loop in `37b8c50` — that anomaly is the first thing to chase.
 
 Not fixed here. Four plausible full-frame passes and no profile is
 exactly the state that produced the wrong P4.3 diagnosis.
+
+---
+
+## Outcome — Phase 90 shipped 2026-10-17
+
+Built as planned, and the feasibility notes held: `SkyMapWindow` took a
+second instance with no changes to the class beyond one leak. The
+window class was being registered per window, and `RegisterClassExW`
+on an existing class fails harmlessly *after* taking the background
+brush it was handed — so a second map would have leaked a GDI brush.
+Registration is now once per process.
+
+`Shift+M`. Default placement is the `skymap2` role on the **main
+window's screen**, which is the whole point: the first map exists to
+be looked at by other people, and the second exists where the owner is
+working. No size in the default, so `Place()` centres it at its own
+560×580 rather than maximising over the preview.
+
+**Wired through a list, not by repeating lines.** The two maps live in
+a `kMaps[]` array and every shared concern — mount, GoTo callback,
+Info callback, `SetMountPosition`, `Tick()` — iterates it. The plan
+listed five wiring points and noted that `kPlacedWindows` would be the
+fifth list in this file that has to be kept in step by hand (D3).
+Adding a sixth by hand would have been the wrong answer to that.
+
+Both maps still require the click-to-confirm before they slew. That
+guard is what makes a map safe to leave on a screen at an event, and
+it does not become optional because there are two of them.
+
+Verified with real keystrokes through the message pump: `M` toggles
+the big map, `Shift+M` toggles the second independently, both render
+their own D2D target, catalog, site panel and mount crosshair.

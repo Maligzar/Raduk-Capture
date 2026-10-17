@@ -466,6 +466,14 @@ public:
         mainP.id     = m_monitors[0].id;
         prof["main"] = mainP;
 
+        // Phase 90: the second sky map belongs on the SAME screen as
+        // the main window, not a spare one. It exists because the first
+        // map is busy being looked at by other people, and the whole
+        // point is to have one where the owner is working. No size
+        // asked for, so Place() centres it at its own -- it shares the
+        // control screen with the preview rather than owning a monitor.
+        prof["skymap2"] = mainP;
+
         // Roles that benefit from a screen of their own, in the order
         // they get one as screens become available.
         // Order matters: the earlier a role appears, the more likely it

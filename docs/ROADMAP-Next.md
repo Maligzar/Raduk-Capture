@@ -775,7 +775,7 @@ and the real cause behind it — the emulator's defocus blur — is fixed.
 
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
-| 1 | **GoTo and AI Chat font scaling** (P3.3, the rest) | Bench | M–H | The largest thing left from the owner's own list. Help is done and proved the pattern (`ef736e1`); the map is done (P3.4, which turned out to be open after all). `GoToPanel.h` is 1902 lines with **no `WM_SIZE` handler at all** and is the densest layout in the app, which is why it was left for last. `AIChatPanel.h` still unexamined |
+| 1 | **P3.3 — DONE 2026-10-17** | Bench | — | Help (`ef736e1`), the map (P3.4), AI chat (`179f8aa`) and now GoTo all scale. GoTo also had a Unicode defect that had hidden every object name in the catalogue since it was written |
 | 2 | **Night-vision repaint beyond the layout list** (D3) | Bench | XS–S | Cheap, and the risk keeps compounding: `kPlacedWindows` is the *sixth* list in `main.cpp` that silently depends on being complete, and it grew twice this week. Phase 90 answered it locally by iterating a `kMaps[]` array instead of repeating lines; this is the same idea applied to the window list |
 | 3 | **Xbox controller input** (P4.1) | Bench | M | Feasibility proven on this machine. Needs `SlewVariable()` on the mount first, or the stick is a nine-position switch — plus a controller and **an adapter, since this machine has no Bluetooth** |
 | 4 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |

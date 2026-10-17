@@ -713,6 +713,225 @@ private:
         }
     }
 
+    // ── P3.3: one place that decides where everything goes ────
+    //
+    // This panel had WS_SIZEBOX and no WM_SIZE handler, so it could be
+    // dragged larger and every control stayed exactly where it was:
+    // at 1000x1000 the whole interface sat in the left half of an
+    // otherwise empty window. Being resizable into a broken state is
+    // worse than not being resizable.
+    //
+    // The layout was already parameterised -- BuildControls takes a
+    // width and a height and walks a single vertical column -- it was
+    // simply only ever called once. So the arithmetic moves here and
+    // BuildControls calls it, which means creation and resize cannot
+    // drift apart: there is one copy and both paths use it.
+    //
+    // Everything stretches to the width. The object list takes
+    // whatever height is left over, because that is where the content
+    // is and the rest of the stack is fixed-height furniture.
+    void LayoutControls(int w, int h) {
+        if (!m_hwnd || w <= 0 || h <= 0) return;
+
+        const int x  = 8;
+        const int cw = w - 16;                  // the column's width
+        if (cw < 120) return;                   // too narrow to mean anything
+
+        // Row heights with room for descenders. m_fontPx + 3 was
+        // enough at 12 px and clipped the bottom off "Alignment
+        // points: 0" at 22, which is the sort of thing that only shows
+        // up once the font actually starts moving.
+        auto rowH = [](int px) { return (px * 3) / 2; };
+        auto btnH = [](int px) { return px * 2; };
+
+        // The stack has a natural minimum height, and taller rows made
+        // it taller: at 464x661 the START SURVEY button went 29 px off
+        // the bottom. Rather than refuse to be that small -- the saved
+        // workspace already has it at 487x711 -- step the type down
+        // until the fixed furniture fits. Twelve is the floor, below
+        // which this stops being readable at all and the window is
+        // simply too short for its contents.
+        int px = h / 46;
+        if (px < 12) px = 12;
+        if (px > 24) px = 24;
+        while (px > 12 && FixedStackHeight(px) > h) px--;
+        ApplyFontPx(px);
+
+        const int SH = rowH(m_fontPx);          // a label row
+        const int BH = btnH(m_fontPx);          // a button
+        const int TABH = BH + 4;
+
+        auto place = [](HWND c, int px, int py, int pw, int ph) {
+            if (c) SetWindowPos(c, nullptr, px, py, pw, ph,
+                                SWP_NOZORDER | SWP_NOACTIVATE);
+        };
+
+        // ── Tab 0: GoTo ──
+        int y = 4;
+        place(m_tabCtrl, x, y, cw, TABH);
+        y += TABH + 4;
+
+        const int tabTop = y;
+
+        place(m_hdrAlign, x, y, cw, SH);              y += SH + 2;
+        place(m_lblAlignState, x, y, cw, SH * 2);     y += SH * 2 + 2;
+        place(m_btnSolveAlign, x, y, cw, BH);         y += BH + 6;
+        place(m_hdrCatalog, x, y, cw, SH);            y += SH + 4;
+
+        const int searchLabW = m_fontPx * 4;
+        place(m_lblSearch, x, y, searchLabW, SH);
+        place(m_editSearch, x + searchLabW + 4, y - 2,
+              cw - searchLabW - 4, BH);
+        y += BH + 4;
+
+        // Everything from here down is fixed height. Measure it, then
+        // give the list the remainder -- a taller window should mean
+        // more objects visible, not more empty space under the last
+        // button.
+        const int below = BH + 4 + 8            // GOTO SELECTED
+                        + SH + 4                // MANUAL COORDS
+                        + BH + 4                // RA / DEC row
+                        + BH + 8                // GOTO COORDS
+                        + SH + 4                // PLATE SOLVE
+                        + BH + 4 + 8            // SOLVE / SYNC
+                        + SH + 4                // alignment points
+                        + BH + 4                // STOP SLEW
+                        + SH * 2 + 6            // status
+                        + SH + 4                // SKY SURVEY
+                        + SH * 2 + 4            // survey state
+                        + BH + 8;               // START SURVEY
+        int listH = h - y - below;
+        if (listH < m_fontPx * 6) listH = m_fontPx * 6;
+        place(m_listObjects, x, y, cw, listH);
+        y += listH + 6;
+
+        place(m_btnGoTo, x, y, cw, BH + 4);           y += BH + 4 + 8;
+        place(m_hdrManual, x, y, cw, SH);             y += SH + 4;
+
+        const int coordLabW = m_fontPx * 4 + 6;
+        const int halfW     = (cw - 6) / 2;
+        place(m_lblRA,   x, y, coordLabW, SH);
+        place(m_editRA,  x + coordLabW, y - 2, halfW - coordLabW, BH);
+        place(m_lblDec,  x + halfW + 6, y, coordLabW, SH);
+        place(m_editDec, x + halfW + 6 + coordLabW, y - 2,
+              halfW - coordLabW, BH);
+        y += BH + 4;
+
+        place(m_btnGoToCoord, x, y, cw, BH);          y += BH + 8;
+        place(m_hdrSolve, x, y, cw, SH);              y += SH + 4;
+
+        const int hw = (cw - 4) / 2;
+        place(m_btnSolve, x,          y, hw, BH + 4);
+        place(m_btnSync,  x + hw + 4, y, hw, BH + 4);
+        y += BH + 4 + 8;
+
+        place(m_lblAlign, x, y, cw, SH);              y += SH + 4;
+
+        // The stop button. Checked explicitly below, because a control
+        // that moves off the bottom of its own window is the one defect
+        // in this panel that would matter at the telescope.
+        place(m_btnStop, x, y, cw, BH);               y += BH + 4;
+        place(m_lblStatus, x, y, cw, SH * 2);         y += SH * 2 + 6;
+
+        place(m_hdrSurvey, x, y, cw, SH);             y += SH + 4;
+        place(m_lblSurvey, x, y, cw, SH * 2);         y += SH * 2 + 4;
+        place(m_btnSurvey, x, y, cw, BH);
+
+        // ── Tab 1: Tonight ──
+        int ty = tabTop;
+        place(m_lblTonightHdr, x, ty, cw, SH);        ty += SH + 4;
+        int tonightListH = h - ty - (BH + 4) - 12;
+        if (tonightListH < m_fontPx * 6) tonightListH = m_fontPx * 6;
+        place(m_listTonight, x, ty, cw, tonightListH);
+        ty += tonightListH + 4;
+        place(m_btnGoToTonight, x, ty, cw, BH + 4);
+
+        ScaleListColumns(cw);
+
+        // Repaint the background. Static controls do not erase behind
+        // themselves when they move, so the old text stays on the
+        // parent and the heading reads as two overlapping copies of
+        // itself -- which is exactly what the first pass looked like.
+        InvalidateRect(m_hwnd, nullptr, TRUE);
+    }
+
+    // List columns in proportion to the width. The object name is what
+    // the list is read for, so it takes the slack -- at the old fixed
+    // 160 px a wider window just left dead space to the right of Dec.
+    void ScaleListColumns(int cw) {
+        if (m_listObjects) {
+            const int fixed[] = { 0, 50, 40, 70, 70 };
+            const double k = (double)m_fontPx / 12.0;
+            int used = 0;
+            for (int i = 1; i < 5; i++) used += (int)(fixed[i] * k);
+            int name = cw - used - 24;             // 24: scrollbar + edges
+            if (name < (int)(90 * k)) name = (int)(90 * k);
+            ListView_SetColumnWidth(m_listObjects, 0, name);
+            for (int i = 1; i < 5; i++)
+                ListView_SetColumnWidth(m_listObjects, i, (int)(fixed[i] * k));
+        }
+        if (m_listTonight) {
+            const int fixed[] = { 0, 38, 90, 48, 40, 36 };
+            const double k = (double)m_fontPx / 12.0;
+            int used = 0;
+            for (int i = 1; i < 6; i++) used += (int)(fixed[i] * k);
+            int name = cw - used - 24;
+            if (name < (int)(90 * k)) name = (int)(90 * k);
+            ListView_SetColumnWidth(m_listTonight, 0, name);
+            for (int i = 1; i < 6; i++)
+                ListView_SetColumnWidth(m_listTonight, i, (int)(fixed[i] * k));
+        }
+    }
+
+    // What the stack needs vertically at a given type size, with the
+    // object list at its minimum. Kept beside LayoutControls and in
+    // the same terms, because the two disagreeing is how a button ends
+    // up off the bottom of the window.
+    int FixedStackHeight(int px) const {
+        const int SH = (px * 3) / 2;
+        const int BH = px * 2;
+        const int top = 4 + (BH + 4) + 4        // tab strip
+                      + SH + 2                  // ALIGNMENT
+                      + SH * 2 + 2              // align state
+                      + BH + 6                  // solve-to-align
+                      + SH + 4                  // OBJECT CATALOG
+                      + BH + 4;                 // search row
+        const int below = (BH + 4 + 8)          // GOTO SELECTED
+                        + (SH + 4)              // MANUAL COORDS
+                        + (BH + 4)              // RA / DEC
+                        + (BH + 8)              // GOTO COORDS
+                        + (SH + 4)              // PLATE SOLVE
+                        + (BH + 4 + 8)          // SOLVE / SYNC
+                        + (SH + 4)              // alignment points
+                        + (BH + 4)              // STOP SLEW
+                        + (SH * 2 + 6)          // status
+                        + (SH + 4)              // SKY SURVEY
+                        + (SH * 2 + 4)          // survey state
+                        + (BH + 8);             // START SURVEY
+        return top + (px * 6) + 6 + below;      // + the list's minimum
+    }
+
+    // One font for every control, scaled off the window height, the
+    // same way Help and the AI panel do it.
+    void ApplyFontPx(int px) {
+        if (m_uiFont && px == m_fontPx) return;
+        m_fontPx = px;
+
+        HFONT old = m_uiFont;
+        m_uiFont = CreateFontW(-px, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+        if (!m_uiFont) { m_uiFont = old; return; }
+
+        EnumChildWindows(m_hwnd, [](HWND c, LPARAM lp) -> BOOL {
+            SendMessageW(c, WM_SETFONT, (WPARAM)lp, TRUE);
+            return TRUE;
+        }, (LPARAM)m_uiFont);
+
+        // After the controls have taken the new one, never before.
+        if (old) DeleteObject(old);
+    }
+
     void ShowTab(int tab) {
         m_activeTab = tab;
         // Tab 0: GoTo controls
@@ -1104,7 +1323,7 @@ private:
 
         // ── Alignment status banner ───────────────────────────
         // Shows alignment state prominently — GoTo is locked until aligned
-        Label(L"\u2500\u2500 ALIGNMENT \u2500\u2500", x, y, w, SH);
+        m_hdrAlign = Label(L"\u2500\u2500 ALIGNMENT \u2500\u2500", x, y, w, SH);
         y += SH + 2;
         m_lblAlignState = Label(L"Checking...", x, y, w, SH*2, ID_LBL_ALIGN_STATE);
         y += SH*2 + 2;
@@ -1116,10 +1335,10 @@ private:
         y += BH + 6;
 
         // ── Search box ────────────────────────────────────────
-        Label(L"\u2500\u2500 OBJECT CATALOG \u2500\u2500", x, y, w, SH);
+        m_hdrCatalog = Label(L"\u2500\u2500 OBJECT CATALOG \u2500\u2500", x, y, w, SH);
         y += SH + 4;
 
-        Label(L"SEARCH:", x, y, 52, SH);
+        m_lblSearch = Label(L"SEARCH:", x, y, 52, SH);
         m_editSearch = Edit(L"", x+56, y-2, w-56, BH, ID_EDIT_SEARCH);
         SetWindowTheme(m_editSearch, L"", L"");
         y += BH + 4;
@@ -1156,12 +1375,12 @@ private:
         y += BH + 8;
 
         // ── Manual RA/DEC entry ───────────────────────────────
-        Label(L"\u2500\u2500 MANUAL COORDS \u2500\u2500", x, y, w, SH);
+        m_hdrManual = Label(L"\u2500\u2500 MANUAL COORDS \u2500\u2500", x, y, w, SH);
         y += SH + 4;
 
-        Label(L"RA (h):", x, y, 46, SH);
+        m_lblRA = Label(L"RA (h):", x, y, 46, SH);
         m_editRA = Edit(L"", x+50, y-2, (w-50)/2-4, BH, ID_EDIT_RA);
-        Label(L"DEC (°):", x + (w+6)/2, y, 46, SH);
+        m_lblDec = Label(L"DEC (°):", x + (w+6)/2, y, 46, SH);
         m_editDec = Edit(L"", x + (w+6)/2 + 50, y-2, (w-50)/2-4, BH, ID_EDIT_DEC);
         y += BH + 4;
         m_btnGoToCoord = Button(L"GOTO COORDS", x, y, w, BH, ID_BTN_GOTO_COORD);
@@ -1172,7 +1391,7 @@ private:
         EnableWindow(m_btnGoToCoord, FALSE);
 
         // ── Plate solve / sync ────────────────────────────────
-        Label(L"\u2500\u2500 PLATE SOLVE \u2500\u2500", x, y, w, SH);
+        m_hdrSolve = Label(L"\u2500\u2500 PLATE SOLVE \u2500\u2500", x, y, w, SH);
         y += SH + 4;
 
         int hw = (w-4)/2;
@@ -1191,7 +1410,7 @@ private:
         y += SH*2 + 6;
 
         // ── Phase 13: Sky Survey ──────────────────────────────
-        Label(L"\u2500\u2500 SKY SURVEY (POINTING MODEL) \u2500\u2500", x, y, w, SH);
+        m_hdrSurvey = Label(L"\u2500\u2500 SKY SURVEY (POINTING MODEL) \u2500\u2500", x, y, w, SH);
         y += SH + 4;
         m_lblSurvey = Label(L"Survey: not run yet   [GoTo accuracy: uncalibrated]",
                             x, y, w, SH*2, ID_LBL_SURVEY);
@@ -1237,6 +1456,16 @@ private:
         m_btnGoToTonight = Button(L"GOTO SELECTED OBJECT", x, tonightY, w, BH+4,
                                   ID_BTN_GOTO_TONIGHT);
 
+        // P3.3: everything above was created at whatever coordinates
+        // the creation code happened to compute. This is what actually
+        // decides where they sit, and it is the same call WM_SIZE
+        // makes -- so there is no second copy of the arithmetic to
+        // fall out of step.
+        {
+            RECT cr; GetClientRect(m_hwnd, &cr);
+            LayoutControls(cr.right, cr.bottom);
+        }
+
         // Start on GoTo tab (tab 0), tonight controls hidden
         ShowTab(0);
     }
@@ -1277,7 +1506,20 @@ private:
             lvi.iItem    = row;
             lvi.iSubItem = 0;
             lvi.pszText  = wname;
-            ListView_InsertItem(m_listObjects, &lvi);
+            // LVM_INSERTITEMW, not the ListView_InsertItem macro.
+            //
+            // This project is not built with UNICODE defined, so that
+            // macro resolves to the ANSI message -- and it was being
+            // handed a UTF-16 string. "M13" is 4D 00 31 00 33 00, which
+            // read as ANSI is "M" followed by a terminator. Every
+            // object in the catalogue has been showing as its first
+            // letter alone, in the list the slew target is chosen from.
+            //
+            // The Type, Mag, RA and Dec columns were right all along
+            // because they go through LVM_SETITEMTEXTW explicitly, and
+            // so does the Tonight list's insert. This one call was the
+            // odd one out.
+            SendMessageW(m_listObjects, LVM_INSERTITEMW, 0, (LPARAM)&lvi);
 
             wchar_t wtype[32];
             MultiByteToWideChar(CP_UTF8, 0, obj->type.c_str(), -1, wtype, 32);
@@ -1808,6 +2050,14 @@ private:
                 }
                 return 0;
             }
+            // P3.3: this panel has had WS_SIZEBOX since it was written
+            // and never handled WM_SIZE, so dragging it larger left
+            // every control where it was.
+            case WM_SIZE:
+                if (self && wParam != SIZE_MINIMIZED)
+                    self->LayoutControls(LOWORD(lParam), HIWORD(lParam));
+                return 0;
+
             case WM_CLOSE:
                 ShowWindow(hwnd, SW_HIDE);
                 return 0;
@@ -1896,6 +2146,22 @@ private:
     bool                        m_surveyLastSolved = false;
     HWND                        m_btnSurvey        = nullptr;
     HWND                        m_lblSurvey        = nullptr;
+
+    // ── P3.3: the section headings, and the layout's own state ──
+    //
+    // These labels used to be created and their handles thrown away,
+    // which was fine while nothing ever moved them. LayoutControls has
+    // to move everything or the stack comes apart, so they are kept.
+    HWND                        m_lblSearch        = nullptr;
+    HWND                        m_lblRA            = nullptr;
+    HWND                        m_lblDec           = nullptr;
+    HWND                        m_hdrAlign         = nullptr;
+    HWND                        m_hdrCatalog       = nullptr;
+    HWND                        m_hdrManual        = nullptr;
+    HWND                        m_hdrSolve         = nullptr;
+    HWND                        m_hdrSurvey        = nullptr;
+    HFONT                       m_uiFont           = nullptr;
+    int                         m_fontPx           = 0;
     std::function<void()>       m_onSurveyNeedFrame;
 };
 

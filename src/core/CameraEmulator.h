@@ -952,8 +952,10 @@ private:
                     if (m_blurTmp.size() != backBuf.size())
                         m_blurTmp.resize(backBuf.size());
                     memcpy(m_blurTmp.data(), backBuf.data(), backBuf.size());
-                    BlurBayer(backBuf.data(),   W, H, r0,     m_blurScratch);
-                    BlurBayer(m_blurTmp.data(), W, H, r0 + 1, m_blurScratch);
+                    BlurBayer(backBuf.data(),   W, H, r0,
+                              m_blurScratch, m_blurRing, m_blurSum, m_blurMeanA);
+                    BlurBayer(m_blurTmp.data(), W, H, r0 + 1,
+                              m_blurScratch, m_blurRing, m_blurSum, m_blurMeanB);
                     const int fx = (int)(frac * 256.0f + 0.5f);
                     uint8_t* a = backBuf.data();
                     const uint8_t* b = m_blurTmp.data();
@@ -1030,12 +1032,39 @@ private:
     int                         m_peakTargetDn  = 0;
     int                         m_target        = 0;   // index into EMU_TARGETS
     std::vector<int>            m_blurScratch;   // generator thread only
+    std::vector<int>            m_blurRing;      // P4.4a column-tile window
+    std::vector<int>            m_blurSum;       // P4.4a column-tile sums
+    // One per radius in use, so the two blends do not rebuild each
+    // other's table every frame.
+    std::vector<uint8_t>        m_blurMeanA, m_blurMeanB;
     std::vector<uint8_t>        m_blurTmp;       // generator thread only
+
+    // ── sum / win without dividing (P4.4a) ────────────────────
+    //
+    // The box filter divides once per OUTPUT ELEMENT, and there are six
+    // full-frame separable passes per rendered frame: at 3840x2160
+    // that is fifty million integer divisions, which turned out to cost
+    // more than the cache misses the tiling above was chasing.
+    //
+    // A running sum of a box of uint8 is bounded by 255*win, so a table
+    // of every value it can take is a few hundred bytes and sits in L1.
+    // It is built by doing the division, so it is exact rather than
+    // approximately exact -- no reciprocal, no rounding to argue about,
+    // and the output is bit-identical to dividing.
+    static const uint8_t* MeanTable(int win, std::vector<uint8_t>& t) {
+        const int n = 255 * win + 1;
+        if ((int)t.size() != n) {
+            t.resize(n);
+            for (int i = 0; i < n; i++) t[i] = (uint8_t)(i / win);
+        }
+        return t.data();
+    }
 
     // Box-blur one strided 1-D run in place, with edge replication.
     // Running sum, so cost is O(count) and independent of radius.
     static void BoxBlur1D(uint8_t* p, int count, int stride, int r,
-                          std::vector<int>& scratch) {
+                          std::vector<int>& scratch,
+                          const uint8_t* mean) {
         if (r < 1 || count < 2) return;
         scratch.resize(count);
         for (int i = 0; i < count; i++)
@@ -1047,7 +1076,7 @@ private:
         long sum = 0;
         for (int k = -r; k <= r; k++) sum += scratch[clampIdx(k)];
         for (int i = 0; i < count; i++) {
-            p[(size_t)i * stride] = (uint8_t)(sum / win);
+            p[(size_t)i * stride] = mean[sum];
             sum += scratch[clampIdx(i + r + 1)] - scratch[clampIdx(i - r)];
         }
     }
@@ -1067,23 +1096,96 @@ private:
     // whose response is monotonic with no sidelobes, so more defocus always
     // measures softer. Cost is 3x an O(pixels) pass, which is acceptable
     // for a 20fps emulator and only runs when out of focus.
+    // ── The vertical pass, in column tiles (P4.4a) ────────────
+    //
+    // Mathematically identical to running BoxBlur1D down each column:
+    // same box, same window, same edge replication. The difference is
+    // the order the memory is touched in.
+    //
+    // Down a single column the step is 2*W bytes -- 7680 at the full
+    // sensor -- so every element is its own cache line, the walk evicts
+    // the lines the NEXT column will want, and the whole frame is
+    // re-fetched once per column. That is why the blur cost 33 ms at
+    // 2.07 MP and 494 ms at 8.29 MP: four times the pixels, fifteen
+    // times the time, which is not pixel count, it is misses.
+    //
+    // A tile of adjacent columns is filtered together instead. The
+    // running sums for the whole tile live in a small array that stays
+    // hot, and each row touch is TILE contiguous bytes, so every line
+    // fetched is used in full. Reads stay ahead of writes: output row k
+    // is written before row k+r+1 is read.
+    static void BoxBlurColumnsTiled(uint8_t* buf, int W, int H, int r,
+                                    int rowPhase,
+                                    std::vector<int>& ring,
+                                    std::vector<int>& sum,
+                                    const uint8_t* mean) {
+        if (r < 1 || rowPhase >= H) return;
+        const int count = (H - rowPhase + 1) / 2;
+        if (count < 2) return;
+        const int win  = 2 * r + 1;
+        const int TILE = 256;
+
+        auto RowPtr = [&](int k) { return buf + (size_t)(rowPhase + 2 * k) * W; };
+        auto ClampK = [count](int k) {
+            return k < 0 ? 0 : (k >= count ? count - 1 : k);
+        };
+
+        ring.assign((size_t)win * TILE, 0);
+        sum.assign(TILE, 0);
+
+        for (int x0 = 0; x0 < W; x0 += TILE) {
+            const int tw = (W - x0 < TILE) ? (W - x0) : TILE;
+
+            // Prime with the window centred on row 0: elements -r..+r,
+            // edge-replicated. Element m lives in slot (m + r) % win.
+            for (int t = 0; t < tw; t++) sum[t] = 0;
+            for (int j = -r; j <= r; j++) {
+                const uint8_t* src = RowPtr(ClampK(j)) + x0;
+                int* slot = &ring[(size_t)((j + r) % win) * TILE];
+                for (int t = 0; t < tw; t++) { slot[t] = src[t]; sum[t] += src[t]; }
+            }
+
+            for (int k = 0; k < count; k++) {
+                uint8_t* dst = RowPtr(k) + x0;
+                for (int t = 0; t < tw; t++)
+                    dst[t] = mean[sum[t]];
+
+                // Leaving element k-r and arriving element k+r+1 share
+                // slot k % win, so the arrival overwrites the departure.
+                const uint8_t* in = RowPtr(ClampK(k + r + 1)) + x0;
+                int* slot = &ring[(size_t)(k % win) * TILE];
+                for (int t = 0; t < tw; t++) {
+                    sum[t] += in[t] - slot[t];
+                    slot[t] = in[t];
+                }
+            }
+        }
+    }
+
     static void BlurBayerBoxPass(uint8_t* buf, int W, int H, int r,
-                                 std::vector<int>& scratch) {
+                                 std::vector<int>& scratch,
+                                 std::vector<int>& ring,
+                                 std::vector<int>& sum,
+                                 const uint8_t* mean) {
+        // Horizontal first. Its stride is 2 BYTES, so the row is walked
+        // essentially sequentially and there is nothing to win here.
         for (int py = 0; py < H; py++)
             for (int c0 = 0; c0 < 2 && c0 < W; c0++)
                 BoxBlur1D(buf + (size_t)py * W + c0,
-                          (W - c0 + 1) / 2, 2, r, scratch);
-        for (int px = 0; px < W; px++)
-            for (int r0 = 0; r0 < 2 && r0 < H; r0++)
-                BoxBlur1D(buf + (size_t)r0 * W + px,
-                          (H - r0 + 1) / 2, 2 * W, r, scratch);
+                          (W - c0 + 1) / 2, 2, r, scratch, mean);
+        for (int r0 = 0; r0 < 2 && r0 < H; r0++)
+            BoxBlurColumnsTiled(buf, W, H, r, r0, ring, sum, mean);
     }
 
     static void BlurBayer(uint8_t* buf, int W, int H, int r,
-                          std::vector<int>& scratch) {
+                          std::vector<int>& scratch,
+                          std::vector<int>& ring,
+                          std::vector<int>& sum,
+                          std::vector<uint8_t>& meanTab) {
         if (r < 1) return;
+        const uint8_t* mean = MeanTable(2 * r + 1, meanTab);
         for (int pass = 0; pass < 3; pass++)
-            BlurBayerBoxPass(buf, W, H, r, scratch);
+            BlurBayerBoxPass(buf, W, H, r, scratch, ring, sum, mean);
     }
 
     // Phase 58: USB-drop injection window (RADUK_EMU_REMOVE_AFTER_S)

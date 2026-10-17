@@ -874,23 +874,45 @@ and whether any go missing.
 > warning that "full sensor is slow to preview" was wrong and has been
 > removed.
 
-### P4.4a · The emulator's blur is super-linear in frame width
-**Bench. Small-medium. What is actually left of P4.4.**
+### P4.4a · The emulator's defocus blur — DONE 2026-10-17
 
-The defocus blur costs 33 ms of extra work at 2.07 MP and 494 ms at
-8.29 MP. Four times the pixels, fifteen times the time — so it is not
-pixel count, it is cache behaviour: `BlurBayer` walks columns with a
-stride of the frame width, and at 3840 wide every step is a miss.
+The blur cost 494 ms of the 556 ms a defocused full-sensor frame took.
+Two causes, and the one in the title turned out to be the smaller.
 
-It only bites when the emulated focuser is away from true focus, which
-by default it is. **Focusing the emulated EAF to 168000 skips the blur
-entirely** (`diaPx` becomes 0, `rf` becomes 0, and the block is gated
-on `r0 >= 1 || frac > 0.01`), which is the cheap way to get full-sensor
-bench rates today.
+**The stride.** The vertical pass walked each column with a step of
+2*W bytes — 7680 at the full sensor — so every element was its own
+cache line and the walk evicted what the next column needed. It is
+done in tiles of 256 adjacent columns now, with the running sums for
+the whole tile in a small hot array, so each row touch is contiguous
+and every line fetched gets used. **556 → 348 ms.**
 
-Worth fixing properly if full-sensor bench work becomes routine, since
-a defocused sweep is exactly what autofocus testing needs. Tiled or
-transposed box passes would do it. Not urgent, and emulator-only.
+**The division, which was bigger.** The box filter divides once per
+output element, and there are six full-frame separable passes per
+rendered frame: fifty million integer divisions at 3840x2160. A
+running sum over uint8 is bounded by 255*win, so a table of every
+value it can take is a few hundred bytes and lives in L1. It is built
+*by dividing*, so it is exact rather than approximately exact.
+**348 → 190 ms.**
+
+| | before | after |
+|---|---|---|
+| 1920×1080, defocused | 95.9 ms | 63.5 ms (at the floor) |
+| 3840×2160, defocused | 556.4 ms | **190.3 ms** |
+| app capture rate, full sensor | 1.8 fps | **5.8 fps** |
+
+**Proved equivalent, not assumed.** `tests/manual-emulator-blur-
+equivalence.cpp` grabs a defocused frame with the surface frozen and
+the noise off and prints a checksum. Before and after match exactly at
+both formats — `937f6ad165b01a5c` and `935a387ea2ff8f76` — so the
+rewrite changed the speed and nothing else. That mattered: a blur that
+is merely *close* would quietly move every sharpness measurement the
+autofocus work depends on.
+
+Still worth knowing: focusing the emulated EAF to 168000 skips the
+blur entirely and gives ~16 fps at the full sensor, because
+`TARGET_MS` is 50 and the app's `timeBeginPeriod(1)` lets the sleep
+hit it. Further gains would need SIMD or fewer passes, and the
+remaining 128 ms is honest work rather than waste.
 
 ### P4.5 · Preview no longer re-derives pixels it already has — DONE
 **Shipped 2026-10-17.**

@@ -732,7 +732,7 @@ windows, and this is the second thing that silently depends on it.
 
 ## Ranked summary
 
-Updated 2026-10-14. Everything above the line is finished and pushed;
+Updated 2026-10-17. Everything above the line is finished and pushed;
 the ranking below it is what to pick up next.
 
 ### Done
@@ -751,6 +751,12 @@ the ranking below it is what to pick up next.
 | ADC alignment tool (phase 35) | `9360842` — gated on *ADC fitted* |
 | Five-monitor workspace finished (phase 42) | `66d62a1` |
 | Sensor analysis / smart histogram (phase 36) | `665bb78` |
+| Write buffer sized to the run, not a flat 512 | `8a8214e` — 292 MB/s drive measured, dips to 141 |
+| Recording moved off the render loop onto the capture thread | `37b8c50` — the loop capped it near 62 fps |
+| Scope position telemetry: lamp, status row, SER sidecar | `84bdf32` |
+| LIVE-line telemetry on the status window | `9e018fd` |
+| `Ctrl+Shift+End` confirms the save, after verifying the file | `a59aa50` |
+| Xbox controller feasibility checked on the machine | `8fed05a` — works; needs an adapter, no Bluetooth here |
 | Mount controller as a gamepad (P3.5) | ❌ dropped — the panel is fine as it is |
 
 ---
@@ -761,11 +767,34 @@ the ranking below it is what to pick up next.
 |---|---|---|---|---|
 | 1 | **Resizable AI / GoTo / Help, bigger fonts** (P3.3) | Bench | M–H | Largest item left from the owner's own list, and the densest layouts in the app. Everything else in Tier 3 is finished, so this is what "the five-screen workspace" still means |
 | 2 | **Map contents scaling** (P3.4) | Bench | S | Check first — the window already maximises, so this may be closed. If open it is the same font-scaling job as 1 and should ride along with it |
-| 3 | **Night-vision repaint beyond the layout list** (D3) | Bench | XS–S | Cheap, and the risk compounds: `kPlacedWindows` is now the third thing that silently depends on being complete, and it just grew again for the ADC window |
-| 4 | **Xbox controller input** (P4.1) | Bench | M | Replanned 2026-10-14, feasibility checked. Software side is free; needs `SlewVariable()` on the mount first, and a controller plus **an adapter — this machine has no Bluetooth** |
-| 5 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
-| 6 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
+| 3 | **Night-vision repaint beyond the layout list** (D3) | Bench | XS–S | Cheap, and the risk compounds: `kPlacedWindows` is now the *fifth* thing that silently depends on being complete, and it has grown twice this week |
+| 4 | **Xbox controller input** (P4.1) | Bench | M | Feasibility proven on this machine. Needs `SlewVariable()` on the mount first, or the stick is a nine-position switch — plus a controller and **an adapter, since this machine has no Bluetooth** |
+| 5 | **Emulator replay mode** (new, P4.3) | Bench | S–M | The emulator caps at 16 fps because it *renders* every frame (62 ms each). Replaying a few dozen pre-rendered frames at an arbitrary rate would let the whole pipeline be exercised at 147 MB/s indoors — which is the only way clear-night item 13 gets de-risked before a clear night |
+| 6 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
+| 7 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
 | — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3; see the memory note about keeping Windows Update away from the GPU drivers |
+
+### P4.3 · Emulator replay mode
+**Bench. Small-medium. Added 2026-10-17.**
+
+The emulator delivers 16.1 fps measured directly, with no app around
+it — not because of a frame-rate cap but because it *renders* a
+limb-darkened banded planet with moons and seeing wander every frame,
+at 62 ms a go. It overruns its own 50 ms `TARGET_MS` cap.
+
+That is the only reason the capture pipeline has never been exercised
+above 20 fps, and it is why clear-night item 13 exists at all.
+
+Optimising the renderer is the wrong fix. Render a few dozen frames
+once, keep them in memory, and serve them round-robin at a configured
+rate. Then 120 fps and 147 MB/s are reachable on the bench, and the
+decoupled recording path, the run-sized write buffer and the SER
+writer can all be tested at the rate they were built for — indoors,
+repeatably, and in a form `tests/` could eventually gate.
+
+The frames need not be interesting. Nothing being measured at that
+rate cares what the planet looks like; it cares about bytes per second
+and whether any go missing.
 
 ### Blocked on weather
 

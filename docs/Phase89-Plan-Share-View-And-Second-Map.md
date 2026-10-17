@@ -196,3 +196,58 @@ Small. Half a day, most of it the wiring list.
   object info panel already hold the text.
 - **A second share view**, for a rig with more spare screens than this
   one. Nothing in the design prevents it; nothing asks for it yet.
+
+---
+
+## Outcome — Phase 89 shipped 2026-10-17 (`c48c6de`)
+
+Built as planned. `Shift+V`, workspace role `share`,
+`WS_EX_NOACTIVATE`, 30 fps cap, fed the finished RGBA through
+`PreviewRenderer::SetPresentSink`. Verified borderless at 1920×1080
+with Jupiter, three moons and the caption.
+
+Two things the plan did not anticipate:
+
+**A hole in placement, found by adding a window.** `Place()` returned
+silently on a role the saved layout did not contain — so `share`, and
+every window added after any layout was saved, opened at whatever
+coordinates `Create()` used with nothing anywhere saying why. A
+generated profile is now kept alongside the loaded one and consulted
+per role. The hand-built arrangement still wins wherever it has an
+opinion.
+
+**The caption read "Capture".** `GetFilePrefix()` was the fallback for
+an empty GoTo target, and its default is the word *Capture*. The
+active profile is the target on this rig, so that is the fallback now.
+
+---
+
+## Phase 91 — the emulator gets a field of view (`4af73e6`)
+
+Not in the original plan. It came out of the request that followed:
+the widest view was 1280×960 and the moons were never in frame.
+
+The cap was the emulator's, not the camera's — on real hardware FULL
+always gave the whole sensor. But lifting it alone would have changed
+nothing, because every size in the synthetic scene was a fraction of
+frame height. The emulator had no field of view: widening the ROI drew
+the same picture larger. Sizes are angular now, so the frame decides
+how much sky is in it, exactly as a sensor does.
+
+**And the measurement contradicted the roadmap.** Driven directly the
+renderer costs 63 ms at *every* format from 640×480 to 3840×2160 —
+flat, so not per-pixel work at all. It is `sleep_for()` rounding to
+the 15.6 ms Windows timer granularity. P4.3 was written on the
+assumption that the emulator renders at 62 ms a frame; it does not,
+and that entry has been corrected rather than quietly left.
+
+## Still open — P4.4
+
+The full-sensor preview runs at 1.7 fps, against 9.7 at 1920×1080.
+About 65 ns per sensor pixel per frame, in the app rather than the
+emulator, and therefore true of the real rig too. The capture rate
+falls with it, which it should not, since recording came off the
+render loop in `37b8c50` — that anomaly is the first thing to chase.
+
+Not fixed here. Four plausible full-frame passes and no profile is
+exactly the state that produced the wrong P4.3 diagnosis.

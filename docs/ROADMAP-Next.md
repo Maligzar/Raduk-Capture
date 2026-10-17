@@ -758,6 +758,10 @@ the ranking below it is what to pick up next.
 | `Ctrl+Shift+End` confirms the save, after verifying the file | `a59aa50` |
 | Xbox controller feasibility checked on the machine | `8fed05a` — works; needs an adapter, no Bluetooth here |
 | Mount controller as a gamepad (P3.5) | ❌ dropped — the panel is fine as it is |
+| Help and sky map text scale with the window (P3.3 part, P3.4) | `ef736e1` |
+| Observing site moved to the map's upper left, at full precision | `20385c1` |
+| Share view for a second screen (phase 89) | `c48c6de` — Shift+V, workspace role `share` |
+| The emulator gets a field of view (phase 91) | `4af73e6` — angular sizes, cap lifted to the full sensor |
 
 ---
 
@@ -765,17 +769,47 @@ the ranking below it is what to pick up next.
 
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
-| 1 | **Resizable AI / GoTo / Help, bigger fonts** (P3.3) | Bench | M–H | Largest item left from the owner's own list, and the densest layouts in the app. Everything else in Tier 3 is finished, so this is what "the five-screen workspace" still means |
-| 2 | **Map contents scaling** (P3.4) | Bench | S | Check first — the window already maximises, so this may be closed. If open it is the same font-scaling job as 1 and should ride along with it |
+| 1 | **GoTo and AI Chat font scaling** (P3.3, the rest) | Bench | M–H | Help is done and proved the pattern (`ef736e1`); the map is done (P3.4, it was open after all). `GoToPanel.h` is 1902 lines with **no `WM_SIZE` handler at all** and is the densest layout in the app, which is why it was left for last. `AIChatPanel.h` not yet examined |
 | 3 | **Night-vision repaint beyond the layout list** (D3) | Bench | XS–S | Cheap, and the risk compounds: `kPlacedWindows` is now the *fifth* thing that silently depends on being complete, and it has grown twice this week |
 | 4 | **Xbox controller input** (P4.1) | Bench | M | Feasibility proven on this machine. Needs `SlewVariable()` on the mount first, or the stick is a nine-position switch — plus a controller and **an adapter, since this machine has no Bluetooth** |
-| 5 | **Emulator replay mode** (new, P4.3) | Bench | S–M | The emulator caps at 16 fps because it *renders* every frame (62 ms each). Replaying a few dozen pre-rendered frames at an arbitrary rate would let the whole pipeline be exercised at 147 MB/s indoors — which is the only way clear-night item 13 gets de-risked before a clear night |
-| 6 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
-| 7 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
+| 5 | **Full-sensor preview cost** (new, P4.4) | Bench | M | **Measured 2026-10-17 and it is the biggest open number in the app.** The display pipeline costs about 65 ns per sensor pixel per frame: 9.7 fps at 1920×1080 and **1.7 fps at the full 3840×2160**. That is on the real rig too, not an emulator artefact, and full sensor is exactly the format you want for Jupiter's moons. Needs profiling before any fix is chosen — debayer, the per-frame RGBA rebuild, the analyzer and the bitmap upload are all full-frame passes and it is not yet known which dominates |
+| 6 | **Emulator frame rate** (P4.3, premise corrected) | Bench | S | The plan said the emulator caps at 16 fps because it *renders* every frame at 62 ms. **That is wrong.** Driven directly it costs 63 ms at *every* format from 640×480 to 3840×2160 — flat, so it is not per-pixel work at all. It is `sleep_for()` rounding up to the 15.6 ms Windows timer granularity, the same thing that capped `Window::Run()` near 62 passes a second. `timeBeginPeriod(1)` or a precise wait is most of the fix, and the pre-rendered replay buffer may not be needed at all |
+| 7 | **A second sky map** (phase 90) | Bench | S | Planned in `Phase89-Plan-Share-View-And-Second-Map.md`, and feasibility checked rather than assumed: `SkyMapWindow` is already safe to instantiate twice. Mostly wiring — a `skymap2` role, Shift+M, and both instances fed from the same readout |
+| 8 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
+| 9 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
 | — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3; see the memory note about keeping Windows Update away from the GPU drivers |
 
-### P4.3 · Emulator replay mode
-**Bench. Small-medium. Added 2026-10-17.**
+### P4.3 · Emulator frame rate — **premise corrected 2026-10-17**
+
+> **The diagnosis below was wrong, and the correction is worth more
+> than the plan was.** Driven directly, with no app around it, the
+> renderer costs 63 ms at *every* format:
+>
+> | Format | Mean gap | fps | Throughput |
+> |---|---|---|---|
+> | 640×480 | 63.50 ms | 15.7 | 5 MB/s |
+> | 1280×960 | 63.44 ms | 15.8 | 19 MB/s |
+> | 1920×1080 | 63.43 ms | 15.8 | 33 MB/s |
+> | 3840×2160 | 62.97 ms | 15.9 | **132 MB/s** |
+>
+> Flat across a 27× range of pixel counts. Whatever that 63 ms is, it
+> is not per-pixel rendering. It is `sleep_for(TARGET_MS - renderMs)`
+> rounding up to the 15.6 ms Windows timer granularity — 63 ms is
+> four ticks — which is the **third** time that granularity has
+> turned up as a ceiling in this codebase, after `Window::Run()` and
+> the recording path.
+>
+> So `timeBeginPeriod(1)` or a precise wait is most of the fix, and
+> the pre-rendered replay buffer this entry was written to justify may
+> not be needed at all. Measure again after the sleep is fixed before
+> building it.
+>
+> It also means the emulator's old 1280×960 cap had no performance
+> justification even before phase 91 lifted it: 3840×2160 already
+> delivered 132 MB/s, which is most of the way to the 147 MB/s clear-
+> night item 13 wants to exercise.
+
+The original entry follows, for the record.
 
 The emulator delivers 16.1 fps measured directly, with no app around
 it — not because of a frame-rate cap but because it *renders* a
@@ -795,6 +829,46 @@ repeatably, and in a form `tests/` could eventually gate.
 The frames need not be interesting. Nothing being measured at that
 rate cares what the planet looks like; it cares about bytes per second
 and whether any go missing.
+
+### P4.4 · Full-sensor preview costs 65 ns a pixel
+**Bench. Medium. Added 2026-10-17.**
+
+Found while fixing the emulator's field of view, and it is the larger
+finding of the two because it is true of the real rig as well.
+
+With the app running, measured from its own readout:
+
+| Format | Pixels | fps | Per pass |
+|---|---|---|---|
+| 1920×1080 | 2.07 MP | 9.7 | 103 ms |
+| 3840×2160 | 8.29 MP | **1.7** | **588 ms** |
+
+Roughly linear in pixel count: about 65 ns per sensor pixel per frame.
+The emulator is not the cause — driven directly it delivers 15.9 fps
+at the full sensor (see P4.3), so the 588 ms is the app.
+
+**Why it matters now.** The full sensor is 14 arcmin and is the only
+format that holds Jupiter's moons; 1280×960 is 4.3 arcmin and holds
+none of them. So "the format you want for the thing people most want
+to see" and "the format that runs at 1.7 fps" are the same format.
+
+**What is not known yet.** Which pass dominates. Candidates, all
+full-frame, all per displayed frame:
+
+- `DebayerRGGB` into `m_rgbBuffer` (24.9 MB at the full sensor)
+- the `std::vector<uint8_t> rgba` built fresh every frame — 33 MB
+  allocated and filled, twice over if a display FX is on
+- `FrameAnalyzer`'s pass
+- `CopyFromMemory` of 33 MB into the D2D bitmap
+
+Also unexplained: the *capture* rate falls with it. The emulator alone
+sustains 15.9 fps at this format and the recording path was moved off
+the render loop in `37b8c50`, so the capture thread should not care
+how slow the preview is. It does. That is worth understanding before
+optimising anything, because it may be the whole story.
+
+Profile first. Four plausible culprits and no measurement is exactly
+the state that produced the wrong P4.3 diagnosis above.
 
 ### Blocked on weather
 

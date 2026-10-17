@@ -319,6 +319,7 @@ fullscreen.
 | `Shift+Q` | Close or reopen the **sharpness window**. Open at startup. |
 | `Shift+D` | Close or reopen the **status window** — capture health and free space on every drive. |
 | `Shift+A` | **ADC alignment window** — for dialling in a dispersion corrector. Inert unless *ADC fitted* is ticked on the READY screen. |
+| `Shift+V` | **Share view** — the image alone, filling a second screen, for people who are not you. See **The share view**. |
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |
@@ -836,6 +837,60 @@ apparent swings.
 
 Both panels hide themselves if the window is too narrow to hold them
 without covering the target.
+
+### The share view (`Shift+V`, v1.2.7)
+
+For a screen other people are looking at.
+
+The main window is built for you: controls, histogram, temperature,
+sharpness, reticle, a status bar and a HUD. That is the right window
+to work in and the wrong one to point at a crowd, because almost none
+of it is the planet.
+
+`Shift+V` opens a second window that is the planet and nothing else.
+It fills whichever screen it is on, borderless, with the image centred
+and never stretched. Along the bottom: what you are looking at, then
+one quiet line of scope, camera, exposure, gain, frame rate and how
+high the target is. A red **REC** dot in the corner while you are
+recording, so nobody has to ask.
+
+Nothing on it is clickable. It will not take focus from the control
+screen when you open it, which matters — the arrow keys jog the
+mount, and a window that quietly captured them would be a hazard
+rather than an inconvenience.
+
+Inside it: `C` hides the caption, for photographing the screen. `F11`
+and `Esc` leave and re-enter fullscreen.
+
+**Where it opens.** On whatever screen your saved layout puts it — it
+is an ordinary workspace role called `share`. Drag it where you want
+it and press `Ctrl+Shift+End`. Until you do, it takes a generated
+default, which on a five-screen rig is the first spare screen after
+the sky map's.
+
+**What it costs.** Close to nothing. It is handed the finished image
+the preview has already built rather than working one out for itself,
+it shows at most 30 frames a second however fast the camera runs, and
+when the window is closed the whole feature is one branch per frame.
+A star party is still an imaging session and the frames still matter.
+
+**What it does not do.** It ignores the `Z` zoom — that is a tool for
+inspecting pixels, and the share view always fits the whole frame to
+the screen. For a 640×480 crop on a 1920×1080 monitor that is already
+a 2.25× enlargement.
+
+**If you want the moons in it,** you need the field of view, which
+means the full sensor. Press **FULL** on the toolbar. At 1280×960 the
+field is 4.3 arcmin and even Io falls outside it; the whole sensor is
+about 14 arcmin and holds Io, Europa and Ganymede, with Callisto
+drifting in and out as it swings around. Be aware the preview runs
+slowly at the full sensor — see the note below.
+
+> **Full sensor is slow to preview.** 3840×2160 runs the live preview
+> at under 2 frames a second. Nothing is wrong and nothing is being
+> lost from the file; the display pipeline simply has four times the
+> pixels to push. It is fine for framing and for showing people the
+> moons. For capturing detail on the planet itself, crop back down.
 
 ### The histogram window (`Shift+H`, v1.2.4)
 

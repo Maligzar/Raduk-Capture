@@ -232,6 +232,19 @@ public:
         } else {
             Say("[LAYOUT] using [monitors." + std::to_string(m_active) + "]");
         }
+
+        // A saved layout names the windows that existed when it was
+        // saved. Every window added since is simply absent from it, and
+        // Place() used to return silently on a role it did not find --
+        // so a new window opened at whatever coordinates its Create()
+        // used and nothing anywhere said why. That is the same silent
+        // omission the default profile's own comment warns about.
+        //
+        // Keep a generated profile alongside the loaded one and fall
+        // back to it per role. A hand-built arrangement still wins
+        // wherever it has an opinion; it just no longer has to have one
+        // about windows that did not exist when it was written.
+        BuildFallbackProfile(n);
     }
 
     // ── Placement ─────────────────────────────────────────────
@@ -243,10 +256,23 @@ public:
         if (m_active < 0) return;
         auto pit = m_profiles.find(m_active);
         if (pit == m_profiles.end()) return;
+        const Placement* found = nullptr;
         auto it = pit->second.find(role);
-        if (it == pit->second.end()) return;
+        if (it != pit->second.end()) {
+            found = &it->second;
+        } else {
+            auto fb = m_fallback.find(role);
+            if (fb == m_fallback.end()) {
+                Say(std::string("[LAYOUT] ") + role +
+                    ": no entry on disk and no default, left where it opened");
+                return;
+            }
+            found = &fb->second;
+            Say(std::string("[LAYOUT] ") + role +
+                ": not in the saved layout, using the generated default");
+        }
 
-        const Placement& p = it->second;
+        const Placement& p = *found;
         const MonitorDesc* mon = Resolve(p.id, p.device, role);
         if (!mon) {
             Say(std::string("[LAYOUT] ") + role + ": monitor not found, left alone");
@@ -425,8 +451,13 @@ public:
     // other GPU costs a cross-adapter copy every frame. Until the app
     // knows which displays belong to which adapter, not moving it is
     // the only safe default.
-    void BuildDefaultProfile(int count) {
-        auto& prof = m_profiles[count];
+    void BuildDefaultProfile(int count) { BuildProfileInto(m_profiles[count]); }
+
+    // The same generated arrangement, kept to one side so Place() can
+    // fall back to it per role when the saved layout predates a window.
+    void BuildFallbackProfile(int) { BuildProfileInto(m_fallback); }
+
+    void BuildProfileInto(std::map<std::string, Placement>& prof) {
         prof.clear();
         if (m_monitors.empty()) return;
 
@@ -440,7 +471,14 @@ public:
         // Order matters: the earlier a role appears, the more likely it
         // gets a screen to itself rather than doubling up. The map and
         // the histogram are the two that actually use a whole screen.
-        const char* spill[] = { "skymap", "histogram", "goto",
+        // "share" is second: Phase 89's view exists to occupy a whole
+        // screen that other people are looking at, so it outranks every
+        // panel here for a screen of its own. It is deliberately not
+        // marked Maximized -- the window is hidden until Shift+V, and
+        // Place() calls ShowWindow(SW_MAXIMIZE) on a maximised role,
+        // which would put an empty black screen up at launch. It fills
+        // its monitor itself when it is shown.
+        const char* spill[] = { "skymap", "share", "histogram", "goto",
                                 "mount", "aichat", "help" };
         const int   nSpill  = (int)(sizeof(spill) / sizeof(spill[0]));
 
@@ -784,6 +822,9 @@ private:
 
     std::vector<MonitorDesc> m_monitors;
     std::map<int, std::map<std::string, Placement>> m_profiles;
+    // Generated for the attached screens, every launch. Consulted only
+    // for roles the active profile has no opinion about.
+    std::map<std::string, Placement> m_fallback;
     int    m_active = -1;
     LogFn  m_log;
 };

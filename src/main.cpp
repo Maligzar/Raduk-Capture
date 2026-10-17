@@ -61,6 +61,7 @@
 #include "gui/ToolbarStrip.h"
 #include "gui/GoToPanel.h"
 #include "gui/SkyMapWindow.h"
+#include "gui/ShareView.h"
 #include "gui/WorkspaceLayout.h"
 #include "gui/HistogramWindow.h"
 #include "gui/SharpnessWindow.h"
@@ -1406,6 +1407,16 @@ static int RunApp(bool useEmulator) {
     raduk::core::ADCAlignment adcAlign;
     bool adcHaveFrame = false;   // set by the measuring pass each loop
     raduk::core::SkyTracker skyTracker;
+
+    // ── Phase 89: the share view ──────────────────────────────
+    // A second, deliberately empty window for a screen pointed at other
+    // people. Hidden until Shift+V, and the sink below is the only
+    // thing the preview does for it -- an empty std::function on every
+    // night that is not a star party.
+    raduk::gui::ShareView shareView;
+    shareView.Create(window.Handle(), 200, 200, 1280, 720);
+    // The sink is wired further down, where `preview` exists.
+
     Log("[INIT] Status window ready\n");
 
     // ── Phase 42: place the windows ───────────────────────────
@@ -1430,6 +1441,7 @@ static int RunApp(bool useEmulator) {
         { "temperature", tempWindow.Handle() },
         { "status", statusWindow.Handle() },
         { "adcalign", adcAlignWindow.Handle() },
+        { "share",  shareView.Handle()  },
     };
     for (const auto& [role, hwnd] : kPlacedWindows)
         workspace.Place(role, hwnd);
@@ -2172,6 +2184,14 @@ static int RunApp(bool useEmulator) {
         analyzer.Stop(); capture.Stop(); cam.Close(); return 1;
     }
     preview.SetSensorROI(roiWidth, roiHeight);
+
+    // Phase 89: hand the finished RGBA to the share view as well. An
+    // empty std::function until the window is up, and the view itself
+    // drops most of the frames it is offered.
+    preview.SetPresentSink(
+        [&](const uint8_t* rgba, int fw, int fh) {
+            shareView.Present(rgba, fw, fh);
+        });
 
     // ── Wire handlers ──────────────────────────────────────────
     window.SetMoveHandler([&]() {
@@ -3251,6 +3271,10 @@ static int RunApp(bool useEmulator) {
     window.SetFullscreenToggleHandler([&]() { doFullscreen();        });
     window.SetGoToToggleHandler([&]()       { gotoPanel.ShowCentered(); });
     window.SetSkyMapToggleHandler([&]()     { skyMap.Toggle();       });
+    window.SetShareViewToggleHandler([&]() {
+        shareView.Toggle();
+        Log("[SHARE] view %s\n", shareView.IsVisible() ? "on" : "off");
+    });
     window.SetHistogramToggleHandler([&]()  { histWindow.Toggle();   });
     window.SetSharpnessToggleHandler([&]()  { sharpWindow.Toggle();  });
     window.SetTemperatureToggleHandler([&]() { tempWindow.Toggle(); });
@@ -4432,6 +4456,37 @@ static int RunApp(bool useEmulator) {
                                      adc.separationArcsec);
                 }
                 statusWindow.Update(sd);
+
+                // ── Phase 89: the share view's caption ─────────
+                // Only when it is up. Everything here is already read
+                // on this tick for something else, so the whole cost
+                // of the feature on an ordinary night is this branch.
+                if (shareView.IsVisible()) {
+                    raduk::gui::ShareView::Caption sc;
+                    // What it is, not what the files are called. The
+                    // capture prefix defaults to "Capture", and a
+                    // screen showing a crowd a planet labelled
+                    // "Capture" is worse than one labelled nothing.
+                    // The active profile IS the target on this rig --
+                    // the profiles are per-object -- so it is the right
+                    // thing to fall back to.
+                    const std::string& tgt = gotoPanel.CurrentTarget();
+                    if (!tgt.empty()) {
+                        sc.target = tgt;
+                    } else if (const auto* ap = profiles.Active()) {
+                        sc.target = ap->name;
+                    }
+                    sc.rig       = "Celestron 8SE  \xc2\xb7  ZWO ASI678MC";
+                    sc.fps       = fps;
+                    sc.recording = sd.recording;
+                    if (cam.IsOpen()) {
+                        sc.gain       = (int)cam.GetControl(ASI_GAIN);
+                        sc.exposureMs = cam.GetControl(ASI_EXPOSURE) / 1000.0;
+                    }
+                    sc.haveAltitude = sd.sky.valid;
+                    sc.altitudeDeg  = sd.sky.altitudeDeg;
+                    shareView.SetCaption(sc);
+                }
             }
 
             // ── ADC alignment (Phase 35) ───────────────────────

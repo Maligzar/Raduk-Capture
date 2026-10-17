@@ -810,6 +810,10 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                 m_rgbAlignShift = 0;
             }
 
+            // Phase 89: the share view gets the same finished bytes,
+            // before they go anywhere else. It skips most frames itself.
+            if (m_presentSink)
+                m_presentSink(rgba.data(), (int)frame->width, (int)frame->height);
             if (m_bitmap) {
                 D2D1_RECT_U srcRect = D2D1::RectU(0, 0, frame->width, frame->height);
                 m_bitmap->CopyFromMemory(&srcRect, rgba.data(), frame->width * 4);
@@ -837,6 +841,10 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                 }
                 rgba[i*4+3] = 255;
             }
+            // Phase 89: the share view gets the same finished bytes,
+            // before they go anywhere else. It skips most frames itself.
+            if (m_presentSink)
+                m_presentSink(rgba.data(), (int)frame->width, (int)frame->height);
             if (m_bitmap) {
                 D2D1_RECT_U srcRect = D2D1::RectU(0, 0, frame->width, frame->height);
                 m_bitmap->CopyFromMemory(&srcRect, rgba.data(), frame->width * 4);

@@ -367,6 +367,13 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (firstPress && m_onPause) m_onPause();
             return true;
         case 'V':
+            // Shift+V is the share view -- the screen pointed at other
+            // people. On the same letter rather than taking a new one,
+            // the way Shift+H, Shift+Q, Shift+T and Shift+D all do.
+            if (shift) {
+                if (firstPress && m_onShareViewToggle) m_onShareViewToggle();
+                return true;
+            }
             if (firstPress && m_onRGBAlign) m_onRGBAlign();
             return true;
         case 'X':

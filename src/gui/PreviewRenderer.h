@@ -342,6 +342,21 @@ public:
     const uint8_t* RawRGB() const { return m_rgbBuffer; }
     int FrameWidth()  const { return m_frameWidth; }
     int FrameHeight() const { return m_frameHeight; }
+
+    // Phase 89: a second consumer of the FINISHED image.
+    //
+    // Called with the RGBA that is about to be uploaded to the preview's
+    // own bitmap -- after calibration, debayer, display FX, the stretch,
+    // the stack and the RGB align shift. The share view wants exactly
+    // the pixels the owner is looking at, not a second derivation from
+    // the sensor frame: pointing at your own screen and saying "that
+    // bright spot" has to mean the same spot on both screens.
+    //
+    // The pointer is valid ONLY for the duration of the call. Nothing is
+    // copied for the sink's benefit, which is what keeps this free: an
+    // unset sink is an empty std::function and costs a branch per frame.
+    using PresentSink = std::function<void(const uint8_t* rgba, int w, int h)>;
+    void SetPresentSink(PresentSink s) { m_presentSink = std::move(s); }
     // Save the current debayered RGB frame as PNG using WIC.
     bool SaveSnapshotPNG(const std::wstring& path);
 
@@ -492,6 +507,7 @@ private:
 
     ID2D1HwndRenderTarget*  m_renderTarget  = nullptr;
     IDWriteFactory*         m_dwriteFactory = nullptr;
+    PresentSink             m_presentSink;               // Phase 89 — share view
     ID2D1Bitmap*            m_bitmap        = nullptr;   // CPU-path D2D bitmap
     ID2D1SolidColorBrush*   m_textBrush     = nullptr;
     ID2D1SolidColorBrush*   m_accentBrush   = nullptr;

@@ -908,6 +908,45 @@ slowly at the full sensor — see the note below.
 > pixels to push. It is fine for framing and for showing people the
 > moons. For capturing detail on the planet itself, crop back down.
 
+### Reading the histogram (v1.2.7)
+
+Each row is one colour channel. The bars are the distribution of pixel
+values, on a **log** scale — a planetary frame is mostly sky, so on a
+linear scale the sky spike is the only thing tall enough to see and
+the planet works out under one pixel high.
+
+**The number on the right is the PEAK LEVEL**, as a percentage of full
+scale. It is the brightness of the brightest real thing in that
+channel, which on a planet is the planet. That is the figure you set
+exposure by: wind the gain or exposure up until it reaches about three
+quarters, and stop before any channel reaches the end.
+
+The bright vertical mark on each bar sits at that same level, so the
+picture and the number explain each other. The faint grey tick is 75%
+— where you are aiming.
+
+Colours, which match the advice line underneath exactly:
+
+| Reading | Meaning |
+|---|---|
+| **Red** | Clipping. Pixels are stuck at the top and that detail is gone for good |
+| **Amber, 84% and up** | At the limit. A moment of good seeing will clip it |
+| **Green, 50–84%** | Good |
+| **Amber, 12–50%** | Under-exposed. Usable, but you are giving away range |
+| **Grey, under 12%** | Far under — the planet is near the noise floor |
+
+Comparing the three numbers is how you read colour balance. On Jupiter
+through an 8SE you would expect red highest and blue lowest; if blue
+is far behind, that is atmospheric extinction and altitude, not the
+camera.
+
+> **It used to show something else.** Before v1.2.7 this column was the
+> *clipped fraction* — the proportion of pixels stuck at 255. That is
+> a good alarm and a useless readout, because on any correctly exposed
+> frame it reads 0.0%, which is what three rows of a working rig looked
+> like. Clipping has not been dropped: a clipped channel's peak is at
+> the top by definition, so it reads 100% and turns red.
+
 ### The histogram window (`Shift+H`, v1.2.4)
 
 The same per-channel histogram as the preview panel, in a window you can

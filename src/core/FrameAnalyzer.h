@@ -171,6 +171,32 @@ struct AnalysisResult {
 // is actually made in: "half a stop under" tells you to move the
 // exposure slider by a factor of 1.4, where "highlight at 181 DN" does
 // not.
+// Phase 92: the bands, named, because two displays read them.
+//
+// The histogram rows colour a peak-level percentage; the footer below
+// them states the same thing in stops. They were each carrying their
+// own thresholds and they disagreed on screen -- a frame whose rows
+// read 86% in green sat directly above a footer calling it "at the
+// limit". One set of numbers, converted, so that cannot happen.
+namespace exposure {
+    inline constexpr float LIMIT_STOPS = 0.25f;  // under this: at the limit
+    inline constexpr float GOOD_STOPS  = 1.0f;   // under this: good
+    inline constexpr float UNDER_STOPS = 3.0f;   // over this: far under
+
+    // The level, as a percentage of full scale, that a given headroom
+    // corresponds to. 255 / 2^stops, over 255. LIMIT_STOPS comes out at
+    // 84.1%, GOOD_STOPS at 50%, UNDER_STOPS at 12.5%.
+    inline float LevelPctForStops(float stops) {
+        return 100.0f / std::pow(2.0f, stops);
+    }
+
+    // Where to aim. Not a threshold -- it is the middle of the good
+    // band in the sense that matters, high enough to use the sensor's
+    // range and far enough from the ceiling that a seeing flare does
+    // not clip the planet.
+    inline constexpr float AIM_PCT = 75.0f;
+}
+
 inline std::string ExposureAdvice(const AnalysisResult& a) {
     if (!a.valid) return "no frame";
     // Negative headroom is a flag, not a measurement: a clipped
@@ -182,14 +208,15 @@ inline std::string ExposureAdvice(const AnalysisResult& a) {
                  a.limitingChannel, -a.headroomStops * 100.0f);
         return b;
     }
-    if (a.headroomStops < 0.25f) return "at the limit - any more clips";
-    if (a.headroomStops < 1.0f) {
+    if (a.headroomStops < exposure::LIMIT_STOPS)
+        return "at the limit - any more clips";
+    if (a.headroomStops < exposure::GOOD_STOPS) {
         char b[96];
         snprintf(b, sizeof(b), "good - %.1f stops left in %c",
                  a.headroomStops, a.limitingChannel);
         return b;
     }
-    if (a.headroomStops < 3.0f) {
+    if (a.headroomStops < exposure::UNDER_STOPS) {
         char b[96];
         snprintf(b, sizeof(b), "under by %.1f stops", a.headroomStops);
         return b;

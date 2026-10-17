@@ -77,12 +77,27 @@ inline void Draw(ID2D1RenderTarget* rt, IDWriteTextFormat* font,
         ID2D1SolidColorBrush*            brush;
         const std::array<uint32_t, 256>* hist;
         float                            clip;
-        float                            mean;
+        float                            highlight;   // DN, 0-255
     } rows[3] = {
-        {L"R", br.r, &a.histR, a.clipR, a.meanR},
-        {L"G", br.g, &a.histG, a.clipG, a.meanG},
-        {L"B", br.b, &a.histB, a.clipB, a.meanB},
+        {L"R", br.r, &a.histR, a.clipR, a.highlightR},
+        {L"G", br.g, &a.histG, a.clipG, a.highlightG},
+        {L"B", br.b, &a.histB, a.clipB, a.highlightB},
     };
+
+    // The band to aim for, drawn on the bars as well as decided in the
+    // numbers, so the panel says where the histogram should reach
+    // without anyone having to be told.
+    //
+    // Converted from the SAME thresholds the footer's advice uses, not
+    // chosen here. Picked independently they disagreed: the rows called
+    // a frame good at 86% while the footer directly beneath called it
+    // "at the limit", which is one fact contradicting itself on one
+    // panel. 84.1 / 50.0 / 12.5 per cent, from 0.25 / 1 / 3 stops.
+    using raduk::core::exposure::LevelPctForStops;
+    const float AIM_HI  = LevelPctForStops(raduk::core::exposure::LIMIT_STOPS);
+    const float AIM_LO  = LevelPctForStops(raduk::core::exposure::GOOD_STOPS);
+    const float AIM_FAR = LevelPctForStops(raduk::core::exposure::UNDER_STOPS);
+    const float AIM_TARGET = raduk::core::exposure::AIM_PCT;
 
     for (int ch = 0; ch < 3; ch++) {
         Row& row = rows[ch];
@@ -139,23 +154,73 @@ inline void Draw(ID2D1RenderTarget* rt, IDWriteTextFormat* font,
                     (i >= 248 && br.red) ? br.red : row.brush);
             }
 
-            if (row.mean > 2.0f && br.mean) {
-                float mx = barX + row.mean / 255.0f * barW;
+            // The marker sits at the HIGHLIGHT, not the mean.
+            //
+            // It used to mark the mean, which on a planetary frame is
+            // sky: a small bright disc on black leaves the mean down
+            // around 5 DN however the planet is exposed, so the marker
+            // hugged the left edge at every exposure and moved for
+            // reasons that were not the exposure. The analyzer makes
+            // this same argument where it refuses to use the mean for
+            // headroom.
+            //
+            // At the highlight it marks the thing the number beside it
+            // reports, so the bar and the figure explain each other.
+            if (row.highlight > 2.0f && br.mean) {
+                float mx = barX + row.highlight / 255.0f * barW;
                 if (mx < barX) mx = barX;
                 if (mx > barX + barW - 1.0f) mx = barX + barW - 1.0f;
                 rt->DrawLine(D2D1::Point2F(mx, ry + 3.0f),
                              D2D1::Point2F(mx, ry + rowH - 3.0f),
-                             br.mean, 0.8f);
+                             br.mean, 1.4f);
             }
         }
 
-        // Clipped percentage — the number this display exists for.
+        // Where it should reach. A single faint tick, drawn whether or
+        // not there is a frame -- it is a property of the display, not
+        // of the data, and it is most useful on the pass where you are
+        // still winding the exposure up.
+        if (br.dim) {
+            const float tx = barX + AIM_TARGET / 100.0f * barW;
+            rt->DrawLine(D2D1::Point2F(tx, ry + 2.0f),
+                         D2D1::Point2F(tx, ry + rowH - 2.0f),
+                         br.dim, 0.7f);
+        }
+
+        // ── The number ────────────────────────────────────────
+        //
+        // PEAK LEVEL, as a percentage of full scale. This column used
+        // to carry the clipped fraction, which is the proportion of
+        // pixels sitting at 255 -- a good alarm and a useless readout,
+        // because on every correctly exposed frame it reads 0.0%. Three
+        // rows of 0.0% is what a working rig looked like, and nothing
+        // on screen said what the figure even was.
+        //
+        // This is the number an imager actually sets exposure by: get
+        // the histogram up to about three quarters, and stop before the
+        // bright channel reaches the end. It comes from the analyzer's
+        // per-channel highlight percentile, not the maximum -- one hot
+        // pixel would own a maximum -- and not the mean, which on a
+        // planetary frame is sky.
+        //
+        // Clipping has not been dropped, it has been folded in. A
+        // clipped channel's highlight IS at 255, so it reads 100%, and
+        // the colour says what that means. No separate figure is needed
+        // to state twice what one number already says.
+        const float lvl = valid ? row.highlight / 255.0f * 100.0f : 0.0f;
+        const bool  blown = valid && (row.clip > 0.05f || lvl >= 99.0f);
+
         wchar_t pct[16];
-        swprintf(pct, 16, L"%.1f%%", valid ? row.clip : 0.0f);
+        if (valid) swprintf(pct, 16, L"%.0f%%", lvl);
+        else       swprintf(pct, 16, L"--");
+
         ID2D1SolidColorBrush* pctBrush =
-            (!valid)          ? br.dim :
-            (row.clip > 1.0f) ? br.red :
-            (row.clip > 0.1f) ? br.amber : br.dim;
+            (!valid)         ? br.dim   :
+            (blown)          ? br.red   :   // at the ceiling, detail lost
+            (lvl >= AIM_HI)  ? br.amber :   // "at the limit"
+            (lvl >= AIM_LO)  ? br.green :   // "good"
+            (lvl >= AIM_FAR) ? br.amber :   // "under"
+                               br.dim;      // "far under", or nothing there
         if (!pctBrush) pctBrush = br.dim;
         if (pctBrush) {
             font->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
@@ -181,12 +246,27 @@ inline void Draw(ID2D1RenderTarget* rt, IDWriteTextFormat* font,
     // given, so a rect reaching the bottom edge put this line in the
     // middle of the empty space below the bars -- and once the footer
     // below was added, straight on top of it.
+    const D2D1_RECT_F seeingRect =
+        D2D1::RectF(x + PAD, y + PAD + 3 * rowH, x + w - PAD,
+                    (std::min)(y + h, y + PAD + 4 * rowH));
     if (sBrush)
-        rt->DrawText(line, (UINT32)wcslen(line), font,
-                     D2D1::RectF(x + PAD, y + PAD + 3 * rowH,
-                                 x + w - PAD,
-                                 (std::min)(y + h, y + PAD + 4 * rowH)),
-                     sBrush);
+        rt->DrawText(line, (UINT32)wcslen(line), font, seeingRect, sBrush);
+
+    // ── What the column is ────────────────────────────────────
+    //
+    // Right-aligned on the seeing row, directly beneath the three
+    // figures, so it reads as their heading. Underneath rather than
+    // above because there is nothing above: the overlay copy of this
+    // panel is 104 px tall and the three rows plus this one fill it
+    // exactly. A label below a column still names the column, and an
+    // unlabelled number is half of what was wrong here -- a correct
+    // figure nobody can identify is no better than the clipped
+    // fraction was.
+    if (br.dim) {
+        font->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+        rt->DrawText(L"PEAK", 4, font, seeingRect, br.dim);
+        font->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+    }
 
     // ── Sensor analysis (Phase 36) ──────────────────────────
     //

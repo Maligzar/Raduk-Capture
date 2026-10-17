@@ -121,6 +121,51 @@ int main() {
               "a frame with no green reports 0, not a division by zero", "");
     }
 
+    // ── 1b. The peak level the histogram panel reports ───────
+    //
+    // Phase 92. This is the figure the display now carries, so it is
+    // worth checking against frames whose level is known by
+    // construction rather than against whatever the code produces.
+    printf("\n1b. Per-channel peak level\n");
+    {
+        std::vector<uint8_t> f = MakeFrame(W, H, 128, 128, 128, 128);
+        AnalysisResult r = Analyse(a, f, W, H);
+        CheckNear(r.highlightR, 128.0f, 1.0f, "a frame at 128 reports 128");
+        CheckNear(r.highlightG, 128.0f, 1.0f, "in green too");
+        CheckNear(r.highlightB, 128.0f, 1.0f, "and in blue");
+        // Which is what the panel turns into a percentage: 128/255.
+        CheckNear(r.highlightR / 255.0f * 100.0f, 50.2f, 0.5f,
+                  "and the panel's percentage comes out at half scale");
+    }
+    {
+        // Channels at different levels must be told apart -- reading
+        // colour balance off the three figures is most of the point.
+        std::vector<uint8_t> f = MakeFrame(W, H, 200, 100, 100, 50);
+        AnalysisResult r = Analyse(a, f, W, H);
+        CheckNear(r.highlightR, 200.0f, 1.0f, "red at 200 reads 200");
+        CheckNear(r.highlightG, 100.0f, 1.0f, "green at 100 reads 100");
+        CheckNear(r.highlightB,  50.0f, 1.0f, "blue at 50 reads 50");
+    }
+    {
+        // A clipped channel reads full scale, which is what lets the
+        // panel's one number carry clipping as well as level.
+        std::vector<uint8_t> f = MakeFrame(W, H, 255, 128, 128, 128);
+        AnalysisResult r = Analyse(a, f, W, H);
+        CheckNear(r.highlightR, 255.0f, 0.5f, "a clipped channel reads 255");
+        Check(r.highlightR / 255.0f * 100.0f >= 99.0f,
+              "so the panel shows 100% and colours it as blown", "");
+        Check(r.clipR > 0.05f, "and the clipped fraction agrees",
+              std::to_string(r.clipR));
+    }
+    {
+        // The headroom the footer quotes must come from the same level
+        // the rows show, or the two disagree on screen.
+        std::vector<uint8_t> f = MakeFrame(W, H, 64, 64, 64, 64);
+        AnalysisResult r = Analyse(a, f, W, H);
+        CheckNear(r.highlightR, 64.0f, 1.0f, "level and headroom share a source");
+        CheckNear(r.headroomR,   2.0f, 0.05f, "-- 64 is two stops below 255");
+    }
+
     // ── 2. Headroom, in the unit the adjustment is made in ───
     printf("\n2. Headroom to clipping\n");
     {

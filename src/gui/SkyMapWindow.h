@@ -701,13 +701,11 @@ private:
             localtime_s(&lt, &t);
             wchar_t status[256];
             if (m_zoom <= 1.0f) {
-                // Site from RigConfig, clock from the local timezone --
-                // no hardcoded location or UTC offset
+                // The site used to lead this line. It now has its own
+                // block in the upper-left corner -- see DrawSitePanel.
                 swprintf(status, 256,
-                    L"Site %.2f\u00B0%s %.2f\u00B0%s   %02d:%02d LT   "
+                    L"%02d:%02d LT   "
                     L"Left-click to GoTo  \u00B7  Right-click object for Info  \u00B7  Right-click sky to reset",
-                    fabs(OBS_LAT), OBS_LAT >= 0 ? L"N" : L"S",
-                    fabs(OBS_LON), OBS_LON >= 0 ? L"E" : L"W",
                     lt.tm_hour, lt.tm_min);
             } else {
                 swprintf(status, 256,
@@ -719,7 +717,11 @@ private:
                 ID2D1SolidColorBrush* sb = nullptr;
                 m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.3f, 0.5f, 0.7f, 0.8f)), &sb);
                 if (sb) {
-                    D2D1_RECT_F sr = D2D1::RectF(4, m_h - 18.0f, m_w - 4.0f, (float)m_h);
+                    // Height from the font, not a constant 18: the status
+                    // text scales with the window now, and at 30px labels
+                    // an 18px strip clipped it.
+                    const float sh = m_fontPx * 0.8f + 6.0f;
+                    D2D1_RECT_F sr = D2D1::RectF(4, m_h - sh, m_w - 4.0f, (float)m_h);
                     m_statusFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
                     m_rt->DrawText(status, (UINT32)wcslen(status), m_statusFormat, sr, sb);
                     sb->Release();
@@ -727,12 +729,155 @@ private:
             }
         }
 
+        // ── Observing site, upper-left ─────────────────────────
+        DrawSitePanel();
+
         // ── Click-to-confirm popup ─────────────────────────────
         if (m_confirmActive)
             DrawConfirmPopup();
 
         HRESULT hr = m_rt->EndDraw();
         if (hr == D2DERR_RECREATE_TARGET) { ReleaseD2D(); InitD2D(); }
+    }
+
+    // ── Observing site ─────────────────────────────────────────
+    //
+    // Upper-left, not the status bar. The status line sits on the last
+    // few pixels of the window, and on this desk the map's bottom edge
+    // can fall past the bottom of the monitor -- which left the one line
+    // naming where the chart was drawn for somewhere unreadable. The
+    // top-left corner of a window is on screen whenever any of it is.
+    //
+    // Full precision, as asked. Six decimal places is the app's own
+    // ceiling: RigConfig::Save() writes the ini with "%.6f", so that is
+    // about 11 cm here, and further digits would print only the binary
+    // rounding of a value the file does not carry. Both forms are given
+    // -- decimal degrees is what rig.ini and a phone GPS speak, DMS is
+    // what the hand controller and most planetarium software want typed
+    // in.
+    //
+    // Taken from OBS_LAT/OBS_LON rather than re-read from RigConfig, so
+    // the label always describes the sky actually plotted beneath it.
+    void DrawSitePanel() {
+        if (!m_rt || !m_siteFormat || !m_labelFormat) return;
+        const auto& rig = raduk::core::RigConfig::Get();
+
+        wchar_t body[3][128];
+        int n = 0;
+
+        if (!rig.SiteIsSet()) {
+            swprintf(body[n++], 128, L"rig.ini carries no site");
+            swprintf(body[n++], 128, L"the chart is drawn for 0° 0°");
+        } else {
+            wchar_t latDMS[64], lonDMS[64];
+            ToDMS(OBS_LAT, L"N", L"S", latDMS, 64);
+            ToDMS(OBS_LON, L"E", L"W", lonDMS, 64);
+            swprintf(body[n++], 128, L"lat  %+11.6f°   %s", OBS_LAT, latDMS);
+            swprintf(body[n++], 128, L"lon  %+11.6f°   %s", OBS_LON, lonDMS);
+
+            wchar_t src[48] = L"";
+            if (!rig.siteSource.empty())
+                MultiByteToWideChar(CP_UTF8, 0, rig.siteSource.c_str(), -1, src, 48);
+            // An unset elevation is not an elevation of zero. Windows
+            // location gives latitude and longitude and no height, and
+            // printing "0.0 m" for that reads as a site at sea level.
+            if (rig.siteElevationM != 0.0)
+                swprintf(body[n++], 128, L"elev %8.1f m    %s%s",
+                         rig.siteElevationM, src[0] ? L"source: " : L"", src);
+            else
+                swprintf(body[n++], 128, L"elev   not set    %s%s",
+                         src[0] ? L"source: " : L"", src);
+        }
+
+        const wchar_t* head = L"OBSERVING SITE";
+
+        // Measured, not estimated. The panel has to fit the longest line
+        // it actually renders; guessing a monospace advance is how the
+        // help window ended up two columns short of its own text.
+        m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+        m_siteFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+
+        const float headPx = m_fontPx;
+        const float bodyPx = m_fontPx * 0.95f;
+        float textW = TextWidth(head, m_labelFormat);
+        for (int i = 0; i < n; i++)
+            textW = (std::max)(textW, TextWidth(body[i], m_siteFormat));
+
+        const float pad   = 9.0f;
+        const float lineH = bodyPx * 1.40f;
+        const float x0    = 12.0f;
+        const float y0    = 10.0f;
+        const float w     = textW + pad * 2.0f + 4.0f;
+        const float h     = pad * 2.0f + headPx * 1.35f + lineH * n;
+
+        ID2D1SolidColorBrush* b = nullptr;
+        m_rt->CreateSolidColorBrush(
+            Theme::NVf(D2D1::ColorF(0.016f, 0.035f, 0.075f, 0.82f)), &b);
+        if (b) {
+            m_rt->FillRoundedRectangle(
+                D2D1::RoundedRect(D2D1::RectF(x0, y0, x0 + w, y0 + h), 4.0f, 4.0f), b);
+            b->Release();
+        }
+        m_rt->CreateSolidColorBrush(
+            Theme::NVf(D2D1::ColorF(0.0f, 0.6f, 1.0f, 0.35f)), &b);
+        if (b) {
+            m_rt->DrawRoundedRectangle(
+                D2D1::RoundedRect(D2D1::RectF(x0, y0, x0 + w, y0 + h), 4.0f, 4.0f),
+                b, 1.0f);
+            b->Release();
+        }
+
+        float y = y0 + pad;
+        m_rt->CreateSolidColorBrush(
+            Theme::NVf(D2D1::ColorF(0.0f, 0.7f, 1.0f, 0.9f)), &b);
+        if (b) {
+            m_rt->DrawText(head, (UINT32)wcslen(head), m_labelFormat,
+                           D2D1::RectF(x0 + pad, y, x0 + w, y + headPx * 1.35f), b);
+            b->Release();
+        }
+        y += headPx * 1.35f;
+
+        // Amber when the site is missing: a chart quietly drawn for the
+        // Gulf of Guinea should not look like a reading.
+        m_rt->CreateSolidColorBrush(
+            rig.SiteIsSet() ? Theme::NVf(D2D1::ColorF(0.72f, 0.84f, 0.92f, 0.95f))
+                            : Theme::NVf(D2D1::ColorF(1.0f, 0.67f, 0.0f, 0.95f)), &b);
+        if (b) {
+            for (int i = 0; i < n; i++) {
+                m_rt->DrawText(body[i], (UINT32)wcslen(body[i]), m_siteFormat,
+                               D2D1::RectF(x0 + pad, y, x0 + w, y + lineH), b);
+                y += lineH;
+            }
+            b->Release();
+        }
+    }
+
+    // Degrees to d m s, rounded at the seconds and carried properly:
+    // 59.996 seconds must not print as 60.00.
+    static void ToDMS(double deg, const wchar_t* pos, const wchar_t* neg,
+                      wchar_t* out, size_t cap) {
+        const wchar_t* hemi = (deg >= 0.0) ? pos : neg;
+        double a  = fabs(deg);
+        int    d  = (int)a;
+        double mf = (a - d) * 60.0;
+        int    mi = (int)mf;
+        double se = (mf - mi) * 60.0;
+        if (se >= 59.995) { se = 0.0; if (++mi == 60) { mi = 0; d++; } }
+        swprintf(out, cap, L"%3d° %02d' %05.2f\" %s", d, mi, se, hemi);
+    }
+
+    // DWrite will not report a width without a layout object.
+    float TextWidth(const wchar_t* s, IDWriteTextFormat* f) {
+        if (!m_dwrite || !f || !s) return 0.0f;
+        IDWriteTextLayout* tl = nullptr;
+        if (FAILED(m_dwrite->CreateTextLayout(s, (UINT32)wcslen(s), f,
+                                              8192.0f, 256.0f, &tl)) || !tl)
+            return 0.0f;
+        DWRITE_TEXT_METRICS tm = {};
+        float w = SUCCEEDED(tl->GetMetrics(&tm))
+                    ? tm.widthIncludingTrailingWhitespace : 0.0f;
+        tl->Release();
+        return w;
     }
 
     void DrawCompassLabel(const wchar_t* text, float x, float y) {
@@ -933,6 +1078,7 @@ private:
         if (m_labelFormat)  { m_labelFormat->Release();  m_labelFormat  = nullptr; }
         if (m_statusFormat) { m_statusFormat->Release(); m_statusFormat = nullptr; }
         if (m_titleFormat)  { m_titleFormat->Release();  m_titleFormat  = nullptr; }
+        if (m_siteFormat)   { m_siteFormat->Release();   m_siteFormat   = nullptr; }
 
         m_dwrite->CreateTextFormat(L"Barlow Condensed", nullptr,
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
@@ -945,12 +1091,19 @@ private:
         m_dwrite->CreateTextFormat(L"Barlow Condensed", nullptr,
             DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px * 1.08f, L"en-us", &m_titleFormat);
+        // The site block is monospace and near full size: it is a column
+        // of digits to be read off and typed in somewhere else, which is
+        // the one thing on this window that wants figures lining up.
+        m_dwrite->CreateTextFormat(L"Space Mono", nullptr,
+            DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL, px * 0.95f, L"en-us", &m_siteFormat);
     }
 
     void ReleaseD2D() {
         if (m_labelFormat)  { m_labelFormat->Release();  m_labelFormat  = nullptr; }
         if (m_statusFormat) { m_statusFormat->Release(); m_statusFormat = nullptr; }
         if (m_titleFormat)  { m_titleFormat->Release();  m_titleFormat  = nullptr; }
+        if (m_siteFormat)   { m_siteFormat->Release();   m_siteFormat   = nullptr; }
         if (m_rt)           { m_rt->Release();           m_rt           = nullptr; }
         // Released last: MakeFonts() creates the formats through it
         // and must never see it null while they are being rebuilt.
@@ -1197,6 +1350,7 @@ private:
     IDWriteTextFormat*     m_labelFormat  = nullptr;
     IDWriteTextFormat*     m_statusFormat = nullptr;
     IDWriteTextFormat*     m_titleFormat  = nullptr;  // bold, larger — Sun/Moon/bright planets
+    IDWriteTextFormat*     m_siteFormat   = nullptr;  // monospace — the site block's digits
 
     // Sky data
     raduk::sky::SkyObjectCatalog m_catalog;

@@ -297,6 +297,38 @@ Three-stage acquisition state machine: Off → Searching → Centering → Locke
 - Histogram: three R/G/B tinted rows on black background (FC style), seeing + sharpness row
 - Status: HDD bar + FPS, BUF bar + LOST — painted below controls in WM_PAINT strip
 
+### Phase 77 — AutoStakkert Handoff [SHIPPED; in-app launch UNDER RE-TEST 2026-10-18]
+
+`K`, or `AutoStackOnStop` in `rig.ini`, hands the finished recording to AutoStakkert and lets it stack unattended, so the round trip (stop, find the file, open AS, set it up, wait, export) becomes one step. Deliberately **not** a stacker: AS!4 does multi-point alignment and drizzle well and is free, and the preview's quick-look stacker exists to answer "is this sharp" at the telescope, not to produce the final image. What was missing was the handoff.
+
+`src/core/AutoStakkertRunner.h` — probes known install paths (`D:\Program Files\AutoStakkert\AutoStakkert.exe` first, which is where it lives here), `CreateProcessW`, kill on timeout so a wedged run cannot leave an orphan stacking in the background. Follows `ASTAPSolver`'s pattern throughout. Output is discovered by listing the output directory rather than assumed, because which percentages and which image format AS writes is governed by its own saved settings.
+
+The command line, verified against AS!4 4.0.13 on a 156 MB, 127-frame recording — 49.9 s, no window, `AS_P20/P50/P70/P90` written with 272 auto-placed alignment points:
+
+```
+AutoStakkert.exe "<file>.ser" /apgrid /process /hide /exit /outputdirectory "<dir>"
+```
+
+AS!4's headless command line is essentially undocumented — the published switches are the AS!2-era `/inifile` and `/expanding` — but the binary carries `/inifile`, `/outputdirectory`, `/settingsfile`, `/apgrid`, `/process`, `/hide`, `/exit`, `/surfaceanchor`, `/monitoring`, `/monitoring_no_raw` and four `/priority_*` switches, each with its own log message.
+
+**Status: the in-app launch works. Re-measured 2026-10-18.** It had been recorded as broken and "proven not to be ours", on the reasoning that a bare console program making the identical `CreateProcessW` call failed the same way, so AutoStakkert's own state must be wedged. The owner reported that AS functions correctly on this machine, which removed that premise; re-measuring settled it.
+
+Three runs, the same 158 MB / 1280×960 Jupiter recording, no reinstall and no reboot in between:
+
+| Route | Time | Result |
+|---|---|---|
+| Standalone, PowerShell | 51.4 s | stacked; 1 PNG + `.as3` |
+| Via `StackAsync` — the app's own path | 50.4 s | `ok=1`, 8 files |
+| Via `StackAsync`, with AS already open | 57.0 s | `ok=1`, 8 files |
+
+Every one logs the working signature: `Processing started` 0.45 s after `started...`. So **there was never anything wrong with this code**, and the third run also kills the most attractive remaining theory — a second AS instance holding a single-instance lock. `StackAsync` does not check for a running AutoStakkert, and one *was* running during the original investigation, which made it look like the answer; AS 4.0.13 stacks from this path with another instance open, so no guard is needed.
+
+**What broke it originally is unexplained and no longer reproducible** — something about the machine's state that day, which did not survive into this one. That is the honest end of it rather than a theory left in a comment.
+
+One trap found while re-measuring, which may account for some of the original failing observations: launched from a **bash-like shell** (Git Bash / MSYS), the `/switches` are rewritten into paths before AS sees them — `/apgrid` arrives as `C:/Program Files/Git/apgrid` — and the result looks exactly like the reported symptom. AS starts, sits at 0.08 s of CPU and writes nothing. The tell is in the log: a mangled launch logs the startup lines with **no `command line ...` lines at all**, where a genuine failure-to-begin logs every switch and then stops. Reproduce from PowerShell or `cmd`, never from Git Bash.
+
+`AutoStackOnStop` still defaults **OFF**, but for its own reason now rather than because the launch is suspect: stacking is minutes of CPU on the machine running the capture, and that should be opted into rather than sprung on someone mid-session. `tests\manual-autostakkert-launch.cpp` re-runs the measurement; it needs AS installed and about a minute, so it does not gate.
+
 ### Phase 47 — Click to Recentre [COMPLETE 2026-10-18]
 
 `Ctrl`+click any pixel in the preview and the mount moves so that pixel is at frame centre.
@@ -452,6 +484,8 @@ Frame memory allocated with `VirtualAlloc` (page-aligned, avoids heap fragmentat
 | SS_NOTIFY on section headers | Required for SS_OWNERDRAW statics to receive WM_LBUTTONDOWN |
 | UpdateStates state cache | Prevents 38 FPS SetWindowTextW → toolbar button flash |
 | scrollW in layout constants | Reserves SM_CXVSCROLL pixels so controls don't draw behind scrollbar |
+| AS handoff, not an in-app stacker | AutoStakkert does multi-point alignment and drizzle well and is free; the quick-look stacker answers "is this sharp" at the telescope. Only the handoff was missing |
+| `AutoStackOnStop` defaults OFF | Stacking is minutes of CPU on the capture machine; opt in rather than have it sprung on you mid-session |
 | One pixel→pulse solve (`GuideSolve.h`) | The guide loop and click-to-recentre share it. Two copies would be two sign conventions, and a wrong sign here steers the mount confidently the wrong way |
 | Recentre from the guide calibration, not a plate solve | The calibration is already a measured pixel↔sky transform. A planet field has no stars to solve, so a solve-gated recentre would be missing exactly when needed |
 | Recentre refuses rather than clamps | A clamped pulse lands somewhere nobody asked for; at 0.203"/px that puts the target out of frame. Over the ceiling it says to slew instead |

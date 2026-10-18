@@ -207,13 +207,19 @@ $before = $findings
 $codeMap = Join-Path $root "wiki\Code-Map.md"
 if (Test-Path $codeMap) {
     $map = Get-Content $codeMap -Raw
-    foreach ($f in Get-ChildItem (Join-Path $root "src\core") -Filter *.h) {
-        if ($map -notmatch [regex]::Escape($f.Name)) {
-            Say "UNDOCUMENTED" "$($f.Name) is not in wiki\Code-Map.md" "src\core\$($f.Name)"
+    # core AND gui. The first version looked only at src\core and so
+    # reported four missing files when the real number was sixteen --
+    # a check that is narrower than the claim it is testing gives
+    # false confidence, which is worse than no check.
+    foreach ($dir in @("core", "gui")) {
+        foreach ($f in Get-ChildItem (Join-Path $root "src\$dir") -Filter *.h) {
+            if ($map -notmatch [regex]::Escape($f.Name)) {
+                Say "UNDOCUMENTED" "$($f.Name) is not in wiki\Code-Map.md" "src\$dir\$($f.Name)"
+            }
         }
     }
 }
-if ($findings -eq $before) { Write-Host "   every src\core header appears in the code map" }
+if ($findings -eq $before) { Write-Host "   every src\core and src\gui header appears in the code map" }
 
 Write-Host ""
 Write-Host "============================================================"

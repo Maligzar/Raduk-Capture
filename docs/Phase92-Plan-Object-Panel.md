@@ -424,10 +424,41 @@ minutes, M13 at 5.1 times wider than a 1280×960 frame, the same
 object filling 15% instead of 30% when a Barlow doubles the plate
 scale. Absent facts produce no sentence rather than a zero one.
 
-### Still to do
+## Outcome — 92c shipped 2026-10-17
 
-- **92c proper.** The scale diagram is not built. Typography, the
-  accent colour, the radial field and the cross-fade are in.
+**The scale diagram is in**, and it is the frame rather than the
+object: the sensor's field drawn to scale from the live plate scale
+and the live capture format, labelled with its real dimensions, with
+the object drawn inside it to scale when `size_arcmin` is known. When
+the object is larger than the frame the view pulls back so both fit,
+which is itself the useful picture.
+
+For a planet there is no `size_arcmin`, so the frame is drawn alone.
+That is still the answer to "how much sky am I looking at" — the
+question the owner asked about Jupiter's moons earlier the same day —
+and it beats drawing a disc whose size nobody measured.
+
+Three things the screenshots forced, none of which were in the plan:
+
+**"AIR MASSES 40.00".** `SkyConditions` saturates airmass at 40 below
+the horizon. That is a bound, not a measurement, and putting it on a
+public screen as a figure is the thing §4 exists to prevent. The
+airmass column is dropped when the target is not up; the altitude
+beside it already says why.
+
+**Two columns, not one.** Stacking the summary and the mythology
+pushed the mythology off a 1080p screen entirely. Two columns fix
+that and also fix something the single column was already getting
+wrong: 1920 pixels of text is about 110 characters a line, half as
+wide again as anything comfortable to read. Two columns bring it to
+roughly seventy and use the width the diagram does not.
+
+**Only the right column clears the diagram.** Pushing both below it
+cost the left column about 160 pixels and clipped the summary
+mid-sentence. The diagram occupies the right 30%; the left column
+never collided with it.
+
+### Still to do
 - **Apparent size for planets.** `size_arcmin` is NULL for all of
   them, so the frame-fill line — the most useful one for an imager —
   does not appear for the targets this rig actually images. The app

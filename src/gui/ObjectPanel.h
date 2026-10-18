@@ -455,7 +455,13 @@ private:
             char b[32]; snprintf(b, sizeof(b), "%.0f°", m_content.altitudeDeg);
             figs.push_back({ "ALTITUDE NOW", b });
         }
-        if (m_content.haveAltitude && m_content.airmass > 0.0) {
+        // Airmass only while the target is actually up. SkyConditions
+        // saturates it at 40 below the horizon, and "40.00 AIR MASSES"
+        // on a public screen is a bound being displayed as a
+        // measurement. Below the horizon the honest figure is the
+        // altitude, which is already in the row beside it.
+        if (m_content.haveAltitude && m_content.altitudeDeg > 0.0 &&
+            m_content.airmass > 0.0 && m_content.airmass < 30.0) {
             char b[32]; snprintf(b, sizeof(b), "%.2f", m_content.airmass);
             figs.push_back({ "AIR MASSES", b });
         }
@@ -488,48 +494,79 @@ private:
         if (r.hasMagnitude)
             derived.push_back(objectpanel::BrightnessLine(r.magnitude) + ".");
 
+        // ── The scale diagram ────────────────────────────
+        //
+        // Drawn to the right of the derived lines, so it is read
+        // alongside them rather than instead of them. It answers the
+        // question the owner asked about the moons: how much sky does
+        // the sensor actually see tonight.
+        //
+        // No photograph. Licensing aside, a space-telescope image
+        // beside a live view from the garden invites exactly the
+        // comparison nobody wants. This is computed from the plate
+        // scale and the live capture format, so it is true of THIS
+        // rig on THIS night, which no stock picture would be.
+        const float yDerivedTop = y;
+        const float diagW = colW * 0.30f;
+        const float diagX = pad + colW - diagW;
+        DrawScaleDiagram(diagX, y, diagW, m_fontPx * 4.6f, alpha);
+        const float derivedW = colW - diagW - m_fontPx;
+
         for (const auto& line : derived) {
-            Text(m_fBody, W(line), pad, y, colW, m_fontPx * 1.3f, ac, alpha);
+            Text(m_fBody, W(line), pad, y, derivedW, m_fontPx * 1.3f, ac, alpha);
             y += m_fontPx * 1.15f;
         }
+        // The diagram is taller than the derived lines when there are
+        // only one or two, so the narrative starts below whichever
+        // reaches further down.
+        // The diagram box is 4.6 ems tall and its caption sits below
+        // it, so the narrative has to clear about 6 before it starts
+        // or it runs under the label -- which it did.
+        // The diagram sits in the right 30%, so only the RIGHT text
+        // column has to clear it. Pushing BOTH columns below it threw
+        // away about a hundred and sixty pixels from the left one and
+        // clipped the summary mid-sentence.
+        const float afterDiag = yDerivedTop + m_fontPx * 6.1f;
         if (!derived.empty()) y += m_fontPx * 0.5f;
+        const float yLeft  = y;
+        const float yRight = (y < afterDiag) ? afterDiag : y;
 
         // ── Narrative ──
         //
         // Drawn only when there is one. No heading over an empty box,
         // no "no data available".
         if (r.HasNarrative()) {
-            const float left = (float)m_h - y - pad;
+            const float left = (float)m_h - yLeft - pad;
             if (left > m_fontPx * 2.0f) {
-                // Rough but adequate: the summary is capped at 1000
-                // characters by the builder, so reserving room by line
-                // count rather than measuring is safe here and leaves
-                // the mythology somewhere to go.
-                const float est = EstimateHeight(r.summary, colW);
-                const float use = (std::min)(est, left);
-                Text(m_fBody, W(r.summary), pad, y, colW, use, fg, alpha * 0.92f);
-                y += use + m_fontPx * 0.6f;
+                // ── Two columns ──
+                //
+                // Not only to fit both paragraphs, though stacking
+                // them did push the mythology off a 1080p screen. A
+                // single column across 1920 pixels is about 110
+                // characters a line, which is half as wide again as
+                // anything comfortable to read; two columns bring it
+                // back to roughly seventy and use the width that the
+                // diagram does not.
+                //
+                // The second column takes the mythology, which is the
+                // part about people rather than photometry and the
+                // part an audience actually remembers.
+                const std::string& aside =
+                    !r.mythology.empty() ? r.mythology : r.discoveryNotes;
+                const float gut = m_fontPx * 1.4f;
+                const float cw2 = aside.empty() ? colW
+                                                : (colW - gut) * 0.5f;
 
-                // Mythology and discovery, restored 2026-10-17. The
-                // builder had always written them and an upsert bug
-                // had always erased them before they reached the
-                // database -- so this is the first time an audience
-                // can see the part of the content that is actually
-                // about culture rather than photometry.
-                const float rest = (float)m_h - y - pad;
-                if (!r.mythology.empty() && rest > m_fontPx * 2.0f) {
-                    Text(m_fBody, W(r.mythology), pad, y, colW,
-                         (std::min)(EstimateHeight(r.mythology, colW), rest),
-                         ac, alpha * 0.85f);
-                } else if (!r.discoveryNotes.empty() && rest > m_fontPx * 2.0f) {
-                    Text(m_fBody, W(r.discoveryNotes), pad, y, colW, rest,
-                         ac, alpha * 0.85f);
-                }
+                Text(m_fBody, W(r.summary), pad, yLeft, cw2, left,
+                     fg, alpha * 0.92f);
+                if (!aside.empty())
+                    Text(m_fBody, W(aside), pad + cw2 + gut, yRight, cw2,
+                         (float)m_h - yRight - pad, ac, alpha * 0.85f);
             }
         } else if (derived.empty() && !r.found) {
             // Nothing at all is known. Say that plainly rather than
             // showing a polished screen with nothing true on it.
-            Text(m_fBody, W("Not in the catalogue."), pad, y, colW,
+            Text(m_fBody, W("Not in the catalogue."), pad, yLeft, colW,
                  m_fontPx * 2.0f, dim, alpha);
         }
 
@@ -563,6 +600,72 @@ private:
             }
             stops->Release();
         }
+    }
+
+    // ── The scale diagram ─────────────────────────────────────
+    //
+    // The sensor's field of view, drawn to scale, with the object in
+    // it when its angular size is known. Everything here is computed
+    // from the live plate scale and the live capture format, so it is
+    // true of this rig tonight rather than true in general.
+    //
+    // When the size is NOT known -- which is every planet, because
+    // size_arcmin is NULL for all of them -- the frame is drawn alone
+    // with its real dimensions. That is still the answer to "how much
+    // sky am I looking at", and it is better than drawing a disc whose
+    // size nobody measured.
+    void DrawScaleDiagram(float x, float y, float w, float h, float alpha) {
+        const auto& r = m_content.rec;
+        if (m_content.roiWidth <= 0 || m_content.roiHeight <= 0) return;
+        if (w < 40.0f || h < 30.0f) return;
+
+        const double scale = m_content.plateScaleArcsecPx;
+        const double frameW = m_content.roiWidth  * scale / 60.0;   // arcmin
+        const double frameH = m_content.roiHeight * scale / 60.0;
+        if (frameW <= 0.0 || frameH <= 0.0) return;
+
+        const D2D1_COLOR_F ac  = Accent();
+        const D2D1_COLOR_F dim = D2D1::ColorF(0.55f, 0.65f, 0.75f);
+
+        // How much sky the drawing covers. Normally the frame fills
+        // it; when the object is larger than the frame the view pulls
+        // back so both fit, which is itself the useful picture.
+        double viewW = frameW, viewH = frameH;
+        const bool haveObj = r.hasSizeArcmin && r.sizeArcmin > 0.0;
+        if (haveObj && r.sizeArcmin > frameH * 0.95) {
+            const double need = r.sizeArcmin * 1.25;
+            const double k = need / frameH;
+            viewW = frameW * k;
+            viewH = frameH * k;
+        }
+
+        // Fit the view into the box, preserving the sky's aspect.
+        const float k = (std::min)((float)(w / viewW), (float)(h / viewH));
+        const float fw = (float)(frameW * k), fh = (float)(frameH * k);
+        const float cx = x + w * 0.5f, cy = y + h * 0.5f;
+
+        // The object first, so the frame outline sits on top of it.
+        if (haveObj) {
+            const float rr = (float)(r.sizeArcmin * k * 0.5f);
+            if (rr > 1.0f) {
+                ID2D1SolidColorBrush* b = Brush(ac, alpha * 0.28f);
+                m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), rr, rr), b);
+                m_rt->DrawEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), rr, rr),
+                                  Brush(ac, alpha * 0.75f), 1.2f);
+            }
+        }
+
+        // The sensor's frame.
+        const D2D1_RECT_F fr = D2D1::RectF(cx - fw * 0.5f, cy - fh * 0.5f,
+                                           cx + fw * 0.5f, cy + fh * 0.5f);
+        m_rt->DrawRectangle(fr, Brush(dim, alpha * 0.9f), 1.4f);
+
+        // Label it with what it really is, under the box.
+        char lab[96];
+        snprintf(lab, sizeof(lab), "%.1f' x %.1f'  sensor field",
+                 frameW, frameH);
+        Text(m_fLabel, W(lab), x, fr.bottom + m_fontPx * 0.18f, w,
+             m_fontPx * 0.9f, dim, alpha, DWRITE_TEXT_ALIGNMENT_CENTER);
     }
 
     void OnResize(int w, int h) {

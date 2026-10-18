@@ -4,13 +4,21 @@ Written 2026-10-12, after a long emulator session. Sources: the owner's
 findings from that session, the existing roadmap table in
 `RadukCapture-Architecture.md`, and `docs/CLEAR-NIGHT-CHECKLIST.md`.
 
-**Last reviewed 2026-10-17.** Most of what follows is now finished —
-Tiers 0 and 1 entirely, Tier 3 bar one item, and four of the five
-things found as debt. The tier sections below are kept as the record
-of what was planned and why, with their outcomes marked.
+**Reviewed whenever a phase closes, not on a schedule — a date here
+only ever told you how stale it was.** Most of what follows is
+finished: Tiers 0, 1 and 3 entirely, and the debt items D1–D3. The
+tier sections are kept as the record of what was planned and why, with
+their outcomes marked.
 
-**The live list is [Next, in order](#next-in-order), near the end.**
-Start there; everything above it is history.
+**This file ranks. It does not assert status.** What state a phase is
+actually in — and the difference between built, wired, gated and
+measured — is [`PHASE-STATUS.md`](PHASE-STATUS.md), which is the only
+place that claim is made.
+
+**The live list is [Next, in order](#next-in-order).** One live section
+sits above it and is easy to miss: **P4.1, the Xbox controller**,
+backlogged on hardware rather than finished. Everything else above the
+live list is the dated record.
 
 ---
 
@@ -774,6 +782,21 @@ windows against the roles and names the gap. The repaint itself was
 checked by sampling six window bodies across a toggle — all six moved
 together, red-dominant to blue-dominant.
 
+### D4 · The AI runs on CPU — not actionable in code
+
+Referenced from several places above and, until now, defined nowhere.
+
+The local model runs on the CPU because the installed NVIDIA driver
+(546.01) caps CUDA at 12.3, below what the runtime wants, and the
+RTX 2060's 6 GB would in any case only fit an 8B model at 4-bit. Both
+halves are environment, not code: nothing in this repository can move
+them, and a driver update is entangled with the five-monitor setup that
+the two cards currently drive.
+
+Recorded as debt because it bounds P3.6 option A — a larger
+assistant model — and because an undefined reference is how a reader
+concludes the document is unreliable.
+
 ---
 
 ## Ranked summary
@@ -829,14 +852,13 @@ the ranking below it is what to pick up next.
 | Repaint and rescue find every window (D3) | `a4b50a9` — 14 windows, 12 roles |
 | Assistant reads the project's notes and its own past (P3.6 B) | `85b9d51` — 16 documents, 6 session logs, 8.3 KB prompt |
 | Variable-rate slewing (P3.6 list item 1) | `eef6c25` — gated by `tests/slew_variable.cpp` |
-| An empty NOTES box can no longer erase a profile's note | `95c3048` — the guard saturn.ini needed in `f2f2edc` |
+| An empty NOTES box can no longer erase a profile's note | `202822f` — the guard saturn.ini needed in `f2f2edc` |
 | Apparent size for the planets (list item 3) | `f4f4bda` — computed from the ephemeris, gated by `tests/planet_apparent_size.cpp` |
 | Connect / disconnect all hardware (phase 46) | `[HW]` button + `MountProxy`, gated by `tests/hardware_link.cpp` |
 | Click to recentre (phase 47, list item 4) | `Ctrl`+click, through the phase 51 calibration, gated by `tests/recentre.cpp` |
 
 ---
 
-<a name="next-in-order"></a>
 <a name="next-in-order"></a>
 ### Next, in order
 
@@ -900,7 +922,7 @@ loss unconditional on a fresh run, including for the profile just
 loaded, because its note went into the cache that survives a rebuild
 and nothing read it back.
 
-Fixed in `95c3048`: the accessors go through that cache, the box
+Fixed in `202822f`: the accessors go through that cache, the box
 records which profile its text came from, and
 `NotesBoxMayReplaceStored` decides whether a SAVE may overwrite — keyed
 by name, so a rename through EDIT fails safe. Emptying a profile's own
@@ -1233,10 +1255,85 @@ depend on them:
   every arcsecond figure in the app derives from it, the ADC tool's
   included.
 
+### Backlog — raised, not yet scheduled
+
+#### B1 · The object panel clips its text, and bleeds it over the diagram
+
+Raised 2026-10-18 from a screenshot. Two defects in one section, and the
+diagnosis is recorded here so it is not derived a second time.
+
+**It clips.** The long prose description runs off the bottom of the
+panel and stops mid-sentence. `ObjectPanel.h`'s one text helper calls
+D2D `DrawText` with a *layout* rect and no
+`D2D1_DRAW_TEXT_OPTIONS_CLIP`, so the height argument is advisory:
+DirectWrite lays the whole string out and every line is drawn, with the
+window edge — not the layout — doing the truncating. Nothing measures
+first. `EstimateHeight` exists for that job, has **no call sites**, and
+its own comment asserts the text "is clipped to the rect either way",
+which is false.
+
+**It bleeds.** For a star the prose runs straight across the scale
+diagram. The width is `cw2 = aside.empty() ? colW : (colW - gut) * 0.5f`
+— `aside` is mythology or discovery notes, which exist only for the nine
+solar-system rows. So every star takes the full-width branch, and
+because the left column deliberately does not clear the diagram
+(correct at half width), the prose paints over it.
+
+A third, smaller instance sits in the derived-lines loop: each line gets
+a 1.3em rect while `y` advances 1.15em, so a wrapped derived line
+overprints the next.
+
+The fix wants measuring and fitting, not just a smaller font — though
+the font should shrink too, since it is derived from window **height**
+alone and never from how much there is to say. Two things in this
+codebase already do the work: `SkyMapWindow::TextWidth` uses
+`CreateTextLayout` + `GetMetrics`, which is exactly the measurement
+needed, and `HelpWindow::FontPxFor` is the existing shrink-to-fit loop.
+`ObjectPanel` already holds `m_dwrite`.
+
+#### B2 · Product comparison against other astronomy imaging software
+
+Raised 2026-10-18, **for a separate session to carry out.** Not research
+to be done here.
+
+**Precondition:** the documents must be true first. A capability
+comparison run against documents that misstate what is built is worse
+than none, because it produces a confident gap list with the wrong gaps
+in it. That is what the 2026-10-18 truth pass was for; check
+[`PHASE-STATUS.md`](PHASE-STATUS.md) is current before starting.
+
+Compare against three groups:
+
+- **Planetary capture peers** — FireCapture, SharpCap, ASICAP, AstroDMx
+  Capture. The direct competitors for what this rig actually does:
+  high-frame-rate planetary capture with ROI control and SER output.
+- **DSO and automation suites** — N.I.N.A., SGP, Ekos/KStars. Where the
+  expectations about sequencing, equipment profiles, plate-solve-and-
+  centre and scripting come from.
+- **Guiding and precision** — PHD2, as the reference for the
+  measured-not-assumed calibration this app's tracker already follows,
+  and the benchmark for any pointing-accuracy claim.
+
+Dimensions worth judging: capture pipeline and sustained throughput;
+sensor and ROI control; autofocus; tracking and guiding accuracy; plate
+solving and pointing; **metadata and file-format obligations**, which is
+where phase 48's observation record and FITS output get judged;
+automation and scripting; ergonomics for night use; hardware breadth;
+and data integrity — what each application actually guarantees about
+frames reaching the disk.
+
+The deliverable is a document ranking gaps **by value to this rig**, and
+separating "genuinely missing" from "deliberately out of scope". Full
+stacking is the obvious second case: it is a stated non-goal, because
+AutoStakkert does it better and nothing here would beat it.
+
 ### Unstarted features, not yet scheduled
 
-Nothing below is half-built. Ranked by value to this rig rather than by
-the original tier numbers.
+Ranked by value to this rig rather than by the original tier numbers.
+Whether any of these is partly built is
+[`PHASE-STATUS.md`](PHASE-STATUS.md)'s question, not this table's — this
+one used to claim "nothing below is half-built", which stopped being
+true the moment a phase was split in two.
 
 | Phase | Feature | Effort | Note |
 |---|---|---|---|

@@ -44,6 +44,13 @@ public:
         m_exeDir  = exeDir;
 
         m_contextBuilder.LoadHelpFile(exeDir);
+        // P3.6 option B: the rest of the corpus. The help file explains
+        // the app; these explain the project and the rig's own past.
+        // Absolute paths for the same reason the database uses one --
+        // the exe runs from build\Release and the documents do not
+        // live beside it.
+        m_contextBuilder.LoadDocuments(L"D:\\RadukCapture\\docs");
+        m_contextBuilder.LoadSessionLogs(L"D:\\RadukCapture\\logs");
         m_knowledgeDB.Open("D:\\RadukCapture\\data\\object_knowledge.db");
         m_contextBuilder.SetKnowledgeDB(&m_knowledgeDB);
 

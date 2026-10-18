@@ -62,6 +62,24 @@ int main() {
     s.bitDepth     = 8;
     s.seeingScore  = 7.0f;
 
+    // ── A site to redact ─────────────────────────────────────
+    //
+    // This test ran for its whole life with NO SITE LOADED. rig.ini is
+    // untracked and lives beside the app in build/Release; the tests run
+    // from tests/_build, where there is none, so siteLatDeg was 0.0 and
+    // the precision check below was asserting that "0.0, 0.0" carries no
+    // more than one decimal. It cannot: there was nothing there to leak.
+    // The one test guarding the one rule that matters passed because it
+    // was never given anything to guard.
+    //
+    // So load a site here, in process. Deliberately NOT the real one --
+    // these digits are invented, and the real site stays in the
+    // untracked rig.ini where it belongs. What matters is the SHAPE:
+    // coordinate-sized, eight decimals, so anything that forwards it at
+    // full precision has somewhere to show.
+    RigConfig::Get().siteLatDeg = 41.87654321;
+    RigConfig::Get().siteLonDeg = -87.65432109;
+
     AIContextBuilder b;
     std::vector<FakeRow> planner{ FakeRow{} };
     const std::string p = b.Build(s, planner, "what is my field of view?");
@@ -155,6 +173,16 @@ int main() {
               offender);
         Check(Has(p, "approx, from rig.ini"),
               "and the site is labelled as approximate", "");
+
+        // Positive side of the same rule. The scan above proves nothing
+        // if the site never reached the prompt at all -- which is
+        // exactly the state this test was in. These say the rounded
+        // site IS present and the full-precision one is NOT.
+        Check(Has(p, "41.9") && Has(p, "-87.7"),
+              "the rounded site did reach the prompt",
+              "41.9, -87.7 from 41.87654321, -87.65432109");
+        Check(!Has(p, "41.87") && !Has(p, "87.654"),
+              "and the full-precision site did not", "");
     }
 
     // ── 5. The live state ────────────────────────────────────
@@ -162,6 +190,67 @@ int main() {
     {
         Check(Has(p, "300"),  "the gain is the live one", "");
         Check(Has(p, "12.5"), "and so is the exposure", "");
+    }
+
+    // ── 6. Retrieval over the local corpus (P3.6 option B) ───
+    //
+    // The assistant could see the help file and nothing else. These
+    // check that the wider corpus reaches the prompt, that it is
+    // SELECTED rather than dumped, and that widening it did not
+    // smuggle the observing site in.
+    printf("\n6. Retrieval over the local corpus\n");
+    {
+        AIContextBuilder b2;
+        b2.LoadDocuments(L"D:\\RadukCapture\\docs");
+        b2.LoadSessionLogs(L"D:\\RadukCapture\\logs");
+
+        // A question the help file cannot answer and the project's own
+        // notes can.
+        const std::string p2 =
+            b2.Build(s, planner, "what did the clear night checklist say "
+                                 "about plate scale?");
+        Check(Has(p2, "[LOCAL DOCUMENTS]"),
+              "a question about the project's notes reaches them", "");
+
+        // A question about what happened, which only the logs know.
+        const std::string p3 =
+            b2.Build(s, planner, "what happened with autofocus last session?");
+        Check(Has(p3, "[SESSION HISTORY]"),
+              "a question about the past reaches the session logs", "");
+        Check(Has(p3, "session_"),
+              "  and says which session it is quoting", "");
+
+        // Selected, not dumped. A session log here is tens of
+        // thousands of lines; the whole point is that a handful
+        // arrive, not all of them.
+        Check(p3.size() < 60000,
+              "the prompt stays bounded with the corpus in it",
+              std::to_string(p3.size()) + " bytes");
+
+        // A question with nothing to match must not drag history in.
+        const std::string p4 = b2.Build(s, planner, "hello");
+        Check(!Has(p4, "[SESSION HISTORY]"),
+              "a question with nothing to match pulls no history in", "");
+
+        // And the site rule still holds with all of it present. This
+        // is the check that matters most: the corpus grew, and
+        // everything in the prompt can be quoted back.
+        bool tooPrecise = false;
+        for (size_t i = 0; i + 4 < p3.size(); i++) {
+            if (!isdigit((unsigned char)p3[i])) continue;
+            if (i > 0 && (isdigit((unsigned char)p3[i-1]) || p3[i-1] == '.')) continue;
+            size_t j = i;
+            while (j < p3.size() && isdigit((unsigned char)p3[j])) j++;
+            if (j >= p3.size() || p3[j] != '.') continue;
+            size_t k = j + 1, dec = 0;
+            while (k < p3.size() && isdigit((unsigned char)p3[k])) { k++; dec++; }
+            if (dec < 2) continue;
+            const double v = atof(p3.substr(i, k - i).c_str());
+            if (v >= 10.0 && v <= 180.0) { tooPrecise = true; break; }
+        }
+        Check(!tooPrecise,
+              "and the site rule still holds with documents and logs in",
+              "");
     }
 
     printf("\n");

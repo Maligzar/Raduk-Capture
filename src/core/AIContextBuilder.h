@@ -141,6 +141,113 @@ public:
     // A question matching nothing still gets the opening of the file,
     // which is the safety section, so the model is never answering with
     // no app knowledge at all.
+    // The words from a question worth matching on.
+    //
+    // Lifted out of RelevantHelp so the session-log matcher uses the
+    // same list. Two matchers with two ideas of what a question says
+    // would be two different searches.
+    static std::vector<std::string> QueryTerms(const std::string& question) {
+        static const char* kStop[] = {
+            "the","a","an","and","or","is","it","to","of","in","on",
+            "for","do","does","did","how","what","why","when","where",
+            "can","i","my","me","you","be","with","this","that","are",
+            "was","if","at","as","by","from","get","got","use","using",
+            "should","would","could","will","there","here","about"
+        };
+        auto isStop = [&](const std::string& w) {
+            for (const char* s : kStop) if (w == s) return true;
+            return false;
+        };
+        std::vector<std::string> terms;
+        std::string cur;
+        auto flush = [&]() {
+            if (cur.size() >= 2 && !isStop(cur)) terms.push_back(cur);
+            cur.clear();
+        };
+        for (char c : question) {
+            if (isalnum((unsigned char)c)) cur += (char)tolower((unsigned char)c);
+            else flush();
+        }
+        flush();
+        return terms;
+    }
+
+    // ── Matching inside a session log (P3.6 option B) ─────────
+    //
+    // Logs are not markdown: no headings to split on, just lines of
+    // "[HH:MM:SS] [CATEGORY] text". So the unit is the LINE, and a hit
+    // brings its neighbours, because "AutoFocus failed" means little
+    // without the line saying what position it was at.
+    //
+    // Most recent first, because what happened last time is usually
+    // what was asked about. Lines are taken once: a session is tens of
+    // thousands of lines and nearly all of them repeat -- there are
+    // 1,145 identical "jog stop axis=0" lines in the logs here -- so
+    // without that the budget goes on chatter.
+    static std::string RelevantSession(const std::string& log,
+                                       const std::vector<std::string>& terms,
+                                       size_t budget) {
+        if (terms.empty()) return "";
+        std::vector<std::string> lines;
+        size_t start = 0;
+        for (size_t i = 0; i <= log.size(); i++) {
+            if (i == log.size() || log[i] == '\n') {
+                if (i > start) lines.push_back(log.substr(start, i - start));
+                start = i + 1;
+            }
+        }
+
+        std::vector<size_t> hits;
+        for (size_t i = 0; i < lines.size(); i++) {
+            std::string low = lines[i];
+            for (auto& c : low) c = (char)tolower((unsigned char)c);
+            for (const auto& t : terms) {
+                const size_t at = low.find(t);
+                if (at == std::string::npos) continue;
+                const bool leftOk  = (at == 0) ||
+                                     !isalnum((unsigned char)low[at - 1]);
+                const size_t end   = at + t.size();
+                const bool rightOk = (end >= low.size()) ||
+                                     !isalnum((unsigned char)low[end]);
+                if (leftOk && rightOk) { hits.push_back(i); break; }
+            }
+        }
+        if (hits.empty()) return "";
+
+        std::string out;
+        std::vector<char> taken(lines.size(), 0);
+        for (auto it = hits.rbegin();
+             it != hits.rend() && out.size() < budget; ++it) {
+            const size_t lo = (*it > 1) ? *it - 1 : 0;
+            const size_t hi = (*it + 1 < lines.size()) ? *it + 1
+                                                       : lines.size() - 1;
+            for (size_t j = lo; j <= hi && out.size() < budget; j++) {
+                if (taken[j]) continue;
+                taken[j] = 1;
+                out += lines[j];
+                out += "\n";
+            }
+        }
+        return out;
+    }
+
+    static std::string ReadWholeFile(const std::wstring& path, DWORD maxBytes) {
+        HANDLE hf = CreateFileW(path.c_str(), GENERIC_READ,
+                                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                nullptr, OPEN_EXISTING, 0, nullptr);
+        if (hf == INVALID_HANDLE_VALUE) return "";
+        std::string out;
+        const DWORD sz = GetFileSize(hf, nullptr);
+        if (sz > 0 && sz < maxBytes) {
+            std::vector<char> buf(sz + 1, 0);
+            DWORD read = 0;
+            if (ReadFile(hf, buf.data(), sz, &read, nullptr))
+                out.assign(buf.data(), read);
+        }
+        CloseHandle(hf);
+        return out;
+    }
+
     static std::string RelevantHelp(const std::string& help,
                                     const std::string& question) {
         // Budget in characters. Roughly 2000 tokens, against the 25,000
@@ -174,30 +281,9 @@ public:
         // So: keep everything from two characters up, and drop the
         // common words by name instead. The list is short because the
         // scoring only needs to stop "the" and "what" outvoting "ROI".
-        std::vector<std::string> terms;
-        {
-            static const char* kStop[] = {
-                "the","a","an","and","or","is","it","to","of","in","on",
-                "for","do","does","did","how","what","why","when","where",
-                "can","i","my","me","you","be","with","this","that","are",
-                "was","if","at","as","by","from","get","got","use","using",
-                "should","would","could","will","there","here","about"
-            };
-            auto isStop = [&](const std::string& w) {
-                for (const char* s : kStop) if (w == s) return true;
-                return false;
-            };
-            std::string cur;
-            auto flush = [&]() {
-                if (cur.size() >= 2 && !isStop(cur)) terms.push_back(cur);
-                cur.clear();
-            };
-            for (char c : question) {
-                if (isalnum((unsigned char)c)) cur += (char)tolower((unsigned char)c);
-                else flush();
-            }
-            flush();
-        }
+        // Shared with the session-log matcher, so the two cannot
+        // disagree about what a question is asking.
+        const std::vector<std::string> terms = QueryTerms(question);
 
         std::vector<std::pair<int, size_t>> scored;
         for (size_t i = 0; i < sections.size(); ++i) {
@@ -283,6 +369,78 @@ public:
             m_helpText = "(Help file not found — limited app reference available)";
             printf("[AIContextBuilder] Help.md not found — using stub\n");
         }
+    }
+
+    // ── P3.6 option B: the rest of the local corpus ───────────
+    //
+    // The help file was the only document the assistant could see, so
+    // it could explain the app and nothing else. The architecture
+    // notes, the clear-night checklist and the phase plans are all
+    // markdown with headings, which is what RelevantHelp already
+    // splits and scores -- so widening the corpus is mostly a matter
+    // of handing it more text.
+    void LoadDocuments(const std::wstring& docsDir) {
+        m_docsText.clear();
+        WIN32_FIND_DATAW fd = {};
+        HANDLE h = FindFirstFileW((docsDir + L"\\*.md").c_str(), &fd);
+        if (h == INVALID_HANDLE_VALUE) {
+            printf("[AIContextBuilder] no documents found\n");
+            return;
+        }
+        int files = 0;
+        do {
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+            std::string body = ReadWholeFile(docsDir + L"\\" + fd.cFileName,
+                                             512 * 1024);
+            if (body.empty()) continue;
+            // A heading naming the file, so a matched section can be
+            // attributed and the model can say where it read it.
+            char hdr[320];
+            snprintf(hdr, sizeof(hdr), "\n# %ls\n", fd.cFileName);
+            m_docsText += hdr;
+            m_docsText += body;
+            m_docsText += "\n";
+            files++;
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+        printf("[AIContextBuilder] %d document(s) loaded (%zu bytes)\n",
+               files, m_docsText.size());
+    }
+
+    // Past sessions, newest first.
+    //
+    // This is the half nobody else can do: the data is local and
+    // private, and "what did I do about focus drift last time" is a
+    // question only these files can answer.
+    //
+    // Checked before wiring it in -- the session logs carry no site
+    // coordinates. The only matches for "lat" were in the word
+    // EMULATOR.
+    void LoadSessionLogs(const std::wstring& logsDir, int maxSessions = 6) {
+        m_sessions.clear();
+        std::vector<std::wstring> names;
+        WIN32_FIND_DATAW fd = {};
+        HANDLE h = FindFirstFileW((logsDir + L"\\session_*.log").c_str(), &fd);
+        if (h == INVALID_HANDLE_VALUE) return;
+        do {
+            if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                names.push_back(fd.cFileName);
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+        // The names carry a sortable timestamp, so newest-first costs
+        // nothing but a sort.
+        std::sort(names.begin(), names.end(), std::greater<std::wstring>());
+        if ((int)names.size() > maxSessions) names.resize(maxSessions);
+
+        for (const auto& n : names) {
+            std::string body = ReadWholeFile(logsDir + L"\\" + n, 1024 * 1024);
+            if (body.empty()) continue;
+            char label[200];
+            snprintf(label, sizeof(label), "%ls", n.c_str());
+            m_sessions.push_back({ label, body });
+        }
+        printf("[AIContextBuilder] %zu session log(s) loaded\n",
+               m_sessions.size());
     }
 
     void SetKnowledgeDB(ObjectKnowledgeDB* db) { m_db = db; }
@@ -443,6 +601,50 @@ public:
         if (!m_helpText.empty()) {
             ss << "[APP REFERENCE]\n"
                << RelevantHelp(m_helpText, userQuery) << "\n\n";
+        }
+
+        // ── [LOCAL DOCUMENTS] (P3.6 option B) ─────────────────
+        //
+        // Architecture notes, the clear-night checklist, the phase
+        // plans. Same splitter and same scoring as the help file,
+        // because they are the same shape. A smaller budget: the help
+        // file answers most questions and this is the long tail.
+        if (!m_docsText.empty()) {
+            const std::string docs = RelevantHelp(m_docsText, userQuery);
+            if (docs.size() > 40) {
+                ss << "[LOCAL DOCUMENTS]\n"
+                   << "Notes from this project, on this machine. Treat them "
+                      "as this project's own record rather than as general "
+                      "knowledge.\n"
+                   << docs.substr(0, 4000) << "\n\n";
+            }
+        }
+
+        // ── [SESSION HISTORY] (P3.6 option B) ─────────────────
+        //
+        // What actually happened on previous nights. The half nobody
+        // else can answer, because the data is local and private.
+        //
+        // Only when the question has something to match on. Dumping
+        // recent log lines into every answer would be noise and would
+        // spend the budget on whatever happened to be last.
+        if (!m_sessions.empty()) {
+            const std::vector<std::string> terms = QueryTerms(userQuery);
+            std::string hist;
+            for (const auto& sess : m_sessions) {
+                if (hist.size() > 2000) break;
+                const std::string hit = RelevantSession(sess.body, terms, 700);
+                if (hit.empty()) continue;
+                hist += "--- " + sess.name + " ---\n";
+                hist += hit;
+            }
+            if (!hist.empty()) {
+                ss << "[SESSION HISTORY]\n"
+                   << "Lines from this rig's own past session logs, most "
+                      "recent first. These are what HAPPENED. Report them, "
+                      "do not generalise from them.\n"
+                   << hist.substr(0, 2400) << "\n\n";
+            }
         }
 
         // ── [SESSION STATE] ───────────────────────────────────
@@ -610,6 +812,10 @@ private:
     }
 
     std::string        m_helpText;
+    // P3.6 option B.
+    std::string        m_docsText;
+    struct SessionLog { std::string name, body; };
+    std::vector<SessionLog> m_sessions;
     ObjectKnowledgeDB* m_db = nullptr;
 };
 

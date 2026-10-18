@@ -311,8 +311,37 @@ public:
            << RigConfig::Get().siteLonDeg
            << std::defaultfloat << " (approx, from rig.ini).\n"
            << "Equipment: Celestron 8SE SCT (f/10, 2032mm FL), ZWO ASI678MC "
-              "(Sony IMX678, 3840x2160, 2.9um), ZWO EAF, NexStar mount.\n"
-           << "Plate scale: 0.203 arcsec/pixel. HCG threshold: gain 182.\n"
+              "(Sony IMX678, " << s.sensorWidth << "x" << s.sensorHeight
+           // 2.0um, not 2.9. The 2.9 figure was wrong and had been here
+           // since this prompt was written -- flagged in the June code
+           // review (CODE_REVIEW_2026-06-10, line 503) and never acted
+           // on. It also contradicted the plate scale on the next line:
+           // 2.9um at 2032mm is 0.294"/px, not 0.203. The model was
+           // handed two facts that cannot both be true and no way to
+           // tell which.
+           << ", 2.0um), ZWO EAF, NexStar mount.\n"
+           // P3.6 option C: the app's number, not one typed into a
+           // prompt. A Barlow or a reducer changes this, rig.ini
+           // records it, and a hardcoded 0.203 would go on being quoted
+           // confidently after it stopped being true.
+           << std::fixed << std::setprecision(3)
+           << "Plate scale: " << RigConfig::Get().plateScaleArcsecPx
+           << " arcsec/pixel (from rig.ini). HCG threshold: gain 182.\n"
+           // Field of view, computed rather than recalled. "Will the
+           // moons fit in frame" is a question about this number, and
+           // the model has no way to derive it unaided.
+           << std::setprecision(1)
+           << "Field of view at the full sensor: "
+           << (s.sensorWidth  * RigConfig::Get().plateScaleArcsecPx / 60.0f)
+           << "' x "
+           << (s.sensorHeight * RigConfig::Get().plateScaleArcsecPx / 60.0f)
+           << "'. At the current " << s.roiWidth << "x" << s.roiHeight
+           << " capture format: "
+           << (s.roiWidth  * RigConfig::Get().plateScaleArcsecPx / 60.0f)
+           << "' x "
+           << (s.roiHeight * RigConfig::Get().plateScaleArcsecPx / 60.0f)
+           << "'.\n"
+           << std::defaultfloat
            // The filter is removable hardware the app cannot detect, and
            // it moves the atmospheric dispersion figure by up to 4x. An
            // assistant answering "do I need the ADC tonight" has to know

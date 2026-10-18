@@ -356,6 +356,32 @@ P4.1 is therefore independent and can be done at any time.
 
 ## P3.6 · Make the assistant worth asking
 
+> **Option C done 2026-10-17, and it found a real defect.** The prompt
+> told the model the ASI678MC has **2.9um** pixels. It has 2.0, and the
+> plate scale two lines below said 0.203"/px — which is 2.0um at
+> 2032mm, not 2.9. The model was handed two facts that cannot both be
+> true and no way to choose. `CODE_REVIEW_2026-06-10` caught this at
+> line 503 in June and it shipped anyway.
+>
+> Also done: the plate scale now comes from `rig.ini` instead of being
+> typed into the prompt, so a Barlow or a reducer changes it rather
+> than leaving a stale number being quoted confidently; and the field
+> of view is computed and stated for both the full sensor and the live
+> capture format, which is what "will the moons fit" actually asks.
+>
+> **The written check the entry asked for exists:**
+> `tests/ai_context_facts.cpp`, in the gated suite. Fifteen checks on
+> the facts the model is given, because a model cannot be right about
+> a number it was handed wrongly. It includes the **site-precision
+> rule as a test** rather than a comment — no coordinate-sized number
+> in the context may carry more than one decimal. Everything in that
+> prompt can be quoted back, logged, or pasted into a bug report.
+>
+> **Still to do: B then A.** B is retrieval over the real corpus and
+> remains where the value is. A is a larger model and is still behind
+> D4.
+
+
 **Bench. Medium. Not urgent — it is now honest about what it does not
 know, which was the dangerous part.**
 

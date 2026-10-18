@@ -830,7 +830,7 @@ the ranking below it is what to pick up next.
 | Assistant reads the project's notes and its own past (P3.6 B) | `85b9d51` — 16 documents, 6 session logs, 8.3 KB prompt |
 | Variable-rate slewing (P3.6 list item 1) | `eef6c25` — gated by `tests/slew_variable.cpp` |
 | An empty NOTES box can no longer erase a profile's note | `95c3048` — the guard saturn.ini needed in `f2f2edc` |
-| Apparent size for the planets (list item 3) | computed from the ephemeris, gated by `tests/planet_size.cpp` |
+| Apparent size for the planets (list item 3) | `f4f4bda` — computed from the ephemeris, gated by `tests/planet_apparent_size.cpp` |
 | Click to recentre (phase 47, list item 4) | `Ctrl`+click, through the phase 51 calibration, gated by `tests/recentre.cpp` |
 
 ---
@@ -844,17 +844,29 @@ have moved above the line. The knowledge-database rebuild is demoted
 to a footnote, because checking it showed it would not do what the
 entry claimed.
 
-**Re-read 2026-10-18.** Items 1 and 2 are both shipped and have moved
-above the line, so the list starts at item 3. Item 3 turns out to be
-cheaper than its own entry says: `PlanetRADec` in `src/sky/SkyObject.h`
-already builds the geocentric vector, so the Earth-planet distance is
-sitting there unused and apparent diameter is a division away.
+**Re-read 2026-10-18.** Items 1, 2 and 3 were all already shipped and
+the list had not been told, so the first four rows are history and the
+queue really starts at the unscheduled features.
+
+**And this list being stale cost an afternoon.** Item 3 was
+implemented twice: once on `master` in `f4f4bda`, and again on a branch
+cut from `f2f2edc`, an hour older, whose copy of this file still had it
+queued. Both arrived at the same design -- the distance was already in
+`PlanetRADec`, Saturn needs the ring span -- which is some comfort
+about the design and none at all about the process. The branch's copy
+was dropped in favour of the one on `master`, which is better sourced
+(IAU radii and an exact arctangent, against doubled Meeus
+semidiameters and the small-angle form).
+
+The lesson is cheap to apply: **this file is only true of the branch
+you are reading it on.** Check `git log master` for the item you are
+about to start, not just the table.
 
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
 | ~~1~~ | **`SlewVariable()` — DONE 2026-10-17** (`eef6c25`) | Bench | — | Above the line |
 | ~~2~~ | **Assistant: retrieval over the real corpus** — DONE 2026-10-17 (`85b9d51`) | Bench | — | Above the line. 16 documents and the six most recent session logs, matched by line and bounded at 8.3 KB |
-| ~~3~~ | **Apparent size for the planets** — DONE 2026-10-18 | Bench | — | Decided for the ephemeris, and it cost almost nothing: `PlanetRADec` was already computing the Earth-planet distance for the declination and throwing it away. Diameter at 1 AU per planet, divided by that distance. Saturn carries a ring span too, because framing on the 18" globe crops the 41" of rings. Checked against published ranges of distance and apparent diameter across a twelve-year sweep — `tests/planet_size.cpp` |
+| ~~3~~ | **Apparent size for the planets** — DONE 2026-10-17 (`f4f4bda`) | Bench | — | Decided for the ephemeris, and it cost almost nothing: `PlanetRADec` was already computing the Earth-planet distance for the declination and throwing it away. IAU 2015 equatorial radii and `2*atan(R/d)`. Saturn is reported twice over, because the 41" ring span is what has to fit the frame and the 18" globe is what "apparent size" means. Swept 16 years against published ranges — `tests/planet_apparent_size.cpp` |
 | ~~4~~ | **Phase 47, click to recentre** — DONE 2026-10-18 | Bench | — | `Ctrl`+click an object and it goes to the middle. No new orientation config: the phase 51 guide calibration already MEASURED how the image responds to a pulse, so it contains the camera angle, the mirror flip and the axis signs. The 2x2 solve moved into `src/core/GuideSolve.h` and the guide loop now calls the same one — two copies would be two sign conventions. Gated by `tests/recentre.cpp`, including a round trip that pushes the solved pulses back through the measured matrix |
 | 5 | **Pick again from the unscheduled list** | Bench | varies | Eleven features left, none half-built. Phase 47 has gone; on value to this rig **phase 46** (connect/disconnect hardware without restarting) is now the one that pays back every session, with phase 48 (framing recall) behind it |
 | — | **Xbox controller** (P4.1) | **HELD** | M | No controller, no receiver, no Bluetooth in this machine. Feasibility proven (`8fed05a`); item 1 removes its software prerequisite. Phase 47's click-to-recentre is the other half of the same idea and is in |

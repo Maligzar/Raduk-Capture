@@ -185,42 +185,7 @@ public:
         double airmass       = 0.0;
         double plateScaleArcsecPx = 0.203;  // live, from rig.ini
         int    roiWidth = 0, roiHeight = 0; // live capture format
-        // Apparent size computed from the ephemeris, for the targets
-        // the catalogue has no size_arcmin for -- which is every
-        // planet. Filled by the caller from
-        // raduk::sky::PlanetSizeByName; left invalid for anything
-        // else, and the catalogue's figure wins where it exists,
-        // because a Messier object's size really is a constant.
-        bool   haveEphemSize   = false;
-        double ephemGlobeArcmin  = 0.0;
-        double ephemExtentArcmin = 0.0;   // rings included where they apply
-        bool   ephemRings      = false;
-        double ephemDistanceAu = 0.0;
     };
-
-    // ── The apparent size the panel should use ─────────────────
-    //
-    // Three places read it -- the APPARENT SIZE figure, the frame-fill
-    // sentence and the scale diagram -- and they must agree, or the
-    // panel contradicts itself in a single glance. The catalogue wins
-    // where it has a figure; the ephemeris fills in the planets.
-    bool   HaveApparentSize() const {
-        return (m_content.rec.hasSizeArcmin && m_content.rec.sizeArcmin > 0.0)
-            || (m_content.haveEphemSize && m_content.ephemGlobeArcmin > 0.0);
-    }
-    // The disc itself, which is what "apparent size" means.
-    double ApparentSizeArcmin() const {
-        if (m_content.rec.hasSizeArcmin && m_content.rec.sizeArcmin > 0.0)
-            return m_content.rec.sizeArcmin;
-        return m_content.haveEphemSize ? m_content.ephemGlobeArcmin : 0.0;
-    }
-    // What has to fit inside the frame, which for Saturn is wider than
-    // the disc. Framing on the globe alone cuts the rings off.
-    double FrameExtentArcmin() const {
-        if (m_content.rec.hasSizeArcmin && m_content.rec.sizeArcmin > 0.0)
-            return m_content.rec.sizeArcmin;
-        return m_content.haveEphemSize ? m_content.ephemExtentArcmin : 0.0;
-    }
 
     bool Create(HWND parent, int x, int y, int w, int h) {
         static bool s_registered = false;
@@ -495,20 +460,11 @@ private:
             char b[32]; snprintf(b, sizeof(b), "%+.1f", r.magnitude);
             figs.push_back({ "MAGNITUDE", b });
         }
-        if (HaveApparentSize()) {
-            const double sz = ApparentSizeArcmin();
+        if (r.hasSizeArcmin) {
             char b[32];
-            if (sz >= 1.0) snprintf(b, sizeof(b), "%.1f'", sz);
-            else snprintf(b, sizeof(b), "%.0f\"", sz * 60.0);
+            if (r.sizeArcmin >= 1.0) snprintf(b, sizeof(b), "%.1f'", r.sizeArcmin);
+            else snprintf(b, sizeof(b), "%.0f\"", r.sizeArcmin * 60.0);
             figs.push_back({ "APPARENT SIZE", b });
-        }
-        // Only for a computed size: the distance it was computed from,
-        // so the figure above can be checked rather than believed.
-        if (!r.hasSizeArcmin && m_content.haveEphemSize &&
-            m_content.ephemDistanceAu > 0.0) {
-            char b[32];
-            snprintf(b, sizeof(b), "%.2f AU", m_content.ephemDistanceAu);
-            figs.push_back({ "DISTANCE NOW", b });
         }
         if (m_content.haveAltitude) {
             char b[32]; snprintf(b, sizeof(b), "%.0f°", m_content.altitudeDeg);
@@ -543,17 +499,12 @@ private:
             if (!lt.empty())
                 derived.push_back("The light arriving now left " + lt + ".");
         }
-        if (HaveApparentSize()) {
-            const std::string ff = objectpanel::FrameFill(FrameExtentArcmin(),
+        if (r.hasSizeArcmin) {
+            const std::string ff = objectpanel::FrameFill(r.sizeArcmin,
                                              m_content.plateScaleArcsecPx,
                                              m_content.roiWidth,
                                              m_content.roiHeight);
-            // Say when the number is for the rings, or framing on it
-            // looks like an error against the disc figure beside it.
-            if (!ff.empty())
-                derived.push_back("It " + ff +
-                    (m_content.ephemRings && !r.hasSizeArcmin
-                        ? ", rings included." : "."));
+            if (!ff.empty()) derived.push_back("It " + ff + ".");
         }
         if (r.hasMagnitude)
             derived.push_back(objectpanel::BrightnessLine(r.magnitude) + ".");
@@ -673,13 +624,13 @@ private:
     // from the live plate scale and the live capture format, so it is
     // true of this rig tonight rather than true in general.
     //
-    // When the size is NOT known the frame is drawn alone with its
-    // real dimensions. That is still the answer to "how much sky am I
-    // looking at", and it beats drawing a disc whose size nobody
-    // measured. For the planets the size IS known now -- computed from
-    // the ephemeris rather than read from a catalogue that has none --
-    // so the disc is drawn, at the ring span where there are rings.
+    // When the size is NOT known -- which is every planet, because
+    // size_arcmin is NULL for all of them -- the frame is drawn alone
+    // with its real dimensions. That is still the answer to "how much
+    // sky am I looking at", and it is better than drawing a disc whose
+    // size nobody measured.
     void DrawScaleDiagram(float x, float y, float w, float h, float alpha) {
+        const auto& r = m_content.rec;
         if (m_content.roiWidth <= 0 || m_content.roiHeight <= 0) return;
         if (w < 40.0f || h < 30.0f) return;
 
@@ -695,10 +646,9 @@ private:
         // it; when the object is larger than the frame the view pulls
         // back so both fit, which is itself the useful picture.
         double viewW = frameW, viewH = frameH;
-        const bool   haveObj = HaveApparentSize();
-        const double objArcmin = FrameExtentArcmin();
-        if (haveObj && objArcmin > frameH * 0.95) {
-            const double need = objArcmin * 1.25;
+        const bool haveObj = r.hasSizeArcmin && r.sizeArcmin > 0.0;
+        if (haveObj && r.sizeArcmin > frameH * 0.95) {
+            const double need = r.sizeArcmin * 1.25;
             const double k = need / frameH;
             viewW = frameW * k;
             viewH = frameH * k;
@@ -711,7 +661,7 @@ private:
 
         // The object first, so the frame outline sits on top of it.
         if (haveObj) {
-            const float rr = (float)(objArcmin * k * 0.5f);
+            const float rr = (float)(r.sizeArcmin * k * 0.5f);
             if (rr > 1.0f) {
                 ID2D1SolidColorBrush* b = Brush(ac, alpha * 0.28f);
                 m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), rr, rr), b);

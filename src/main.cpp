@@ -61,7 +61,6 @@
 #include "gui/ToolbarStrip.h"
 #include "gui/GoToPanel.h"
 #include "gui/SkyMapWindow.h"
-#include "sky/SkyObject.h"   // planet apparent size for the object panel
 #include "core/GuideSolve.h"   // phase 47: a clicked pixel into guide pulses
 #include "gui/ShareView.h"
 #include "gui/ObjectPanel.h"
@@ -4912,35 +4911,6 @@ static int RunApp(bool useEmulator) {
                                           : "not in the catalogue");
                     }
                     oc.rec = lastRec;
-
-                    // The size the catalogue does not have. Recomputed
-                    // only when the name changes or the hour does: the
-                    // distance to Jupiter moves by nothing a panel can
-                    // show inside an hour, and this runs every poll.
-                    {
-                        static std::string lastSized;
-                        static int lastSizedHour = -1;
-                        static raduk::sky::PlanetApparentSize sized;
-                        const double jd = raduk::sky::CurrentJD();
-                        const int hour = (int)(jd * 24.0);
-                        if (oc.target != lastSized || hour != lastSizedHour) {
-                            lastSized = oc.target;
-                            lastSizedHour = hour;
-                            sized = raduk::sky::PlanetSizeByName(oc.target, jd);
-                            if (sized.valid)
-                                Log("[OBJECT] %s: %.2f AU -> disc %.1f\" "
-                                    "extent %.1f\"\n",
-                                    oc.target.c_str(), sized.distanceAu,
-                                    sized.globeArcsec, sized.extentArcsec);
-                        }
-                        if (sized.valid) {
-                            oc.haveEphemSize     = true;
-                            oc.ephemGlobeArcmin  = sized.globeArcsec  / 60.0;
-                            oc.ephemExtentArcmin = sized.extentArcsec / 60.0;
-                            oc.ephemRings        = sized.ringsIncluded;
-                            oc.ephemDistanceAu   = sized.distanceAu;
-                        }
-                    }
 
                     oc.haveAltitude = sd.sky.valid;
                     oc.altitudeDeg  = sd.sky.altitudeDeg;

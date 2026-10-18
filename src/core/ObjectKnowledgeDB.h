@@ -33,6 +33,7 @@
 extern "C" {
     typedef struct sqlite3      sqlite3;
     typedef struct sqlite3_stmt sqlite3_stmt;
+    typedef int  (*pfn_sqlite3_initialize) (void);
     typedef int  (*pfn_sqlite3_open)       (const char*, sqlite3**);
     typedef int  (*pfn_sqlite3_close)      (sqlite3*);
     typedef int  (*pfn_sqlite3_prepare_v2) (sqlite3*, const char*, int, sqlite3_stmt**, const char**);
@@ -84,6 +85,32 @@ public:
             !m_fnFinalize || !m_fnColText) {
             FreeLibrary(m_hSQLite); m_hSQLite = nullptr; return false;
         }
+
+        // ── sqlite3_initialize() FIRST, always ────────────────
+        //
+        // Phase 92a. SQLite normally initialises itself on the first
+        // API call, but a build made with SQLITE_OMIT_AUTOINIT does
+        // not -- and then sqlite3_open does not fail politely, it
+        // ACCESS VIOLATES. Measured: with this call, open returns 0;
+        // without it, the process dies inside the DLL.
+        //
+        // This code had never once run, because sqlite3.dll was in
+        // neither build output. Shipping the DLL without this line
+        // would have turned a silently absent feature into a crash on
+        // startup, since AIChatPanel opens the database in its
+        // constructor.
+        //
+        // Calling initialize explicitly is correct against every build
+        // of SQLite, auto-init or not: the docs recommend exactly this
+        // for library code, and on an auto-init build it is a cheap
+        // no-op after the first time.
+        auto fnInit = (pfn_sqlite3_initialize)
+                      GetProcAddress(m_hSQLite, "sqlite3_initialize");
+        if (fnInit && fnInit() != 0) {
+            printf("[ObjectKnowledgeDB] sqlite3_initialize failed\n");
+            FreeLibrary(m_hSQLite); m_hSQLite = nullptr; return false;
+        }
+
         if (m_fnOpen(path.c_str(), &m_db) != 0) {
             FreeLibrary(m_hSQLite); m_hSQLite = nullptr; return false;
         }
@@ -99,6 +126,171 @@ public:
     }
 
     bool IsAvailable() const { return m_available; }
+
+    // How many objects are actually reachable. Cheap, and it turns
+    // "the database opened" into "the database has something in it",
+    // which are not the same claim.
+    long ObjectCount() const {
+        if (!m_available) return 0;
+        auto rows = RunSQL("SELECT count(*) FROM objects");
+        if (rows.empty()) return 0;
+        try { return std::stol(Col(rows[0], 0)); } catch (...) { return 0; }
+    }
+
+    // ── Phase 92a: a record, not a paragraph ──────────────────
+    //
+    // Query() below returns a prose block assembled for an LLM prompt,
+    // which is the right shape for the assistant and the wrong shape
+    // for anything that lays facts out on a screen. A panel needs
+    // fields it can place, format, and leave out.
+    //
+    // Nothing here guesses. The panel's rule is that an absent fact is
+    // not displayed rather than invented, so absence has to survive
+    // the trip out of the database.
+    struct ObjectRecord {
+        bool        found = false;
+        std::string name;            // as the database stores it (M013)
+        std::string commonName;      // "Hercules Globular Cluster"
+        std::string catalogIds;      // "M013, NGC6205"
+        std::string type;
+        std::string subtype;
+        std::string constellation;
+        std::string spectralType;
+
+        // Numbers are kept as text as well as parsed, because the
+        // database stores them as text and an empty cell has to stay
+        // distinguishable from a real zero. A magnitude of 0.0 is Vega.
+        std::string magnitudeStr, distanceLyStr, sizeArcminStr;
+        std::string surfaceBrightnessStr, sizeLyStr, distancePcStr;
+        bool   hasMagnitude = false, hasDistanceLy = false;
+        bool   hasSizeArcmin = false, hasSizeLy = false;
+        double magnitude = 0.0, distanceLy = 0.0;
+        double sizeArcmin = 0.0, sizeLy = 0.0;
+
+        std::string summary;
+        std::string discoveryNotes;
+        std::string mythology;   // in the schema, empty in the data
+
+        std::string apertureMin, filters, imagingNotes;
+        std::string bestSeason, difficulty;
+
+        bool HasNarrative()    const { return summary.size() > 50; }
+        bool HasImagingNotes() const { return !imagingNotes.empty(); }
+    };
+
+    // Resolve a display name to a record.
+    ObjectRecord Lookup(const std::string& display) const {
+        ObjectRecord r;
+        if (!m_available || display.empty()) return r;
+
+        const std::string key = ResolveName(display);
+        if (key.empty()) return r;
+
+        auto rows = RunSQL(
+            "SELECT name,common_name,catalog_ids,type,subtype,constellation,"
+            "magnitude,distance_ly,size_arcmin,spectral_type,"
+            "surface_brightness,size_ly,distance_pc "
+            "FROM objects WHERE name='" + Esc(key) + "' LIMIT 1");
+        if (rows.empty()) return r;
+        const auto& o = rows[0];
+
+        r.found         = true;
+        r.name          = Col(o, 0);
+        r.commonName    = Col(o, 1);
+        r.catalogIds    = Col(o, 2);
+        r.type          = Col(o, 3);
+        r.subtype       = Col(o, 4);
+        r.constellation = Col(o, 5);
+        r.magnitudeStr  = Col(o, 6);
+        r.distanceLyStr = Col(o, 7);
+        r.sizeArcminStr = Col(o, 8);
+        r.spectralType  = Col(o, 9);
+        r.surfaceBrightnessStr = Col(o, 10);
+        r.sizeLyStr     = Col(o, 11);
+        r.distancePcStr = Col(o, 12);
+
+        ParseNum(r.magnitudeStr,  r.magnitude,  r.hasMagnitude);
+        ParseNum(r.distanceLyStr, r.distanceLy, r.hasDistanceLy);
+        ParseNum(r.sizeArcminStr, r.sizeArcmin, r.hasSizeArcmin);
+        ParseNum(r.sizeLyStr,     r.sizeLy,     r.hasSizeLy);
+
+        auto nr = RunSQL("SELECT summary,discovery_notes,mythology "
+                         "FROM narratives WHERE name='" + Esc(key) + "' LIMIT 1");
+        if (!nr.empty()) {
+            r.summary        = Col(nr[0], 0);
+            r.discoveryNotes = Col(nr[0], 1);
+            r.mythology      = Col(nr[0], 2);
+        }
+
+        auto ir = RunSQL("SELECT aperture_min,filters,imaging_notes,"
+                         "best_season,difficulty "
+                         "FROM imaging_notes WHERE name='" + Esc(key) + "' LIMIT 1");
+        if (!ir.empty()) {
+            r.apertureMin  = Col(ir[0], 0);
+            r.filters      = Col(ir[0], 1);
+            r.imagingNotes = Col(ir[0], 2);
+            r.bestSeason   = Col(ir[0], 3);
+            r.difficulty   = Col(ir[0], 4);
+        }
+        return r;
+    }
+
+    // The name the database actually stores, or "" if nothing matches.
+    //
+    // The app and the database do not agree on names. The sky map says
+    // "M13 Hercules Cluster"; the database stores "M013", with
+    // "M013, NGC6205" in catalog_ids. An exact match on name misses
+    // that, and after the planets M13 is the object most likely to be
+    // put in front of somebody at a star party.
+    std::string ResolveName(const std::string& display) const {
+        if (!m_available || display.empty()) return "";
+
+        // App names carry descriptive tails: "M13 Hercules Cluster".
+        // The first token is the designation in nearly every case.
+        std::string first = display;
+        const size_t sp = first.find(' ');
+        if (sp != std::string::npos) first = first.substr(0, sp);
+
+        const std::string cands[2] = { display, first };
+        for (int ci = 0; ci < 2; ci++) {
+            const std::string& cand = cands[ci];
+            if (cand.empty()) continue;
+            if (ci == 1 && cands[1] == cands[0]) continue;
+
+            // 1. Exact, case-insensitive. Covers the planets, which is
+            //    the case that matters most on this rig.
+            auto rows = RunSQL("SELECT name FROM objects WHERE lower(name)='"
+                               + Esc(Lower(cand)) + "' LIMIT 1");
+            if (!rows.empty()) return Col(rows[0], 0);
+
+            // 2. Messier, zero-padded to three digits. M13 -> M013.
+            if ((cand[0] == 'M' || cand[0] == 'm') && cand.size() > 1) {
+                std::string digits;
+                bool allDigits = true;
+                for (size_t i = 1; i < cand.size(); i++) {
+                    if (isdigit((unsigned char)cand[i])) digits += cand[i];
+                    else { allDigits = false; break; }
+                }
+                if (allDigits && !digits.empty() && digits.size() <= 3) {
+                    while (digits.size() < 3) digits = "0" + digits;
+                    rows = RunSQL("SELECT name FROM objects WHERE name='M"
+                                  + Esc(digits) + "' LIMIT 1");
+                    if (!rows.empty()) return Col(rows[0], 0);
+                }
+            }
+
+            // 3. The catalogue id list, where NGC numbers live.
+            rows = RunSQL("SELECT name FROM objects WHERE catalog_ids LIKE '%"
+                          + Esc(cand) + "%' LIMIT 1");
+            if (!rows.empty()) return Col(rows[0], 0);
+
+            // 4. Common name. Last, because it is the loosest.
+            rows = RunSQL("SELECT name FROM objects WHERE lower(common_name)='"
+                          + Esc(Lower(cand)) + "' LIMIT 1");
+            if (!rows.empty()) return Col(rows[0], 0);
+        }
+        return "";
+    }
 
     // Returns rich context block for named object, or "" if not found.
     std::string Query(const std::string& objectName) const {
@@ -196,6 +388,21 @@ private:
 
     static std::string Col(const std::vector<std::string>& row, int i) {
         return (i < (int)row.size()) ? row[i] : "";
+    }
+
+    static std::string Lower(const std::string& s) {
+        std::string o = s;
+        for (auto& c : o) c = (char)tolower((unsigned char)c);
+        return o;
+    }
+
+    // An empty cell is not a zero. A magnitude of 0.0 is Vega, and a
+    // panel that cannot tell the two apart prints "magnitude 0" for
+    // every object whose magnitude nobody ever recorded.
+    static void ParseNum(const std::string& text, double& out, bool& has) {
+        has = false; out = 0.0;
+        if (text.empty()) return;
+        try { out = std::stod(text); has = true; } catch (...) { has = false; }
     }
 
     std::vector<std::string> FindCandidates(const std::string& q) const {

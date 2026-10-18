@@ -1619,6 +1619,27 @@ static int RunApp(bool useEmulator) {
     // Phase 50a DB wire — both AI panel and object info panel share the same DB
     objectInfo.SetKnowledgeDB(&aiChat.GetKnowledgeDB());
 
+    // ── Phase 92a: say whether the knowledge base is there ────
+    //
+    // It reports itself with printf, which a GUI-subsystem build
+    // discards -- the same thing that hid the AI panel's failure in
+    // P0.1, and the reason this went unnoticed for months. The
+    // database opens or it does not, and raduk_log.txt should say
+    // which, because a graceful failure that nothing ever notices is
+    // indistinguishable from a feature that does not exist.
+    {
+        const auto& kdb = aiChat.GetKnowledgeDB();
+        if (kdb.IsAvailable()) {
+            Log("[KNOWLEDGE] object_knowledge.db open - %zu objects reachable\n",
+                (size_t)kdb.ObjectCount());
+        } else {
+            Log("[KNOWLEDGE] NOT available - the object panel and the "
+                "assistant will both fall back to ephemeris only. Check "
+                "sqlite3.dll beside the exe and data\\object_knowledge.db\n");
+            slog.System("Object knowledge base unavailable");
+        }
+    }
+
     // Phase 40: Notification Bar
     raduk::gui::NotificationBar notifBar;
     notifBar.Create(window.Handle(), PANEL_WIDTH);

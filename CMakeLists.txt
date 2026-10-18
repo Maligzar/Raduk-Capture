@@ -224,6 +224,31 @@ add_custom_target(copy_help ALL
 )
 add_dependencies(copy_help RadukCapture)
 
+# ── sqlite3.dll (both builds) ──────────────────────────────────
+#
+# Phase 92a. ObjectKnowledgeDB loads SQLite at runtime with
+# LoadLibrary and returns gracefully when the DLL is absent, which is
+# correct behaviour and is also why this went unnoticed for months:
+# the 2.4 MB object_knowledge.db built in March has never once been
+# readable by the running app. The object info panel fell back to
+# "basic ephemeris only" every time it opened and the AI assistant's
+# knowledge lookups returned empty strings, silently, in both cases.
+#
+# BOTH builds, unlike the camera and focuser SDKs above. The emulator
+# build is where bench work happens and the knowledge base has nothing
+# to do with whether a camera is attached.
+#
+# SQLite is public domain, so shipping the binary alongside the SDK
+# DLLs carries no licence obligation.
+add_custom_target(copy_sqlite ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/external/sqlite3/lib/x64/sqlite3.dll"
+        "$<TARGET_FILE_DIR:RadukCapture>"
+    DEPENDS "${CMAKE_SOURCE_DIR}/external/sqlite3/lib/x64/sqlite3.dll"
+    COMMENT "Copying sqlite3.dll (object knowledge database) next to the exe"
+)
+add_dependencies(copy_sqlite RadukCapture)
+
 # ── Create output directories ──────────────────────────────────
 
 add_custom_command(TARGET RadukCapture POST_BUILD

@@ -123,6 +123,41 @@ they are more interesting anyway.
 
 ---
 
+## 2a. Correction, after building 92a
+
+Two of the plan's assumptions above were checked by implementing the
+data layer, and one of them was wrong.
+
+**Coverage runs in opposite directions depending on the object.**
+Section 2 said narrative covers 4% and the derived layer is therefore
+the universal fallback. Measured per type:
+
+| | rows | with magnitude | with distance | with narrative |
+|---|---|---|---|---|
+| Stars (named) | 1001 | 84 | **1** | **425** |
+| Deep sky (NGC/IC) | ~13,000 | nearly all | most | almost none |
+| Planets | a handful | yes | yes | yes |
+
+So for a **named star** there is plenty of prose and essentially no
+numbers — one row in a thousand has a distance. The derived layer
+cannot carry Vega, because "the light left in 1799" needs a distance
+nobody recorded here.
+
+**Neither layer is the fallback. They cover for each other**, and
+which one does the work depends on what the telescope is pointed at.
+The panel must look right in all three cases, so all three go in the
+test set: a deep-sky object with no prose, a star with no numbers, and
+a planet with both.
+
+**`sqlite3_open` crashes without `sqlite3_initialize`.** The DLL is
+built with `SQLITE_OMIT_AUTOINIT`, so the API does not initialise
+itself. The existing code never called it — and had never run, so
+nobody found out. Shipping the DLL without that one line would have
+turned a silently missing feature into a crash on startup, because
+`AIChatPanel` opens the database in its constructor.
+
+---
+
 ## 3. What is on it
 
 Four regions, in reading order, on a 16:9 screen seen from three

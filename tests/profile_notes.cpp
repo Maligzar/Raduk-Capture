@@ -16,6 +16,7 @@
 //  the UI code.
 // ============================================================
 
+#include "core/TextConv.h"
 #include "profiles/TargetProfile.h"
 
 #include <cstdio>
@@ -92,6 +93,35 @@ int main() {
               !NotesBoxMayReplaceStored("", "", p.name, p.notes),
               "shipped note on " + p.name + " survives a SAVE from an empty box");
     }
+
+    // ── A note has to survive the trip through a Win32 box ─
+    //
+    // The EDIT dialog is the other way a note gets lost, and it is
+    // quieter still: it crossed the UTF-8/UTF-16 line through
+    // wchar_t[256] and char[256], and both conversion calls truncate
+    // without saying so. Open a profile in EDIT, press SAVE & CLOSE,
+    // and anything past ~255 units was gone -- no keystroke required.
+    //
+    // Two sizes have to be right here, and they are not the same
+    // number: MultiByteToWideChar is asked for UTF-16 units and
+    // WideCharToMultiByte for UTF-8 bytes. A buffer sized from the
+    // wrong one is the same bug one em dash later. So the check is
+    // round-trip equality on the notes actually shipped, through
+    // core/TextConv.h -- which is what the dialog and the NOTES
+    // panel both ask for their sizes now.
+    for (const TargetProfile& p : defs) {
+        Check(raduk::core::ToUtf8(raduk::core::ToWide(p.notes)) == p.notes,
+              "note on " + p.name + " round-trips UTF-8 -> UTF-16 -> UTF-8");
+    }
+
+    // Not a vacuous pass: the longest shipped note is past the 256
+    // the dialog used to assume, in units and in bytes both, and it
+    // is not pure ASCII -- so the two sizes genuinely differ.
+    const std::string focus = DefaultPlanetFocus().notes;
+    Check(raduk::core::ToWide(focus).size() > 256,
+          "the Planet Focus note is longer than the old 256-unit buffer");
+    Check(focus.size() > raduk::core::ToWide(focus).size(),
+          "it is multi-byte UTF-8, so byte count and unit count differ");
 
     printf("\n%s\n", g_fail == 0 ? "ALL CHECKS PASSED"
                              : "SOME CHECKS FAILED");

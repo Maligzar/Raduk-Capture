@@ -45,6 +45,7 @@
 #include "core/SiteLocator.h"
 #include "core/CordWrap.h"
 #include "core/SkyMath.h"
+#include "core/TextConv.h"
 #include "core/Readiness.h"
 #include "gui/ReadinessDialog.h"
 #include "gui/RigSetupDialog.h"
@@ -2117,8 +2118,8 @@ static int RunApp(bool useEmulator) {
 
         // Name
         MkLabel(L"Profile Name:", PX, y+3, LW, EH);
-        wchar_t wName[64] = {}; MultiByteToWideChar(CP_UTF8, 0, prof.name.c_str(), -1, wName, 64);
-        rows[ri++] = {L"Profile Name:", MkEdit(wName, PX+LW, y, EW, EH, ED_NAME)};
+        const std::wstring wName = raduk::core::ToWide(prof.name);
+        rows[ri++] = {L"Profile Name:", MkEdit(wName.c_str(), PX+LW, y, EW, EH, ED_NAME)};
         y += ROWH;
 
         // Gain
@@ -2171,14 +2172,14 @@ static int RunApp(bool useEmulator) {
 
         // File prefix
         MkLabel(L"File Prefix:", PX, y+3, LW, EH);
-        wchar_t wPfx[64] = {}; MultiByteToWideChar(CP_UTF8, 0, prof.filePrefix.c_str(), -1, wPfx, 64);
-        rows[ri++] = {L"File Prefix:", MkEdit(wPfx, PX+LW, y, EW, EH, ED_PREFIX)};
+        const std::wstring wPfx = raduk::core::ToWide(prof.filePrefix);
+        rows[ri++] = {L"File Prefix:", MkEdit(wPfx.c_str(), PX+LW, y, EW, EH, ED_PREFIX)};
         y += ROWH;
 
         // Notes
         MkLabel(L"Notes:", PX, y+3, LW, EH);
-        wchar_t wNotes[256] = {}; MultiByteToWideChar(CP_UTF8, 0, prof.notes.c_str(), -1, wNotes, 256);
-        rows[ri++] = {L"Notes:", MkEdit(wNotes, PX+LW, y, EW, EH, ED_NOTES)};
+        const std::wstring wNotes = raduk::core::ToWide(prof.notes);
+        rows[ri++] = {L"Notes:", MkEdit(wNotes.c_str(), PX+LW, y, EW, EH, ED_NOTES)};
         y += ROWH + 6;
 
         // ── Buttons ───────────────────────────────────────────
@@ -2260,14 +2261,15 @@ static int RunApp(bool useEmulator) {
 
         // ── Read back values if saved ─────────────────────────
         if (saved) {
+            // Ask each control how long its text is rather than
+            // guessing: this read-back ran through wchar_t[256] and
+            // char[256], so SAVE & CLOSE quietly shortened any note
+            // past ~255 characters -- and planet_focus.ini ships a
+            // 323-character one, so opening it here and saving was
+            // enough to lose the tail. Same sizing as the NOTES panel
+            // in ControlPanel; both go through core/TextConv.h.
             auto GetEditA = [&](int id) -> std::string {
-                HWND h2 = GetDlgItem(hDlg, id);
-                if (!h2) return "";
-                wchar_t buf[256] = {};
-                GetWindowTextW(h2, buf, 256);
-                char out[256] = {};
-                WideCharToMultiByte(CP_UTF8, 0, buf, -1, out, 256, nullptr, nullptr);
-                return std::string(out);
+                return raduk::core::GetWindowTextUtf8(GetDlgItem(hDlg, id));
             };
             auto GetEditI = [&](int id, int def) -> int {
                 std::string s = GetEditA(id);

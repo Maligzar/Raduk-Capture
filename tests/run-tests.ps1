@@ -29,6 +29,7 @@ $Tests = @(
     @{ Name = "object_knowledge";   Sources = @() }
     @{ Name = "object_panel_text"; Sources = @() }
     @{ Name = "slew_variable";     Sources = @() }
+    @{ Name = "profile_notes";     Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

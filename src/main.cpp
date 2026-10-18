@@ -1959,8 +1959,10 @@ static int RunApp(bool useEmulator) {
         CaptureConfig cfg = capturer.Config();
         cfg.filePrefix = p->filePrefix.empty() ? p->name : p->filePrefix;
         capturer.SetConfig(cfg);
-        // Restore profile notes into the NOTES panel
-        controls.SetNotes(p->notes);
+        // The NOTES panel is filled by profileHooks.syncUi, with the
+        // rest of the panel -- so the GoTo auto-load and APEX
+        // load_profile fill it too, and there is one place that knows
+        // which profile the box is showing.
     });
 
     controls.SetProfileSaveCallback([&](int index) {
@@ -2008,7 +2010,21 @@ static int RunApp(bool useEmulator) {
             p->limitType  = "time";
             p->limitValue = (int)controls.GetLimitTimeSec();
         }
-        p->notes = controls.GetNotes();
+        // Notes are the one field SAVE cannot simply read off the
+        // rig. The box holds a note for ONE profile, and it is empty
+        // until something fills it, so writing it unconditionally
+        // emptied whichever profile the combo named. That is how
+        // saturn.ini lost its note during a Jupiter session.
+        const std::string boxNotes = controls.GetNotes();
+        const bool takeBoxNotes =
+            NotesBoxMayReplaceStored(boxNotes, controls.NotesProfile(),
+                                     p->name, p->notes);
+        if (takeBoxNotes) {
+            p->notes = boxNotes;
+            // The box now speaks for this profile, so a later SAVE can
+            // clear the note deliberately.
+            controls.SetNotes(boxNotes, p->name);
+        }
         profiles.Save(*p);
         Log("[PROFILE] Saved %s: gain=%d exp=%.2fms gamma=%d wb=%d/%d "
             "usb=%d focus=%d roi=%dx%d limit=%s/%d prefix=%s\n",
@@ -2018,6 +2034,19 @@ static int RunApp(bool useEmulator) {
             p->limitValue, p->filePrefix.c_str());
         slog.Profile("Saved: %s (gain=%d exp=%.2fms focus=%d)",
                      p->name.c_str(), p->gain, p->exposureMs, p->focusPosition);
+        // Silence here is what made the old loss invisible. The bar,
+        // not a dialog: SAVE must not stop to be acknowledged, and
+        // nothing has gone wrong -- a note was simply left alone.
+        if (!takeBoxNotes) {
+            wchar_t wName[64] = {};
+            MultiByteToWideChar(CP_UTF8, 0, p->name.c_str(), -1, wName, 64);
+            notifBar.NotifyWarn(std::wstring(L"Saved ") + wName +
+                                L" - kept its stored note (NOTES box is empty)");
+            Log("[PROFILE] %s: empty NOTES box belongs to '%s' - "
+                "stored note kept\n",
+                p->name.c_str(), controls.NotesProfile().c_str());
+            slog.Profile("Saved: %s (stored note kept)", p->name.c_str());
+        }
     });
 
     // ── Profile editor modal (Phase 9/10 — EDIT button) ───────────
@@ -2029,6 +2058,10 @@ static int RunApp(bool useEmulator) {
 
         // We need a mutable copy to edit
         TargetProfile prof = profiles.Profiles()[index];
+        // The name before the dialog can rename it -- the NOTES box is
+        // keyed by name, so this is what tells us whether the box is
+        // showing the note being edited here.
+        const std::string editedName = prof.name;
 
         // ── Dialog dimensions ─────────────────────────────────
         const int DW = 420, DH = 520;
@@ -2272,6 +2305,13 @@ static int RunApp(bool useEmulator) {
             // Reload all so the in-memory copy matches disk
             profiles.LoadAll();
 
+            // If the NOTES box is showing this profile's note, it is
+            // now the stale one: SAVE would write it straight back
+            // over what was just typed here, which is the same loss
+            // by another route.
+            if (controls.NotesProfile() == editedName)
+                controls.SetNotes(prof.notes, prof.name);
+
             // Refresh combo box names (name may have changed)
             {
                 std::vector<std::string> names;
@@ -2493,6 +2533,10 @@ static int RunApp(bool useEmulator) {
         controls.SetCameraSliders(p.gain, (int)(p.exposureMs * 1000.0),
                                   p.gamma, p.wbRed, p.wbBlue, p.usbBandwidth);
         controls.SetFilePrefix(p.filePrefix.empty() ? p.name : p.filePrefix);
+        // The note, and whose note it is. Every explicit profile load
+        // comes through here, so the box and its owner can never
+        // disagree about which profile is on screen.
+        controls.SetNotes(p.notes, p.name);
         // limitValue means frames or seconds depending on limitType, and
         // the two boxes are separate, so only the matching one is set.
         const bool byFrames = (p.limitType != "time");

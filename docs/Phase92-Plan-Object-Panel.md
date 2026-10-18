@@ -375,3 +375,64 @@ wasted work.
 - It survives a screenshot. The site coordinates are not on it, and
   §8's "never invent a fact" means nothing on it is embarrassing in
   one.
+
+---
+
+## Outcome — 92a and 92b shipped 2026-10-17
+
+`Shift+I` opens it, `Ctrl+Shift+I` takes it in and out of fullscreen
+from the control screen, `F11` from inside. Workspace role
+`objectpanel`. Fed from the same target string the share view's
+caption uses, resolved against the knowledge base, cross-fading when
+the target changes.
+
+**Three defects were found by making the data reachable**, and all
+three had been invisible for the same reason: nothing had ever read
+the database.
+
+1. **`sqlite3_open` access violates without `sqlite3_initialize()`.**
+   The DLL is built with `SQLITE_OMIT_AUTOINIT`. Shipping the DLL
+   without that one line turned a silently missing feature into a
+   crash on startup, which was confirmed by doing exactly that.
+
+2. **`mythology` and `discovery_notes` were empty for all 679
+   narratives**, while `build_knowledge_db.py` authors real text for
+   both. `upsert_narrative` used `COALESCE(excluded.x, x)`, which only
+   skips NULL — and the parameters default to the **empty string**. So
+   Phase 1 loaded the solar system's mythology, and Phase 3's
+   Wikipedia pass, supplying a summary and nothing else, overwrote it
+   with `''`. Fixed with `NULLIF(...,'')`, and the shipped database
+   repaired in place from the builder's own local tables by
+   `tools/repair_knowledge_db.py` — no network, re-runnable, and it
+   left all 651 summaries untouched.
+
+3. **The Moon's distance was wrong.** 1.07e-08 light-years is 0.34
+   light-seconds, about 101,000 km. It is 384,400 km: 1.282
+   light-seconds, 4.063e-08 ly. The panel printing "0 seconds ago" is
+   how it was noticed. Every other solar-system distance checks out.
+
+**And the "Hollywood" rule earned its keep immediately.** Jupiter's
+`constellation` field reads `Various`, so the headline said *"Planet ·
+in Various"*. A panel that prints whatever the database hands it will
+print nonsense in front of an audience; `LooksLikeConstellation` now
+rejects `Various`, `N/A`, and the 408 named-star rows that carry a
+magnitude in that column.
+
+**What it says is gated.** `tests/object_panel_text.cpp` checks the
+claims against values worked out by hand — Jupiter's light at 36
+minutes, M13 at 5.1 times wider than a 1280×960 frame, the same
+object filling 15% instead of 30% when a Barlow doubles the plate
+scale. Absent facts produce no sentence rather than a zero one.
+
+### Still to do
+
+- **92c proper.** The scale diagram is not built. Typography, the
+  accent colour, the radial field and the cross-fade are in.
+- **Apparent size for planets.** `size_arcmin` is NULL for all of
+  them, so the frame-fill line — the most useful one for an imager —
+  does not appear for the targets this rig actually images. The app
+  could compute it, but it would be a new source of truth rather than
+  a lookup, and that deserves its own decision.
+- **Rebuild the database** when there is time and a network, now that
+  the builder is fixed: the repair only covers the nine solar-system
+  objects, and the other 670 narratives still have no mythology.

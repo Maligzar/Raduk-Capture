@@ -62,6 +62,7 @@
 #include "gui/GoToPanel.h"
 #include "gui/SkyMapWindow.h"
 #include "gui/ShareView.h"
+#include "gui/ObjectPanel.h"
 #include "gui/WorkspaceLayout.h"
 #include "gui/HistogramWindow.h"
 #include "gui/SharpnessWindow.h"
@@ -1454,6 +1455,12 @@ static int RunApp(bool useEmulator) {
     // night that is not a star party.
     raduk::gui::ShareView shareView;
     shareView.Create(window.Handle(), 200, 200, 1280, 720);
+
+    // ── Phase 92: the object panel ────────────────────────────
+    // The educational twin of the share view -- that window is the
+    // photograph, this one is the caption. Hidden until Shift+I.
+    raduk::gui::ObjectPanel objectPanel;
+    objectPanel.Create(window.Handle(), 240, 240, 1100, 700);
     // The sink is wired further down, where `preview` exists.
 
     Log("[INIT] Status window ready\n");
@@ -1515,6 +1522,7 @@ static int RunApp(bool useEmulator) {
         { "status", statusWindow.Handle() },
         { "adcalign", adcAlignWindow.Handle() },
         { "share",  shareView.Handle()  },
+        { "objectpanel", objectPanel.Handle() },
     };
     for (const auto& [role, hwnd] : kPlacedWindows)
         workspace.Place(role, hwnd);
@@ -3404,6 +3412,14 @@ static int RunApp(bool useEmulator) {
         if (skyMap2.IsVisible()) skyMap2.Tick();
         Log("[SKYMAP] second map %s\n", skyMap2.IsVisible() ? "on" : "off");
     });
+    window.SetObjectPanelToggleHandler([&]() {
+        objectPanel.Toggle();
+        Log("[OBJECT] panel %s\n", objectPanel.IsVisible() ? "on" : "off");
+    });
+    window.SetObjectPanelFullscreenHandler([&]() {
+        if (!objectPanel.IsVisible()) objectPanel.Show();
+        objectPanel.ToggleFullscreen();
+    });
     window.SetShareViewToggleHandler([&]() {
         shareView.Toggle();
         Log("[SHARE] view %s\n", shareView.IsVisible() ? "on" : "off");
@@ -4692,6 +4708,45 @@ static int RunApp(bool useEmulator) {
                     sc.haveAltitude = sd.sky.valid;
                     sc.altitudeDeg  = sd.sky.altitudeDeg;
                     shareView.SetCaption(sc);
+                }
+
+                // ── Phase 92: the object panel's content ───────
+                //
+                // Same target string the share view's caption uses,
+                // resolved against the knowledge base. Only while the
+                // panel is up: a Lookup is four small queries and
+                // there is no reason to run them for a window nobody
+                // is looking at.
+                if (objectPanel.IsVisible()) {
+                    raduk::gui::ObjectPanel::Content oc;
+                    const std::string& tgt2 = gotoPanel.CurrentTarget();
+                    if (!tgt2.empty()) oc.target = tgt2;
+                    else if (const auto* ap2 = profiles.Active())
+                        oc.target = ap2->name;
+
+                    // Resolve only when the name has changed. The
+                    // record does not change while the telescope is
+                    // pointed at the same thing, and the live figures
+                    // below are what actually move.
+                    static std::string lastResolved;
+                    static raduk::core::ObjectKnowledgeDB::ObjectRecord lastRec;
+                    if (oc.target != lastResolved) {
+                        lastResolved = oc.target;
+                        lastRec = aiChat.GetKnowledgeDB().Lookup(oc.target);
+                        Log("[OBJECT] %s -> %s\n", oc.target.c_str(),
+                            lastRec.found ? lastRec.name.c_str()
+                                          : "not in the catalogue");
+                    }
+                    oc.rec = lastRec;
+
+                    oc.haveAltitude = sd.sky.valid;
+                    oc.altitudeDeg  = sd.sky.altitudeDeg;
+                    oc.airmass      = sd.sky.airmass;
+                    oc.plateScaleArcsecPx =
+                        raduk::core::RigConfig::Get().plateScaleArcsecPx;
+                    oc.roiWidth  = roiWidth;
+                    oc.roiHeight = roiHeight;
+                    objectPanel.SetContent(oc);
                 }
             }
 

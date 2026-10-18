@@ -45,6 +45,8 @@ public:
     void SetPauseHandler(std::function<void()> h)             { m_onPause              = h; }
     void SetRGBAlignHandler(std::function<void()> h)          { m_onRGBAlign           = h; }
     void SetSkyMap2ToggleHandler(std::function<void()> h)     { m_onSkyMap2Toggle      = h; }  // Shift+M
+    void SetObjectPanelToggleHandler(std::function<void()> h) { m_onObjectPanelToggle  = h; }  // Shift+I
+    void SetObjectPanelFullscreenHandler(std::function<void()> h) { m_onObjectPanelFullscreen = h; }
     void SetShareViewToggleHandler(std::function<void()> h)   { m_onShareViewToggle    = h; }  // Shift+V
     void SetShareViewFullscreenHandler(std::function<void()> h){ m_onShareViewFullscreen = h; } // Ctrl+Shift+V
     void SetPixelReadoutHandler(std::function<void()> h)      { m_onPixelReadout        = h; }
@@ -225,6 +227,8 @@ private:
     std::function<void()>               m_onPause;
     std::function<void()>               m_onRGBAlign;
     std::function<void()>               m_onSkyMap2Toggle;
+    std::function<void()>               m_onObjectPanelToggle;
+    std::function<void()>               m_onObjectPanelFullscreen;
     std::function<void()>               m_onShareViewToggle;
     std::function<void()>               m_onShareViewFullscreen;
     std::function<void()>               m_onPixelReadout;

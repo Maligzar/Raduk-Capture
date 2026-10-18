@@ -391,6 +391,22 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             }
             if (firstPress && m_onRGBAlign) m_onRGBAlign();
             return true;
+        case 'I':
+            // Shift+I is the object panel -- what the thing IS, for a
+            // screen other people are reading. Ctrl+Shift+I takes it
+            // in and out of fullscreen from the control screen, the
+            // same escape route the share view needed.
+            if (shift) {
+                const bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+                if (ctrl) {
+                    if (firstPress && m_onObjectPanelFullscreen)
+                        m_onObjectPanelFullscreen();
+                    return true;
+                }
+                if (firstPress && m_onObjectPanelToggle) m_onObjectPanelToggle();
+                return true;
+            }
+            return false;
         case 'X':
             if (firstPress && m_onPixelReadout) m_onPixelReadout();
             return true;

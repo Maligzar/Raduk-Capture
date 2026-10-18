@@ -27,6 +27,7 @@ $Tests = @(
     @{ Name = "capture_thread_submit"; Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp") }
     @{ Name = "ai_context_facts";   Sources = @() }
     @{ Name = "object_knowledge";   Sources = @() }
+    @{ Name = "object_panel_text"; Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

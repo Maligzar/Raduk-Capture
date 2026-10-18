@@ -88,7 +88,10 @@ SOLAR_SYSTEM = [
      "wiki_title":"Sun",
      "mythology":"The Sun has been worshipped as a deity by virtually every human civilization. Ra (Egypt), Apollo (Greece/Rome), Helios (Greece), Sol Invictus (Rome), Surya (India), Amaterasu (Japan). The ancient Greeks debated whether it was a burning stone or a god. Copernicus placed it correctly at the center of the solar system in 1543.",
      "discovery":"Known since prehistory. Copernican heliocentrism 1543. Fraunhofer absorption lines discovered 1814. Helium discovered in Sun before Earth (1868)."},
-    {"name":"Moon",    "type":"Satellite", "const":"N/A",     "mag":-12.7, "distance_ly":0.0000000107,
+    # 384,400 km is 1.282 light-seconds, which is 4.063e-08 light-years.
+    # This read 1.07e-08 -- about 101,000 km -- so the panel's "the light
+    # arriving now left ..." line came out at a third of the truth.
+    {"name":"Moon",    "type":"Satellite", "const":"N/A",     "mag":-12.7, "distance_ly":0.00000004063,
      "wiki_title":"Moon",
      "mythology":"Luna (Rome), Selene/Artemis (Greece), Sin (Babylon), Tsukuyomi (Japan), Chang'e (China). The Moon's phases governed ancient calendars worldwide. Many cultures saw a face, rabbit, or toad in the lunar maria.",
      "discovery":"Known since prehistory. First telescopic observations by Galileo 1609. First human landing Apollo 11, July 20, 1969."},
@@ -220,11 +223,24 @@ def upsert_narrative(conn, name, summary="", full_text="",
         INSERT INTO narratives (name,summary,full_text,discovery_notes,mythology,source_urls,updated_at)
         VALUES (?,?,?,?,?,?,?)
         ON CONFLICT(name) DO UPDATE SET
-            summary=COALESCE(excluded.summary, summary),
-            full_text=COALESCE(excluded.full_text, full_text),
-            discovery_notes=COALESCE(excluded.discovery_notes, discovery_notes),
-            mythology=COALESCE(excluded.mythology, mythology),
-            source_urls=COALESCE(excluded.source_urls, source_urls),
+            -- NULLIF(...,'') before COALESCE, and it is not cosmetic.
+            --
+            -- COALESCE only skips NULL. These parameters default to the
+            -- EMPTY STRING, so every later writer that did not happen to
+            -- supply a field overwrote whatever an earlier one had put
+            -- there. Phase 1 loads real mythology and discovery text for
+            -- the solar system; Phase 3's Wikipedia pass then upserts the
+            -- same rows with summary only, and wiped both -- which is why
+            -- the shipped database has 679 narratives and ZERO rows of
+            -- mythology or discovery notes, while this file is full of
+            -- both.
+            summary=COALESCE(NULLIF(excluded.summary,''), summary),
+            full_text=COALESCE(NULLIF(excluded.full_text,''), full_text),
+            discovery_notes=COALESCE(NULLIF(excluded.discovery_notes,''),
+                                     discovery_notes),
+            mythology=COALESCE(NULLIF(excluded.mythology,''), mythology),
+            source_urls=COALESCE(NULLIF(excluded.source_urls,'[]'),
+                                 source_urls),
             updated_at=excluded.updated_at
     """, [name, summary, full_text, discovery, mythology,
           json.dumps(sources or []), datetime.now().isoformat()])

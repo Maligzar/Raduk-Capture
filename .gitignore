@@ -30,3 +30,8 @@ raduk_session.log
 # Local backups (e.g. profiles/saturn.ini.working-2026-10-08).
 *.bak
 *.working-*
+
+# SQLite transient journals beside the knowledge base. They exist
+# only while something has the database open.
+data/*.db-shm
+data/*.db-wal

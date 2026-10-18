@@ -49,6 +49,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true",
                     help="report what would change and write nothing")
+    ap.add_argument("--simbad", action="store_true",
+                    help="also fetch Messier distances from SIMBAD "
+                         "(one request, needs network)")
     args = ap.parse_args()
 
     if not os.path.exists(DB):
@@ -110,9 +113,15 @@ def main():
                 conn.execute("UPDATE objects SET distance_ly=? "
                              "WHERE name='Moon'", (want,))
 
+    if args.simbad:
+        repair_simbad(conn, args.dry_run)
+
     if args.dry_run:
         print(f"\ndry run: {restored} object(s) would be repaired")
         return 0
+
+    if args.simbad:
+        repair_simbad(conn, args.dry_run)
 
     conn.commit()
     after_myth = conn.execute(
@@ -125,6 +134,103 @@ def main():
     print(f"repaired {restored} object(s)")
     conn.close()
     return 0
+
+
+def repair_simbad(conn, dry_run):
+    """Fill in Messier distances, which have never once landed.
+
+    build_knowledge_db.py asks SIMBAD for them and then writes
+    UPDATE objects ... WHERE name='M42' -- against a table that stores
+    'M042', because OpenNGC zero-pads to three digits. Every update
+    matched nothing, and the loop counted rows RETURNED rather than
+    rows CHANGED, so the log reported success each time.
+
+    One request, and it is the whole reason the panel's "the light
+    arriving now left ..." line works for nine objects instead of a
+    hundred and sixteen.
+    """
+    import re
+    try:
+        import requests
+    except ImportError:
+        print("  --simbad needs: pip install requests")
+        return
+
+    bk = load_builder_tables()
+
+    # The builder's query asks for basic.dist_value and basic.main_type.
+    # Neither column exists any more -- SIMBAD answers 400 with
+    # "unresolved identifiers", and the builder swallows it in a
+    # try/except, so this phase has been failing silently as well as
+    # writing to the wrong row names. Distances now live in
+    # mesDistance, with a unit per measurement.
+    query = """
+    SELECT ident.id, mesDistance.dist, mesDistance.unit, basic.sp_type
+    FROM basic
+    JOIN ident ON basic.oid = ident.oidref
+    JOIN mesDistance ON basic.oid = mesDistance.oidref
+    WHERE ident.id LIKE 'M %'
+    """
+    print("  asking SIMBAD for Messier distances...")
+    try:
+        r = requests.post(bk.SIMBAD_TAP,
+            data={"REQUEST": "doQuery", "LANG": "ADQL",
+                  "FORMAT": "json", "QUERY": query},
+            timeout=90,
+            headers={"User-Agent": "RadukCapture-StarProfessor/1.0"})
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        print(f"  SIMBAD request failed: {e}")
+        return
+
+    rows = data.get("data", [])
+    cols = [c["name"] for c in data.get("metadata", [])]
+    print(f"  SIMBAD returned {len(rows)} measurement(s)")
+
+    TO_PC = {"pc": 1.0, "kpc": 1000.0, "Mpc": 1.0e6}
+
+    # Several published distances per object, so take the MEDIAN rather
+    # than whichever happened to come back first. A panel that tells
+    # people how far away something is should not be quoting an
+    # outlier it picked by accident.
+    per_object = {}
+    spectral = {}
+    for row in rows:
+        o = dict(zip(cols, row))
+        name = re.sub(r"\s+", "", (o.get("id") or "").strip())
+        m = re.fullmatch(r"M(\d{1,3})", name)
+        if m:
+            name = "M" + m.group(1).zfill(3)
+        d = o.get("dist")
+        unit = (o.get("unit") or "").strip()
+        if d is None or unit not in TO_PC:
+            continue
+        per_object.setdefault(name, []).append(float(d) * TO_PC[unit])
+        if o.get("sp_type"):
+            spectral[name] = o["sp_type"]
+
+    changed = missed = 0
+    for name, vals in sorted(per_object.items()):
+        vals.sort()
+        dist_pc = vals[len(vals) // 2]
+        dist_ly = dist_pc * 3.26156
+        if dry_run:
+            hit = conn.execute("SELECT 1 FROM objects WHERE name=?",
+                               (name,)).fetchone()
+            if hit: changed += 1
+            else:   missed += 1
+            continue
+        cur = conn.execute(
+            "UPDATE objects SET distance_pc=?, distance_ly=?, "
+            "spectral_type=COALESCE(NULLIF(?,''), spectral_type) "
+            "WHERE name=?",
+            (dist_pc, dist_ly, spectral.get(name, ""), name))
+        if cur.rowcount > 0: changed += 1
+        else:                missed += 1
+
+    print(f"  distances {'would be ' if dry_run else ''}set on {changed} "
+          f"object(s); {missed} SIMBAD row(s) matched nothing here")
 
 
 if __name__ == "__main__":

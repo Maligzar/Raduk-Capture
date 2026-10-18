@@ -75,7 +75,11 @@ inline std::string LightTravel(double ly) {
     else if (minutes < 120.0) snprintf(b, sizeof(b), "%.0f minutes ago", minutes);
     else if (ly < 1.0)        snprintf(b, sizeof(b), "%.1f hours ago", minutes / 60.0);
     else if (ly < 1000.0)     snprintf(b, sizeof(b), "%.0f years ago", ly);
-    else                      snprintf(b, sizeof(b), "%.0f thousand years ago", ly / 1000.0);
+    else if (ly < 1.0e6)      snprintf(b, sizeof(b), "%.0f thousand years ago", ly / 1.0e3);
+    // M31 is 2.54 million light-years, and "2541 thousand years ago"
+    // is a number nobody says out loud.
+    else if (ly < 1.0e9)      snprintf(b, sizeof(b), "%.1f million years ago", ly / 1.0e6);
+    else                      snprintf(b, sizeof(b), "%.1f billion years ago", ly / 1.0e9);
     return b;
 }
 
@@ -89,9 +93,13 @@ inline std::string FrameFill(double sizeArcmin, double scaleArcsecPx,
     const double frameW = roiW * scaleArcsecPx / 60.0;   // arcmin
     const double frameH = roiH * scaleArcsecPx / 60.0;
     const double shorter = (frameW < frameH) ? frameW : frameH;
+    // A whole clause, verb included. The caller prepends "It ", and
+    // "It fills 30% of the frame" reads while "It 54.8 times wider
+    // than the frame" does not -- which is what it said until
+    // somebody read it back.
     char b[160];
     if (sizeArcmin > shorter)
-        snprintf(b, sizeof(b), "%.1f times wider than the frame at %dx%d",
+        snprintf(b, sizeof(b), "is %.1f times wider than the frame at %dx%d",
                  sizeArcmin / shorter, roiW, roiH);
     else
         snprintf(b, sizeof(b), "fills %.0f%% of the frame at %dx%d",
@@ -410,9 +418,16 @@ private:
         float y = pad;
 
         // ── Headline ──
-        const std::string title = !r.commonName.empty() ? r.commonName
-                                : (!m_content.target.empty() ? m_content.target
-                                                             : r.name);
+        // The catalogue stores alternatives comma-separated and
+        // unspaced -- M42 is "Great Orion Nebula,Orion Nebula". Take
+        // the first; the headline wants one name, not a list.
+        std::string title = !r.commonName.empty() ? r.commonName
+                          : (!m_content.target.empty() ? m_content.target
+                                                       : r.name);
+        {
+            const size_t comma = title.find(',');
+            if (comma != std::string::npos) title = title.substr(0, comma);
+        }
         Text(m_fTitle, W(title), pad, y, colW, m_fontPx * 3.4f, fg, alpha);
         y += m_fontPx * 3.1f;
 

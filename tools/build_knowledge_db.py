@@ -590,40 +590,71 @@ def fetch_simbad_distances(conn):
     """Batch fetch distances for Messier objects from SIMBAD TAP."""
     log("Fetching distances from SIMBAD...")
 
-    # Build ADQL query for Messier objects
+    # ── The query, corrected 2026-10-17 ──────────────────────
+    #
+    # This asked for basic.dist_value and basic.main_type. Neither
+    # column exists in SIMBAD's schema any more: the service answers
+    # 400 with "unresolved identifiers", the except below swallows it,
+    # and the phase has been doing nothing at all. Distances live in
+    # mesDistance now, with a unit per measurement.
     query = """
-    SELECT ident.id, basic.dist_value, basic.plx_value,
-           basic.sp_type, basic.main_type
+    SELECT ident.id, mesDistance.dist, mesDistance.unit, basic.sp_type
     FROM basic
     JOIN ident ON basic.oid = ident.oidref
+    JOIN mesDistance ON basic.oid = mesDistance.oidref
     WHERE ident.id LIKE 'M %'
-    AND basic.dist_value IS NOT NULL
     """
+    TO_PC = {"pc": 1.0, "kpc": 1000.0, "Mpc": 1.0e6}
     try:
         r = requests.post(SIMBAD_TAP,
             data={"REQUEST":"doQuery","LANG":"ADQL","FORMAT":"json","QUERY":query},
-            timeout=30,
+            timeout=90,
             headers={"User-Agent":"RadukCapture-StarProfessor/1.0"})
         r.raise_for_status()
         data = r.json()
         rows = data.get("data", [])
         cols = [c["name"] for c in data.get("metadata", [])]
 
-        count = 0
+        # Several published distances per object, so take the MEDIAN
+        # rather than whichever came back first. A panel telling people
+        # how far away something is should not be quoting an outlier it
+        # picked by accident.
+        per_object, spectral = {}, {}
         for row in rows:
             obj = dict(zip(cols, row))
-            simbad_id = obj.get("id", "").strip()
-            # Convert "M  42" → "M42"
-            name = re.sub(r'\s+', '', simbad_id)
-            dist_pc = obj.get("dist_value")
-            dist_ly = dist_pc * 3.26156 if dist_pc else None
-            sp_type = obj.get("sp_type", "")
+            # "M  42" -> "M042", NOT "M42".
+            #
+            # load_opengc stores Messier objects zero-padded to three
+            # digits, which is how OpenNGC names them. Stripping the
+            # spaces and stopping meant every UPDATE below matched
+            # WHERE name='M42' against a table holding 'M042' and
+            # changed nothing.
+            name = re.sub(r'\s+', '', (obj.get("id") or "").strip())
+            m = re.fullmatch(r'M(\d{1,3})', name)
+            if m:
+                name = "M" + m.group(1).zfill(3)
+            d = obj.get("dist")
+            unit = (obj.get("unit") or "").strip()
+            if d is None or unit not in TO_PC:
+                continue
+            per_object.setdefault(name, []).append(float(d) * TO_PC[unit])
+            if obj.get("sp_type"):
+                spectral[name] = obj["sp_type"]
 
-            conn.execute("""
-                UPDATE objects SET distance_pc=?, distance_ly=?, spectral_type=?
+        count = 0
+        for name, vals in per_object.items():
+            vals.sort()
+            dist_pc = vals[len(vals) // 2]
+            # Count what actually CHANGED, not what was attempted. The
+            # old loop counted rows returned by SIMBAD, so the log
+            # reported success every time it updated nothing.
+            cur = conn.execute("""
+                UPDATE objects SET distance_pc=?, distance_ly=?,
+                    spectral_type=COALESCE(NULLIF(?,''), spectral_type)
                 WHERE name=?
-            """, [dist_pc, dist_ly, sp_type, name])
-            count += 1
+            """, [dist_pc, dist_pc * 3.26156, spectral.get(name, ""), name])
+            if cur.rowcount > 0:
+                count += 1
 
         conn.commit()
         log(f"  SIMBAD: updated {count} distance records")

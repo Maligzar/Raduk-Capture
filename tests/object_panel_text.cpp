@@ -61,6 +61,13 @@ int main() {
         Check(Has(s, "hours"), "Neptune crosses into hours", s);
     }
     {
+        // M31 at 2.54 million light-years. "2541 thousand years ago"
+        // is not a number anybody says out loud.
+        const std::string s = LightTravel(2.54e6);
+        Check(Has(s, "2.5 million years"),
+              "M31 reads in millions, not thousands of thousands", s);
+    }
+    {
         Check(LightTravel(0.0).empty(),
               "no distance produces no sentence, not a zero one", "");
         Check(LightTravel(-1.0).empty(), "and nor does a negative one", "");
@@ -74,13 +81,14 @@ int main() {
     {
         // M13 is 16.5 arcmin. 16.5 / 3.25 = 5.1 times wider.
         const std::string s = FrameFill(16.5, 0.203, 1280, 960);
-        Check(Has(s, "5.1 times wider"), "M13 overflows a 1280x960 frame", s);
+        Check(Has(s, "is 5.1 times wider"),
+              "M13 overflows a 1280x960 frame, with a verb", s);
         Check(Has(s, "1280x960"), "  and the sentence names the format", s);
     }
     {
         // The full sensor is 13.0' x 7.3'; 16.5 / 7.31 = 2.3.
         const std::string s = FrameFill(16.5, 0.203, 3840, 2160);
-        Check(Has(s, "2.3 times wider"),
+        Check(Has(s, "is 2.3 times wider"),
               "and still overflows the full sensor, by less", s);
     }
     {
@@ -97,6 +105,15 @@ int main() {
         Check(Has(b, "fills 15%"),
               "doubling the plate scale halves the fraction", b);
         Check(a != b, "  so the sentence tracks the rig, not a constant", "");
+    }
+    {
+        // M31. The catalogue has it at 178 arcmin, which is 54.8
+        // times the 3.25-arcmin short side of a 1280x960 frame -- and
+        // it is the number that made the missing verb obvious when it
+        // read "It 54.8 times wider than the frame".
+        const std::string s = FrameFill(178.0, 0.203, 1280, 960);
+        Check(Has(s, "is 54.8 times wider"),
+              "and M31 is 55 times wider still", s);
     }
     {
         Check(FrameFill(0.0, 0.203, 1280, 960).empty(),

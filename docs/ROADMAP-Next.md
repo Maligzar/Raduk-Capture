@@ -827,6 +827,11 @@ the ranking below it is what to pick up next.
 | AI chat text scales with the window (P3.3) | `179f8aa` |
 | GoTo panel scales; object names fixed (P3.3) | `dbc4832` — the catalogue had shown first letters only |
 | Repaint and rescue find every window (D3) | `a4b50a9` — 14 windows, 12 roles |
+| Assistant reads the project's notes and its own past (P3.6 B) | `85b9d51` — 16 documents, 6 session logs, 8.3 KB prompt |
+| Variable-rate slewing (P3.6 list item 1) | `eef6c25` — gated by `tests/slew_variable.cpp` |
+| An empty NOTES box can no longer erase a profile's note | `95c3048` — the guard saturn.ini needed in `f2f2edc` |
+| Apparent size for the planets (list item 3) | computed from the ephemeris, gated by `tests/planet_size.cpp` |
+| Click to recentre (phase 47, list item 4) | `Ctrl`+click, through the phase 51 calibration, gated by `tests/recentre.cpp` |
 
 ---
 
@@ -839,20 +844,60 @@ have moved above the line. The knowledge-database rebuild is demoted
 to a footnote, because checking it showed it would not do what the
 entry claimed.
 
+**Re-read 2026-10-18.** Items 1 and 2 are both shipped and have moved
+above the line, so the list starts at item 3. Item 3 turns out to be
+cheaper than its own entry says: `PlanetRADec` in `src/sky/SkyObject.h`
+already builds the geocentric vector, so the Earth-planet distance is
+sitting there unused and apparent diameter is a division away.
+
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
-| 1 | **`SlewVariable()` — DONE 2026-10-17** | Bench | — | Shipped. The jog sends a rate in arcseconds per second instead of one of nine preset indices, and the encoder is gated by `tests/slew_variable.cpp` — which caught an integer overflow that made an absurd rate encode as *stop* |
-| 2 | **Assistant: retrieval over the real corpus** (P3.6 option B) | Bench | M | Option C is done and found the prompt was lying about the sensor. B is where the entry says the value is: the section matching the help file already gets, extended to the architecture notes, the checklist and the session logs. "What did I do about focus drift last time" is a question nobody else can answer, because the data is local and private |
-| 3 | **Apparent size for the planets** | Bench | S–M | The object panel's most useful line — how much of the frame it fills — is missing for exactly the targets this rig images, because `size_arcmin` is NULL for every planet. The app could MEASURE it from the live frame, which is honest, or compute it from an ephemeris, which makes the panel a source of truth rather than a display of one. **A decision before it is a task** |
-| 4 | **Pick from the unscheduled list** | Bench | varies | Twelve features below, none half-built. On value to this rig, phase 47 (click to recentre) and phase 46 (connect/disconnect hardware) pay back every session |
-| — | **Xbox controller** (P4.1) | **HELD** | M | No controller, no receiver, no Bluetooth in this machine. Feasibility proven (`8fed05a`); item 1 removes its software prerequisite |
+| ~~1~~ | **`SlewVariable()` — DONE 2026-10-17** (`eef6c25`) | Bench | — | Above the line |
+| ~~2~~ | **Assistant: retrieval over the real corpus** — DONE 2026-10-17 (`85b9d51`) | Bench | — | Above the line. 16 documents and the six most recent session logs, matched by line and bounded at 8.3 KB |
+| ~~3~~ | **Apparent size for the planets** — DONE 2026-10-18 | Bench | — | Decided for the ephemeris, and it cost almost nothing: `PlanetRADec` was already computing the Earth-planet distance for the declination and throwing it away. Diameter at 1 AU per planet, divided by that distance. Saturn carries a ring span too, because framing on the 18" globe crops the 41" of rings. Checked against published ranges of distance and apparent diameter across a twelve-year sweep — `tests/planet_size.cpp` |
+| ~~4~~ | **Phase 47, click to recentre** — DONE 2026-10-18 | Bench | — | `Ctrl`+click an object and it goes to the middle. No new orientation config: the phase 51 guide calibration already MEASURED how the image responds to a pulse, so it contains the camera angle, the mirror flip and the axis signs. The 2x2 solve moved into `src/core/GuideSolve.h` and the guide loop now calls the same one — two copies would be two sign conventions. Gated by `tests/recentre.cpp`, including a round trip that pushes the solved pulses back through the measured matrix |
+| 5 | **Pick again from the unscheduled list** | Bench | varies | Eleven features left, none half-built. Phase 47 has gone; on value to this rig **phase 46** (connect/disconnect hardware without restarting) is now the one that pays back every session, with phase 48 (framing recall) behind it |
+| — | **Xbox controller** (P4.1) | **HELD** | M | No controller, no receiver, no Bluetooth in this machine. Feasibility proven (`8fed05a`); item 1 removes its software prerequisite. Phase 47's click-to-recentre is the other half of the same idea and is in |
 | — | **Rebuild the knowledge database** | Needs network | S | **Demoted: it would not do what was claimed.** `Allen's Star Names` is listed as the mythology source in the builder's docstring and there is **no loader for it**, so a rebuild recovers no mythology for the 670 non-solar objects — that code was never written. The distances it was really wanted for are already in. What is left is Wikipedia summaries for objects that lack one: a 20–30 minute rate-limited fetch for marginal gain |
 | — | **Mythology for the deep sky** | Content | M | The honest version of the item above. 670 narratives have no cultural context and no source is wired up to give them one. This is a content-sourcing decision, not a coding task |
 | — | **Assistant: a larger model** (P3.6 option A) | — | M | Behind D4. An 8B at 4-bit fits the 2060's 6 GB |
 | — | **Emulator blur, further** (P4.4a tail) | Bench | S | Only if full-sensor bench work becomes routine. Focusing the emulated EAF skips it entirely today |
 | — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3 |
 
-### Found by this review
+### Found 2026-10-18 — SAVE could erase a profile's note
+
+**The NOTES box is not part of the rig, and SAVE treated it as if it
+were.** Every other field SAVE writes is read back off the camera, the
+focuser or the panel, where the live value is the true one. The note is
+not like that: the box holds a note for ONE profile, and it holds
+nothing at all until a profile is loaded into it. So SAVE aimed at a
+profile that had not been loaded handed it an empty string. That is how
+`saturn.ini` lost
+
+> Longer exposure than Jupiter. Rings add contrast challenge.
+
+during a night on Jupiter; it was typed back in by hand in `f2f2edc`
+without the cause being found.
+
+The box was emptier than it looked, too. Every panel section starts
+collapsed, so `m_editNotes` is null until NOTES has been opened at all,
+and the getter answered `""` for a missing control — which made the
+loss unconditional on a fresh run, including for the profile just
+loaded, because its note went into the cache that survives a rebuild
+and nothing read it back.
+
+Fixed in `95c3048`: the accessors go through that cache, the box
+records which profile its text came from, and
+`NotesBoxMayReplaceStored` decides whether a SAVE may overwrite — keyed
+by name, so a rename through EDIT fails safe. Emptying a profile's own
+note still clears it. `tests/profile_notes.cpp` pins the rule,
+including the `saturn.ini` case.
+
+Same shape as D1 and the DLL below: nothing failed, nothing was logged,
+and the loss was discoverable only by going to look for a note that was
+no longer there. A kept note is now announced on the notification bar.
+
+### Found by the 2026-10-17 review
 
 **The test suite was passing on a file copied by hand.** `tests/_build`
 is gitignored and `run-tests.ps1` never copied `sqlite3.dll`, so
@@ -1128,6 +1173,13 @@ depend on them:
   write buffer both held. What a real night still settles is whether a
   real ASI678MC over real USB behaves the same, which is a question
   about the camera rather than about our side of it.
+- **Item 14 — click to recentre, on the sky.** Added 2026-10-18. The
+  arithmetic is gated on the bench and the round trip is exact against
+  the measured matrix, but the matrix itself comes from a real
+  calibration on a real star, and no bench test can produce one. What a
+  night settles: that a click lands the planet in the middle first
+  time, and that the ten-second pulse ceiling is the right place to
+  stop and slew instead.
 - **Item 1 — `SHARP_CEIL`**, which biases the capture gate and
   autofocus.
 - **Item 3 — plate scale**, never once checked against the sky, and
@@ -1141,7 +1193,7 @@ the original tier numbers.
 
 | Phase | Feature | Effort | Note |
 |---|---|---|---|
-| 47 | Pixel position / click to recentre | M | Pairs naturally with the controller work |
+| ~~47~~ | ~~Pixel position / click to recentre~~ | — | **Done 2026-10-18.** `Ctrl`+click, on the measured guide calibration |
 | 46 | Connect / disconnect all hardware | M | Operational quality; currently all-or-nothing at startup |
 | 48 | Go to previous image (framing recall) | M | |
 | 30 | Push-to assistant | M | |

@@ -388,6 +388,35 @@ public:
     void SetPixelHover(float sx, float sy) {
         if (!m_pixelLocked) { m_pixelHoverX = sx; m_pixelHoverY = sy; }
     }
+    // ── Screen position to sensor pixel ───────────────────
+    //
+    // D2D coords (DPI-corrected) into frame pixels, through whatever
+    // zoom and letterboxing the last draw used. The pixel readout did
+    // this inline; phase 47 needs the same answer for a click, and a
+    // second copy would be a second idea of where the user pointed.
+    //
+    // False when the position is outside the image, which is a real
+    // answer: the click was on the frame bar or the letterbox, not on
+    // the sky.
+    bool ScreenToFramePixel(float sx, float sy, int& fx, int& fy) const {
+        const float dW = m_lastDestRect.right  - m_lastDestRect.left;
+        const float dH = m_lastDestRect.bottom - m_lastDestRect.top;
+        if (dW <= 0.0f || dH <= 0.0f) return false;
+        if (m_frameWidth <= 0 || m_frameHeight <= 0) return false;
+        const float normX = (sx - m_lastDestRect.left) / dW;
+        const float normY = (sy - m_lastDestRect.top)  / dH;
+        if (normX < 0.0f || normX > 1.0f || normY < 0.0f || normY > 1.0f)
+            return false;
+        int px = (int)(normX * m_frameWidth);
+        int py = (int)(normY * m_frameHeight);
+        px = px < 0 ? 0 : (px >= m_frameWidth  ? m_frameWidth  - 1 : px);
+        py = py < 0 ? 0 : (py >= m_frameHeight ? m_frameHeight - 1 : py);
+        fx = px; fy = py;
+        return true;
+    }
+    int  FrameWidthPx()  const { return m_frameWidth; }
+    int  FrameHeightPx() const { return m_frameHeight; }
+
     // Left-click: toggle lock on current hover position
     void ClickPixelLock(float sx, float sy) {
         if (!m_pixelReadout) return;

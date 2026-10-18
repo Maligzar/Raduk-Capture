@@ -119,6 +119,10 @@ If the screen looks empty:
 A planet looks like a small bright blob at this stage, probably fuzzy. That is
 expected — it is not focused yet.
 
+Once it is somewhere on the screen, **`Ctrl` + click on it** to bring it to
+the middle, rather than nudging it there with the arrow keys. See
+**Centring by clicking** below for what it needs first.
+
 ### 6. Get it sharp
 
 Press `A` for autofocus. The focuser steps through a range, measures sharpness
@@ -339,6 +343,44 @@ fullscreen.
 | `[` / `]` | Coarse focus step |
 | `Esc` | Close popup panels |
 | Mouse wheel | Zoom preview in/out |
+| `Ctrl` + click on the image | **Put that spot in the middle.** Needs a guide calibration first; it says so if there is none. See **Centring by clicking**. |
+
+---
+
+## Centring by clicking
+
+Hold `Ctrl` and click anything on the image, and the telescope moves so that
+spot is in the middle of the frame.
+
+It is not a guess. The app learned how the image responds to the mount during
+**guide calibration** — it pulsed the mount east, watched which way the picture
+went, then pulsed north and watched again. That measurement already contains
+everything awkward about the arrangement: which way round the camera sits in
+the focuser, the mirror flip of the optical train, and the direction each axis
+runs. A click can therefore be exact in a way that jogging by hand is not,
+because a jog moves the mount and you have to work out for yourself which way
+that pushes the picture.
+
+**What it needs**
+
+- A **guide calibration**. Run it once per session — it is part of the
+  tracking workflow, and if there is none the notification says so and nothing
+  moves.
+- A **connected mount**.
+- The tracker **not already centring**. If the tracking loop is working on the
+  target, two things would be steering at once, so the click is refused.
+
+**What it will not do**
+
+- **Long moves.** Beyond about ten seconds of pulsing — roughly an arcminute —
+  it refuses and says to slew instead. It does not send a shortened pulse,
+  because that lands somewhere nobody asked for, and at this plate scale the
+  target can leave the frame entirely.
+- **Tiny moves.** A click within a few pixels of the middle does nothing.
+
+Every attempt, including a refused one, is written to the session log with the
+pixel clicked and the pulse lengths used, so a move you did not expect can be
+read back afterwards.
 
 ---
 

@@ -103,43 +103,62 @@ struct PlanetElements {
     double i0, ir;   // inclination (deg, deg/century)
     double O0, Or;   // long. of ascending node (deg, deg/century)
     double w0, wr;   // long. of perihelion (deg, deg/century)
+    // Equatorial angular diameter at 1 AU, arcsec (Meeus ch.55
+    // semidiameters, doubled). Apparent diameter is this over the
+    // Earth-planet distance, which PlanetRADec already computes and
+    // used to throw away.
+    double diamArcsec1AU;
+    // Outer ring span as a multiple of the equatorial diameter; 0
+    // where there are no rings worth framing for. Saturn's A ring
+    // outer edge is 136,775 km against a 60,268 km equatorial radius,
+    // so the thing that has to fit in the frame is 2.27x the globe --
+    // the difference between 18" and 41", which decides the ROI.
+    double ringSpan;
 };
 
 static const PlanetElements kPlanets[] = {
     // Mercury
     {"Mercury", -0.5f,
      252.250906, 149474.0722491,  0.387098, 0.20563175,  0.000020406,
-       7.004986,    -0.0059516, 48.330893,  -0.1254229, 77.456119,   0.1588643},
+       7.004986,    -0.0059516, 48.330893,  -0.1254229, 77.456119,   0.1588643,
+     6.72, 0.0},
     // Venus
     {"Venus", -4.4f,
      181.979801,  58519.2130302,  0.723330, 0.00677188, -0.000047766,
-       3.394662,    -0.0008568, 76.679920,  -0.2780080,131.563707,   0.0048646},
+       3.394662,    -0.0008568, 76.679920,  -0.2780080,131.563707,   0.0048646,
+     16.68, 0.0},
     // Mars
     {"Mars", 0.5f,
      355.433275,  19141.6964746,  1.523679, 0.09340062,  0.000090483,
-       1.849726,    -0.0081477, 49.558093,  -0.2949846,336.060234,   0.4439016},
+       1.849726,    -0.0081477, 49.558093,  -0.2949846,336.060234,   0.4439016,
+     9.36, 0.0},
     // Jupiter
     {"Jupiter", -2.7f,
       34.351519,   3036.3027748,  5.202603, 0.04849485,  0.000163244,
-       1.303270,    -0.0019872,100.464441,   0.1766828, 14.331309,   0.2155209},
+       1.303270,    -0.0019872,100.464441,   0.1766828, 14.331309,   0.2155209,
+     196.88, 0.0},
     // Saturn
     {"Saturn", 0.7f,
       50.077444,   1223.5110686,  9.554909, 0.05550825, -0.000346641,
-       2.488878,     0.0025514,113.665524,  -0.2566649, 93.057136,   0.5665415},
+       2.488878,     0.0025514,113.665524,  -0.2566649, 93.057136,   0.5665415,
+     165.46, 2.27},
     // Uranus
     {"Uranus", 5.7f,
      314.055005,    429.8640561, 19.218446, 0.04629590, -0.000027337,
-       0.773196,    -0.0016869, 74.005947,   0.0741461,173.005159,   1.4862480},
+       0.773196,    -0.0016869, 74.005947,   0.0741461,173.005159,   1.4862480,
+     70.04, 0.0},
     // Neptune
     {"Neptune", 8.0f,
      304.348665,    219.8833092, 30.110387, 0.00898809,  0.000006408,
-       1.769952,     0.0002257,131.784057,  -0.0061651, 48.123691,   1.4262677},
+       1.769952,     0.0002257,131.784057,  -0.0061651, 48.123691,   1.4262677,
+     67.00, 0.0},
 };
 
 // Compute heliocentric ecliptic longitude/latitude/radius from orbital elements
 // Returns geocentric RA/Dec in J2000 (simplified — ignores proper aberration)
 inline bool PlanetRADec(const PlanetElements& p, double jd,
-                         double& ra_h, double& dec_deg) {
+                         double& ra_h, double& dec_deg,
+                         double* distAu = nullptr) {
     double T = JD_to_T(jd);
 
     // Orbital elements at epoch
@@ -195,14 +214,76 @@ inline bool PlanetRADec(const PlanetElements& p, double jd,
     double eps = Rad(23.439291 - 0.013004 * T);
 
     // Convert to equatorial
+    const double gr = sqrt(gx*gx + gy*gy + gz*gz);
     double ra  = atan2(gy * cos(eps) - gz * sin(eps), gx);
-    double dec = asin((gy * sin(eps) + gz * cos(eps)) /
-                      sqrt(gx*gx + gy*gy + gz*gz));
+    double dec = asin((gy * sin(eps) + gz * cos(eps)) / gr);
+
+    // The Earth-planet distance, in AU. It was computed here all
+    // along for the declination and then discarded; the object panel
+    // needs it, because the catalogue has no size_arcmin for a single
+    // planet and apparent diameter is this number and a division.
+    if (distAu) *distAu = gr;
 
     ra_h    = NormDeg(Deg(ra)) / 15.0; // hours
     dec_deg = Deg(dec);
     PrecessDateToJ2000(jd, ra_h, dec_deg); // of-date → J2000 (app standard)
     return true;
+}
+
+// ── Apparent size of a planet, tonight ────────────────────────
+//
+// The object panel's most useful line -- how much of the frame the
+// target fills -- was blank for every planet, which is to say for
+// everything this rig actually images. `size_arcmin` is NULL for all
+// of them in the knowledge database, and rebuilding it would not help:
+// a planet does not HAVE a fixed apparent size. Mars runs from 3.5" to
+// 25", a factor of seven, and the figure is only ever true for a date.
+//
+// So it is computed rather than looked up, and nothing new is needed
+// to do it. The distance falls out of the same ephemeris that already
+// drives GoTo, and the diameter at 1 AU is a constant per planet.
+//
+// globeArcsec is the equatorial disc. extentArcsec is what has to fit
+// inside the frame, which for Saturn means the rings -- 41" against an
+// 18" globe, and framing Saturn on the globe alone crops them off.
+struct PlanetApparentSize {
+    bool   valid         = false;
+    double distanceAu    = 0.0;
+    double globeArcsec   = 0.0;
+    double extentArcsec  = 0.0;   // rings included where they apply
+    bool   ringsIncluded = false;
+};
+
+inline PlanetApparentSize PlanetSizeAt(const PlanetElements& p, double jd) {
+    PlanetApparentSize out;
+    double ra = 0.0, dec = 0.0, dist = 0.0;
+    if (!PlanetRADec(p, jd, ra, dec, &dist)) return out;
+    // A distance near zero puts the Earth inside the planet: the date
+    // or the elements are wrong, and dividing by it would report an
+    // enormous disc with total confidence.
+    if (!(dist > 0.01) || !(p.diamArcsec1AU > 0.0)) return out;
+    out.valid         = true;
+    out.distanceAu    = dist;
+    out.globeArcsec   = p.diamArcsec1AU / dist;
+    out.ringsIncluded = (p.ringSpan > 1.0);
+    out.extentArcsec  = out.globeArcsec * (out.ringsIncluded ? p.ringSpan : 1.0);
+    return out;
+}
+
+// By name, as the app and the profiles spell it. Case-insensitive, and
+// an unknown name is simply not a planet -- callers keep whatever the
+// catalogue gave them.
+inline PlanetApparentSize PlanetSizeByName(const std::string& name, double jd) {
+    auto lower = [](char c) {
+        return (c >= 'A' && c <= 'Z') ? (char)(c + 32) : c;
+    };
+    for (const auto& p : kPlanets) {
+        std::string pn(p.name), qn(name);
+        for (auto& c : pn) c = lower(c);
+        for (auto& c : qn) c = lower(c);
+        if (pn == qn) return PlanetSizeAt(p, jd);
+    }
+    return PlanetApparentSize{};
 }
 
 // ── Sun position (Meeus Ch.25, low-precision ~0.01°) ──────────────

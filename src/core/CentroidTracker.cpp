@@ -4,6 +4,7 @@
 // ============================================================
 
 #include "CentroidTracker.h"
+#include "GuideSolve.h"   // the pixel->pulse solve, shared with phase 47
 
 namespace raduk::core {
 
@@ -530,25 +531,20 @@ void CentroidTracker::Run() {
 
         // Alt-az: azimuth (East) pixel response scales with cos(alt);
         // rescale the measured column to the current altitude.
-        float exMs = cal.exPerMs, eyMs = cal.eyPerMs;
-        if (cal.altDeg >= 0 && lastAltDeg >= 0) {
-            float cCal = std::cos(cal.altDeg * 0.01745329f);
-            float cNow = std::cos(lastAltDeg * 0.01745329f);
-            if (cCal > 0.05f && cNow > 0.05f) {
-                float k = cNow / cCal;
-                exMs *= k; eyMs *= k;
-            }
-        }
+        //
+        // The rescale and the solve both live in GuideSolve.h now,
+        // because phase 47 recentres from a click using the same two
+        // steps. One copy, one set of signs: a second set would be a
+        // second chance to send the mount the wrong way.
+        GuideResponse resp{ cal.exPerMs, cal.eyPerMs,
+                            cal.nxPerMs, cal.nyPerMs };
+        resp = RescaleForAltitude(resp, cal.altDeg, lastAltDeg);
 
-        // Solve M·(tE,tN) = desired displacement (−error × agg), px.
-        float det = exMs * cal.nyPerMs - cal.nxPerMs * eyMs;
-        float eMag2 = exMs*exMs + eyMs*eyMs;
-        float nMag2 = cal.nxPerMs*cal.nxPerMs + cal.nyPerMs*cal.nyPerMs;
-        if (std::abs(det) < 1e-8f || eMag2 <= 0 || nMag2 <= 0) continue;
-
-        float ddx = -dxPx * agg, ddy = -dyPx * agg;
-        float tE = ( cal.nyPerMs * ddx - cal.nxPerMs * ddy) / det;
-        float tN = (-eyMs        * ddx + exMs        * ddy) / det;
+        // Desired displacement is −error × aggressiveness, in pixels.
+        const float ddx = -dxPx * agg, ddy = -dyPx * agg;
+        const GuidePulses sol = SolveGuidePulses(resp, ddx, ddy);
+        if (!sol.valid) continue;
+        const float tE = sol.eastMs, tN = sol.northMs;
 
         bool pulsed = false;
         auto sendPulse = [&](float tMs, GuideDirection pos, GuideDirection neg,

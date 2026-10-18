@@ -61,6 +61,8 @@
 #include "gui/ToolbarStrip.h"
 #include "gui/GoToPanel.h"
 #include "gui/SkyMapWindow.h"
+#include "sky/SkyObject.h"   // planet apparent size for the object panel
+#include "core/GuideSolve.h"   // phase 47: a clicked pixel into guide pulses
 #include "gui/ShareView.h"
 #include "gui/ObjectPanel.h"
 #include "gui/WorkspaceLayout.h"
@@ -2364,6 +2366,113 @@ static int RunApp(bool useEmulator) {
         window.SetNotifBarHeight(notifBar.Height());
     });
 
+    // ── Phase 47: click to recentre ───────────────────────
+    //
+    // Centring a planet by jogging is overshoot in the dark: a jog
+    // moves the MOUNT, and which way the image then goes depends on
+    // where the camera sits in the focuser. The phase 51 calibration
+    // already measured that, so a click can be exact -- and the same
+    // solve the guide loop uses turns the offset into two pulses.
+    //
+    // Deliberately per-click with Ctrl held rather than a mode. A mode
+    // that moves the telescope is a mode somebody forgets they are in,
+    // and the first sign of it is the target leaving the frame.
+    //
+    // Everything that could make the move wrong refuses instead. The
+    // notification says which, because "nothing happened" is the one
+    // response that teaches the user nothing.
+    auto doRecentreClick = [&](float sxD2D, float syD2D) {
+        int fx = 0, fy = 0;
+        if (!preview.ScreenToFramePixel(sxD2D, syD2D, fx, fy)) return;
+
+        if (!mount || !mount->IsConnected()) {
+            notifBar.NotifyWarn(L"Recentre: no mount connected");
+            return;
+        }
+        if (!tracker.HasCalibration()) {
+            notifBar.NotifyWarn(L"Recentre needs a guide calibration "
+                                L"-- run it once, then click");
+            return;
+        }
+        // While the loop is actively correcting, a manual move is two
+        // hands on the same wheel: it would pull the target off centre
+        // and the loop would pull it back.
+        const auto stage = tracker.Stage();
+        if (stage == raduk::core::AcquisitionStage::Locked ||
+            stage == raduk::core::AcquisitionStage::Centering) {
+            notifBar.NotifyWarn(L"Recentre: the tracker is centring "
+                                L"already -- stop it first");
+            return;
+        }
+
+        const raduk::core::GuideCalibration cal = tracker.Calibration();
+        raduk::core::GuideResponse resp{ cal.exPerMs, cal.eyPerMs,
+                                        cal.nxPerMs, cal.nyPerMs };
+        {
+            double altNow = -1.0, azNow = 0.0;
+            if (mount->GetAltAz(altNow, azNow))
+                resp = raduk::core::RescaleForAltitude(resp, cal.altDeg,
+                                                       (float)altNow);
+        }
+
+        // 10 s is about 75" at the configured guide rate, which is far
+        // more than a planet ever sits from centre. Past that the right
+        // tool is a GoTo, and PlanRecentre says so rather than sending
+        // a clamped pulse to somewhere nobody asked for.
+        const raduk::core::RecentrePlan plan = raduk::core::PlanRecentre(
+            (float)fx, (float)fy,
+            preview.FrameWidthPx(), preview.FrameHeightPx(),
+            resp, cal.arcsecPerPx, 10000);
+
+        if (!plan.valid) {
+            wchar_t w[160] = {};
+            MultiByteToWideChar(CP_UTF8, 0, plan.why, -1, w, 160);
+            notifBar.NotifyWarn(std::wstring(L"Recentre: ") + w);
+            Log("[RECENTRE] refused at [%d,%d]: %s (%.0f px, %.1f\" off centre)\n",
+                fx, fy, plan.why, plan.offsetPx, plan.offsetArcsec);
+            return;
+        }
+
+        Log("[RECENTRE] [%d,%d] -> centre: %.0f px (%.1f\") "
+            "E/W %dms N/S %dms\n",
+            fx, fy, plan.offsetPx, plan.offsetArcsec,
+            plan.eastMs, plan.northMs);
+        slog.Mount("Recentre from [%d,%d]: %.1f\" (E/W %dms N/S %dms)",
+                   fx, fy, plan.offsetArcsec, plan.eastMs, plan.northMs);
+
+        // Said before the move, not after. NexStar's PulseGuide blocks
+        // for the duration, so the pulses go on their own thread and
+        // the UI is not held for several seconds -- which means the
+        // main thread must have had its say already.
+        {
+            wchar_t w[160] = {};
+            swprintf(w, 160, L"Recentring %.0f px (%.1f\")  E/W %dms  N/S %dms",
+                     plan.offsetPx, plan.offsetArcsec,
+                     plan.eastMs, plan.northMs);
+            notifBar.NotifyInfo(w);
+        }
+
+        suspendTrackerForJog(true);
+        IMount* mnt = mount;
+        const int eMs = plan.eastMs, nMs = plan.northMs;
+        std::thread([mnt, eMs, nMs, suspendTrackerForJog]() {
+            using raduk::core::GuideDirection;
+            if (eMs != 0) {
+                mnt->PulseGuide(eMs > 0 ? GuideDirection::East
+                                        : GuideDirection::West,
+                                eMs > 0 ? eMs : -eMs);
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            if (nMs != 0) {
+                mnt->PulseGuide(nMs > 0 ? GuideDirection::North
+                                        : GuideDirection::South,
+                                nMs > 0 ? nMs : -nMs);
+            }
+            Log("[RECENTRE] pulses done\n");
+            suspendTrackerForJog(false);
+        }).detach();
+    };
+
     // Forward clicks to preview renderer for frame bar + ROI drag start
     window.SetClickHandler([&](float x, float y) -> bool {
         return preview.HandleMouseDown(x, y);
@@ -2379,12 +2488,16 @@ static int RunApp(bool useEmulator) {
         }
     });
 
-    // Phase 24: pixel click lock/unlock
+    // Phase 24: pixel click lock/unlock.
+    // Phase 47: Ctrl+click puts the clicked pixel in the middle.
     window.SetPixelClickHandler([&](float x, float y) {
-        if (preview.PixelReadoutEnabled()) {
-            float dpi = window.DpiScale();
-            preview.ClickPixelLock(x / dpi, y / dpi);
+        const float dpi = window.DpiScale();
+        if (GetKeyState(VK_CONTROL) & 0x8000) {
+            doRecentreClick(x / dpi, y / dpi);
+            return;   // a recentre is not also a pixel lock
         }
+        if (preview.PixelReadoutEnabled())
+            preview.ClickPixelLock(x / dpi, y / dpi);
     });
 
     // Mouse up — completes ROI selection
@@ -4799,6 +4912,35 @@ static int RunApp(bool useEmulator) {
                                           : "not in the catalogue");
                     }
                     oc.rec = lastRec;
+
+                    // The size the catalogue does not have. Recomputed
+                    // only when the name changes or the hour does: the
+                    // distance to Jupiter moves by nothing a panel can
+                    // show inside an hour, and this runs every poll.
+                    {
+                        static std::string lastSized;
+                        static int lastSizedHour = -1;
+                        static raduk::sky::PlanetApparentSize sized;
+                        const double jd = raduk::sky::CurrentJD();
+                        const int hour = (int)(jd * 24.0);
+                        if (oc.target != lastSized || hour != lastSizedHour) {
+                            lastSized = oc.target;
+                            lastSizedHour = hour;
+                            sized = raduk::sky::PlanetSizeByName(oc.target, jd);
+                            if (sized.valid)
+                                Log("[OBJECT] %s: %.2f AU -> disc %.1f\" "
+                                    "extent %.1f\"\n",
+                                    oc.target.c_str(), sized.distanceAu,
+                                    sized.globeArcsec, sized.extentArcsec);
+                        }
+                        if (sized.valid) {
+                            oc.haveEphemSize     = true;
+                            oc.ephemGlobeArcmin  = sized.globeArcsec  / 60.0;
+                            oc.ephemExtentArcmin = sized.extentArcsec / 60.0;
+                            oc.ephemRings        = sized.ringsIncluded;
+                            oc.ephemDistanceAu   = sized.distanceAu;
+                        }
+                    }
 
                     oc.haveAltitude = sd.sky.valid;
                     oc.altitudeDeg  = sd.sky.altitudeDeg;

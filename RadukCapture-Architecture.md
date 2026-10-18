@@ -314,6 +314,37 @@ Disconnect order is the reverse of connect, and the first two steps are not opti
 **What it cost to learn:** `main.cpp` had `static_cast<MountEmulator*>(mount)` for the emulator's closed-loop pointing provider. With `mount` now a proxy, that cast produced a pointer to a type the object is not, and the code then *wrote* through it while the camera's generator thread read through it every frame — landing in the proxy's own mutex and vector. The emulator reached its READY banner and died in the CRT on the first frame, `0xC0000409`. It is a `dynamic_cast` of `mountProxy.Backend()` now, resolved per call so a reconnect is followed, and type-checked so a non-emulator backend answers "no error" instead of corrupting memory. `IMount`'s own comments warn about exactly this twice; the warnings were right.
 
 Gated by `tests/hardware_link.cpp`: the state mapping, what a press does from each of the eight device combinations, when it asks first, and the sentence afterwards — which must say what *happened*, because "Hardware connected" when the mount never answered is how a night is lost to a telescope that was never going to track. **Not yet pressed in the running app**: the emulator starts and runs with the proxy in place, but the button itself has not been clicked.
+### Phase 77 — AutoStakkert Handoff [SHIPPED; in-app launch UNDER RE-TEST 2026-10-18]
+
+`K`, or `AutoStackOnStop` in `rig.ini`, hands the finished recording to AutoStakkert and lets it stack unattended, so the round trip (stop, find the file, open AS, set it up, wait, export) becomes one step. Deliberately **not** a stacker: AS!4 does multi-point alignment and drizzle well and is free, and the preview's quick-look stacker exists to answer "is this sharp" at the telescope, not to produce the final image. What was missing was the handoff.
+
+`src/core/AutoStakkertRunner.h` — probes known install paths (`D:\Program Files\AutoStakkert\AutoStakkert.exe` first, which is where it lives here), `CreateProcessW`, kill on timeout so a wedged run cannot leave an orphan stacking in the background. Follows `ASTAPSolver`'s pattern throughout. Output is discovered by listing the output directory rather than assumed, because which percentages and which image format AS writes is governed by its own saved settings.
+
+The command line, verified against AS!4 4.0.13 on a 156 MB, 127-frame recording — 49.9 s, no window, `AS_P20/P50/P70/P90` written with 272 auto-placed alignment points:
+
+```
+AutoStakkert.exe "<file>.ser" /apgrid /process /hide /exit /outputdirectory "<dir>"
+```
+
+AS!4's headless command line is essentially undocumented — the published switches are the AS!2-era `/inifile` and `/expanding` — but the binary carries `/inifile`, `/outputdirectory`, `/settingsfile`, `/apgrid`, `/process`, `/hide`, `/exit`, `/surfaceanchor`, `/monitoring`, `/monitoring_no_raw` and four `/priority_*` switches, each with its own log message.
+
+**Status: the in-app launch works. Re-measured 2026-10-18.** It had been recorded as broken and "proven not to be ours", on the reasoning that a bare console program making the identical `CreateProcessW` call failed the same way, so AutoStakkert's own state must be wedged. The owner reported that AS functions correctly on this machine, which removed that premise; re-measuring settled it.
+
+Three runs, the same 158 MB / 1280×960 Jupiter recording, no reinstall and no reboot in between:
+
+| Route | Time | Result |
+|---|---|---|
+| Standalone, PowerShell | 51.4 s | stacked; 1 PNG + `.as3` |
+| Via `StackAsync` — the app's own path | 50.4 s | `ok=1`, 8 files |
+| Via `StackAsync`, with AS already open | 57.0 s | `ok=1`, 8 files |
+
+Every one logs the working signature: `Processing started` 0.45 s after `started...`. So **there was never anything wrong with this code**, and the third run also kills the most attractive remaining theory — a second AS instance holding a single-instance lock. `StackAsync` does not check for a running AutoStakkert, and one *was* running during the original investigation, which made it look like the answer; AS 4.0.13 stacks from this path with another instance open, so no guard is needed.
+
+**What broke it originally is unexplained and no longer reproducible** — something about the machine's state that day, which did not survive into this one. That is the honest end of it rather than a theory left in a comment.
+
+One trap found while re-measuring, which may account for some of the original failing observations: launched from a **bash-like shell** (Git Bash / MSYS), the `/switches` are rewritten into paths before AS sees them — `/apgrid` arrives as `C:/Program Files/Git/apgrid` — and the result looks exactly like the reported symptom. AS starts, sits at 0.08 s of CPU and writes nothing. The tell is in the log: a mangled launch logs the startup lines with **no `command line ...` lines at all**, where a genuine failure-to-begin logs every switch and then stops. Reproduce from PowerShell or `cmd`, never from Git Bash.
+
+`AutoStackOnStop` still defaults **OFF**, but for its own reason now rather than because the launch is suspect: stacking is minutes of CPU on the machine running the capture, and that should be opted into rather than sprung on someone mid-session. `tests\manual-autostakkert-launch.cpp` re-runs the measurement; it needs AS installed and about a minute, so it does not gate.
 
 ### Phase 47 — Click to Recentre [COMPLETE 2026-10-18]
 
@@ -473,6 +504,8 @@ Frame memory allocated with `VirtualAlloc` (page-aligned, avoids heap fragmentat
 | One stable mount pointer (`MountProxy`) | Holders keep it for the session while the backend swaps, so a reconnect can pick a different transport or port without stranding the tracker, the panels or the maps |
 | Retired mount backends are kept, not freed | The tracker thread may be inside a 500 ms PulseGuide on one when it is replaced; a mutex instead would block the render loop's Heartbeat behind that pulse |
 | Partial link connects rather than disconnects | Two-of-three means a device was not ready yet; tearing down the two that work is never what was wanted |
+| AS handoff, not an in-app stacker | AutoStakkert does multi-point alignment and drizzle well and is free; the quick-look stacker answers "is this sharp" at the telescope. Only the handoff was missing |
+| `AutoStackOnStop` defaults OFF | Stacking is minutes of CPU on the capture machine; opt in rather than have it sprung on you mid-session |
 | One pixel→pulse solve (`GuideSolve.h`) | The guide loop and click-to-recentre share it. Two copies would be two sign conventions, and a wrong sign here steers the mount confidently the wrong way |
 | Recentre from the guide calibration, not a plate solve | The calibration is already a measured pixel↔sky transform. A planet field has no stars to solve, so a solve-gated recentre would be missing exactly when needed |
 | Recentre refuses rather than clamps | A clamped pulse lands somewhere nobody asked for; at 0.203"/px that puts the target out of frame. Over the ceiling it says to slew instead |

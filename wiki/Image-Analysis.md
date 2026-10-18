@@ -375,11 +375,24 @@ points. Which percentages and which image format appear is governed by AS's
 own saved settings, so the result is **discovered by listing the output
 directory** rather than assumed.
 
-> **Status — read this before relying on it.** The command line above is
-> verified from a shell. Launching the *identical* command from inside this
-> application does not work: AutoStakkert starts, shows its window, and
-> sits. See the source header for the current state of the investigation
-> and [Roadmap and Phase History](Roadmap-and-Phase-History).
+> **Status — it works. Re-measured 2026-10-18.** This was recorded for a
+> while as "verified from a shell, does not work from inside the app". That
+> is withdrawn. Three runs on the same 158 MB recording: standalone 51.4 s,
+> via the app's own `StackAsync` 50.4 s (`ok=1`, 8 files), and via
+> `StackAsync` with AutoStakkert already open 57.0 s (`ok=1`, 8 files). All
+> three log the working signature — `Processing started` 0.45 s after
+> `started...`.
+>
+> What caused the original failure is unexplained and no longer
+> reproducible. One trap worth knowing: launched from Git Bash or another
+> MSYS shell, the `/switches` are rewritten into paths before AS sees them,
+> which produces the identical symptom — and the log then shows **no
+> `command line ...` lines at all**, which is how to tell the two apart.
+> Reproduce from PowerShell or `cmd`.
+>
+> `AutoStackOnStop` still defaults off, because stacking is minutes of CPU
+> and should be opted into. See the source header and
+> [Roadmap and Phase History](Roadmap-and-Phase-History).
 
 ---
 

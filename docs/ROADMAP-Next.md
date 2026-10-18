@@ -931,9 +931,28 @@ alt-az and there is no wedge, so the procedure does not apply. It
 comes back only with a wedge and most likely a new mount, which makes
 it a different project rather than a queued feature.
 
-**Phase 77, the AutoStakkert launch: off the list.** It is proven not
-to be ours — the identical command fails from a bare prompt — so
-carrying it as app work was misleading. Removed rather than deferred.
+**Phase 77, the AutoStakkert launch: back on the list, 2026-10-18.**
+It was struck off as "proven not to be ours" because the identical
+command failed from a bare prompt, which pointed at AutoStakkert's own
+state being wedged on this machine. The owner reports AS functions
+correctly here, so that premise is gone and the removal does not stand.
+
+Two things found on re-reading rather than re-testing:
+
+- An **AutoStakkert instance was running** while the feature was
+  believed broken — idle, started hours earlier. "A second AS instance
+  holding a single-instance lock" is on the runner header's *ruled-out*
+  list, and it was true at the moment of testing.
+- **`StackAsync` does not check for one.** It guards only its own
+  `m_running` flag, so a stray AS window left open does not stop the
+  app launching a second process. A Delphi single-instance handoff to
+  an already-open GUI fits the reported symptom exactly: switches
+  parsed and logged, `Processing started` never reached.
+
+Neither is a diagnosis yet. The retest — the verified command, from
+the app, with no AS instance running — has **not** been done, and
+`debug_data\log.txt` answers it in one glance. Size S. Until then
+`AutoStackOnStop` stays off.
 
 ### The original two questions, for the record
 

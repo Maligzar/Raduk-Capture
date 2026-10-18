@@ -124,7 +124,7 @@ camera's internal buffer in the state that wedged it.
 | **6.6 GoTo map learning** | **◑ partial.** Auto solve+sync on lock ships; the accumulating map **reports but does not correct** — see [why](Sky-GoTo-and-Plate-Solving#why-it-reports-and-does-not-correct) |
 | 17 Live stacking preview | ◑ Superseded by the quick-look stacker (Phase 74) |
 | Phase 4 APEX items | `apex_bridge.py` RC telemetry forwarding, weather-aware capture suggestions |
-| Phase 77 AutoStakkert | CLI verified; **in-app launch does not work** |
+| Phase 77 AutoStakkert | CLI verified; in-app launch **under re-test 2026-10-18** — the environmental explanation is withdrawn now that AS is confirmed working on this machine, and an AS instance was found running during the original investigation |
 
 ### Deferred indefinitely
 

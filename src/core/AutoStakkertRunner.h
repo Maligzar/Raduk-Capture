@@ -34,9 +34,11 @@
 //
 // The command line above is verified. Launching it from a shell
 // stacks a real 156 MB capture in 49.9 s and writes AS_P20/50/70/90.
-// Launching the IDENTICAL command from inside this application does
-// not: AutoStakkert starts, shows its window, and sits at 0.1 s of
-// CPU indefinitely, as if /process never arrived.
+// Launching the IDENTICAL command from inside this application was
+// recorded as not working: AutoStakkert starts, shows its window, and
+// sits at 0.1 s of CPU indefinitely, as if /process never arrived.
+// The explanation for that is open again - see UPDATE 2026-10-18
+// below - and the retest it names has not been done.
 //
 // Ruled out by measurement, not by reasoning:
 //   - the command string (logged from inside the app and compared
@@ -47,12 +49,12 @@
 //     frames) and simple impatience (a small file was given 5 min
 //     against a 50 s standalone run)
 //
-// UPDATE - bisected, and it is NOT this application.
+// WHAT THE LOG SHOWS
 //
 // A bare console program making the identical CreateProcessW call
 // fails the same way, and so does the exact Start-Process invocation
 // that succeeded earlier the same day. AutoStakkert's own log
-// (debug_data\log.txt) shows why: in BOTH the working and the
+// (debug_data\log.txt) narrows it: in BOTH the working and the
 // failing runs it parses every switch correctly -
 //
 //   command line place ap in grid
@@ -67,19 +69,37 @@
 // settings. So the switches arrive and are understood, and AS simply
 // does not begin.
 //
-// That points at AutoStakkert's own state on the machine rather than
-// at the launch. It was force-killed many times while this was being
-// investigated, which is exactly how a Delphi application ends up
-// stuck. Before debugging this code any further, launch AutoStakkert
-// interactively once, let it finish starting, close it cleanly, and
-// retry - and check debug_data\log.txt for "Processing started",
-// which is the line that distinguishes the two cases in one glance.
+// That was read as AutoStakkert's own state being wedged on this
+// machine: it had been force-killed many times during the
+// investigation, which is how a Delphi application ends up stuck.
 //
-// The decisive observation: the EXACT invocation that succeeded at
-// 13:52 no longer succeeds, with nothing else running, on the same
-// file, with the same switches. Whatever changed is in AutoStakkert's
-// own persistent state, and it survives a process restart, a clean
-// settings file and an interactive launch.
+// UPDATE 2026-10-18 - that reading is WITHDRAWN.
+//
+// The owner reports AutoStakkert functions correctly on this machine,
+// which removes the premise. AS!4 4.0.13 starts cleanly here and its
+// log carries 70 successful "Processing started" runs.
+//
+// Two things turned up on re-reading, neither of them a diagnosis:
+//
+//   - An AutoStakkert instance was found RUNNING while the feature was
+//     believed broken - idle, started hours earlier. "A second AS
+//     instance holding a single-instance lock" is on the ruled-out
+//     list below, and it was true at the moment of testing.
+//   - StackAsync does not check for one. It guards only its own
+//     m_running flag, so a stray AS window left open does not stop
+//     this code launching a second process. A Delphi single-instance
+//     handoff to an already-open GUI fits the symptom exactly: the
+//     second process forwards its command line and exits, the open
+//     GUI never acts on /process, and nothing logs "Processing
+//     started".
+//
+// So the next step is a MEASUREMENT, not a reinstall: run the verified
+// command from this app with no AS instance running, and read
+// debug_data\log.txt. A working run prints "Processing started" about
+// half a second after "started...", and a broken one never does. If
+// that turns out to be the cause, the fix belongs HERE - detect a
+// running instance and refuse with a message that says to close it -
+// rather than in AutoStakkert.
 //
 // Ruled out along the way, each by measurement:
 //   - the command string, logged and compared character for character
@@ -88,22 +108,17 @@
 //   - working directory, main thread versus worker thread
 //   - a truncated recording, and plain impatience
 //   - a second AS instance holding a single-instance lock
+//     (SUSPECT AGAIN - see above; one was running during testing)
 //   - AS's settings, via a clean file passed with /inifile
 //   - disk and memory headroom (340+ GB free, 55 GB RAM free)
 //   - launching AS interactively first to clear a stuck state
 //
-// Next steps are outside this code: reboot, then reinstall or update
-// AutoStakkert. Its log is the one-glance test either way - a working
-// run prints "Processing started" about half a second after
-// "started...", and a broken one never does.
-//
 // Previously assumed, now disproved: that it was something about being
-// a child of this
-// process. AutoStackOnStop
-// therefore defaults to OFF and should stay off until this is
-// understood. The timeout bounds the damage - a stuck run is killed
-// and reported rather than hanging - but a feature that does not work
-// should not be switched on by default.
+// a child of this process. AutoStackOnStop defaults to OFF and stays
+// off until the retest above is done - a feature whose status is
+// unknown should not be armed for a night's capture. The timeout
+// bounds the damage: a stuck run is killed and reported rather than
+// hanging.
 //
 // Until then the verified route is a shell, which is genuinely useful
 // on its own:

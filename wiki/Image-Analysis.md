@@ -377,9 +377,19 @@ directory** rather than assumed.
 
 > **Status — read this before relying on it.** The command line above is
 > verified from a shell. Launching the *identical* command from inside this
-> application does not work: AutoStakkert starts, shows its window, and
-> sits. See the source header for the current state of the investigation
-> and [Roadmap and Phase History](Roadmap-and-Phase-History).
+> application was recorded as not working: AutoStakkert starts, shows its
+> window, and sits.
+>
+> **That diagnosis is withdrawn as of 2026-10-18.** It rested on AS's own
+> state being wedged on this machine, and AS is confirmed working here. An
+> AutoStakkert instance was also found *running* during the investigation
+> window — which the source header lists as ruled out — and `StackAsync`
+> does not check for one, so a stray AS window does not stop the app
+> launching a second process. The retest with nothing running has not been
+> done; `AutoStackOnStop` stays off until it has. The one-glance test is
+> `debug_data\log.txt`: a working run prints `Processing started` about half
+> a second after `started...`. See the source header and
+> [Roadmap and Phase History](Roadmap-and-Phase-History).
 
 ---
 

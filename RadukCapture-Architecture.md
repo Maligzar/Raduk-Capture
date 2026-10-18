@@ -297,6 +297,30 @@ Three-stage acquisition state machine: Off → Searching → Centering → Locke
 - Histogram: three R/G/B tinted rows on black background (FC style), seeing + sharpness row
 - Status: HDD bar + FPS, BUF bar + LOST — painted below controls in WM_PAINT strip
 
+### Phase 77 — AutoStakkert Handoff [SHIPPED; in-app launch UNDER RE-TEST 2026-10-18]
+
+`K`, or `AutoStackOnStop` in `rig.ini`, hands the finished recording to AutoStakkert and lets it stack unattended, so the round trip (stop, find the file, open AS, set it up, wait, export) becomes one step. Deliberately **not** a stacker: AS!4 does multi-point alignment and drizzle well and is free, and the preview's quick-look stacker exists to answer "is this sharp" at the telescope, not to produce the final image. What was missing was the handoff.
+
+`src/core/AutoStakkertRunner.h` — probes known install paths (`D:\Program Files\AutoStakkert\AutoStakkert.exe` first, which is where it lives here), `CreateProcessW`, kill on timeout so a wedged run cannot leave an orphan stacking in the background. Follows `ASTAPSolver`'s pattern throughout. Output is discovered by listing the output directory rather than assumed, because which percentages and which image format AS writes is governed by its own saved settings.
+
+The command line, verified against AS!4 4.0.13 on a 156 MB, 127-frame recording — 49.9 s, no window, `AS_P20/P50/P70/P90` written with 272 auto-placed alignment points:
+
+```
+AutoStakkert.exe "<file>.ser" /apgrid /process /hide /exit /outputdirectory "<dir>"
+```
+
+AS!4's headless command line is essentially undocumented — the published switches are the AS!2-era `/inifile` and `/expanding` — but the binary carries `/inifile`, `/outputdirectory`, `/settingsfile`, `/apgrid`, `/process`, `/hide`, `/exit`, `/surfaceanchor`, `/monitoring`, `/monitoring_no_raw` and four `/priority_*` switches, each with its own log message.
+
+**Status: the environmental write-off is withdrawn.** The in-app launch was recorded as broken and "proven not to be ours", reasoning that a bare console program making the identical `CreateProcessW` call failed the same way and that AS's own persistent state must therefore be wedged. The owner reports (2026-10-18) that **AutoStakkert functions correctly on this machine**, which removes that premise — and with it the roadmap's grounds for striking Phase 77 off the list.
+
+What is measured as of 2026-10-18:
+
+- AS!4 4.0.13 starts cleanly here. Its `debug_data\log.txt` shows a normal start today, and 70 successful `Processing started` runs historically.
+- **An AutoStakkert instance was found running** while the feature was believed broken — idle, started hours earlier. "A second AS instance holding a single-instance lock" sits on the runner header's *ruled-out* list, and it was true at the moment of testing.
+- **`StackAsync` has no guard for that.** It checks only its own `m_running` flag, so a stray AS window left open does not stop the app launching a second process — and a Delphi single-instance handoff to an already-open GUI is a precise fit for the reported symptom: switches parsed and logged, `Processing started` never reached, 0.1 s of CPU indefinitely.
+
+The one-glance test either way is `debug_data\log.txt`: a working run prints `Processing started` about half a second after `started...`, and a broken one never does. **Still owed:** that retest with no AS instance running, which has not been done. Until it is, `AutoStackOnStop` stays **OFF** by default — a feature whose status is unknown should not be armed for a night's capture — and the verified shell route above remains useful on its own.
+
 ### Phase 47 — Click to Recentre [COMPLETE 2026-10-18]
 
 `Ctrl`+click any pixel in the preview and the mount moves so that pixel is at frame centre.
@@ -452,6 +476,8 @@ Frame memory allocated with `VirtualAlloc` (page-aligned, avoids heap fragmentat
 | SS_NOTIFY on section headers | Required for SS_OWNERDRAW statics to receive WM_LBUTTONDOWN |
 | UpdateStates state cache | Prevents 38 FPS SetWindowTextW → toolbar button flash |
 | scrollW in layout constants | Reserves SM_CXVSCROLL pixels so controls don't draw behind scrollbar |
+| AS handoff, not an in-app stacker | AutoStakkert does multi-point alignment and drizzle well and is free; the quick-look stacker answers "is this sharp" at the telescope. Only the handoff was missing |
+| `AutoStackOnStop` defaults OFF | The in-app launch's status is unresolved; a feature that may not run should not be armed for a night's capture |
 | One pixel→pulse solve (`GuideSolve.h`) | The guide loop and click-to-recentre share it. Two copies would be two sign conventions, and a wrong sign here steers the mount confidently the wrong way |
 | Recentre from the guide calibration, not a plate solve | The calibration is already a measured pixel↔sky transform. A planet field has no stars to solve, so a solve-gated recentre would be missing exactly when needed |
 | Recentre refuses rather than clamps | A clamped pulse lands somewhere nobody asked for; at 0.203"/px that puts the target out of frame. Over the ceiling it says to slew instead |

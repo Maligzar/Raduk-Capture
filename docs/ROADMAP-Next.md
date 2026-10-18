@@ -1206,6 +1206,7 @@ the original tier numbers.
 | Phase | Feature | Effort | Note |
 |---|---|---|---|
 | ~~47~~ | ~~Pixel position / click to recentre~~ | — | **Done 2026-10-18.** `Ctrl`+click, on the measured guide calibration |
+| 47b | Pixel position readout + directional rose | M | The half of phase 47 that a plate solve really is needed for, split out when the other half shipped without one. Absolute RA/Dec under the cursor, and a rose showing which way a jog pushes the image |
 | 46 | Connect / disconnect all hardware | M | Operational quality; currently all-or-nothing at startup |
 | 48 | Go to previous image (framing recall) | M | |
 | 30 | Push-to assistant | M | |

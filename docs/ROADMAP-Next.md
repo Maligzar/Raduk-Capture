@@ -667,57 +667,41 @@ in order of preference:
 **Until this is fixed, a re-enumeration means pressing `Ctrl+Shift+End`
 again to re-save the layout.** Worth a line in the help file now.
 
-### D2 · Stock Win32 chrome ignores night vision
-**Severity: low-medium. Deliberately deferred 2026-10-12.**
+### D2 · Stock Win32 chrome — the cheap half DONE 2026-10-17
 
-With night vision on, the app's own colours go red — every one of them
-runs through `Theme::NV`. What stays bright is the chrome Windows draws
-itself: push-button faces, tab controls, list-view backgrounds and
-headers, and the title bars on the panels that do not set dark mode.
+The three things the deferred entry said were worth keeping are done,
+and the measurements moved a long way. Percentage of each window that
+is NOT red with night vision on, lower being better:
 
-Measured on the panel screen with night vision on: the help window came
-out 60% non-red, AI chat 88%, GoTo 98% — the GoTo figure driven by its
-object-catalog list view, which is a large white rectangle.
+| Window | was | now |
+|---|---|---|
+| Help | 60% | **10.7%** |
+| AI chat | 88% | **16.0%** |
+| GoTo | 98% | **39.2%** |
 
-A fix was prototyped and backed out as over-solving: subclassing every
-push button and painting it, because a de-themed classic push button
-draws its face from `COLOR_BTNFACE` and ignores the brush
-`WM_CTLCOLORBTN` hands back. The cheap parts of that fix are worth
-keeping for a future phase:
+Done: dark title bars via `DwmSetWindowAttribute` (attribute 20, and
+19 for pre-20H1), list-view background and text through `LVM_SETBKCOLOR`
+and friends, and `SetWindowTheme(h, L"", L"")` on edits and combos so
+the app's own `WM_CTLCOLOR*` brushes are what actually gets used.
 
-- `DwmSetWindowAttribute(…, 20, …)` for a dark title bar — three lines
-  per window, and the title bar is the brightest single element.
-- `LVM_SETBKCOLOR` / `LVM_SETTEXTBKCOLOR` / `LVM_SETTEXTCOLOR` on the
-  list views — the largest bright area, and a one-line call each.
-- `SetWindowTheme(h, L"", L"")` on edits and combos, which the control
-  panel already does and these windows never did.
+Applied through the same enumeration D3 uses, so a window added later
+is covered without being registered anywhere, and re-applied on every
+night-vision toggle — the list colours follow the mode even though the
+title bars do not. Title bars are dark in both modes, which is right:
+this app is dark whatever it is doing, and a white title bar was never
+correct.
 
-Leave the buttons alone unless they prove annoying at the eyepiece.
+**What is left is buttons, list headers and tab strips**, and it is
+left on purpose. All three take their face from `COLOR_BTNFACE` once
+de-themed, so stripping the theme trades a themed grey for a classic
+grey and changes how they look in DAY mode for no night-vision gain.
+Colouring them properly means owner-draw or `NM_CUSTOMDRAW`, which is
+the expensive half this entry deferred in the first place. GoTo's
+remaining 39% is almost entirely its buttons.
 
-### D4 · The AI runs on CPU because the GPU path cannot work here
-**Severity: medium. Diagnosed and worked around 2026-10-12.**
-
-Ollama 0.40.3 ships a llama-server built against a CUDA toolkit newer
-than driver 546.01 supports (that driver tops out at CUDA 12.3), so its
-kernels fail to load with "device kernel image is invalid" on **either**
-card -- the RTX 2060 included. The first guess, that the Pascal P1000
-was to blame, was tested by excluding it and proved wrong: the 2060
-alone fails identically.
-
-The driver cannot simply be updated, because 546.01 is the last unified
-package covering both the Turing and Pascal cards on this machine.
-
-Worked around with , set per-user. Measured at
-14-52 tok/s generation, which is usable for short answers. Prompt
-processing is the slow part at roughly 100-150 tok/s.
-
-Three ways out, none of them urgent now that it works:
-
-1. **An older Ollama** built against CUDA 12.3 or earlier. Keeps both
-   cards and the pinned driver. Needs someone to find which release.
-2. **A newer driver**, accepting whatever that does to the P1000.
-3. **Leave it on CPU.** For short advisory answers this is fine, and it
-   is one less thing coupled to the driver.
+Still the standing judgement: leave them unless they prove annoying at
+the eyepiece. `tests/manual-night-vision-coverage.ps1` re-measures the
+table above if that question comes up again.
 
 ### D3 · Repaint and rescue reach only the layout list — DONE 2026-10-17
 

@@ -8,6 +8,11 @@
 
 #include <windows.h>
 #include <d2d1.h>
+#include <commctrl.h>
+#include <uxtheme.h>
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "uxtheme.lib")
 #include <cstdint>
 #include <vector>
 
@@ -163,6 +168,75 @@ namespace Theme {
         HPEN p = CreatePen(PS_SOLID, width, NV(c));
         v.push_back({ c, gen, width, (HGDIOBJ)p });
         return p;
+    }
+
+    // ── D2: the chrome Windows draws for us ───────────────────
+    //
+    // Every colour the app paints itself goes through NV(). What stays
+    // bright with night vision on is what the OS draws: title bars,
+    // list-view backgrounds, tab strips, the inside of edit boxes.
+    // Measured when this was filed: the GoTo panel came out 98%
+    // non-red, almost all of it the object catalogue's white list.
+    //
+    // The expensive half of the original fix -- subclassing and
+    // painting every push button, because a de-themed classic button
+    // takes its face from COLOR_BTNFACE and ignores the brush
+    // WM_CTLCOLORBTN hands back -- stays out. These are the cheap
+    // parts, and they cover the large areas.
+
+    // Dark title bar. Attribute 20 is DWMWA_USE_IMMERSIVE_DARK_MODE;
+    // 19 is what it was called before 20H1, and setting both covers
+    // either. Not night-vision dependent: this app is dark whatever
+    // mode it is in, and a white title bar was never right.
+    inline void DarkTitleBar(HWND h) {
+        if (!h) return;
+        BOOL dark = TRUE;
+        DwmSetWindowAttribute(h, 20, &dark, sizeof(dark));
+        DwmSetWindowAttribute(h, 19, &dark, sizeof(dark));
+    }
+
+    // Re-tint the stock controls under a window, following the current
+    // mode. Call again on a night-vision toggle: unlike the title bar,
+    // these colours DO change with it.
+    //
+    // Found by class rather than by a list of handles, for the same
+    // reason D3 gave up its list -- a control added later should not
+    // have to be registered somewhere to be coloured.
+    inline void StyleStockControls(HWND top) {
+        if (!top) return;
+        EnumChildWindows(top, [](HWND c, LPARAM) -> BOOL {
+            wchar_t cls[64] = {};
+            if (GetClassNameW(c, cls, 64) <= 0) return TRUE;
+
+            if (_wcsicmp(cls, WC_LISTVIEWW) == 0) {
+                const COLORREF bg = NV(RGB(10, 18, 28));
+                const COLORREF fg = NV(RGB(190, 214, 230));
+                ListView_SetBkColor(c, bg);
+                ListView_SetTextBkColor(c, bg);
+                ListView_SetTextColor(c, fg);
+                // The header is deliberately left alone. It is a
+                // separate control that takes its face from
+                // COLOR_BTNFACE once de-themed, so stripping its theme
+                // trades a themed grey band for a classic grey one and
+                // changes how it looks in DAY mode for no night-vision
+                // gain. Colouring it properly means NM_CUSTOMDRAW,
+                // which is the same custom-draw work this entry
+                // deferred for the buttons.
+                SetWindowTheme(c, L"", L"");
+                InvalidateRect(c, nullptr, TRUE);
+            } else if (_wcsicmp(cls, L"Edit") == 0 ||
+                       _wcsicmp(cls, L"ComboBox") == 0) {
+                // Tab controls are not in this list for the same
+                // reason as the header: de-theming one makes it
+                // classic grey rather than dark.
+                // De-theme so the app's WM_CTLCOLOR* brushes are what
+                // actually gets used. The control panel has always done
+                // this; the other windows never did.
+                SetWindowTheme(c, L"", L"");
+                InvalidateRect(c, nullptr, TRUE);
+            }
+            return TRUE;
+        }, 0);
     }
 
 } // namespace Theme

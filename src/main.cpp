@@ -1521,6 +1521,19 @@ static int RunApp(bool useEmulator) {
     if (!workspaceHadConfig && workspace.Save(kWorkspacePath))
         Log("[LAYOUT] wrote a starting %s\n", kWorkspacePath.c_str());
 
+    // ── D2: the chrome Windows draws for us ───────────────────
+    //
+    // Found by the same enumeration D3 uses, so a window added later
+    // is covered without being registered anywhere. Re-applied on
+    // every night-vision toggle, because the list and tab colours
+    // follow the mode even though the title bars do not.
+    auto styleChrome = [&]() {
+        for (HWND h : ourWindows()) {
+            raduk::gui::Theme::DarkTitleBar(h);
+            raduk::gui::Theme::StyleStockControls(h);
+        }
+    };
+    styleChrome();
 
     // Ctrl+Shift+End records the arrangement as it stands. Drag the
     // windows where you want them, press it once, and that is what the
@@ -3268,6 +3281,12 @@ static int RunApp(bool useEmulator) {
         // view are all ours and none of them had a line in that list,
         // so each stayed in day colours until something else happened
         // to invalidate it.
+        //
+        // D2: re-tint the stock controls BEFORE the repaint, so the
+        // list views and tab strips come back in the new mode rather
+        // than a frame late. Title bars are not touched here -- they
+        // are dark in either mode.
+        styleChrome();
         for (HWND hwnd : ourWindows())
             RedrawWindow(hwnd, nullptr, nullptr,
                          RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN |
@@ -4275,6 +4294,17 @@ static int RunApp(bool useEmulator) {
         // tens of nanoseconds; against passes that take hundreds of
         // milliseconds it is not worth gating behind a flag.
         using PClock = std::chrono::steady_clock;
+        //
+        // Off unless asked for. It settled P4.4 and it is the first
+        // thing to reach for when a rate looks wrong, but a line in
+        // raduk_log.txt every ten seconds on every night that nobody
+        // is diagnosing anything is noise in the file you go to when
+        // something HAS gone wrong. RADUK_PERF=1 turns it on.
+        static const bool kPerfLog = [] {
+            char b[8] = {};
+            return GetEnvironmentVariableA("RADUK_PERF", b, 8) > 0
+                   && b[0] != '0';
+        }();
         static double tRender = 0, tPanels = 0, tEnd = 0, tLoop = 0;
         static int    tPasses = 0;
         static auto   tLast   = PClock::now();
@@ -4306,6 +4336,7 @@ static int RunApp(bool useEmulator) {
         const auto tAfterEnd = PClock::now();
         ring.ReleaseRead(frame);
 
+        if (kPerfLog) {
         tRender += Elapsed(tPassStart,    tAfterRender);
         tPanels += Elapsed(tAfterRender,  tAfterPanels);
         tEnd    += Elapsed(tAfterPanels,  tAfterEnd);
@@ -4332,6 +4363,7 @@ static int RunApp(bool useEmulator) {
             tRender = tPanels = tEnd = 0.0;
             tPasses = 0;
             tLast   = PClock::now();
+        }
         }
 
         // Phase 56 (review G2): rubber-band auto-ROI is applied only here,

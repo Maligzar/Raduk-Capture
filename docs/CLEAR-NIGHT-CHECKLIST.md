@@ -332,6 +332,43 @@ What the bench cannot answer:
    star has no limb, only a seeing-blurred profile, which should work
    but has not been tried.
 
+## 13. The capture pipeline at real frame rates — **EXERCISED ON THE BENCH 2026-10-17**
+
+> **This no longer needs a clear night to de-risk.** The emulator's
+> 20 fps cap came off (P4.3), and with it the premise of everything
+> below — the 62 ms "render cost" was `sleep_for` rounding to the
+> Windows timer tick, not rendering.
+>
+> Measured end to end, with a real recording written to the capture
+> drive:
+>
+> | | format | rate | throughput | dropped |
+> |---|---|---|---|---|
+> | Run 1 | 1280×960 | 57 fps | 67 MB/s | **0** |
+> | Run 2 | 3840×2160 | 37 fps | **293 MB/s** | **0** |
+>
+> Run 2 is 4398 MiB in 15 seconds — 556 frames, every one of them in
+> the file — and it is sitting on the disk's own measured ceiling of
+> 292 MB/s. The run-sized write buffer and the SER writer both held.
+>
+> **What still wants a real night:** nothing about throughput. What is
+> left is whether a real ASI678MC over real USB behaves the same, and
+> that is a different question from whether our side keeps up. It does.
+>
+> **One thing worth knowing before you try the full sensor in the
+> field:** the write buffer sized itself to 1000 slots = **7910 MB of
+> RAM** at 3840×2160. That is the `RAM_SHARE = 0.5` rule working as
+> designed, but it is a lot of memory to commit, and it is pre-touched
+> at allocation.
+>
+> **And the frame rate is exposure-bound, not pipeline-bound.** Both
+> runs above were capped by the profile's 17.5 ms exposure, which is
+> 57 fps and no more — on the real camera too. Reaching 120 fps at
+> 1280×960 needs an exposure at or under 8.3 ms. That is a real
+> constraint of the rig, not an artefact of the bench.
+
+### The original entry
+
 ## 13. The capture pipeline at real frame rates — never once exercised
 
 **The largest untested surface in the app, and the one with the most to

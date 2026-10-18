@@ -118,10 +118,24 @@ public:
         auto RI = [&](const char* sec, const char* key, int def) -> int {
             return (int)GetPrivateProfileIntA(sec, key, def, p);
         };
+        // Grown rather than fixed. GetPrivateProfileStringA fills
+        // whatever it is given and says nothing about the rest, and
+        // the old char[512] was enough only by luck: planet_focus
+        // ships a 323-byte note. A note typed past the buffer came
+        // back short on the LoadAll the EDIT dialog runs straight
+        // after saving -- the dialog would hand over the whole note
+        // and the profile in memory would already be missing its
+        // tail. A full value returns less than size-1, so grow until
+        // it does.
         auto RS = [&](const char* sec, const char* key, const char* def) -> std::string {
-            char buf[512]; buf[0] = 0;
-            GetPrivateProfileStringA(sec, key, def, buf, sizeof(buf), p);
-            return std::string(buf);
+            std::vector<char> buf(512);
+            for (;;) {
+                DWORD got = GetPrivateProfileStringA(sec, key, def, buf.data(),
+                                                     (DWORD)buf.size(), p);
+                if (got < buf.size() - 1) return std::string(buf.data(), got);
+                if (buf.size() >= (1u << 20)) return std::string(buf.data(), got);
+                buf.resize(buf.size() * 2);
+            }
         };
         auto RF = [&](const char* sec, const char* key, double def) -> double {
             char buf[32]; sprintf_s(buf, "%.4f", def);

@@ -24,6 +24,7 @@
 #include "../core/DeviceFactory.h"
 #include "../core/IMount.h"
 #include "../core/FrameAnalyzer.h"
+#include "../core/TextConv.h"
 
 #pragma comment(lib, "comctl32.lib")
 
@@ -415,25 +416,32 @@ public:
     std::string GetOutputDir() const;
 
     // Notes — profile-linked (Phase 24 / notes redesign)
+    //
+    // The box is not always there to ask. Every section starts
+    // collapsed, and RebuildControls destroys every child on each
+    // toggle, so m_editNotes is null until NOTES has been opened at
+    // least once -- and a getter that answered "" for a missing
+    // control told SAVE a profile had no note while its note sat in
+    // m_ui.notes. Both accessors go through that cache, which
+    // Snapshot/RestoreUi already treat as the store of record.
     std::string GetNotes() const {
-        if (!m_editNotes) return "";
-        int len = GetWindowTextLengthW(m_editNotes);
-        if (len <= 0) return "";
-        std::wstring wbuf(len + 1, L'\0');
-        GetWindowTextW(m_editNotes, &wbuf[0], len + 1);
-        int sz = WideCharToMultiByte(CP_UTF8, 0, wbuf.c_str(), -1, nullptr, 0, nullptr, nullptr);
-        if (sz <= 0) return "";
-        std::string out(sz, '\0');
-        WideCharToMultiByte(CP_UTF8, 0, wbuf.c_str(), -1, &out[0], sz, nullptr, nullptr);
-        if (!out.empty() && out.back() == '\0') out.pop_back();
-        return out;
+        if (!m_editNotes) return raduk::core::ToUtf8(m_ui.notes);
+        return raduk::core::GetWindowTextUtf8(m_editNotes);
     }
-    void SetNotes(const std::string& text) {
-        if (!m_editNotes) return;
-        wchar_t wbuf[1024] = {};
-        MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, wbuf, 1024);
-        SetWindowTextW(m_editNotes, wbuf);
+    // profileName says WHOSE note this is. SAVE needs it to tell this
+    // profile's note, deliberately emptied, from another profile's
+    // note that was never loaded here -- see NotesBoxMayReplaceStored
+    // in TargetProfile.h. Pass nothing for text that is not a
+    // profile's note: the box then owns no profile, and an empty box
+    // can overwrite nothing.
+    void SetNotes(const std::string& text, const std::string& profileName = "") {
+        m_ui.notes     = raduk::core::ToWide(text);
+        m_notesProfile = profileName;
+        if (m_editNotes) SetWindowTextW(m_editNotes, m_ui.notes.c_str());
     }
+    // The profile the NOTES box was last populated from; empty if the
+    // box holds no profile's note.
+    const std::string& NotesProfile() const { return m_notesProfile; }
     uint32_t    GetLimitFrames() const;
     double      GetLimitTimeSec() const;
     bool        GetLimitByFrames() const;
@@ -579,6 +587,9 @@ private:
     } m_ui;
     void SnapshotUi();
     void RestoreUi();
+    // Which profile m_ui.notes belongs to. It lives beside the cache
+    // because the two are only meaningful together.
+    std::string m_notesProfile;
     std::unordered_map<HWND, Section> m_headerSection;
     bool IsCollapsed(Section s) const {
         auto it = m_collapsed.find(s);

@@ -45,6 +45,7 @@
 #include "core/SiteLocator.h"
 #include "core/CordWrap.h"
 #include "core/SkyMath.h"
+#include "core/TextConv.h"
 #include "core/Readiness.h"
 #include "gui/ReadinessDialog.h"
 #include "gui/RigSetupDialog.h"
@@ -61,6 +62,7 @@
 #include "gui/ToolbarStrip.h"
 #include "gui/GoToPanel.h"
 #include "gui/SkyMapWindow.h"
+#include "core/GuideSolve.h"   // phase 47: a clicked pixel into guide pulses
 #include "gui/ShareView.h"
 #include "gui/ObjectPanel.h"
 #include "gui/WorkspaceLayout.h"
@@ -1959,8 +1961,10 @@ static int RunApp(bool useEmulator) {
         CaptureConfig cfg = capturer.Config();
         cfg.filePrefix = p->filePrefix.empty() ? p->name : p->filePrefix;
         capturer.SetConfig(cfg);
-        // Restore profile notes into the NOTES panel
-        controls.SetNotes(p->notes);
+        // The NOTES panel is filled by profileHooks.syncUi, with the
+        // rest of the panel -- so the GoTo auto-load and APEX
+        // load_profile fill it too, and there is one place that knows
+        // which profile the box is showing.
     });
 
     controls.SetProfileSaveCallback([&](int index) {
@@ -2008,7 +2012,21 @@ static int RunApp(bool useEmulator) {
             p->limitType  = "time";
             p->limitValue = (int)controls.GetLimitTimeSec();
         }
-        p->notes = controls.GetNotes();
+        // Notes are the one field SAVE cannot simply read off the
+        // rig. The box holds a note for ONE profile, and it is empty
+        // until something fills it, so writing it unconditionally
+        // emptied whichever profile the combo named. That is how
+        // saturn.ini lost its note during a Jupiter session.
+        const std::string boxNotes = controls.GetNotes();
+        const bool takeBoxNotes =
+            NotesBoxMayReplaceStored(boxNotes, controls.NotesProfile(),
+                                     p->name, p->notes);
+        if (takeBoxNotes) {
+            p->notes = boxNotes;
+            // The box now speaks for this profile, so a later SAVE can
+            // clear the note deliberately.
+            controls.SetNotes(boxNotes, p->name);
+        }
         profiles.Save(*p);
         Log("[PROFILE] Saved %s: gain=%d exp=%.2fms gamma=%d wb=%d/%d "
             "usb=%d focus=%d roi=%dx%d limit=%s/%d prefix=%s\n",
@@ -2018,6 +2036,19 @@ static int RunApp(bool useEmulator) {
             p->limitValue, p->filePrefix.c_str());
         slog.Profile("Saved: %s (gain=%d exp=%.2fms focus=%d)",
                      p->name.c_str(), p->gain, p->exposureMs, p->focusPosition);
+        // Silence here is what made the old loss invisible. The bar,
+        // not a dialog: SAVE must not stop to be acknowledged, and
+        // nothing has gone wrong -- a note was simply left alone.
+        if (!takeBoxNotes) {
+            wchar_t wName[64] = {};
+            MultiByteToWideChar(CP_UTF8, 0, p->name.c_str(), -1, wName, 64);
+            notifBar.NotifyWarn(std::wstring(L"Saved ") + wName +
+                                L" - kept its stored note (NOTES box is empty)");
+            Log("[PROFILE] %s: empty NOTES box belongs to '%s' - "
+                "stored note kept\n",
+                p->name.c_str(), controls.NotesProfile().c_str());
+            slog.Profile("Saved: %s (stored note kept)", p->name.c_str());
+        }
     });
 
     // ── Profile editor modal (Phase 9/10 — EDIT button) ───────────
@@ -2029,6 +2060,10 @@ static int RunApp(bool useEmulator) {
 
         // We need a mutable copy to edit
         TargetProfile prof = profiles.Profiles()[index];
+        // The name before the dialog can rename it -- the NOTES box is
+        // keyed by name, so this is what tells us whether the box is
+        // showing the note being edited here.
+        const std::string editedName = prof.name;
 
         // ── Dialog dimensions ─────────────────────────────────
         const int DW = 420, DH = 520;
@@ -2084,8 +2119,8 @@ static int RunApp(bool useEmulator) {
 
         // Name
         MkLabel(L"Profile Name:", PX, y+3, LW, EH);
-        wchar_t wName[64] = {}; MultiByteToWideChar(CP_UTF8, 0, prof.name.c_str(), -1, wName, 64);
-        rows[ri++] = {L"Profile Name:", MkEdit(wName, PX+LW, y, EW, EH, ED_NAME)};
+        const std::wstring wName = raduk::core::ToWide(prof.name);
+        rows[ri++] = {L"Profile Name:", MkEdit(wName.c_str(), PX+LW, y, EW, EH, ED_NAME)};
         y += ROWH;
 
         // Gain
@@ -2138,14 +2173,14 @@ static int RunApp(bool useEmulator) {
 
         // File prefix
         MkLabel(L"File Prefix:", PX, y+3, LW, EH);
-        wchar_t wPfx[64] = {}; MultiByteToWideChar(CP_UTF8, 0, prof.filePrefix.c_str(), -1, wPfx, 64);
-        rows[ri++] = {L"File Prefix:", MkEdit(wPfx, PX+LW, y, EW, EH, ED_PREFIX)};
+        const std::wstring wPfx = raduk::core::ToWide(prof.filePrefix);
+        rows[ri++] = {L"File Prefix:", MkEdit(wPfx.c_str(), PX+LW, y, EW, EH, ED_PREFIX)};
         y += ROWH;
 
         // Notes
         MkLabel(L"Notes:", PX, y+3, LW, EH);
-        wchar_t wNotes[256] = {}; MultiByteToWideChar(CP_UTF8, 0, prof.notes.c_str(), -1, wNotes, 256);
-        rows[ri++] = {L"Notes:", MkEdit(wNotes, PX+LW, y, EW, EH, ED_NOTES)};
+        const std::wstring wNotes = raduk::core::ToWide(prof.notes);
+        rows[ri++] = {L"Notes:", MkEdit(wNotes.c_str(), PX+LW, y, EW, EH, ED_NOTES)};
         y += ROWH + 6;
 
         // ── Buttons ───────────────────────────────────────────
@@ -2227,14 +2262,15 @@ static int RunApp(bool useEmulator) {
 
         // ── Read back values if saved ─────────────────────────
         if (saved) {
+            // Ask each control how long its text is rather than
+            // guessing: this read-back ran through wchar_t[256] and
+            // char[256], so SAVE & CLOSE quietly shortened any note
+            // past ~255 characters -- and planet_focus.ini ships a
+            // 323-character one, so opening it here and saving was
+            // enough to lose the tail. Same sizing as the NOTES panel
+            // in ControlPanel; both go through core/TextConv.h.
             auto GetEditA = [&](int id) -> std::string {
-                HWND h2 = GetDlgItem(hDlg, id);
-                if (!h2) return "";
-                wchar_t buf[256] = {};
-                GetWindowTextW(h2, buf, 256);
-                char out[256] = {};
-                WideCharToMultiByte(CP_UTF8, 0, buf, -1, out, 256, nullptr, nullptr);
-                return std::string(out);
+                return raduk::core::GetWindowTextUtf8(GetDlgItem(hDlg, id));
             };
             auto GetEditI = [&](int id, int def) -> int {
                 std::string s = GetEditA(id);
@@ -2271,6 +2307,13 @@ static int RunApp(bool useEmulator) {
             profiles.Save(prof);
             // Reload all so the in-memory copy matches disk
             profiles.LoadAll();
+
+            // If the NOTES box is showing this profile's note, it is
+            // now the stale one: SAVE would write it straight back
+            // over what was just typed here, which is the same loss
+            // by another route.
+            if (controls.NotesProfile() == editedName)
+                controls.SetNotes(prof.notes, prof.name);
 
             // Refresh combo box names (name may have changed)
             {
@@ -2324,6 +2367,113 @@ static int RunApp(bool useEmulator) {
         window.SetNotifBarHeight(notifBar.Height());
     });
 
+    // ── Phase 47: click to recentre ───────────────────────
+    //
+    // Centring a planet by jogging is overshoot in the dark: a jog
+    // moves the MOUNT, and which way the image then goes depends on
+    // where the camera sits in the focuser. The phase 51 calibration
+    // already measured that, so a click can be exact -- and the same
+    // solve the guide loop uses turns the offset into two pulses.
+    //
+    // Deliberately per-click with Ctrl held rather than a mode. A mode
+    // that moves the telescope is a mode somebody forgets they are in,
+    // and the first sign of it is the target leaving the frame.
+    //
+    // Everything that could make the move wrong refuses instead. The
+    // notification says which, because "nothing happened" is the one
+    // response that teaches the user nothing.
+    auto doRecentreClick = [&](float sxD2D, float syD2D) {
+        int fx = 0, fy = 0;
+        if (!preview.ScreenToFramePixel(sxD2D, syD2D, fx, fy)) return;
+
+        if (!mount || !mount->IsConnected()) {
+            notifBar.NotifyWarn(L"Recentre: no mount connected");
+            return;
+        }
+        if (!tracker.HasCalibration()) {
+            notifBar.NotifyWarn(L"Recentre needs a guide calibration "
+                                L"-- run it once, then click");
+            return;
+        }
+        // While the loop is actively correcting, a manual move is two
+        // hands on the same wheel: it would pull the target off centre
+        // and the loop would pull it back.
+        const auto stage = tracker.Stage();
+        if (stage == raduk::core::AcquisitionStage::Locked ||
+            stage == raduk::core::AcquisitionStage::Centering) {
+            notifBar.NotifyWarn(L"Recentre: the tracker is centring "
+                                L"already -- stop it first");
+            return;
+        }
+
+        const raduk::core::GuideCalibration cal = tracker.Calibration();
+        raduk::core::GuideResponse resp{ cal.exPerMs, cal.eyPerMs,
+                                        cal.nxPerMs, cal.nyPerMs };
+        {
+            double altNow = -1.0, azNow = 0.0;
+            if (mount->GetAltAz(altNow, azNow))
+                resp = raduk::core::RescaleForAltitude(resp, cal.altDeg,
+                                                       (float)altNow);
+        }
+
+        // 10 s is about 75" at the configured guide rate, which is far
+        // more than a planet ever sits from centre. Past that the right
+        // tool is a GoTo, and PlanRecentre says so rather than sending
+        // a clamped pulse to somewhere nobody asked for.
+        const raduk::core::RecentrePlan plan = raduk::core::PlanRecentre(
+            (float)fx, (float)fy,
+            preview.FrameWidthPx(), preview.FrameHeightPx(),
+            resp, cal.arcsecPerPx, 10000);
+
+        if (!plan.valid) {
+            wchar_t w[160] = {};
+            MultiByteToWideChar(CP_UTF8, 0, plan.why, -1, w, 160);
+            notifBar.NotifyWarn(std::wstring(L"Recentre: ") + w);
+            Log("[RECENTRE] refused at [%d,%d]: %s (%.0f px, %.1f\" off centre)\n",
+                fx, fy, plan.why, plan.offsetPx, plan.offsetArcsec);
+            return;
+        }
+
+        Log("[RECENTRE] [%d,%d] -> centre: %.0f px (%.1f\") "
+            "E/W %dms N/S %dms\n",
+            fx, fy, plan.offsetPx, plan.offsetArcsec,
+            plan.eastMs, plan.northMs);
+        slog.Mount("Recentre from [%d,%d]: %.1f\" (E/W %dms N/S %dms)",
+                   fx, fy, plan.offsetArcsec, plan.eastMs, plan.northMs);
+
+        // Said before the move, not after. NexStar's PulseGuide blocks
+        // for the duration, so the pulses go on their own thread and
+        // the UI is not held for several seconds -- which means the
+        // main thread must have had its say already.
+        {
+            wchar_t w[160] = {};
+            swprintf(w, 160, L"Recentring %.0f px (%.1f\")  E/W %dms  N/S %dms",
+                     plan.offsetPx, plan.offsetArcsec,
+                     plan.eastMs, plan.northMs);
+            notifBar.NotifyInfo(w);
+        }
+
+        suspendTrackerForJog(true);
+        IMount* mnt = mount;
+        const int eMs = plan.eastMs, nMs = plan.northMs;
+        std::thread([mnt, eMs, nMs, suspendTrackerForJog]() {
+            using raduk::core::GuideDirection;
+            if (eMs != 0) {
+                mnt->PulseGuide(eMs > 0 ? GuideDirection::East
+                                        : GuideDirection::West,
+                                eMs > 0 ? eMs : -eMs);
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            if (nMs != 0) {
+                mnt->PulseGuide(nMs > 0 ? GuideDirection::North
+                                        : GuideDirection::South,
+                                nMs > 0 ? nMs : -nMs);
+            }
+            Log("[RECENTRE] pulses done\n");
+            suspendTrackerForJog(false);
+        }).detach();
+    };
+
     // Forward clicks to preview renderer for frame bar + ROI drag start
     window.SetClickHandler([&](float x, float y) -> bool {
         return preview.HandleMouseDown(x, y);
@@ -2339,12 +2489,16 @@ static int RunApp(bool useEmulator) {
         }
     });
 
-    // Phase 24: pixel click lock/unlock
+    // Phase 24: pixel click lock/unlock.
+    // Phase 47: Ctrl+click puts the clicked pixel in the middle.
     window.SetPixelClickHandler([&](float x, float y) {
-        if (preview.PixelReadoutEnabled()) {
-            float dpi = window.DpiScale();
-            preview.ClickPixelLock(x / dpi, y / dpi);
+        const float dpi = window.DpiScale();
+        if (GetKeyState(VK_CONTROL) & 0x8000) {
+            doRecentreClick(x / dpi, y / dpi);
+            return;   // a recentre is not also a pixel lock
         }
+        if (preview.PixelReadoutEnabled())
+            preview.ClickPixelLock(x / dpi, y / dpi);
     });
 
     // Mouse up — completes ROI selection
@@ -2493,6 +2647,10 @@ static int RunApp(bool useEmulator) {
         controls.SetCameraSliders(p.gain, (int)(p.exposureMs * 1000.0),
                                   p.gamma, p.wbRed, p.wbBlue, p.usbBandwidth);
         controls.SetFilePrefix(p.filePrefix.empty() ? p.name : p.filePrefix);
+        // The note, and whose note it is. Every explicit profile load
+        // comes through here, so the box and its owner can never
+        // disagree about which profile is on screen.
+        controls.SetNotes(p.notes, p.name);
         // limitValue means frames or seconds depending on limitType, and
         // the two boxes are separate, so only the matching one is set.
         const bool byFrames = (p.limitType != "time");

@@ -119,6 +119,39 @@ struct TargetProfile {
     std::string histogram_target; // e.g. "50-70% peak"
 };
 
+// ── May a SAVE replace a profile's stored note? ────────────────
+//
+// SAVE reads the whole rig, but the NOTES box is not part of the rig:
+// it holds a note for ONE profile -- the one it was populated from --
+// and it reads empty whenever nothing has been loaded into it. So an
+// unconditional write hands an empty string to whichever profile the
+// combo happens to name, and the note on disk is gone. saturn.ini lost
+//
+//   "Longer exposure than Jupiter. Rings add contrast challenge."
+//
+// exactly that way, after a night spent on Jupiter, and it had to be
+// typed back in by hand.
+//
+// A write is allowed when:
+//   • the box has something to say -- a note was typed, so record it;
+//   • the box belongs to this profile -- its own note is on screen, so
+//     an empty box means the user emptied it, and a deliberate clear
+//     must still work;
+//   • there is nothing on disk to lose.
+//
+// boxProfile and targetProfile are profile NAMES, not indices: the
+// EDIT dialog can rename and reorder profiles under us, and a stale
+// index would silently point at a different profile's note. An unknown
+// or mismatched owner fails safe -- the stored note stays.
+inline bool NotesBoxMayReplaceStored(const std::string& boxText,
+                                     const std::string& boxProfile,
+                                     const std::string& targetProfile,
+                                     const std::string& storedNotes) {
+    if (!boxText.empty())                  return true;
+    if (storedNotes.empty())               return true;
+    return !boxProfile.empty() && boxProfile == targetProfile;
+}
+
 // ── Research-calibrated default profiles ──────────────────────
 //
 // All planet settings target:

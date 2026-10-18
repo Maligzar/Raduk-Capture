@@ -1313,19 +1313,11 @@ void PreviewRenderer::DrawPixelReadout(float px, float pw, float ph) {
     float sx = m_pixelHoverX;
     float sy = m_pixelHoverY;
 
-    // Map screen pos → frame pixel (accounting for zoom/letterbox)
-    float dW = m_lastDestRect.right  - m_lastDestRect.left;
-    float dH = m_lastDestRect.bottom - m_lastDestRect.top;
-    if (dW <= 0 || dH <= 0) return;
-
-    float normX = (sx - m_lastDestRect.left) / dW;
-    float normY = (sy - m_lastDestRect.top)  / dH;
-    if (normX < 0 || normX > 1 || normY < 0 || normY > 1) return;
-
-    int fx = (int)(normX * m_frameWidth);
-    int fy = (int)(normY * m_frameHeight);
-    fx = fx < 0 ? 0 : (fx >= m_frameWidth  ? m_frameWidth  - 1 : fx);
-    fy = fy < 0 ? 0 : (fy >= m_frameHeight ? m_frameHeight - 1 : fy);
+    // Map screen pos → frame pixel (accounting for zoom/letterbox).
+    // ScreenToFramePixel owns that mapping; the click-to-recentre path
+    // asks it the same question.
+    int fx = 0, fy = 0;
+    if (!ScreenToFramePixel(sx, sy, fx, fy)) return;
 
     size_t idx = (size_t)fy * m_frameWidth + fx;
     uint8_t r = m_rgbBuffer[idx*3+0];

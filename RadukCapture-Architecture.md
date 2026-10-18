@@ -297,6 +297,24 @@ Three-stage acquisition state machine: Off → Searching → Centering → Locke
 - Histogram: three R/G/B tinted rows on black background (FC style), seeing + sharpness row
 - Status: HDD bar + FPS, BUF bar + LOST — painted below controls in WM_PAINT strip
 
+### Phase 47 — Click to Recentre [COMPLETE 2026-10-18]
+
+`Ctrl`+click any pixel in the preview and the mount moves so that pixel is at frame centre.
+
+**Built on the Phase 51 calibration, not on a plate solve.** The plan below (section 13) assumed WCS from a solve. It did not need one: the guide calibration already pulses east, measures where the centroid went, pulses north and measures again, so its 2×2 matrix *is* the pixel↔sky transform — including the camera's rotation in the focuser, the mirror flip of the optical train and the sign of each axis. Inverting it turns a pixel offset into two pulse durations. This matters on this rig: a planet at 640×480 presents no solvable star field, so a recentre gated on a plate solve would be unavailable exactly when it is wanted.
+
+- `src/core/GuideSolve.h` — `SolveGuidePulses()` inverts the matrix; `RescaleForAltitude()` applies the alt-az cos(alt) correction to the azimuth column; `PlanRecentre()` adds the frame geometry and the refusals. Pure arithmetic, no Windows or device headers, so it is bench-testable.
+- **`CentroidTracker` calls the same solve.** The guide loop's inline 2×2 inversion was lifted into `GuideSolve.h` rather than copied — two copies would be two sign conventions, and a sign error here does not read as a bug: the mount moves smoothly and confidently the wrong way.
+- `PreviewRenderer::ScreenToFramePixel()` — the screen→sensor-pixel mapping (zoom, letterbox) extracted from the Phase 24 pixel readout, which now calls it too. One idea of where the user pointed.
+- Refusals, each with its reason on the notification bar: no mount, no calibration, degenerate calibration (near-zero determinant), tracker already Centering/Locked, click outside the frame, move below the mount's 10 ms floor, and **move too far to pulse** — refused, not clamped, because a shortened pulse lands somewhere nobody asked for and at 0.203"/px the target then leaves the frame. Ceiling is 10 s ≈ 75" at the configured guide rate.
+- `Ctrl`+click per action rather than a mode: a mode that moves the telescope is one somebody forgets they are in, and the first sign of it is the target drifting out of frame.
+- Pulses run on a detached thread — NexStar `PulseGuide` blocks for the pulse duration — so the notification is issued *before* the move, and corrections are suspended around it through the existing `suspendTrackerForJog` generation counter.
+- `tests/recentre.cpp` gates it, including a round trip: solve the pulses, push them back through the measured matrix, assert the clicked feature lands within 1 px of centre, for a square camera, one rotated 90°, a mirrored one and a skewed one.
+
+**Not built, and still outstanding:** the coordinate readout (hover a pixel for RA/Dec/Alt/Az) and the directional rose. Those genuinely do need a plate solve, since the calibration gives a *relative* transform and not absolute sky coordinates. Tracked in section 13 as Phase 47b.
+
+**Not verified on sky.** The arithmetic is gated and the round trip is exact against the measured matrix, but the matrix comes from a real calibration on a real star, and the click→pulse→mount wiring has not been driven. `docs/ROADMAP-Next.md` carries it as clear-night item 14.
+
 ### Phase 9/10 — Profile Editor + Panel Architecture [COMPLETE]
 
 #### Profile EDIT Modal [COMPLETE]
@@ -434,6 +452,11 @@ Frame memory allocated with `VirtualAlloc` (page-aligned, avoids heap fragmentat
 | SS_NOTIFY on section headers | Required for SS_OWNERDRAW statics to receive WM_LBUTTONDOWN |
 | UpdateStates state cache | Prevents 38 FPS SetWindowTextW → toolbar button flash |
 | scrollW in layout constants | Reserves SM_CXVSCROLL pixels so controls don't draw behind scrollbar |
+| One pixel→pulse solve (`GuideSolve.h`) | The guide loop and click-to-recentre share it. Two copies would be two sign conventions, and a wrong sign here steers the mount confidently the wrong way |
+| Recentre from the guide calibration, not a plate solve | The calibration is already a measured pixel↔sky transform. A planet field has no stars to solve, so a solve-gated recentre would be missing exactly when needed |
+| Recentre refuses rather than clamps | A clamped pulse lands somewhere nobody asked for; at 0.203"/px that puts the target out of frame. Over the ceiling it says to slew instead |
+| `Ctrl`+click, not a recentre mode | A mode that moves the telescope is a mode somebody forgets they are in |
+| Notes box keyed to its profile | SAVE can tell "this profile's note, deliberately emptied" from "another profile's note, never loaded here" — an empty box no longer erases a stored note |
 
 ---
 
@@ -459,6 +482,8 @@ D:\RadukCapture\src\
 │   ├── SERWriter.h               SER v3 file format writer
 │   ├── FrameAnalyzer.h           Histogram + sharpness + seeing score
 │   ├── CentroidTracker.h         Three-stage planet lock + PulseGuide
+│   ├── GuideSolve.h              Pixel→pulse solve, shared: guide loop + recentre
+│   ├── TextConv.h                UTF-8↔UTF-16, sized from the data not a buffer
 │   ├── AutofocusRoutine.h        V-curve EAF autofocus scan
 │   ├── USBTrafficManager.h       EAF/mount poll throttle during capture
 │   ├── SessionLog.h              Timestamped session log writer
@@ -833,7 +858,7 @@ SharpCap's toolbar has 19 buttons. RadukCapture currently has 7. Full parity req
 | Sensor Analysis | — | 🔲 Phase 36 |
 | ADC Alignment | — | 🔲 Phase 35 |
 | Pixel Value Readout | — | 🔲 Phase 24 |
-| Pixel Position / Click to Recentre | — | 🔲 Phase 47 |
+| Pixel Position / Click to Recentre | `Ctrl`+click the preview | ✅ Recentre done (Phase 47); pixel→RA/Dec readout still 🔲 Phase 47b |
 | Deep Sky Image Annotation | — | 🔲 Phase 43 |
 | Ghosted Image Alignment | — | 🔲 Phase 29 |
 | Goto Image (return to previous) | — | 🔲 Phase 48 |
@@ -847,7 +872,7 @@ SharpCap's toolbar has 19 buttons. RadukCapture currently has 7. Full parity req
 | Stellar Photometry | — | 🔲 Phase 33 |
 
 **New phases from tools review:**
-- **Phase 47 — Pixel Position / Click to Recentre:** After a plate solve, click any pixel to see its RA/Dec/Alt/Az coordinates. Double-click to slew mount to that point. Directional rose shows +/-RA/Dec/Alt/Az axes. Depends on plate solve + mount connection.
+- **Phase 47 — Pixel Position / Click to Recentre:** Split in two by what it actually needs. **Recentring shipped** (2026-10-18) without a plate solve, on the Phase 51 guide calibration, which is already a measured pixel↔sky transform — see section 2. The **coordinate readout and directional rose** do need a solve, because the calibration is relative and not absolute, and remain outstanding as Phase 47b.
 - **Phase 48 — Goto Image (Return to Previous):** Load a previously saved SER/PNG, plate-solve its first frame to determine sky coordinates, then slew the mount to those coordinates. Allows returning to the exact same framing from a previous session.
 
 ---
@@ -1207,12 +1232,21 @@ Single toolbar button connects or disconnects camera + EAF + mount simultaneousl
 - On disconnect: orderly shutdown of all three (stop capture first if recording)
 - **Effort: Medium** — orchestration logic, error handling, status indicator
 
-#### Phase 47 — Pixel Position / Click to Recentre
-After a plate solve, hover any pixel to see RA/Dec/Alt/Az coordinates. Double-click to slew mount to that point.
-- Requires recent plate solve result + connected mount
-- Directional rose overlay showing +/-RA, Dec, Alt, Az axes
-- Double-click: "Slew to RA 02h 47m 12s Dec +42° 21' 33"?" confirmation then GoTo
-- **Effort: Medium** — WCS math (plate solve result → pixel → sky coords), GoTo integration
+#### Phase 47 — Click to Recentre [COMPLETE 2026-10-18]
+`Ctrl`+click any pixel and the mount puts it at frame centre. Implemented in `src/core/GuideSolve.h`; see section 2 for the design.
+- **No plate solve.** The plan here assumed WCS from a solve; the Phase 51 guide calibration already measures the pixel↔sky transform, and a planet field has no stars to solve anyway
+- Requires a guide calibration + connected mount, and refuses with a reason when either is missing
+- Refuses rather than clamps a move past the 10 s pulse ceiling (≈ 75") — it says to slew instead
+- `Ctrl`+click per action, not a mode; pulses on a detached thread; corrections suspended around the move
+- Gated by `tests/recentre.cpp`, round trip through the measured matrix for square / rotated / mirrored / skewed cameras
+- **Not verified on sky** — clear-night item 14 in `docs/ROADMAP-Next.md`
+
+#### Phase 47b — Pixel Position Readout + Directional Rose
+The half of the original Phase 47 that a plate solve is genuinely needed for. Split out because recentring did not need one and shipped without it.
+- Hover any pixel to see its RA/Dec/Alt/Az — absolute coordinates, so this needs the solve's WCS; the guide calibration gives only a relative transform
+- Directional rose overlay showing +/-RA, Dec, Alt, Az axes, which also answers "which way will a jog push the image" without a trial pulse
+- Requires a recent plate solve result; the existing `Ctrl`+click recentre stays available without one
+- **Effort: Medium** — WCS math (plate solve result → pixel → sky coords), overlay drawing
 
 #### Phase 48 — Goto Previous Image
 Load a previously saved SER file, plate-solve its first frame, slew to those coordinates. Return to exact framing from any previous session.
@@ -1452,7 +1486,8 @@ RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS M
 | 28 | Flat Frame Correction | 2 | Medium | ✅ preview only; normalised per Bayer position, not by a global mean |
 | 30 | Push-To Assistant | 2 | Medium | 🔲 |
 | 35 | ADC Alignment Tool | 2 | Medium | 🔲 |
-| 47 | Pixel Position / Click to Recentre | 2 | Medium | 🔲 |
+| 47 | Click to Recentre | 2 | Medium | ✅ `Ctrl`+click via the Phase 51 calibration — no plate solve needed; gated by `tests/recentre.cpp`, unverified on sky |
+| 47b | Pixel Position Readout + Directional Rose | 2 | Medium | 🔲 split from 47 — this half does need a plate solve |
 | 48 | Goto Previous Image | 2 | Medium | 🔲 |
 | 6.6 | GoTo Map Learning | 2 | Med-Hard | ◑ partial — auto solve+sync on lock ships; the accumulating map does not |
 | 42 | Five-Monitor Workspace | 2 | Medium | 🔲 re-estimated from Hard — the five windows are already separate top-levels, so only placement + persistence is missing |

@@ -46,6 +46,24 @@ if (-not (Test-Path $vcvars)) {
 $inc = "/I `"$root\src`" /I `"$root\external\ASI_SDK\include`""
 $failed = 0
 
+# ── sqlite3.dll beside the test binaries ────────────────────
+#
+# object_knowledge loads SQLite at runtime, exactly as the app does,
+# and ObjectKnowledgeDB fails GRACEFULLY when the DLL is absent. So a
+# missing DLL does not announce itself -- it just turns the whole
+# knowledge base into "not available", which is the failure mode that
+# hid an unread 2.4 MB database for months in the first place.
+#
+# This was passing only because the DLL had been copied here by hand
+# during development. _build is gitignored, so on a clean checkout
+# the gate failed. Copy it as part of the run.
+$sqlite = Join-Path $root "external\sqlite3\lib\x64\sqlite3.dll"
+if (Test-Path $sqlite) {
+    Copy-Item $sqlite (Join-Path $out "sqlite3.dll") -Force
+} else {
+    Write-Host "[tests] WARNING: $sqlite not found - object_knowledge will fail"
+}
+
 foreach ($t in $Tests) {
     $name = $t.Name
     $src  = Join-Path $PSScriptRoot "$name.cpp"

@@ -815,6 +815,9 @@ the ranking below it is what to pick up next.
 | `[PERF]` log behind `RADUK_PERF=1` | `9f886d6` |
 | Night-vision chrome, cheap half (D2) | `9f886d6` — Help 60%→10.7%, AI 88%→16%, GoTo 98%→39% |
 | Assistant told the truth about the rig (P3.6 C) | `545cbf9` — the prompt had the wrong pixel pitch since June |
+| Object panel (phase 92) | `be572c2` + `c3b567b` — Shift+I, and four defects the unread database was hiding |
+| Knowledge base reachable at last (92a) | `b97902d` — sqlite3.dll shipped; `sqlite3_open` needed `sqlite3_initialize` |
+| SIMBAD distances: 9 → 107 objects | `190b001` — invalid query, wrong row names, and a counter that lied |
 | Histogram shows peak level, not the clipped fraction | `228bd4e` + `ab408b6` |
 | Full-sensor frame rate — P4.4 diagnosis corrected | `bc88296` — the preview was never slow |
 | Preview stops re-deriving pixels it already has | `bc88296` — 27.1 ms → 2.0 ms at the full sensor |
@@ -827,25 +830,41 @@ the ranking below it is what to pick up next.
 ---
 
 <a name="next-in-order"></a>
+<a name="next-in-order"></a>
 ### Next, in order
 
-**Reviewed 2026-10-17.** Four of the five items on the previous list
-were done in the same session and have moved above the line. What
-follows is everything genuinely open, which is less than it looks:
-one coding item, one research item, and a tail of unscheduled
-features.
+**Reviewed 2026-10-17 (second pass).** Phase 92 and the SIMBAD work
+have moved above the line. The knowledge-database rebuild is demoted
+to a footnote, because checking it showed it would not do what the
+entry claimed.
 
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
-| 1 | **`SlewVariable()` on the mount** | Code bench, verify on sky | S–M | **The only unstarted item with a clear design.** NexStar's variable-rate command (`P 3 16\|17 6\|7 <hi> <lo>`, rate = arcsec/sec × 4) would make the arrow-key jog proportional instead of the nine fixed rates it has now — better manual framing on any night, controller or not. It is also P4.1's one software prerequisite, so doing it means that phase starts from ready. Writable and unit-testable indoors; only the on-sky rates need a night |
-| 2 | **Phase 92 — DONE 2026-10-17** | Bench | — | The object panel ships (`be572c2`, `c3b567b`). Getting at the data found that `sqlite3.dll` was in neither build, that `sqlite3_open` crashes without `sqlite3_initialize`, that mythology and discovery notes were erased for all 679 narratives by an upsert bug, and that the Moon's distance was wrong by a factor of four |
-| 3 | **Rebuild the knowledge database** | Bench, needs network | S | **Worth much less than it looked, and most of it is already done.** `Allen's Star Names` is listed as the mythology source in the builder's docstring and **there is no loader for it** — so a rebuild would not recover mythology for the other 670 objects, because that code was never written. What a rebuild would add is Wikipedia summaries for objects that have none, which is a 20–30 minute rate-limited fetch for marginal gain. The SIMBAD distances it was mainly wanted for are already in (`tools/repair_knowledge_db.py --simbad`) |
-| 4 | **Assistant: retrieval over the real corpus** (P3.6 option B) | Bench | M | Option C is done and found the prompt was lying about the sensor. B is where the entry says the value actually is: the same section matching the help file already gets, extended to the architecture notes, the clear-night checklist and the session logs. It would let the assistant answer "what did I do about focus drift last time" — questions nobody else can answer, because the data is local and private. It widens what the model can be RIGHT about without asking it to know more |
-| 5 | **Pick from the unscheduled list** | Bench | varies | Twelve features below, none half-built. On value to this rig, phase 47 (click to recentre) and phase 46 (connect/disconnect hardware) are the two that pay back every session |
-| — | **Xbox controller** (P4.1) | **HELD** | M | No controller, no receiver, and no Bluetooth in this machine so an adapter is needed too. Feasibility proven (`8fed05a`); item 1 removes its software prerequisite |
-| — | **Assistant: a larger model** (P3.6 option A) | — | M | Behind D4. An 8B at 4-bit fits the 2060's 6 GB, which is what makes solving D4 worth more than it looks |
-| — | **Emulator blur, further** (P4.4a tail) | Bench | S | Only if full-sensor bench work becomes routine. 128 ms of honest work remains; focusing the emulated EAF skips it entirely today |
+| 1 | **`SlewVariable()` on the mount** | Code bench, verify on sky | S–M | **Still the only unstarted item with a clear design**, and now the oldest thing on the list. NexStar's variable-rate command (`P 3 16\|17 6\|7 <hi> <lo>`, rate = arcsec/sec × 4) makes the arrow-key jog proportional instead of the nine fixed rates it has now — better manual framing on any night, controller or not. It is also P4.1's one software prerequisite. Writable and unit-testable indoors; only the on-sky rates need a night |
+| 2 | **Assistant: retrieval over the real corpus** (P3.6 option B) | Bench | M | Option C is done and found the prompt was lying about the sensor. B is where the entry says the value is: the section matching the help file already gets, extended to the architecture notes, the checklist and the session logs. "What did I do about focus drift last time" is a question nobody else can answer, because the data is local and private |
+| 3 | **Apparent size for the planets** | Bench | S–M | The object panel's most useful line — how much of the frame it fills — is missing for exactly the targets this rig images, because `size_arcmin` is NULL for every planet. The app could MEASURE it from the live frame, which is honest, or compute it from an ephemeris, which makes the panel a source of truth rather than a display of one. **A decision before it is a task** |
+| 4 | **Pick from the unscheduled list** | Bench | varies | Twelve features below, none half-built. On value to this rig, phase 47 (click to recentre) and phase 46 (connect/disconnect hardware) pay back every session |
+| — | **Xbox controller** (P4.1) | **HELD** | M | No controller, no receiver, no Bluetooth in this machine. Feasibility proven (`8fed05a`); item 1 removes its software prerequisite |
+| — | **Rebuild the knowledge database** | Needs network | S | **Demoted: it would not do what was claimed.** `Allen's Star Names` is listed as the mythology source in the builder's docstring and there is **no loader for it**, so a rebuild recovers no mythology for the 670 non-solar objects — that code was never written. The distances it was really wanted for are already in. What is left is Wikipedia summaries for objects that lack one: a 20–30 minute rate-limited fetch for marginal gain |
+| — | **Mythology for the deep sky** | Content | M | The honest version of the item above. 670 narratives have no cultural context and no source is wired up to give them one. This is a content-sourcing decision, not a coding task |
+| — | **Assistant: a larger model** (P3.6 option A) | — | M | Behind D4. An 8B at 4-bit fits the 2060's 6 GB |
+| — | **Emulator blur, further** (P4.4a tail) | Bench | S | Only if full-sensor bench work becomes routine. Focusing the emulated EAF skips it entirely today |
 | — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3 |
+
+### Found by this review
+
+**The test suite was passing on a file copied by hand.** `tests/_build`
+is gitignored and `run-tests.ps1` never copied `sqlite3.dll`, so
+`object_knowledge` passed only on this machine, in this working
+directory, because the DLL had been put there during development. On
+a clean checkout the gate failed. Reproduced by deleting the file,
+then fixed: the suite copies it as part of the run and warns loudly
+if the source is missing.
+
+That is the same shape as the defect the test exists to catch —
+`ObjectKnowledgeDB` fails *gracefully* without the DLL, so nothing
+announces itself; it just quietly reports an empty knowledge base. A
+gate that depends on an untracked file is not a gate.
 
 ### Two questions this review could not answer
 

@@ -34,11 +34,11 @@
 //
 // The command line above is verified. Launching it from a shell
 // stacks a real 156 MB capture in 49.9 s and writes AS_P20/50/70/90.
-// Launching the IDENTICAL command from inside this application was
+// Launching the identical command from inside this application was
 // recorded as not working: AutoStakkert starts, shows its window, and
 // sits at 0.1 s of CPU indefinitely, as if /process never arrived.
-// The explanation for that is open again - see UPDATE 2026-10-18
-// below - and the retest it names has not been done.
+// THAT IS NO LONGER TRUE - it was re-measured on 2026-10-18 and the
+// in-app path stacks correctly. See VERIFIED below.
 //
 // Ruled out by measurement, not by reasoning:
 //   - the command string (logged from inside the app and compared
@@ -73,33 +73,44 @@
 // machine: it had been force-killed many times during the
 // investigation, which is how a Delphi application ends up stuck.
 //
-// UPDATE 2026-10-18 - that reading is WITHDRAWN.
+// VERIFIED 2026-10-18 - THIS CODE PATH WORKS.
 //
-// The owner reports AutoStakkert functions correctly on this machine,
-// which removes the premise. AS!4 4.0.13 starts cleanly here and its
-// log carries 70 successful "Processing started" runs.
+// Re-measured on the owner's report that AutoStakkert functions on
+// this machine. Three runs, same 158 MB / 1280x960 Jupiter recording,
+// no reinstall and no reboot in between:
 //
-// Two things turned up on re-reading, neither of them a diagnosis:
+//   standalone, PowerShell          51.4 s   stacked, 1 PNG + .as3
+//   via StackAsync (this file)      50.4 s   ok=1, 8 files
+//   via StackAsync, AS already open 57.0 s   ok=1, 8 files
 //
-//   - An AutoStakkert instance was found RUNNING while the feature was
-//     believed broken - idle, started hours earlier. "A second AS
-//     instance holding a single-instance lock" is on the ruled-out
-//     list below, and it was true at the moment of testing.
-//   - StackAsync does not check for one. It guards only its own
-//     m_running flag, so a stray AS window left open does not stop
-//     this code launching a second process. A Delphi single-instance
-//     handoff to an already-open GUI fits the symptom exactly: the
-//     second process forwards its command line and exits, the open
-//     GUI never acts on /process, and nothing logs "Processing
-//     started".
+// The log signature of every one of them is the working one:
+// "Processing started" 0.45 s after "started...". So the in-app
+// launch is NOT broken, and the earlier conclusion - that it was
+// AutoStakkert's own wedged state and therefore not ours - was wrong
+// in its second half: there was never anything wrong with this code.
 //
-// So the next step is a MEASUREMENT, not a reinstall: run the verified
-// command from this app with no AS instance running, and read
-// debug_data\log.txt. A working run prints "Processing started" about
-// half a second after "started...", and a broken one never does. If
-// that turns out to be the cause, the fix belongs HERE - detect a
-// running instance and refuse with a message that says to close it -
-// rather than in AutoStakkert.
+// The third run also kills a hypothesis worth recording as dead: a
+// second AS instance holding a single-instance lock. StackAsync does
+// not check for a running AutoStakkert, and one WAS running during
+// the original investigation, so it looked like the answer. It is
+// not: AS 4.0.13 stacks happily from this path with another instance
+// open. No guard is needed.
+//
+// What broke it originally is unexplained and no longer reproducible.
+// Something about the machine's state that day; it did not survive
+// into this one. That is unsatisfying, and it is the honest end of the
+// investigation rather than a theory to leave in a comment.
+//
+// One trap found while re-measuring, which may account for some of
+// the original failing observations. Launched from a BASH-LIKE SHELL
+// (Git Bash / MSYS), the /switches are rewritten into paths before AS
+// ever sees them - /apgrid arrives as C:/Program Files/Git/apgrid -
+// and the result looks exactly like the reported symptom: AS starts,
+// sits at 0.08 s of CPU, writes nothing, and its log shows the
+// startup lines with NO "command line ..." lines at all. That absence
+// is the tell: a genuine failure-to-begin logs the switches and then
+// stops, while a mangled launch never logs them. Reproduce from
+// PowerShell or cmd, never from Git Bash.
 //
 // Ruled out along the way, each by measurement:
 //   - the command string, logged and compared character for character
@@ -108,17 +119,20 @@
 //   - working directory, main thread versus worker thread
 //   - a truncated recording, and plain impatience
 //   - a second AS instance holding a single-instance lock
-//     (SUSPECT AGAIN - see above; one was running during testing)
+//     (re-confirmed 2026-10-18: it really is not this)
 //   - AS's settings, via a clean file passed with /inifile
 //   - disk and memory headroom (340+ GB free, 55 GB RAM free)
 //   - launching AS interactively first to clear a stuck state
 //
-// Previously assumed, now disproved: that it was something about being
-// a child of this process. AutoStackOnStop defaults to OFF and stays
-// off until the retest above is done - a feature whose status is
-// unknown should not be armed for a night's capture. The timeout
-// bounds the damage: a stuck run is killed and reported rather than
-// hanging.
+// AutoStackOnStop still defaults to OFF, but for its own reason now
+// rather than because the launch is suspect: stacking is minutes of
+// CPU on the machine running the capture, and that should be opted
+// into rather than sprung on someone mid-session. The timeout bounds
+// the damage either way - a stuck run is killed and reported rather
+// than hanging.
+//
+// tests\manual-autostakkert-launch.cpp re-runs this measurement. It
+// needs AS installed and about a minute, so it does not gate.
 //
 // Until then the verified route is a shell, which is genuinely useful
 // on its own:

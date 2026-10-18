@@ -931,28 +931,42 @@ alt-az and there is no wedge, so the procedure does not apply. It
 comes back only with a wedge and most likely a new mount, which makes
 it a different project rather than a queued feature.
 
-**Phase 77, the AutoStakkert launch: back on the list, 2026-10-18.**
-It was struck off as "proven not to be ours" because the identical
+**Phase 77, the AutoStakkert launch: it works. Closed 2026-10-18.**
+It had been struck off as "proven not to be ours" because the identical
 command failed from a bare prompt, which pointed at AutoStakkert's own
-state being wedged on this machine. The owner reports AS functions
-correctly here, so that premise is gone and the removal does not stand.
+state being wedged on this machine. The owner reported that AS
+functions correctly here, so the premise was gone — and re-measuring
+closed the question rather than reopening it.
 
-Two things found on re-reading rather than re-testing:
+Three runs, same 158 MB Jupiter recording, no reinstall or reboot:
 
-- An **AutoStakkert instance was running** while the feature was
-  believed broken — idle, started hours earlier. "A second AS instance
-  holding a single-instance lock" is on the runner header's *ruled-out*
-  list, and it was true at the moment of testing.
-- **`StackAsync` does not check for one.** It guards only its own
-  `m_running` flag, so a stray AS window left open does not stop the
-  app launching a second process. A Delphi single-instance handoff to
-  an already-open GUI fits the reported symptom exactly: switches
-  parsed and logged, `Processing started` never reached.
+| Route | Time | Result |
+|---|---|---|
+| Standalone, PowerShell | 51.4 s | stacked |
+| Via `StackAsync`, the app's own path | 50.4 s | `ok=1`, 8 files |
+| Via `StackAsync`, AS already open | 57.0 s | `ok=1`, 8 files |
 
-Neither is a diagnosis yet. The retest — the verified command, from
-the app, with no AS instance running — has **not** been done, and
-`debug_data\log.txt` answers it in one glance. Size S. Until then
-`AutoStackOnStop` stays off.
+All three log `Processing started` 0.45 s after `started...`, which is
+the working signature. **There was never anything wrong with the app's
+code**, and the third run kills the best remaining theory: a second AS
+instance holding a single-instance lock. `StackAsync` does not check
+for a running AutoStakkert, and one *was* running during the original
+investigation, which made it look like the answer. It is not, so no
+guard is needed.
+
+What broke it originally is unexplained and not reproducible —
+something about that day's machine state. Recorded as unexplained
+rather than given a theory it does not deserve.
+
+One trap found on the way, worth more than the bug: launched from Git
+Bash or another MSYS shell, `/switches` are rewritten into paths
+before AS sees them, and the symptom is identical. The log tells them
+apart — a mangled launch shows **no `command line ...` lines at all**,
+a genuine failure-to-begin shows every switch and then stops.
+
+`AutoStackOnStop` stays off, now for its own reason: stacking is
+minutes of CPU and should be opted into.
+`tests\manual-autostakkert-launch.cpp` re-runs the measurement.
 
 ### The original two questions, for the record
 

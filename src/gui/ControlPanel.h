@@ -24,6 +24,7 @@
 #include "../core/DeviceFactory.h"
 #include "../core/IMount.h"
 #include "../core/FrameAnalyzer.h"
+#include "../core/TextConv.h"
 
 #pragma comment(lib, "comctl32.lib")
 
@@ -424,13 +425,8 @@ public:
     // m_ui.notes. Both accessors go through that cache, which
     // Snapshot/RestoreUi already treat as the store of record.
     std::string GetNotes() const {
-        if (!m_editNotes) return ToUtf8(m_ui.notes);
-        int len = GetWindowTextLengthW(m_editNotes);
-        if (len <= 0) return "";
-        std::wstring wbuf((size_t)len + 1, L'\0');
-        GetWindowTextW(m_editNotes, &wbuf[0], len + 1);
-        wbuf.resize((size_t)len);
-        return ToUtf8(wbuf);
+        if (!m_editNotes) return raduk::core::ToUtf8(m_ui.notes);
+        return raduk::core::GetWindowTextUtf8(m_editNotes);
     }
     // profileName says WHOSE note this is. SAVE needs it to tell this
     // profile's note, deliberately emptied, from another profile's
@@ -439,7 +435,7 @@ public:
     // profile's note: the box then owns no profile, and an empty box
     // can overwrite nothing.
     void SetNotes(const std::string& text, const std::string& profileName = "") {
-        m_ui.notes     = ToWide(text);
+        m_ui.notes     = raduk::core::ToWide(text);
         m_notesProfile = profileName;
         if (m_editNotes) SetWindowTextW(m_editNotes, m_ui.notes.c_str());
     }
@@ -594,25 +590,6 @@ private:
     // Which profile m_ui.notes belongs to. It lives beside the cache
     // because the two are only meaningful together.
     std::string m_notesProfile;
-    static std::string ToUtf8(const std::wstring& w) {
-        if (w.empty()) return "";
-        int sz = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(),
-                                     nullptr, 0, nullptr, nullptr);
-        if (sz <= 0) return "";
-        std::string out((size_t)sz, '\0');
-        WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(),
-                            &out[0], sz, nullptr, nullptr);
-        return out;
-    }
-    static std::wstring ToWide(const std::string& s) {
-        if (s.empty()) return L"";
-        int sz = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(),
-                                     nullptr, 0);
-        if (sz <= 0) return L"";
-        std::wstring out((size_t)sz, L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(), &out[0], sz);
-        return out;
-    }
     std::unordered_map<HWND, Section> m_headerSection;
     bool IsCollapsed(Section s) const {
         auto it = m_collapsed.find(s);

@@ -47,6 +47,7 @@
 #include <algorithm>
 #include "Theme.h"
 #include "../core/ObjectKnowledgeDB.h"
+#include "../sky/SkyObject.h"
 
 namespace raduk::gui {
 
@@ -185,6 +186,13 @@ public:
         double airmass       = 0.0;
         double plateScaleArcsecPx = 0.203;  // live, from rig.ini
         int    roiWidth = 0, roiHeight = 0; // live capture format
+
+        // Planets only. rec.sizeArcmin carries what has to FIT, which
+        // for Saturn is the rings; these carry the globe, which is what
+        // "apparent size" means in every book a visitor has read.
+        double planetDiscArcmin = 0.0;
+        bool   havePlanetDisc   = false;
+        bool   ringsIncluded    = false;   // Saturn: the two differ
     };
 
     bool Create(HWND parent, int x, int y, int w, int h) {
@@ -234,9 +242,41 @@ public:
 
     // A new target starts a cross-fade. Identical content is ignored,
     // so this is safe to call every readout tick.
+    // ── A planet's size is a function of tonight, not a column ──
+    //
+    // size_arcmin is NULL for every planet in the knowledge database,
+    // so this panel's two best lines -- the APPARENT SIZE figure and
+    // the "does it fit in your frame" sentence -- were silently absent
+    // for Jupiter, Saturn and Mars. For the objects this rig actually
+    // points at, the education panel had nothing to say about size.
+    //
+    // The database is right to hold no value. Mars runs 3.5" to 25"
+    // and back over its synodic cycle; the ephemeris here reproduces
+    // that 7x swing. So it is computed from the Earth-planet distance,
+    // which PlanetRADec was already working out and throwing away.
+    //
+    // For Saturn the figure is the RING SPAN, not the globe. The rings
+    // are what is on the screen and what has to fit, and they are 2.27
+    // times wider -- framing on the disc would understate the target
+    // by more than double. The database value, where one exists, always
+    // wins: this only fills a hole.
+    static void FillPlanetSize(Content& c) {
+        if (c.rec.hasSizeArcmin) return;              // a real value wins
+        const std::string& n = c.rec.name.empty() ? c.target : c.rec.name;
+        const auto s = raduk::sky::PlanetApparentSizeAt(
+                           n, raduk::sky::CurrentJD());
+        if (!s.valid) return;
+        c.rec.sizeArcmin    = s.framingArcsec / 60.0; // the panel works in arcmin
+        c.rec.hasSizeArcmin = true;
+        c.planetDiscArcmin  = s.discArcsec / 60.0;
+        c.havePlanetDisc    = true;
+        c.ringsIncluded     = s.framingArcsec > s.discArcsec * 1.01;
+    }
+
     void SetContent(const Content& c) {
         const bool changed = (c.target != m_content.target);
         m_content = c;
+        FillPlanetSize(m_content);
         if (changed) {
             m_fadeStart = std::chrono::steady_clock::now();
             m_fading    = true;
@@ -461,9 +501,15 @@ private:
             figs.push_back({ "MAGNITUDE", b });
         }
         if (r.hasSizeArcmin) {
+            // For Saturn rec.sizeArcmin is the ring span, because that
+            // is what has to fit the frame. The figure under the words
+            // APPARENT SIZE must still be the globe, or it disagrees
+            // with every book and app a visitor might check it against.
+            const double shown = m_content.havePlanetDisc
+                               ? m_content.planetDiscArcmin : r.sizeArcmin;
             char b[32];
-            if (r.sizeArcmin >= 1.0) snprintf(b, sizeof(b), "%.1f'", r.sizeArcmin);
-            else snprintf(b, sizeof(b), "%.0f\"", r.sizeArcmin * 60.0);
+            if (shown >= 1.0) snprintf(b, sizeof(b), "%.1f'", shown);
+            else snprintf(b, sizeof(b), "%.0f\"", shown * 60.0);
             figs.push_back({ "APPARENT SIZE", b });
         }
         if (m_content.haveAltitude) {
@@ -505,6 +551,15 @@ private:
                                              m_content.roiWidth,
                                              m_content.roiHeight);
             if (!ff.empty()) derived.push_back("It " + ff + ".");
+        }
+        if (m_content.ringsIncluded && m_content.planetDiscArcmin > 0.0) {
+            char b[160];
+            snprintf(b, sizeof(b),
+                     "The rings span %.0f arcseconds, %.1f times the globe "
+                     "itself - and that is what has to fit the frame.",
+                     r.sizeArcmin * 60.0,
+                     r.sizeArcmin / m_content.planetDiscArcmin);
+            derived.push_back(b);
         }
         if (r.hasMagnitude)
             derived.push_back(objectpanel::BrightnessLine(r.magnitude) + ".");

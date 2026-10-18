@@ -138,8 +138,13 @@ static const PlanetElements kPlanets[] = {
 
 // Compute heliocentric ecliptic longitude/latitude/radius from orbital elements
 // Returns geocentric RA/Dec in J2000 (simplified — ignores proper aberration)
+// distanceAU, when asked for, receives the Earth-planet distance. It
+// was already being computed here -- it is the denominator of the dec
+// line below -- and then discarded, which is why nothing in the app
+// could say how big a planet looks tonight.
 inline bool PlanetRADec(const PlanetElements& p, double jd,
-                         double& ra_h, double& dec_deg) {
+                         double& ra_h, double& dec_deg,
+                         double* distanceAU = nullptr) {
     double T = JD_to_T(jd);
 
     // Orbital elements at epoch
@@ -195,14 +200,93 @@ inline bool PlanetRADec(const PlanetElements& p, double jd,
     double eps = Rad(23.439291 - 0.013004 * T);
 
     // Convert to equatorial
+    const double geoDist = sqrt(gx*gx + gy*gy + gz*gz);
+    if (distanceAU) *distanceAU = geoDist;
+
     double ra  = atan2(gy * cos(eps) - gz * sin(eps), gx);
-    double dec = asin((gy * sin(eps) + gz * cos(eps)) /
-                      sqrt(gx*gx + gy*gy + gz*gz));
+    double dec = asin((gy * sin(eps) + gz * cos(eps)) / geoDist);
 
     ra_h    = NormDeg(Deg(ra)) / 15.0; // hours
     dec_deg = Deg(dec);
     PrecessDateToJ2000(jd, ra_h, dec_deg); // of-date → J2000 (app standard)
     return true;
+}
+
+// ── How big a planet looks tonight ───────────────────────────────
+//
+// The education panel asks "does it fit in your frame", and for the
+// only targets this rig actually points at -- Jupiter, Saturn, Mars --
+// it could not answer. The knowledge database has size_arcmin NULL for
+// every planet, and rightly so: a planet has no fixed apparent size.
+// Mars runs from 3.5" to 25" depending on where the two orbits are,
+// a factor of seven. A constant in a table would be wrong nearly all
+// the time.
+//
+// So it is computed, from the distance the ephemeris already works out.
+// Apparent diameter = 2 * atan(R / d), which is the whole of it.
+//
+// Equatorial radii, IAU 2015 nominal values, km.
+struct PlanetBody { const char* name; double radiusKm; };
+
+static const PlanetBody kPlanetBodies[] = {
+    {"Mercury",  2439.7},
+    {"Venus",    6051.8},
+    {"Mars",     3396.2},
+    {"Jupiter", 71492.0},
+    {"Saturn",  60268.0},
+    {"Uranus",  25559.0},
+    {"Neptune", 24764.0},
+};
+
+// Outer edge of Saturn's A ring. The rings are what anyone at an
+// eyepiece is actually looking at, and they span 2.27 times the disc,
+// so framing advice based on the disc alone is wrong by more than
+// double. The major axis is the full span whatever the tilt -- only
+// the minor axis closes up when the rings go edge-on -- so this needs
+// no ring-opening angle to answer "will it fit".
+inline constexpr double SATURN_RING_OUTER_KM = 136775.0;
+
+inline constexpr double AU_KM = 149597870.7;
+
+struct PlanetApparentSize {
+    double discArcsec    = 0.0;  // the globe, equatorial
+    double framingArcsec = 0.0;  // what has to fit: rings, for Saturn
+    double distanceAU    = 0.0;
+    bool   valid         = false;
+};
+
+// Angular diameter of a body of radius R km at d AU.
+inline double AngularDiameterArcsec(double radiusKm, double distAU) {
+    if (radiusKm <= 0.0 || distAU <= 0.0) return 0.0;
+    const double d = distAU * AU_KM;
+    return 2.0 * atan(radiusKm / d) * 180.0 / M_PI * 3600.0;
+}
+
+inline PlanetApparentSize PlanetApparentSizeAt(const std::string& name,
+                                               double jd) {
+    PlanetApparentSize out;
+
+    const PlanetBody* body = nullptr;
+    for (const auto& b : kPlanetBodies)
+        if (name == b.name) { body = &b; break; }
+    if (!body) return out;            // not a planet; the caller falls back
+
+    const PlanetElements* el = nullptr;
+    for (const auto& e : kPlanets)
+        if (name == e.name) { el = &e; break; }
+    if (!el) return out;
+
+    double ra = 0.0, dec = 0.0, dist = 0.0;
+    if (!PlanetRADec(*el, jd, ra, dec, &dist)) return out;
+    if (!(dist > 0.0)) return out;
+
+    out.distanceAU    = dist;
+    out.discArcsec    = AngularDiameterArcsec(body->radiusKm, dist);
+    out.framingArcsec = (name == "Saturn")
+                      ? AngularDiameterArcsec(SATURN_RING_OUTER_KM, dist)
+                      : out.discArcsec;
+    out.valid = out.discArcsec > 0.0;
+    return out;
 }
 
 // ── Sun position (Meeus Ch.25, low-precision ~0.01°) ──────────────

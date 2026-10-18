@@ -3658,10 +3658,27 @@ static int RunApp(bool useEmulator) {
         if (!mount) return;
         if (pressed) {
             if (!mount->IsConnected()) return;
-            mount->SlewFixed(axis, dir, controls.JogRate());
+            // Phase 93: a rate, not an index.
+            //
+            // SlewFixed takes one of nine presets, and this app has
+            // never used anything else -- so the jog has been a
+            // nine-position switch on a mount that has always had a
+            // variable-rate command. The presets stay as the UI; they
+            // are now a number of arcseconds per second, which is
+            // what actually goes to the mount.
+            //
+            // Falls back when the backend says it cannot: better a
+            // preset than a jog that does nothing.
+            const int    preset = controls.JogRate();
+            const double rateAs = raduk::core::JogRateArcsecPerSec(preset);
+            bool moved = false;
+            if (mount->SupportsVariableRate())
+                moved = mount->SlewVariable(axis, dir, rateAs);
+            if (!moved)
+                mount->SlewFixed(axis, dir, preset);
             suspendTrackerForJog(true);
-            slog.Mount("Arrow jog axis=%d dir=%d rate=%dx start",
-                       axis, dir, controls.JogRate());
+            slog.Mount("Arrow jog axis=%d dir=%d %.1f arcsec/s (preset %d) start",
+                       axis, dir, rateAs, preset);
         } else {
             // Stop unconditionally — see MountController jog callback.
             mount->StopSlew(axis);

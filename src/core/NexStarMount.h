@@ -44,6 +44,51 @@
 
 namespace raduk::core {
 
+// ── The variable-rate command's wire encoding ─────────────────
+//
+// NexStar's P 3 <axis> <dir> <hi> <lo> carries the rate as
+// arcseconds per second TIMES FOUR, split big-endian across two
+// bytes. Out here as a free function so it can be checked against
+// hand-worked values without a mount, a serial port or a sky --
+// getting this wrong points the telescope somewhere at a speed
+// nobody asked for, and it is exactly the kind of arithmetic that
+// looks right and is not.
+namespace nexstar {
+
+struct VariableRate { unsigned char hi, lo; double actualArcsecPerSec; };
+
+inline VariableRate EncodeVariableRate(double arcsecPerSec) {
+    if (arcsecPerSec < 0.0) arcsecPerSec = -arcsecPerSec;
+
+    // Quarter-arcseconds per second, which is the unit on the wire.
+    //
+    // CLAMPED AS A DOUBLE, BEFORE THE CONVERSION. Clamping afterwards
+    // is what this did first, and `long` is 32 bits on this compiler:
+    // a preposterous rate overflowed the cast, the result was
+    // undefined, and in practice it came out ZERO -- so an absurd
+    // request encoded as "stop" and the clamp never ran. A different
+    // value could as easily have wrapped to something fast. Converting
+    // a double that is already in range cannot do either.
+    double quarters = arcsecPerSec * 4.0 + 0.5;
+    if (!(quarters > 0.0))   quarters = 0.0;      // also catches NaN
+    if (quarters > 65535.0)  quarters = 65535.0;  // two bytes is the limit
+    long q = (long)quarters;
+    VariableRate r;
+    r.hi = (unsigned char)((q >> 8) & 0xFF);
+    r.lo = (unsigned char)(q & 0xFF);
+    // What the mount will ACTUALLY do, after the quantisation. The
+    // caller may want to log or display this rather than what it
+    // asked for.
+    r.actualArcsecPerSec = q / 4.0;
+    return r;
+}
+
+// One sidereal second of arc, for callers expressing rates the way
+// astronomers do.
+inline constexpr double SIDEREAL_ARCSEC_PER_SEC = 15.041067;
+
+} // namespace nexstar
+
 class NexStarMount : public IMount {
 public:
     // Watchdog timeout — if Heartbeat() not called within this window,
@@ -78,6 +123,8 @@ public:
 
     // ── Slewing (fire-and-forget — never blocks) ───────────────
     bool SlewFixed(int axis, int direction, int rate) override;
+    bool SlewVariable(int axis, int direction, double arcsecPerSec) override;
+    bool SupportsVariableRate() const override { return true; }
     void StopSlew(int axis) override;
 
     // ── Sync ───────────────────────────────────────────────────

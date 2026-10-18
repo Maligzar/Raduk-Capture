@@ -814,6 +814,7 @@ the ranking below it is what to pick up next.
 | Emulator delivers 120 fps, cap lifted (P4.3) | `99140bc` |
 | `[PERF]` log behind `RADUK_PERF=1` | `9f886d6` |
 | Night-vision chrome, cheap half (D2) | `9f886d6` — Help 60%→10.7%, AI 88%→16%, GoTo 98%→39% |
+| Variable-rate slewing (`SlewVariable`) | the jog is no longer a nine-position switch |
 | Assistant told the truth about the rig (P3.6 C) | `545cbf9` — the prompt had the wrong pixel pitch since June |
 | Object panel (phase 92) | `be572c2` + `c3b567b` — Shift+I, and four defects the unread database was hiding |
 | Knowledge base reachable at last (92a) | `b97902d` — sqlite3.dll shipped; `sqlite3_open` needed `sqlite3_initialize` |
@@ -840,7 +841,7 @@ entry claimed.
 
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
-| 1 | **`SlewVariable()` on the mount** | Code bench, verify on sky | S–M | **Still the only unstarted item with a clear design**, and now the oldest thing on the list. NexStar's variable-rate command (`P 3 16\|17 6\|7 <hi> <lo>`, rate = arcsec/sec × 4) makes the arrow-key jog proportional instead of the nine fixed rates it has now — better manual framing on any night, controller or not. It is also P4.1's one software prerequisite. Writable and unit-testable indoors; only the on-sky rates need a night |
+| 1 | **`SlewVariable()` — DONE 2026-10-17** | Bench | — | Shipped. The jog sends a rate in arcseconds per second instead of one of nine preset indices, and the encoder is gated by `tests/slew_variable.cpp` — which caught an integer overflow that made an absurd rate encode as *stop* |
 | 2 | **Assistant: retrieval over the real corpus** (P3.6 option B) | Bench | M | Option C is done and found the prompt was lying about the sensor. B is where the entry says the value is: the section matching the help file already gets, extended to the architecture notes, the checklist and the session logs. "What did I do about focus drift last time" is a question nobody else can answer, because the data is local and private |
 | 3 | **Apparent size for the planets** | Bench | S–M | The object panel's most useful line — how much of the frame it fills — is missing for exactly the targets this rig images, because `size_arcmin` is NULL for every planet. The app could MEASURE it from the live frame, which is honest, or compute it from an ephemeris, which makes the panel a source of truth rather than a display of one. **A decision before it is a task** |
 | 4 | **Pick from the unscheduled list** | Bench | varies | Twelve features below, none half-built. On value to this rig, phase 47 (click to recentre) and phase 46 (connect/disconnect hardware) pay back every session |

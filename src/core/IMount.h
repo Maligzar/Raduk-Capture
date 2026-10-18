@@ -59,6 +59,26 @@ public:
     virtual bool SlewFixed(int axis, int direction, int rate) = 0;
     virtual void StopSlew(int axis) = 0;
 
+    // Slew at an arbitrary rate, in arcseconds per second.
+    //
+    // SlewFixed above takes one of nine presets, and on this mount the
+    // top of that scale is brutal: roughly 0.27 deg/s at rate 6, then
+    // 0.5, then 1, then 4. The bottom is no better for framing -- the
+    // slowest preset is one times sidereal, and final centring at high
+    // magnification wants a fraction of that.
+    //
+    // NexStar has always had the command for it. Nothing in this app
+    // used it, so the jog has been a nine-position switch, and an
+    // analogue stick plugged into a nine-position switch is still a
+    // nine-position switch (P4.1).
+    //
+    // Returns false when the backend cannot do it, so a caller can
+    // fall back to SlewFixed rather than silently not moving. The
+    // default is that false: a backend has to opt in.
+    virtual bool SlewVariable(int /*axis*/, int /*direction*/,
+                              double /*arcsecPerSec*/) { return false; }
+    virtual bool SupportsVariableRate() const { return false; }
+
     // ── Sync ───────────────────────────────────────────────────
     virtual bool SyncRADec(double raHours, double decDegrees) = 0;
 
@@ -118,5 +138,34 @@ public:
         }
     }
 };
+
+
+// ── The jog rate presets, in one place ────────────────────────
+//
+// What rate 1..9 actually means, in arcseconds per second. These
+// numbers already existed inside MountEmulator and nowhere else, so
+// the emulator knew what a rate meant and the rest of the app --
+// including the code talking to the real mount -- did not. Now that
+// a rate can be sent as a number rather than an index, there has to
+// be one table and everything has to read it.
+//
+// 15.041 arcsec/s is one times sidereal.
+inline double JogRateArcsecPerSec(int preset) {
+    static const double kRate[10] = {
+        0.0,        // 0 = stopped
+        7.52,       // 1 = 0.5x sidereal
+        15.04,      // 2 = 1x sidereal
+        60.2,       // 3 = 4x
+        120.3,      // 4 = 8x
+        240.7,      // 5 = 16x     <- FINE
+        481.3,      // 6 = 32x
+        962.6,      // 7 = 64x     <- MED
+        3600.0,     // 8 = 1 deg/s <- FAST
+        10800.0     // 9 = 3 deg/s <- max slew
+    };
+    if (preset < 0) preset = 0;
+    if (preset > 9) preset = 9;
+    return kRate[preset];
+}
 
 } // namespace raduk::core

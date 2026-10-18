@@ -336,6 +336,38 @@ bool NexStarMount::SlewFixed(int axis, int direction, int rate) {
     return ok;
 }
 
+// ── Variable rate ──────────────────────────────────────────────
+//
+// P 3 <16|17> <6|7> <hi> <lo> 0 0, against SlewFixed's
+// P 2 <16|17> <36|37> <rate> 0 0 0. Same shape, different command
+// byte, and the rate becomes two bytes of quarter-arcseconds per
+// second instead of one preset index.
+//
+// Direction uses 6 and 7 where the fixed form uses 36 and 37, which
+// is the protocol's own inconsistency rather than a typo here.
+bool NexStarMount::SlewVariable(int axis, int direction, double arcsecPerSec) {
+    const nexstar::VariableRate r = nexstar::EncodeVariableRate(arcsecPerSec);
+
+    char cmd[8];
+    cmd[0] = 'P';
+    cmd[1] = 3;
+    cmd[2] = (axis == 0) ? 16 : 17;
+    cmd[3] = (direction == 0) ? 6 : 7;
+    cmd[4] = static_cast<char>(r.hi);
+    cmd[5] = static_cast<char>(r.lo);
+    cmd[6] = 0; cmd[7] = 0;
+
+    printf("[NexStarMount] SlewVariable axis=%d dir=%d %.2f\"/s "
+           "(sent %.2f, bytes %u/%u)\n",
+           axis, direction, arcsecPerSec, r.actualArcsecPerSec,
+           (unsigned)r.hi, (unsigned)r.lo);
+    // Fire-and-forget, like SlewFixed: the mount is already moving and
+    // a blocking read here would stall the jog.
+    bool ok = SendCommandNoWait(cmd, 8);
+    if (!ok) printf("[NexStarMount] SlewVariable write FAILED\n");
+    return ok;
+}
+
 void NexStarMount::StopSlew(int axis) {
     printf("[NexStarMount] StopSlew axis=%d\n", axis);
     SlewFixed(axis, 0, 0);

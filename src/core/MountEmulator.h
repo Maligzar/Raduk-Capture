@@ -181,8 +181,24 @@ public:
 
     // ── Slewing ────────────────────────────────────────────────
 
+    // Variable rate, so the bench exercises the path the real mount
+    // takes. Stored as a signed arcsec/s that supersedes the preset.
+    bool SlewVariable(int axis, int direction, double arcsecPerSec) override {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        const double as = (direction == 0) ? arcsecPerSec : -arcsecPerSec;
+        if (axis == 0) { m_slewAsRA  = as; m_slewRateRA  = 0; }
+        else           { m_slewAsDec = as; m_slewRateDec = 0; }
+        printf("[MountEmulator] SlewVariable axis=%d dir=%d %.2f arcsec/s\n",
+               axis, direction, arcsecPerSec);
+        return true;
+    }
+    bool SupportsVariableRate() const override { return true; }
+
     bool SlewFixed(int axis, int direction, int rate) override {
         std::lock_guard<std::mutex> lk(m_mutex);
+        // A preset supersedes any variable rate on that axis, and the
+        // other way round, or the two would fight over one motor.
+        if (axis == 0) m_slewAsRA = 0.0; else m_slewAsDec = 0.0;
         // Store active slew command (axis 0=RA/AZM, 1=DEC/ALT)
         // direction 0=positive, 1=negative; rate 0-9
         if (axis == 0) {
@@ -199,8 +215,8 @@ public:
 
     void StopSlew(int axis) override {
         std::lock_guard<std::mutex> lk(m_mutex);
-        if (axis == 0) m_slewRateRA  = 0;
-        else           m_slewRateDec = 0;
+        if (axis == 0) { m_slewRateRA  = 0; m_slewAsRA  = 0.0; }
+        else           { m_slewRateDec = 0; m_slewAsDec = 0.0; }
         printf("[MountEmulator] Stop axis=%d\n", axis);
     }
 
@@ -267,18 +283,15 @@ private:
     // nothing that depends on a SMALL mount move - centroid tracking
     // through a nudge, the motion plot, guide-pulse calibration - could
     // be tested on the bench at all.
-    static double JogArcsecPerSec(int rate) {
+    // The table moved to IMount.h, because once a rate can be sent as
+    // a number rather than an index the rest of the app needs to know
+    // what a rate means too. This forwards rather than keeping a
+    // second copy that would drift.
+    static double JogArcsecPerSec(int rate) { return JogRateArcsecPerSec(rate); }
+
+    static double JogArcsecPerSecUnused(int rate) {
         static const double kRate[10] = {
-            0.0,        // 0 = stopped
-            7.52,       // 1 = 0.5x sidereal
-            15.04,      // 2 = 1x sidereal
-            60.2,       // 3 = 4x
-            120.3,      // 4 = 8x
-            240.7,      // 5 = 16x    <- FINE
-            481.3,      // 6 = 32x
-            962.6,      // 7 = 64x    <- MED
-            3600.0,     // 8 = 1 deg/s  <- FAST
-            10800.0     // 9 = 3 deg/s  <- max slew
+            0.0, 7.52, 15.04, 60.2, 120.3, 240.7, 481.3, 962.6, 3600.0, 10800.0
         };
         int r = rate < 0 ? -rate : rate;
         if (r > 9) r = 9;
@@ -338,12 +351,18 @@ private:
 
                     // Manual jog, on the real rate curve. 0.1 = one 10Hz
                     // tick; sign comes from the stored signed rate.
-                    if (m_slewRateRA != 0) {
+                    // A variable rate, when one is set, otherwise the
+                    // preset. Both already carry their sign.
+                    if (m_slewAsRA != 0.0) {
+                        m_raHours += ((m_slewAsRA * 0.1) / 3600.0) / 15.0;
+                    } else if (m_slewRateRA != 0) {
                         double as = JogArcsecPerSec(m_slewRateRA) * 0.1;
                         if (m_slewRateRA < 0) as = -as;
                         m_raHours += (as / 3600.0) / 15.0;
                     }
-                    if (m_slewRateDec != 0) {
+                    if (m_slewAsDec != 0.0) {
+                        m_decDeg += (m_slewAsDec * 0.1) / 3600.0;
+                    } else if (m_slewRateDec != 0) {
                         double as = JogArcsecPerSec(m_slewRateDec) * 0.1;
                         if (m_slewRateDec < 0) as = -as;
                         m_decDeg += as / 3600.0;
@@ -404,6 +423,8 @@ private:
     float       m_trackErrDec = 0.1f;   // arcsec/s
 
     // Active jog rates (-9 to +9, 0=stopped)
+    double      m_slewAsRA    = 0.0;   // variable rate, arcsec/s, signed
+    double      m_slewAsDec   = 0.0;
     int         m_slewRateRA  = 0;
     int         m_slewRateDec = 0;
 

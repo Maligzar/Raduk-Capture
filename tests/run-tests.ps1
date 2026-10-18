@@ -28,6 +28,7 @@ $Tests = @(
     @{ Name = "ai_context_facts";   Sources = @() }
     @{ Name = "object_knowledge";   Sources = @() }
     @{ Name = "object_panel_text"; Sources = @() }
+    @{ Name = "slew_variable";     Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

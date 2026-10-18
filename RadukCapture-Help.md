@@ -344,6 +344,39 @@ fullscreen.
 | `Esc` | Close popup panels |
 | Mouse wheel | Zoom preview in/out |
 | `Ctrl` + click on the image | **Put that spot in the middle.** Needs a guide calibration first; it says so if there is none. See **Centring by clicking**. |
+| `[HW]` toolbar button | **Connect or disconnect the camera, focuser and mount.** Shows how many are connected. See **Connecting hardware without restarting**. |
+
+---
+
+## Connecting hardware without restarting
+
+The `[HW]` button on the toolbar says how many of the three devices are
+talking to the app — `3/3`, `2/3`, `1/3`, or `OFF` — and it is bold whenever
+anything is connected.
+
+Press it and it does the sensible thing for the state you are in:
+
+- **Not everything connected** → it connects what is missing, and leaves alone
+  what is already working. This is the one you want when the mount was
+  switched on late, or a cable was in the wrong socket, or the camera dropped
+  off USB mid-session. You do not lose the camera to go and fetch the mount.
+- **All three connected** → it disconnects all three, in the order that is safe:
+  recording stopped first, then tracking, then the mount, the focuser and the
+  camera. This is the end-of-session press, before you unplug anything.
+
+If a capture is recording when you press it to disconnect, it asks first —
+disconnecting closes the file where it is.
+
+**Read the message, not the button.** Afterwards the notification bar says what
+actually happened, and it names anything still missing: "Connected camera,
+focuser — still no mount" means the telescope is not going to track, however
+much of the rest came up. The bar is amber unless all three are connected, for
+exactly that reason.
+
+The mount is re-chosen each time rather than merely reopened, so a reconnect
+can find CPWI if it has since been started, or the hand control on a different
+COM port than last time — Windows moves those when a cable goes into a
+different socket.
 
 ---
 

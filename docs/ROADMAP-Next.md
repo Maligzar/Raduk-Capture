@@ -831,6 +831,7 @@ the ranking below it is what to pick up next.
 | Variable-rate slewing (P3.6 list item 1) | `eef6c25` — gated by `tests/slew_variable.cpp` |
 | An empty NOTES box can no longer erase a profile's note | `95c3048` — the guard saturn.ini needed in `f2f2edc` |
 | Apparent size for the planets (list item 3) | `f4f4bda` — computed from the ephemeris, gated by `tests/planet_apparent_size.cpp` |
+| Connect / disconnect all hardware (phase 46) | `[HW]` button + `MountProxy`, gated by `tests/hardware_link.cpp` |
 | Click to recentre (phase 47, list item 4) | `Ctrl`+click, through the phase 51 calibration, gated by `tests/recentre.cpp` |
 
 ---
@@ -868,7 +869,8 @@ about to start, not just the table.
 | ~~2~~ | **Assistant: retrieval over the real corpus** — DONE 2026-10-17 (`85b9d51`) | Bench | — | Above the line. 16 documents and the six most recent session logs, matched by line and bounded at 8.3 KB |
 | ~~3~~ | **Apparent size for the planets** — DONE 2026-10-17 (`f4f4bda`) | Bench | — | Decided for the ephemeris, and it cost almost nothing: `PlanetRADec` was already computing the Earth-planet distance for the declination and throwing it away. IAU 2015 equatorial radii and `2*atan(R/d)`. Saturn is reported twice over, because the 41" ring span is what has to fit the frame and the 18" globe is what "apparent size" means. Swept 16 years against published ranges — `tests/planet_apparent_size.cpp` |
 | ~~4~~ | **Phase 47, click to recentre** — DONE 2026-10-18 | Bench | — | `Ctrl`+click an object and it goes to the middle. No new orientation config: the phase 51 guide calibration already MEASURED how the image responds to a pulse, so it contains the camera angle, the mirror flip and the axis signs. The 2x2 solve moved into `src/core/GuideSolve.h` and the guide loop now calls the same one — two copies would be two sign conventions. Gated by `tests/recentre.cpp`, including a round trip that pushes the solved pulses back through the measured matrix |
-| 5 | **Pick again from the unscheduled list** | Bench | varies | Eleven features left, none half-built. Phase 47 has gone; on value to this rig **phase 46** (connect/disconnect hardware without restarting) is now the one that pays back every session, with phase 48 (framing recall) behind it |
+| ~~5~~ | **Phase 46, connect/disconnect hardware** — DONE 2026-10-18 | Bench | — | One `[HW]` button, and `MountProxy` so a reconnect can pick a different transport or port without stranding the tracker and the panels that hold the mount pointer. The crash it caused on the way is worth reading: `main.cpp` was static_cast-ing the mount pointer to `MountEmulator` |
+| 6 | **Pick again from the unscheduled list** | Bench | varies | Ten features left, none half-built. On value to this rig **phase 48** (framing recall) is next, with phase 30 (push-to assistant) behind it |
 | — | **Xbox controller** (P4.1) | **HELD** | M | No controller, no receiver, no Bluetooth in this machine. Feasibility proven (`8fed05a`); item 1 removes its software prerequisite. Phase 47's click-to-recentre is the other half of the same idea and is in |
 | — | **Rebuild the knowledge database** | Needs network | S | **Demoted: it would not do what was claimed.** `Allen's Star Names` is listed as the mythology source in the builder's docstring and there is **no loader for it**, so a rebuild recovers no mythology for the 670 non-solar objects — that code was never written. The distances it was really wanted for are already in. What is left is Wikipedia summaries for objects that lack one: a 20–30 minute rate-limited fetch for marginal gain |
 | — | **Mythology for the deep sky** | Content | M | The honest version of the item above. 670 narratives have no cultural context and no source is wired up to give them one. This is a content-sourcing decision, not a coding task |
@@ -1240,7 +1242,7 @@ the original tier numbers.
 |---|---|---|---|
 | ~~47~~ | ~~Pixel position / click to recentre~~ | — | **Done 2026-10-18.** `Ctrl`+click, on the measured guide calibration |
 | 47b | Pixel position readout + directional rose | M | The half of phase 47 that a plate solve really is needed for, split out when the other half shipped without one. Absolute RA/Dec under the cursor, and a rose showing which way a jog pushes the image |
-| 46 | Connect / disconnect all hardware | M | Operational quality; currently all-or-nothing at startup |
+| ~~46~~ | ~~Connect / disconnect all hardware~~ | — | **Done 2026-10-18.** `[HW]` button; `MountProxy` keeps the mount pointer stable across a reconnect |
 | 48 | Go to previous image (framing recall) | M | |
 | 30 | Push-to assistant | M | |
 | 31/32 | FWHM / Bahtinov focus | H | Star focus; autofocus is tuned for a planetary disc |

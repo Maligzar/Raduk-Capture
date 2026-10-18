@@ -32,6 +32,7 @@ $Tests = @(
     @{ Name = "planet_apparent_size"; Sources = @() }
     @{ Name = "profile_notes";     Sources = @() }
     @{ Name = "recentre";          Sources = @() }
+    @{ Name = "hardware_link";     Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

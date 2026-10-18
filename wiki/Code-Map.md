@@ -104,7 +104,11 @@ See [Tracking and Guiding](Tracking-and-Guiding), [Autofocus](Autofocus).
 | [`AIAssistant.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/AIAssistant.h) | 269 | Ollama WinHTTP NDJSON streaming client |
 | [`AIContextBuilder.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/AIContextBuilder.h) | 337 | Six context blocks, `AISessionState`, help-file cache |
 | [`ObjectKnowledgeDB.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ObjectKnowledgeDB.h) | 277 | SQLite via runtime `LoadLibrary`; returns `""` when absent |
-| [`AutoStakkertRunner.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/AutoStakkertRunner.h) | 353 | AS!4 headless CLI handoff. In-app launch currently blocked |
+| [`AutoStakkertRunner.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/AutoStakkertRunner.h) | 382 | AS!4 headless CLI handoff. CLI and in-app launch both verified 2026-10-18 |
+| [`GuideSolve.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/GuideSolve.h) | 151 | Pixel offset → guide pulses. The one solve, shared by the guide loop and click-to-recentre |
+| [`TextConv.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/TextConv.h) | 71 | UTF-8 ↔ UTF-16, sized from the data rather than a fixed buffer |
+| [`ADCAlignment.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ADCAlignment.h) | 144 | Per-channel centroid displacement — measures what a dispersion corrector has left behind |
+| [`SkyConditions.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/SkyConditions.h) | 211 | Airmass, resolution cost and the imaging window, from altitude |
 
 See [Advisors](Advisors), [AI Assistant](AI-Assistant).
 
@@ -142,6 +146,18 @@ See [Configuration Reference](Configuration-Reference).
 | [`RigSetupDialog.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/RigSetupDialog.h) | 366 | Observer bearing, keep-out wedge, wrap limit, filter picker, drawn as a plan |
 | [`SiteDialog.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/SiteDialog.h) | 185 | Manual site entry |
 | [`AlignHelperDialog.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/AlignHelperDialog.h) | 178 | The "north is behind you" helper |
+| [`ObjectPanel.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/ObjectPanel.h) | 808 | Phase 92. The education panel — figures, derived sentences, the scale diagram, and the prose. `Shift+I` |
+| [`WorkspaceLayout.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/WorkspaceLayout.h) | 840 | Phase 42. Window placement per monitor count, matched on device interface path; `Ctrl+Shift+End` saves, `Ctrl+Shift+Home` rescues |
+| [`ShareView.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/ShareView.h) | 585 | Phase 89. The image alone on a second screen, for people who are not you. `Shift+V` |
+| [`StatusWindow.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/StatusWindow.h) | 569 | Capture health and free space on every drive, as its own window. `Shift+D` |
+| [`ADCAlignWindow.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/ADCAlignWindow.h) | 431 | Phase 35. Dispersion residual as a dial. Dark unless *ADC fitted* is ticked on the READY screen, because there is no corrector in the train. `Shift+A` |
+| [`HistogramWindow.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/HistogramWindow.h) | 311 | The histogram as its own window. `Shift+H` |
+| [`SharpnessWindow.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/SharpnessWindow.h) | 283 | The sharpness trace as its own window. `Shift+Q` |
+| [`TemperatureWindow.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/TemperatureWindow.h) | 268 | Camera and focuser temperature over time |
+| [`HistogramDraw.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/HistogramDraw.h) | 325 | The shared painter behind both the panel section and the window — one histogram, drawn in two places |
+| [`SharpnessDraw.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/SharpnessDraw.h) | 127 | Shared sharpness painter, same reason |
+| [`TemperatureDraw.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/TemperatureDraw.h) | 123 | Shared temperature painter, same reason |
+| [`ConfirmToast.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/ConfirmToast.h) | 182 | A large, self-dismissing confirmation for actions whose whole point is to change a file — read from across a room, at night |
 
 See [Rendering and UI](Rendering-and-UI).
 

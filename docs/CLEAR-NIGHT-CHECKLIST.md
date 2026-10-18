@@ -203,16 +203,34 @@ give the mount a single FINE nudge. The trail should move by roughly the
 commanded amount. This is the feature that exists to answer "did that
 small command do anything", so it needs to be right.
 
-## 9. Known broken, and not ours
+## 9. AutoStakkert — was "known broken", and is not
 
-**AutoStakkert will not start on this machine.** It parses every option
-correctly and then never begins processing. Proven not to be
-RadukCapture: the identical command fails from a bare command prompt,
-and so does the exact command that worked earlier the same day.
-`AutoStackOnStop` ships off because of it.
+**Withdrawn 2026-10-18. It works.** This section used to say
+AutoStakkert would not start on this machine, that it parsed every
+option and then never began processing, and that the next steps were a
+reboot and a reinstall.
 
-Next steps are reboot, then reinstall. Not a night-sky item, but it
-blocks the stacking handoff whenever it is next wanted.
+It was re-measured instead. Three runs on the same 158 MB recording,
+with no reinstall and no reboot in between: standalone 51.4 s, through
+the app's own launch path 50.4 s, and through the app's path again with
+AutoStakkert already open 57.0 s — all three logging `Processing
+started` about half a second after `started...`, which is the signature
+of a working run.
+
+What caused the original failure is unexplained and no longer
+reproducible. One trap is worth carrying forward, because it looks
+identical to the real thing: launched from Git Bash or another MSYS
+shell, the `/switches` are rewritten into paths before AutoStakkert
+sees them, and it then starts and sits. The log tells them apart — a
+mangled launch shows **no `command line ...` lines at all**, where a
+genuine failure-to-begin logs every switch and then stops. Reproduce
+from PowerShell or `cmd`.
+
+`AutoStackOnStop` still ships off, but for its own reason now: stacking
+is minutes of CPU on the capture machine and should be opted into.
+
+Not a night-sky item. Kept here only so the old claim is not found
+again and believed.
 
 ## 10. Auto-exposure — restructured on the bench, unproven anywhere
 
@@ -367,9 +385,38 @@ What the bench cannot answer:
 > 1280×960 needs an exposure at or under 8.3 ms. That is a real
 > constraint of the rig, not an artefact of the bench.
 
+## 14. Click to recentre, on the sky
+
+Added 2026-10-18, and cited by `RadukCapture-Architecture.md` before it
+existed here — which is why it is written down now.
+
+`Ctrl`+click a target and the mount puts it in the middle. The
+arithmetic is gated on the bench: `tests/recentre.cpp` solves the
+pulses and pushes them back through the measured matrix for a square
+camera, one rotated 90 degrees, a mirrored one and a skewed one, and
+every click lands within a pixel of centre.
+
+None of that is the question a night answers. **The matrix itself comes
+from a real guide calibration on a real star**, and no bench test can
+produce one. What a clear night settles:
+
+- that a click lands the planet in the middle **first time**, not after
+  three tries;
+- that the ten-second pulse ceiling is the right place to stop and say
+  "slew instead" — too low and ordinary recentres get refused, too high
+  and a mistaken click walks the target out of frame;
+- that the alt-az cos(altitude) rescale holds near the zenith, where
+  the azimuth response collapses.
+
+Record what the notification bar said and what actually happened. A
+click that works is one line; a click that overshoots is the useful
+measurement.
+
+---
+
 ### The original entry
 
-## 13. The capture pipeline at real frame rates — never once exercised
+### 13 as it was first written — superseded, kept for the record
 
 **The largest untested surface in the app, and the one with the most to
 gain.**

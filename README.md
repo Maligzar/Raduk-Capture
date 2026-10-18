@@ -104,9 +104,13 @@ a four-shape reticle (crosshair, circle, collimation rings, framing box) that
 can be moved, sized and rotated, and a framing shot that boosts gain and
 exposure for five seconds then restores them.
 
-Not built yet, in rough priority order: framing
-helpers (click-to-recentre, push-to), focus aids beyond autofocus (FWHM,
-Bahtinov), AVI/FITS output, and a polar-alignment assistant. Calibration
+Not built yet, in rough priority order: framing recall (returning to a
+previous session's framing), a push-to assistant, focus aids beyond
+autofocus (FWHM, Bahtinov), and AVI/FITS output. Click-to-recentre
+shipped on 2026-10-18 — `Ctrl`+click the preview and the mount puts
+that spot in the middle, through the measured guide calibration. A
+polar-alignment assistant is backlogged rather than queued: the mount
+is alt-az and there is no wedge, so the procedure does not apply. Calibration
 frames exist as a preview aid only — the recording stays raw. Full
 stacking is deliberately out of scope — AutoStakkert does
 that better. See **What is not built yet** in

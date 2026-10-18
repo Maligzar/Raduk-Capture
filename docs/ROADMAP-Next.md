@@ -4,7 +4,13 @@ Written 2026-10-12, after a long emulator session. Sources: the owner's
 findings from that session, the existing roadmap table in
 `RadukCapture-Architecture.md`, and `docs/CLEAR-NIGHT-CHECKLIST.md`.
 
-Nothing here is started. This is the ranking and the plan.
+**Last reviewed 2026-10-17.** Most of what follows is now finished —
+Tiers 0 and 1 entirely, Tier 3 bar one item, and four of the five
+things found as debt. The tier sections below are kept as the record
+of what was planned and why, with their outcomes marked.
+
+**The live list is [Next, in order](#next-in-order), near the end.**
+Start there; everything above it is history.
 
 ---
 
@@ -31,7 +37,7 @@ never calibrated.
 
 ## Tier 0 — broken now
 
-### P0.1 · AI assistant stopped answering
+### P0.1 · AI assistant stopped answering — ✅ DONE
 **Bench. Small, unless it is the driver change.**
 
 Reported: "AI is not answering questions. Did it handle all of the
@@ -59,7 +65,7 @@ Diagnosis order, cheapest first:
 **Do 3 first regardless.** It is small, and without it every other step
 is guesswork.
 
-### P0.2 · Status panel bleeds into everything else
+### P0.2 · Status panel bleeds into everything else — ✅ DONE
 **Bench. Small-medium.**
 
 Reported as part of the status redesign, and separated here because the
@@ -75,7 +81,7 @@ the bug rather than fix it.
 
 ## Tier 1 — safety
 
-### P1.1 · READY as a modal, everything else greyed
+### P1.1 · READY as a modal, everything else greyed — ✅ DONE (`8cdf3ef`)
 **Bench. Medium.**
 
 Requested explicitly as a safety feature: the READY check becomes its
@@ -98,7 +104,7 @@ Pairs naturally with **Phase 46 (Connect/Disconnect All Hardware)**,
 already on the roadmap at priority 2 — the readiness gate and the
 single connect action are the same moment in the session.
 
-### P1.2 · Map selection sets the GoTo target
+### P1.2 · Map selection sets the GoTo target — ✅ DONE (`b192682`)
 **Bench. Small.**
 
 Reported: picking an object on the map and slewing should write that
@@ -117,7 +123,7 @@ cheapest item in Tier 1. It makes the dangerous control's default the
 These decide whether the numbers on screen mean anything. Several are
 already on the clear-night list; the new reports slot into it.
 
-### P2.0 · Histogram accuracy — deep dive
+### P2.0 · Histogram accuracy — deep dive — ✅ bench half DONE (`898c546`)
 **Mixed. Bench first, then sky. Medium.**
 
 Asked directly: "Is this histogram accurate?"
@@ -177,7 +183,7 @@ Phase 42 delivered placement, persistence and a rescue path. These are
 the parts that are now obviously missing once windows live on screens
 of their own.
 
-### P3.1 · Status as its own window, and out of the side panel
+### P3.1 · Status as its own window, and out of the side panel — ✅ DONE
 **Bench. Medium.** *(after P0.2)*
 
 Three parts, in order:
@@ -303,7 +309,7 @@ The setting persists in `rig.ini`. The key there is still
 `OverlayTelemetry`, from when the gate was narrower; renaming it would
 have thrown away the saved state to buy a tidier word.
 
-### P3.3 · Resizable AI / GoTo / Help, with larger fonts
+### P3.3 · Resizable AI / GoTo / Help, with larger fonts — ✅ DONE 2026-10-17
 **Bench. Medium-Hard. The biggest of the workspace items.**
 
 Requested: let the three panels use a whole screen through normal OS
@@ -323,7 +329,7 @@ candidate**, being mostly a text box and therefore mostly free — would
 prove the pattern cheaply before committing to GoTo, which has the
 densest layout in the app.
 
-### P3.4 · Map window larger
+### P3.4 · Map window larger — ✅ DONE (`ef736e1`)
 **Bench. Small — possibly already done.**
 
 Asked: "can the map window be larger now that we can use an entire
@@ -630,7 +636,7 @@ mount accepts the variable-rate command. Neither needs sky.
 
 ---
 
-### P4.2 · A deep wiki, and a documentation cleanup
+### P4.2 · A deep wiki, and a documentation cleanup — ✅ DONE (`43e915e`)
 **Bench. Medium — mostly writing.**
 
 Requested: a wiki in the repo explaining how the architecture works and
@@ -663,7 +669,7 @@ the thing was built.
 
 ## New debt found today
 
-### D1 · Display device names are not stable
+### D1 · Display device names are not stable — ✅ DONE (`812672a`)
 **Severity: high for the layout system. Found 2026-10-12.**
 
 Between two captures in the same session, the monitors re-enumerated:
@@ -804,6 +810,11 @@ the ranking below it is what to pick up next.
 | The emulator gets a field of view (phase 91) | `4af73e6` — angular sizes, cap lifted to the full sensor |
 | Share view focus trap, and the sky map's dead F11 | `6ba0167` — `WM_GETDLGCODE`, and `Ctrl+Shift+V` |
 | A second sky map (phase 90) | Shift+M, `skymap2` role on the control screen |
+| Write path proven at 293 MB/s, zero drops | `9f886d6` — discharges clear-night item 13 |
+| Emulator delivers 120 fps, cap lifted (P4.3) | `99140bc` |
+| `[PERF]` log behind `RADUK_PERF=1` | `9f886d6` |
+| Night-vision chrome, cheap half (D2) | `9f886d6` — Help 60%→10.7%, AI 88%→16%, GoTo 98%→39% |
+| Assistant told the truth about the rig (P3.6 C) | `545cbf9` — the prompt had the wrong pixel pitch since June |
 | Histogram shows peak level, not the clipped fraction | `228bd4e` + `ab408b6` |
 | Full-sensor frame rate — P4.4 diagnosis corrected | `bc88296` — the preview was never slow |
 | Preview stops re-deriving pixels it already has | `bc88296` — 27.1 ms → 2.0 ms at the full sensor |
@@ -815,22 +826,50 @@ the ranking below it is what to pick up next.
 
 ---
 
+<a name="next-in-order"></a>
 ### Next, in order
 
-Updated 2026-10-17, end of session. P3.3 and D3 are finished and have
-moved above the line. **P4.1 is held at the owner's request until the
-controller and its receiver are in hand.**
+**Reviewed 2026-10-17.** Four of the five items on the previous list
+were done in the same session and have moved above the line. What
+follows is everything genuinely open, which is less than it looks:
+one coding item, one research item, and a tail of unscheduled
+features.
 
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
-| 1 | **Prove the write path at 147 MB/s** | Bench | XS | The one thing P4.3 left owed. Camera → capture thread → ring is proven at 120.3 fps with zero drops; **ring → write buffer → SER file is not**. The run-sized write buffer and the SER writer have never been run above 20 fps. Launch with `RADUK_EMU_FPS=120` and `RADUK_EMU_TRUE_FOCUS` set to the EAF's position, set 1280×960, press record, watch BUF and DROPS. Smallest item on this list and it closes the biggest unknown |
-| 2 | **`SlewVariable()` on the mount** | Needs sky to verify | S–M | Promoted out of P4.1, because it is worth having on its own. NexStar's variable-rate command (`P 3 16\|17 6\|7 <hi> <lo>`, rate = arcsec/sec × 4) would make the arrow-key jog proportional instead of the nine fixed rates it has now. It is also the thing that must exist before an analogue stick is anything more than a nine-position switch — so doing it now means P4.1 is ready the day the receiver arrives, rather than starting from here |
-| 3 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part. The AI context builder has grown a lot since that entry was written and is worth re-reading before planning |
-| 4 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright. Confirmed again this session — sampling title bars across a night-vision toggle measures almost nothing, by design |
-| 5 | **Gate the `[PERF]` log line** | Bench | XS | Added this session to settle P4.4, and it earns its keep — but it writes to `raduk_log.txt` every 600 passes whether anyone is diagnosing or not. An env var or a key would make it opt-in |
-| — | **Xbox controller input** (P4.1) | **HELD** | M | Held 2026-10-17: no controller and no receiver yet, and this machine has no Bluetooth so an adapter is needed. Feasibility is already proven on the machine (`8fed05a`) and item 2 above removes its one software prerequisite |
-| — | **Emulator blur, further** (P4.4a tail) | Bench | S | Only if full-sensor bench work becomes routine. 128 ms of honest work remains and would need SIMD or fewer passes. Focusing the emulated EAF skips it entirely today |
-| — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3; see the memory note about keeping Windows Update away from the GPU drivers |
+| 1 | **`SlewVariable()` on the mount** | Code bench, verify on sky | S–M | **The only unstarted item with a clear design.** NexStar's variable-rate command (`P 3 16\|17 6\|7 <hi> <lo>`, rate = arcsec/sec × 4) would make the arrow-key jog proportional instead of the nine fixed rates it has now — better manual framing on any night, controller or not. It is also P4.1's one software prerequisite, so doing it means that phase starts from ready. Writable and unit-testable indoors; only the on-sky rates need a night |
+| 2 | **Assistant: retrieval over the real corpus** (P3.6 option B) | Bench | M | Option C is done and found the prompt was lying about the sensor. B is where the entry says the value actually is: the same section matching the help file already gets, extended to the architecture notes, the clear-night checklist and the session logs. It would let the assistant answer "what did I do about focus drift last time" — questions nobody else can answer, because the data is local and private. It widens what the model can be RIGHT about without asking it to know more |
+| 3 | **Pick from the unscheduled list** | Bench | varies | Twelve features below, none half-built. On value to this rig, phase 47 (click to recentre) and phase 46 (connect/disconnect hardware) are the two that pay back every session |
+| — | **Xbox controller** (P4.1) | **HELD** | M | No controller, no receiver, and no Bluetooth in this machine so an adapter is needed too. Feasibility proven (`8fed05a`); item 1 removes its software prerequisite |
+| — | **Assistant: a larger model** (P3.6 option A) | — | M | Behind D4. An 8B at 4-bit fits the 2060's 6 GB, which is what makes solving D4 worth more than it looks |
+| — | **Emulator blur, further** (P4.4a tail) | Bench | S | Only if full-sensor bench work becomes routine. 128 ms of honest work remains; focusing the emulated EAF skips it entirely today |
+| — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3 |
+
+### Two questions this review could not answer
+
+Neither is a task. Both are decisions only the owner can make, and
+both have been sitting in the document unanswered.
+
+1. **Does phase 16, the polar alignment assistant, apply at all?** The
+   8SE is alt-az unless it is on a wedge, and polar alignment is a
+   wedge-only procedure. If there is no wedge and none is planned, this
+   is not a deferred feature, it is a line to delete.
+2. **Is phase 77, the AutoStakkert in-app launch, worth keeping on the
+   list?** It is marked broken and *proven not to be ours* — the
+   identical command fails from a bare prompt. That makes it an
+   upstream or environment problem, and carrying it as app work is
+   misleading.
+
+### Still open, carried from before
+
+- **6.6 GoTo map learning** — auto solve+sync on lock ships; the
+  accumulating pointing map **reports but does not correct**. Half a
+  feature, and the half that is missing is the half that helps.
+- **Clear-night items 1–12.** Item 13 is discharged (see below).
+  Items 1 (`SHARP_CEIL`) and 3 (plate scale) are the two that other
+  numbers depend on, and plate scale now matters more than it did:
+  the assistant quotes it, the ADC tool derives from it, and the
+  emulator's field of view is built on it.
 
 ### P4.3 · Emulator frame rate — DONE 2026-10-17
 
@@ -882,7 +921,7 @@ five-minute manual check rather than a blocked one: launch with
 
 `tests/manual-emulator-delivery-rate.cpp` reproduces the table.
 
-### P4.3 · the original entry, **premise corrected 2026-10-17**
+#### P4.3 — the original entry, kept for the record
 
 > **The diagnosis below was wrong, and the correction is worth more
 > than the plan was.** Driven directly, with no app around it, the
@@ -1047,14 +1086,15 @@ indoors, and the list exists to keep that distinction honest.
 Three worth doing first on the first clear night, because other numbers
 depend on them:
 
-- **Item 13 — the capture pipeline at real frame rates.** The largest
-  untested surface in the app and the one with the most to gain. The
-  whole write path has only ever run at 15–20 fps, because that is all
-  the emulator renders; the camera is specified far above it. Recording
-  was moved off the render loop and the write buffer resized to suit on
-  2026-10-14, and neither change has seen a real frame. One measurement
-  settles whether it worked: frames in the SER against delivered FPS ×
-  duration.
+- ~~**Item 13 — the capture pipeline at real frame rates.**~~
+  **Settled on the bench 2026-10-17** and no longer a reason to spend
+  a clear night. The emulator's 20 fps cap came off (P4.3) and a real
+  recording ran at **293 MB/s with zero dropped frames** at
+  3840×2160 — 556 frames, every one in the file, sitting on the disk's
+  own measured ceiling. The decoupled recording path and the run-sized
+  write buffer both held. What a real night still settles is whether a
+  real ASI678MC over real USB behaves the same, which is a question
+  about the camera rather than about our side of it.
 - **Item 1 — `SHARP_CEIL`**, which biases the capture gate and
   autofocus.
 - **Item 3 — plate scale**, never once checked against the sky, and
@@ -1102,6 +1142,8 @@ this round:
   listed so the owner's report is traceable to an answer.
 
 - **13 · The capture pipeline at real frame rates.** Added
-  2026-10-14 after measuring that the emulator caps at 16 fps and the
-  render loop capped recording at ~62. Both the decoupled recording
-  path and the run-sized write buffer are unexercised above 16 fps.
+  2026-10-14, **largely discharged 2026-10-17.** The premise was
+  wrong in an instructive way: the emulator's "16 fps" was
+  `sleep_for` rounding to the Windows timer tick, not render cost.
+  With the cap lifted, a real recording sustained 293 MB/s with no
+  drops. Only the real camera over real USB is still untested.

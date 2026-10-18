@@ -866,7 +866,18 @@ That is the same shape as the defect the test exists to catch —
 announces itself; it just quietly reports an empty knowledge base. A
 gate that depends on an untracked file is not a gate.
 
-### Two questions this review could not answer
+### Both questions answered by the owner, 2026-10-17
+
+**Phase 16, polar alignment: backlogged, not deferred.** The 8SE is
+alt-az and there is no wedge, so the procedure does not apply. It
+comes back only with a wedge and most likely a new mount, which makes
+it a different project rather than a queued feature.
+
+**Phase 77, the AutoStakkert launch: off the list.** It is proven not
+to be ours — the identical command fails from a bare prompt — so
+carrying it as app work was misleading. Removed rather than deferred.
+
+### The original two questions, for the record
 
 Neither is a task. Both are decisions only the owner can make, and
 both have been sitting in the document unanswered.
@@ -1140,14 +1151,20 @@ the original tier numbers.
 | 43 | Deep sky image annotation | H | |
 | 33 | Stellar photometry | VH | |
 | 20 | Distribution / ASCOM support | VH | |
-| 16 | Polar alignment assistant | H | **Worth confirming this applies.** The 8SE is alt-az unless it is on a wedge, and polar alignment is a wedge-only procedure |
+
 
 ### Partial, and known broken
 
 | Item | State |
 |---|---|
 | 6.6 GoTo map learning | ◑ Auto solve+sync on lock ships; the accumulating map **reports but does not correct** |
-| 77 AutoStakkert in-app launch | Broken, and proven not to be ours — the identical command fails from a bare prompt |
+
+### Backlogged, not queued
+
+| Item | Why it is not on the list |
+|---|---|
+| 16 Polar alignment assistant | Needs a wedge, and there is no wedge. Returns with a wedge and probably a new mount — a different project, not a queued feature |
+
 
 ---
 

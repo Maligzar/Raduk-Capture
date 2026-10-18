@@ -794,23 +794,32 @@ the ranking below it is what to pick up next.
 | The emulator gets a field of view (phase 91) | `4af73e6` — angular sizes, cap lifted to the full sensor |
 | Share view focus trap, and the sky map's dead F11 | `6ba0167` — `WM_GETDLGCODE`, and `Ctrl+Shift+V` |
 | A second sky map (phase 90) | Shift+M, `skymap2` role on the control screen |
+| Histogram shows peak level, not the clipped fraction | `228bd4e` + `ab408b6` |
+| Full-sensor frame rate — P4.4 diagnosis corrected | `bc88296` — the preview was never slow |
+| Preview stops re-deriving pixels it already has | `bc88296` — 27.1 ms → 2.0 ms at the full sensor |
+| Emulator defocus blur, 556 ms → 190 ms (P4.4a) | `ecd165c` — proved pixel-identical |
+| Emulator delivers 120 fps / 147 MB/s (P4.3) | `99140bc` |
+| AI chat text scales with the window (P3.3) | `179f8aa` |
+| GoTo panel scales; object names fixed (P3.3) | `dbc4832` — the catalogue had shown first letters only |
+| Repaint and rescue find every window (D3) | `a4b50a9` — 14 windows, 12 roles |
 
 ---
 
 ### Next, in order
 
-Updated 2026-10-17, after the P4.4 correction. Items 5 and 6 of the
-previous list are gone: P4.4 described a problem that did not exist,
-and the real cause behind it — the emulator's defocus blur — is fixed.
+Updated 2026-10-17, end of session. P3.3 and D3 are finished and have
+moved above the line. **P4.1 is held at the owner's request until the
+controller and its receiver are in hand.**
 
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
-| 1 | **P3.3 — DONE 2026-10-17** | Bench | — | Help (`ef736e1`), the map (P3.4), AI chat (`179f8aa`) and now GoTo all scale. GoTo also had a Unicode defect that had hidden every object name in the catalogue since it was written |
-| 2 | **D3 — DONE 2026-10-17** | Bench | — | Repaint, gather and stranded-rescue now find every window we own instead of reading a hand-kept list. Measured: 14 windows, 12 roles |
-| 3 | **Xbox controller input** (P4.1) | Bench | M | Feasibility proven on this machine. Needs `SlewVariable()` on the mount first, or the stick is a nine-position switch — plus a controller and **an adapter, since this machine has no Bluetooth** |
-| 4 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part |
-| 5 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright |
-| — | **Emulator blur, further** (P4.4a tail) | Bench | S | Only if full-sensor bench work becomes routine. 128 ms of honest work remains and would need SIMD or fewer passes. Focusing the emulated EAF to 168000 skips it entirely today |
+| 1 | **Prove the write path at 147 MB/s** | Bench | XS | The one thing P4.3 left owed. Camera → capture thread → ring is proven at 120.3 fps with zero drops; **ring → write buffer → SER file is not**. The run-sized write buffer and the SER writer have never been run above 20 fps. Launch with `RADUK_EMU_FPS=120` and `RADUK_EMU_TRUE_FOCUS` set to the EAF's position, set 1280×960, press record, watch BUF and DROPS. Smallest item on this list and it closes the biggest unknown |
+| 2 | **`SlewVariable()` on the mount** | Needs sky to verify | S–M | Promoted out of P4.1, because it is worth having on its own. NexStar's variable-rate command (`P 3 16\|17 6\|7 <hi> <lo>`, rate = arcsec/sec × 4) would make the arrow-key jog proportional instead of the nine fixed rates it has now. It is also the thing that must exist before an analogue stick is anything more than a nine-position switch — so doing it now means P4.1 is ready the day the receiver arrives, rather than starting from here |
+| 3 | **Make the assistant worth asking** (P3.6) | Bench | M | Not urgent — it is now honest about what it does not know, which was the dangerous part. The AI context builder has grown a lot since that entry was written and is worth re-reading before planning |
+| 4 | **Night-vision chrome** (D2) | Bench | S | Deferred deliberately; stock Win32 chrome stays bright. Confirmed again this session — sampling title bars across a night-vision toggle measures almost nothing, by design |
+| 5 | **Gate the `[PERF]` log line** | Bench | XS | Added this session to settle P4.4, and it earns its keep — but it writes to `raduk_log.txt` every 600 passes whether anyone is diagnosing or not. An env var or a key would make it opt-in |
+| — | **Xbox controller input** (P4.1) | **HELD** | M | Held 2026-10-17: no controller and no receiver yet, and this machine has no Bluetooth so an adapter is needed. Feasibility is already proven on the machine (`8fed05a`) and item 2 above removes its one software prerequisite |
+| — | **Emulator blur, further** (P4.4a tail) | Bench | S | Only if full-sensor bench work becomes routine. 128 ms of honest work remains and would need SIMD or fewer passes. Focusing the emulated EAF skips it entirely today |
 | — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3; see the memory note about keeping Windows Update away from the GPU drivers |
 
 ### P4.3 · Emulator frame rate — DONE 2026-10-17

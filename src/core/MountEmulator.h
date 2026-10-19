@@ -289,15 +289,6 @@ private:
     // second copy that would drift.
     static double JogArcsecPerSec(int rate) { return JogRateArcsecPerSec(rate); }
 
-    static double JogArcsecPerSecUnused(int rate) {
-        static const double kRate[10] = {
-            0.0, 7.52, 15.04, 60.2, 120.3, 240.7, 481.3, 962.6, 3600.0, 10800.0
-        };
-        int r = rate < 0 ? -rate : rate;
-        if (r > 9) r = 9;
-        return kRate[r];
-    }
-
     // Handles: sidereal drift, GoTo slewing, manual jog
     void SimLoop() {
         // Degrees per arcsecond per tick (10Hz)
@@ -356,14 +347,27 @@ private:
                     if (m_slewAsRA != 0.0) {
                         m_raHours += ((m_slewAsRA * 0.1) / 3600.0) / 15.0;
                     } else if (m_slewRateRA != 0) {
-                        double as = JogArcsecPerSec(m_slewRateRA) * 0.1;
+                        // MAGNITUDE into the table, sign applied after.
+                        // m_slewRateRA is signed -- negative is
+                        // direction 1 -- and JogRateArcsecPerSec takes a
+                        // PRESET INDEX, clamping anything below 0 to
+                        // kRate[0], which is "stopped". Passing the
+                        // signed value straight in meant every westward
+                        // and southward jog looked up 0 arcsec/s and the
+                        // emulated mount sat still.
+                        const int rateRA = (m_slewRateRA < 0) ? -m_slewRateRA
+                                                              : m_slewRateRA;
+                        double as = JogArcsecPerSec(rateRA) * 0.1;
                         if (m_slewRateRA < 0) as = -as;
                         m_raHours += (as / 3600.0) / 15.0;
                     }
                     if (m_slewAsDec != 0.0) {
                         m_decDeg += (m_slewAsDec * 0.1) / 3600.0;
                     } else if (m_slewRateDec != 0) {
-                        double as = JogArcsecPerSec(m_slewRateDec) * 0.1;
+                        // Magnitude in, sign after -- see the RA case.
+                        const int rateDec = (m_slewRateDec < 0) ? -m_slewRateDec
+                                                                : m_slewRateDec;
+                        double as = JogArcsecPerSec(rateDec) * 0.1;
                         if (m_slewRateDec < 0) as = -as;
                         m_decDeg += as / 3600.0;
                     }

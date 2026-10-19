@@ -794,42 +794,6 @@ void ControlPanel::EmergencyStop() {
     if (m_rcInControl) SetRCControl(false);
 }
 
-// ── Jog button subclassing ─────────────────────────────────────
-
-void ControlPanel::SubclassJogButton(HWND btn) {
-    SetWindowSubclass(btn, JogButtonProc, 0, reinterpret_cast<DWORD_PTR>(this));
-}
-
-LRESULT CALLBACK ControlPanel::JogButtonProc(HWND hwnd, UINT msg,
-                                              WPARAM wParam, LPARAM lParam,
-                                              UINT_PTR uIdSubclass,
-                                              DWORD_PTR dwRefData) {
-    ControlPanel* self = reinterpret_cast<ControlPanel*>(dwRefData);
-    switch (msg) {
-        case WM_LBUTTONDOWN:
-            // Let button process normally first (visual press), then start jog
-            DefSubclassProc(hwnd, msg, wParam, lParam);
-            self->OnJogStart(hwnd);
-            return 0;
-        case WM_LBUTTONUP:
-            self->OnJogStop();
-            DefSubclassProc(hwnd, msg, wParam, lParam);
-            return 0;
-        case WM_CAPTURECHANGED:
-            // Failsafe: capture stolen mid-press (Alt-Tab, popup) means
-            // WM_LBUTTONUP never arrives — stop the jog before it runs away.
-            if (self->m_jogHeld) self->OnJogStop();
-            break;
-        case WM_MOUSELEAVE:
-            if (self->m_jogHeld) self->OnJogStop();
-            break;
-        case WM_DESTROY:
-            RemoveWindowSubclass(hwnd, JogButtonProc, uIdSubclass);
-            break;
-    }
-    return DefSubclassProc(hwnd, msg, wParam, lParam);
-}
-
 // ── HeaderClickProc ─────────────────────────────────────────
 // Subclass proc on collapsible section header labels.
 // Left-click toggles the section's collapsed state and rebuilds.
@@ -851,42 +815,6 @@ LRESULT CALLBACK ControlPanel::HeaderClickProc(HWND hwnd, UINT msg, WPARAM wPara
         return TRUE;
     }
     return DefSubclassProc(hwnd, msg, wParam, lParam);
-}
-
-void ControlPanel::OnJogStart(HWND btn) {
-    printf("[ControlPanel] OnJogStart: mount=%p connected=%s\n",
-           (void*)m_mount,
-           (m_mount && m_mount->IsConnected()) ? "yes" : "no");
-
-    if (!m_mount || !m_mount->IsConnected()) return;
-
-    if (m_jogHeld) OnJogStop();
-    int axis = -1, dir = -1;
-    if (btn == m_btnJogN) { axis=1; dir=0; }
-    if (btn == m_btnJogS) { axis=1; dir=1; }
-    if (btn == m_btnJogE) { axis=0; dir=0; }
-    if (btn == m_btnJogW) { axis=0; dir=1; }
-    printf("[ControlPanel] OnJogStart: axis=%d dir=%d rate=%d\n", axis, dir, m_jogRate);
-    if (axis < 0) return;
-    bool ok = m_mount->SlewFixed(axis, dir, m_jogRate);
-    printf("[ControlPanel] SlewFixed returned: %s\n", ok ? "OK" : "FAILED");
-    m_activeJogAxis = axis; m_jogHeld = true;
-    if (m_onJogActivity) m_onJogActivity(true);
-    SetCapture(btn);
-}
-
-void ControlPanel::OnJogStop() {
-    if (!m_jogHeld) return;
-    // Clear state BEFORE ReleaseCapture: ReleaseCapture synchronously sends
-    // WM_CAPTURECHANGED, which re-enters here via the failsafe path.
-    int axis = m_activeJogAxis;
-    m_activeJogAxis = -1; m_jogHeld = false;
-    // Stop unconditionally — a transient IsConnected() flicker mid-jog must
-    // never strand a moving mount.
-    if (m_mount && axis >= 0)
-        m_mount->StopSlew(axis);
-    if (m_onJogActivity) m_onJogActivity(false);
-    ReleaseCapture();
 }
 
 // ── WM_COMMAND ─────────────────────────────────────────────────
@@ -1611,9 +1539,15 @@ HWND ControlPanel::MakeComboBox(int x, int y, int w, int h, int id) {
 void ControlPanel::SetRCControl(bool take) {
     if (take == m_rcInControl) return;
     if (!take && m_mount && m_mount->IsConnected()) {
-        if (m_jogHeld) OnJogStop();
+        // Both axes, unconditionally. This used to call OnJogStop()
+        // first, which stopped the ONE axis the panel was jogging --
+        // and the panel no longer jogs at all. The two lines below
+        // were always the stronger half of that pair, so nothing is
+        // lost by them being all of it.
         m_mount->StopSlew(0);
         m_mount->StopSlew(1);
+        m_jogHeld = false;
+        m_activeJogAxis = -1;
     }
     m_rcInControl = take;
     printf("[ControlPanel] RC control: %s\n", take ? "on" : "off");
@@ -1899,7 +1833,6 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_lblMountRA = m_lblMountDec = m_lblMountTrack = m_lblMountControl = nullptr;
     m_lblMountAz = m_lblMountAlt = m_lblMountHA = m_lblMountConnected = nullptr;
     m_btnTracking = m_btnPark = m_btnMountStop = nullptr;
-    m_btnJogN = m_btnJogS = m_btnJogE = m_btnJogW = nullptr;
     m_btnRate9 = m_btnRate8 = m_btnRate7 = m_btnRate5 = nullptr;
     m_btnMountCtrl = nullptr;
     m_btnSync    = nullptr;

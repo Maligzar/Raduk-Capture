@@ -84,15 +84,27 @@ public:
             if (err != ERROR_CLASS_ALREADY_EXISTS) return false;
         }
 
+        // Ask Windows how big a window has to be to hold that client
+        // area, for THIS style on THIS display, instead of adding a
+        // guess for the caption. AdjustWindowRectEx is the only thing
+        // that knows, and it is why the plot no longer hangs off the
+        // bottom edge.
+        const DWORD style   = WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN;
+        const DWORD exStyle = WS_EX_TOPMOST | WS_EX_TOOLWINDOW;
+        RECT want = { 0, 0, CLIENT_W, CLIENT_H };
+        AdjustWindowRectEx(&want, style, FALSE, exStyle);
+        const int winW = want.right  - want.left;
+        const int winH = want.bottom - want.top;
+
         int sw = GetSystemMetrics(SM_CXSCREEN);
-        int x  = sw - W - 12;
+        int x  = sw - winW - 12;
         int y  = 40;
 
         m_hwnd = CreateWindowExW(
-            WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+            exStyle,
             L"RadukMountController", L"MOUNT CONTROL",
-            WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN,
-            x, y, W, H,
+            style,
+            x, y, winW, winH,
             parent, nullptr, GetModuleHandle(nullptr), this);
 
         if (!m_hwnd) return false;
@@ -156,16 +168,20 @@ public:
 
 private:
     // ── Layout constants ──────────────────────────────────────
-    static constexpr int W      = 210;
-    // Layout ends with the motion plot at y=226..282 in CLIENT space;
-    // this is the WINDOW height, so it must also cover the caption and
-    // borders (~32px) or the plot's readout line is clipped off the
-    // bottom edge - which it was at 312.
-    // Elongated from 326 to carry the sky-conditions readout below the
-    // RA/Dec lines: three more label rows at 18px plus a separator.
-    // This panel is where pointing lives, so what the pointing COSTS
-    // belongs here rather than beside the disk figures.
-    static constexpr int H      = 378;
+    // CLIENT dimensions -- what BuildControls lays its controls into.
+    // The window is sized from these in Create(), so the caption and
+    // borders are measured rather than estimated.
+    //
+    // That estimate is why the motion plot was clipped. H was a WINDOW
+    // height carrying a hand-written "~32px" for the non-client area,
+    // and when the sky lamp added 76px of content the window grew by
+    // only 52 -- so the plot's bottom ~10px fell outside the client
+    // area. The same arithmetic also goes wrong on any display whose
+    // caption is not 32px, which on a five-monitor desk is likely.
+    //
+    // Layout ends with the motion plot at y=300..356; MARGIN below it.
+    static constexpr int CLIENT_W = 210;
+    static constexpr int CLIENT_H = 364;
     static constexpr int MARGIN = 8;
     static constexpr int TIMER_READOUT = 1;
 
@@ -582,7 +598,7 @@ private:
     // ── BuildControls ─────────────────────────────────────────
     void BuildControls() {
         int x = MARGIN;
-        int w = W - MARGIN * 2;
+        int w = CLIENT_W - MARGIN * 2;
         int y = 28;
 
         // RA/Dec readout

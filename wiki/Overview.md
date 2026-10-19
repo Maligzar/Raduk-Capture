@@ -11,7 +11,7 @@ cover the difference.
 
 ---
 
-## Why build it rather than use SharpCap or FireCapture
+## Why build this when other astronomy and planetary imaging applications already exist?
 
 The stated reason is coherence. From
 [`RadukCapture-Architecture.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/RadukCapture-Architecture.md):

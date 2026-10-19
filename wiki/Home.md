@@ -1,7 +1,7 @@
 # RadukCapture
 
 High-speed planetary capture suite for Windows. Pure Win32 + Direct2D, no
-frameworks, ~34,500 lines of C++20 across 86 source files. Built for a
+frameworks, ~44,754 lines of C++ across 100 source files. Built for a
 Celestron NexStar 8SE + ZWO ASI678MC + ZWO EAF, talking to each device
 directly: the ASI SDK for the camera, the EAF SDK for the focuser, and the
 raw NexStar serial command set for the mount. No ASCOM, no CPWI, no

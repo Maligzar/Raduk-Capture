@@ -175,7 +175,6 @@ public:
     // Jog activity — cb(true) on jog start, cb(false) on jog stop.
     // main.cpp suspends centroid-tracker corrections during manual jogs
     // (otherwise the guide loop fights the user).
-    void SetJogActivityCallback(std::function<void(bool)> cb) { m_onJogActivity = cb; }
 
     // Phase 12 — Auto-Exposure
     // cb(true) = enable AE advisory; cb(false) = disable
@@ -523,12 +522,6 @@ private:
     HWND MakeComboBox(int x, int y, int w, int h, int id);
 
     // Jog button subclassing
-    void SubclassJogButton(HWND btn);
-    static LRESULT CALLBACK JogButtonProc(HWND hwnd, UINT msg,
-                                           WPARAM wParam, LPARAM lParam,
-                                           UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
-    void OnJogStart(HWND btn);
-    void OnJogStop();
 
     void UpdatePlanetLockUI();
     void UpdateJogRateButtons();
@@ -711,11 +704,12 @@ private:
     std::wstring m_skyMapTarget;
     // Jog controls moved to floating MountController — members kept for .cpp compat
     HWND m_btnMountStop = nullptr;
-    HWND m_btnJogN = nullptr, m_btnJogS = nullptr;
-    HWND m_btnJogE = nullptr, m_btnJogW = nullptr;
     HWND m_btnRate9 = nullptr, m_btnRate8 = nullptr;
     HWND m_btnRate7 = nullptr, m_btnRate5 = nullptr;
     HWND m_btnTracking = nullptr, m_btnPark = nullptr;
+    // Kept although the panel no longer jogs: EmergencyStop() and the
+    // STOP button both clear them, and a safety path that over-resets
+    // costs nothing while one that under-resets strands a moving mount.
     int  m_activeJogAxis = -1;
     bool m_jogHeld       = false;
 
@@ -799,7 +793,6 @@ private:
         ID_BTN_RIGSETUP,
         ID_BTN_READY,
         ID_BTN_MOUNT_STOP,
-        ID_BTN_JOG_N, ID_BTN_JOG_S, ID_BTN_JOG_E, ID_BTN_JOG_W,
         ID_BTN_RATE_9, ID_BTN_RATE_8, ID_BTN_RATE_7, ID_BTN_RATE_5,
         ID_BTN_TRACKING, ID_BTN_PARK,
         ID_LBL_MOUNT_CONTROL,
@@ -855,7 +848,6 @@ private:
     std::function<void()>                   m_onCablesDressed;  // cord-wrap reset
     std::function<void()>                   m_onRigSetup;
     std::function<void()>                   m_onReadinessCheck;
-    std::function<void(bool)>               m_onJogActivity; // jog start/stop notification
     std::function<void(bool,bool)>          m_onAEToggle;
     std::function<void()>                   m_onRGBAlign;
     std::function<void()>                   m_onFXCycle;

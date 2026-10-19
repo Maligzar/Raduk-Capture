@@ -9,6 +9,15 @@ Tiers 0 and 1 entirely, Tier 3 bar one item, and four of the five
 things found as debt. The tier sections below are kept as the record
 of what was planned and why, with their outcomes marked.
 
+**Reviewed again 2026-10-19,** after a competitive comparison against
+the planetary-capture field (`reports/Astronomy capture software
+comparison.md`, and the wiki page **Comparison With Other Software**).
+That review added **Tier 5**, seven items about competitive position
+rather than about defects, re-scoped four entries in the unstarted
+table, and promoted clear-night item 3 to the top of the live-sky
+list. Nothing in Tiers 0 to 4 changed: the comparison found no new
+bug, it found missing surface area.
+
 **The live list is [Next, in order](#next-in-order), near the end.**
 Start there; everything above it is history.
 
@@ -667,6 +676,332 @@ the thing was built.
 
 ---
 
+## Tier 5 — competitive position
+
+Added 2026-10-19, out of a comparison against the planetary-capture
+field. The report is `reports/Astronomy capture software comparison.md`
+and it lives in the wiki as **Comparison With Other Software**.
+
+Ranked on weighted criteria against the three products that actually
+compete for this workload, RadukCapture came fourth: SharpCap 8.25,
+FireCapture 7.50, ZWO ASICap 6.05, RadukCapture 5.15. N.I.N.A. and
+Sequence Generator Pro were excluded rather than scored, because they
+do not do this job at all: N.I.N.A.'s tree writes only TIFF, FITS,
+XISF and RAW and contains no SER or AVI writer anywhere in it, and
+SGPro's own vendor FAQ states the product is not compatible with
+planetary or video cameras. Scoring them on a planetary scale would
+have produced a number that looks like information and is not.
+
+The shape of the score matters more than the position. Output fidelity
+scored 8, level with SharpCap and FireCapture; planetary decision
+support scored 7. Hardware breadth and distribution both scored 1.
+**The gap is surface area, not sophistication.** The capture path, the
+measured guide solve, the ADC advisor and the emulator are competitive
+or better than what the field ships. What loses points is how few
+cameras the application drives, how few formats it writes, that it has
+no star-focus aid, that nobody can install it, and that nobody else
+can contribute to it. Everything in this tier follows from that, and
+none of it is a rewrite of something that works.
+
+> ### Caveat: most competitor facts here are second-hand
+>
+> The comparison was researched on 18 October 2026 under a network
+> policy that denied direct access to **firecapture.de,
+> sharpcap.co.uk, zwoastro.com, sequencegeneratorpro.com,
+> nighttime-imaging.eu, cloudynights.com and archive.org**. Almost
+> every vendor-sourced fact therefore arrived through a search index
+> that read those pages server-side, not from a page anyone opened and
+> read end to end. Quoted strings are second-hand transcriptions.
+>
+> Two exceptions carry the strongest evidence in the set: the N.I.N.A.
+> figures were measured from a full clone of the repository, and the
+> ZWO SDK figures came from directly fetched GitHub sources.
+> RadukCapture's own figures were measured against this tree.
+>
+> **Any P5 item whose justification rests on what a competitor does or
+> does not do should have that justification re-checked when the
+> vendor sites are reachable.** P5.1 is the most exposed, because its
+> value as a differentiator depends on nobody else doing it.
+>
+> Five things the research could not settle, recorded as open
+> questions rather than as absences, because inferring them would be
+> inventing them:
+>
+> 1. ASIStudio's UI toolkit.
+> 2. SGPro's UI framework.
+> 3. Whether SharpCap 4.x has moved off .NET Framework 4.8.
+> 4. FireCapture's UI toolkit.
+> 5. ASICap's timestamping and buffering behavior.
+>
+> The last one bears directly on P5.1.
+
+### P5.1 · Exposure-midpoint SER timestamps: effort S
+
+**Bench. Small.**
+
+`src/core/CaptureThread.cpp:147` stamps the frame with
+`Timestamp::Now()` immediately after `GetVideoFrameEx` returns, and
+`src/core/SERWriter.cpp:87` maps that QPC reading onto a wall clock
+correlated once at `Open()`. That is frame-arrival time, not the
+midpoint of the integration.
+
+The comparison checked whether that is a deficit and found it is not.
+SharpCap's author has acknowledged that SharpCap's SER timestamp is
+also the arrival time from the camera SDK, that its FITS path does
+subtract the exposure, and that the SER code was never updated to the
+better estimate. **So this is parity with the market leader, not a
+deficit**, and Phase 59 already fixed the version of it that actually
+mattered: before that fix the trailer recorded disk-write time and
+could lag the photons by up to ten seconds behind a full backlog,
+which makes a file useless for derotation while it still looks
+entirely valid.
+
+What is left is a cheap place to lead rather than follow. Subtract
+half the exposure and report the midpoint of integration. At a 10 ms
+exposure that removes a 5 ms systematic bias: irrelevant to WinJUPOS
+derotation over minutes, material to occultation timing, which is the
+one planetary workload where absolute time is the measurement rather
+than a label on it.
+
+**One correction to the report's framing, found by reading the code.**
+The report says the exposure value is already to hand in the writer.
+It is not: `SERWriter` has no exposure field at all (see
+`src/core/SERWriter.h`), while `CaptureThread` holds it as
+`m_exposureMs` and already reads it twenty-odd lines above the stamp
+to size the SDK timeout (`src/core/CaptureThread.cpp:120`). The
+subtraction therefore belongs at the stamp site, or the exposure has
+to be threaded through `WriteFrame`. Still small, but it is not a
+one-line change in `SERWriter.cpp`.
+
+Done looks like: the trailer holds midpoints; the convention is
+recorded somewhere a future reader can find it, in the header comment
+or the quality sidecar, so nobody has to guess which of the two
+conventions an old file used; and a test pins the arithmetic.
+
+**The claim to being first should be re-checked before it is made in
+public.** No product in the surveyed field is known to write exposure
+midpoints, but FireCapture's behavior is unconfirmed and ASICap's is
+entirely undocumented. That is second-hand evidence of an absence,
+which is the weakest kind there is.
+
+### P5.2 · Camera and focuser behind real interfaces: effort M
+
+**Bench. Medium. No user-visible feature at the end of it, which is
+exactly why it has to be a phase rather than an assumption.**
+
+The mount is already polymorphic: `src/core/IMount.h:25` defines
+`IMount`, `main.cpp` holds a `std::unique_ptr<IMount>`, and
+`ASCOMMount`, `NexStarMount` and `MountEmulator` all implement it.
+**The camera and the focuser are not polymorphic at all.** There is no
+`ICamera` and no `IFocuser` anywhere in the tree.
+`src/core/DeviceFactory.h` picks between `CameraEmulator` /
+`EAFEmulator` and `ASICamera` / `EAFFocuser` with an
+`#ifdef RADUK_EMULATOR`, by header name, at compile time. So the
+application supports exactly one camera family and one focuser, and
+the emulator is not a second implementation of a contract, it is a
+different build.
+
+Hardware breadth is the single largest scoring deficit in the
+comparison: 15% of the weight at a score of 1, against roughly 14
+native camera families in SharpCap and around 8 native vendors plus
+ASCOM and INDI in FireCapture. None of that can be approached until
+there is a seam to put a second driver behind, and this phase is the
+seam and nothing else.
+
+Done looks like: `ICamera` and `IFocuser` exist; `ASICamera` and
+`CameraEmulator` both implement `ICamera`; the emulator is chosen at
+runtime rather than by a compile flag; and the existing emulator build
+behaves identically. The last clause is the risk worth naming, because
+this touches the hot path and a refactor that quietly adds a virtual
+call per frame inside the capture loop should be measured rather than
+assumed harmless.
+
+### P5.3 · ASCOM reconsidered, and the premise corrected: effort M
+
+**Bench. Medium.**
+
+`src/core/ASCOMMount.h` is a real 792-line `ITelescopeV3`
+implementation over COM `IDispatch` late binding. **It is not
+disabled, and the roadmap should not repeat that it is.**
+`src/main.cpp:720` calls `ASCOMMount::FindCPWIDriver()` first on the
+hardware path and only falls back to `NexStarMount` on the serial port
+when no driver resolves, or when the one that does turns out to be a
+simulator. The wiki marks the class "Superseded"
+(`wiki/Device-Layer.md`, `wiki/Code-Map.md`) and the comparison
+inherited that, together with the stronger claim that every known
+driver is blacklisted. Neither survives reading `FindCPWIDriver()`:
+CPWI is not blacklisted, it is the first ProgID tried.
+
+What *is* foreclosed is the part that would have bought breadth.
+`FindCPWIDriver()` (`src/core/ASCOMMount.h:336` onward) prefers three
+Celestron ProgIDs, and its sweep of everything else in the registry
+skips `ASIMount`, `ASIFocuser`, `DeviceHub`, `JustAHub`, `OmniSim`,
+`Simulator` and `ScopeSim`. DeviceHub is the ASCOM hub, which is to
+say the one driver whose entire purpose is to put arbitrary other
+drivers behind a single connection; it was dropped from the preferred
+list as "always misconfigured here" and blacklisted in the sweep as
+well. Simulators are rejected twice, once by name and once by
+`IsSimulator()` at connect, which also means the generic path cannot
+be exercised on the bench at all.
+
+So ASCOM here is live as a Celestron path and closed as a generality
+path, and that was decided as a local fix for a COM3 conflict rather
+than as a policy about hardware coverage. This phase is the
+re-examination, not the re-enabling: the code is built, and what has
+to change is a blacklist, a preference order and a simulator rule, not
+a subsystem.
+
+Record what would have to be true to widen it, so the next person is
+not re-litigating a fait accompli:
+
+- DeviceHub connects and holds a mount on this machine when it is
+  configured correctly, or it is shown that it cannot.
+- A named non-Celestron ASCOM driver connects, reports position and
+  accepts a pulse.
+- The simulator exclusion is narrowed to the live hardware path, so
+  `ScopeSim` or `OmniSim` can be used to test the generic route
+  indoors. As it stands the blacklist makes the ASCOM path untestable
+  without a telescope, which is the opposite of what it should be.
+
+### P5.4 · Distribution: installer, tagged releases, and no hardcoded paths: effort M
+
+**Bench. Medium, and none of it needs a new subsystem.**
+
+Distribution carries 15% of the comparison's weight and scored 1. The
+pieces are small and individually dull:
+
+- **Hardcoded output paths.** `D:\RadukCapture\...` is compiled into
+  at least `src/net/APEXTelemetry.h:89`, `src/gui/AIChatPanel.h:52-54`,
+  `src/gui/ControlPanel.cpp:1419`, `src/sky/PointingModel.h:72` and
+  `src/profiles/ProfileManager.h:22`, with `D:\astap\astap.exe` in
+  `src/sky/ASTAPSolver.h:54` besides. The application does not run
+  correctly on a machine with no D: drive, which is most machines.
+- **No tags and no releases.** `git tag` is empty against 58 commits,
+  and there is no artifact of any kind.
+- **No installer.** There is `build_all.bat`, which is not something a
+  person who is not the author can run.
+
+All of this currently sits inside unstarted phase 20, "Distribution /
+ASCOM support", marked VH. That marking hides a cheap and separately
+valuable piece of work inside a very hard one, and it is a good part
+of why none of it has been started. **Split it out.** Phase 20 is
+re-scoped to the distribution half, which is this phase; the ASCOM
+half goes to P5.3; and neither remaining piece is VH.
+
+Done looks like: a path root resolved at runtime from the executable
+location or from `rig.ini`, with no `D:` literal left in `src/`; a tag
+matching `src/Version.h`; and one artifact that somebody else could
+download and run.
+
+### P5.5 · Lower the CMake floor: effort S
+
+**Bench. Small.**
+
+`CMakeLists.txt` line 1 is `cmake_minimum_required(VERSION 4.2)`. That
+is an unusually recent floor, it will refuse to configure on most
+current distributions, and nothing in the file is known to need it. It
+is an avoidable barrier in front of anyone who tries to build this,
+a future owner on a new machine included, and the comparison counted
+it under distribution for that reason.
+
+Done looks like: the oldest CMake that actually configures and builds
+this project is established by trying it, and that is the number on
+line 1. Guessing a lower number without testing would be worse than
+leaving it alone, because the failure would move from the first line
+of configuration to somewhere deep in the build.
+
+### P5.6 · The WebSocket parser is the one place memory safety is not theoretical: effort S to M
+
+**Bench. Small to medium, and it carries a safety argument, which is
+why it sits where it does in the queue.**
+
+`src/net/WebSocketServer.h:83` says it plainly: the server binds
+127.0.0.1 by default and **the command set has NO authentication**.
+`RADUK_WS_LAN=1` exposes it on the LAN (`src/main.cpp:935-944`).
+Behind that socket is a hand-rolled RFC 6455 frame parser in C++, with
+hand-rolled SHA-1 and base64, reading attacker-controlled length
+fields, masking, fragmentation and continuation frames
+(`src/net/WebSocketServer.cpp`, 356 lines). The commands it accepts
+move the mount.
+
+The comparison's language section is otherwise unkind to the
+native-code case: nothing in the gathered field record attributes a
+dropped astronomy frame to garbage collection, and the interop
+objection fails on arithmetic. **The one place the memory-safety
+argument lands is here.** Current CISA and NSA joint guidance lists
+C# and Java among the memory-safe languages and does not list C++, and
+the convergent industry figure for memory safety as a share of
+high-severity defects is around 70%. A hand-written network frame
+parser is the exact shape of that bug class, and it is this project's
+only network-facing attack surface.
+
+Two pieces of work, and neither substitutes for the other:
+
+1. **Fuzz the frame parser** against malformed, truncated, oversized
+   and pathologically fragmented frames. The existing clamps
+   (`MAX_WS_PAYLOAD` at 1 MB and `MAX_RECV_BUF` at 2 MB,
+   `src/net/WebSocketServer.h:80-81`) are the right instinct and are
+   not evidence of correctness.
+2. **Authenticate the command path** before `RADUK_WS_LAN` is ever
+   used in anger. A shared token is enough. Loopback-by-default is a
+   good default and is not a substitute for one.
+
+`docs/SECURITY_REVIEW_2026-07-11.md` already raised this: its
+attack-surface table carries the row "WebSocket server :8765
+(mount/focuser commands, **no auth**)", and Phase 57 hardened the
+parsing (the length clamp and the receive cap above) without closing
+the authentication gap. **This phase is the follow-through, not a new
+discovery.** The honest counterweight from the report is worth keeping
+in view while doing it: a managed-language server with no
+authentication would not be safer in practice than a fuzzed C++ one
+with a token.
+
+### P5.7 · License: PolyForm Noncommercial is the binding constraint on continuity
+
+**Effort: an owner decision, not code. Nothing here can be done by
+writing software.**
+
+`LICENSE` is PolyForm Noncommercial 1.0.0. It is source-available and
+it is not an OSI open-source license, because it discriminates by
+field of use. Three consequences follow mechanically rather than as
+opinion: it is GPL-incompatible, it will not be packaged by any Linux
+distribution, and it is unavailable to any contributor whose employer
+runs a legal review.
+
+The comparison put a number against the thing this is usually weighed
+against. **N.I.N.A. is also effectively single-maintainer**, with
+6,467 of its 8,152 commits by one author, about 79%. It is in no
+danger of disappearing anyway, because MPL-2.0 plus 78 distinct commit
+authors means it can continue without him. This project has 58 commits
+from essentially one account and a license that keeps everyone else
+out. **For the bus-factor risk this project already records about
+itself, the license is doing more damage than the contributor count
+is, and MPL-2.0 is the working proof inside this very category.**
+
+That is the finding. The decision is the owner's, and this entry is
+not pretending the decision has been taken:
+
+- **Keep PolyForm Noncommercial.** What it buys is precisely aimed: it
+  stops a camera manufacturer shipping this capture engine inside a
+  product, while permitting every actual amateur to use, modify and
+  redistribute it. If protection from commercial appropriation is the
+  goal, it is the correct instrument and the continuity cost is simply
+  the price of it.
+- **Relicense to MPL-2.0.** Weak copyleft, so the file-level
+  protection survives; OSI-approved, so packaging, GPL compatibility
+  and corporate contributors all become possible. What is given up is
+  precisely the protection above: a manufacturer could ship it, subject
+  to publishing changes to the covered files.
+- **Dual license.** Gets both, and costs a contributor license
+  agreement and somebody to administer it. For a one-person project
+  that administration is not free and should be priced before it is
+  chosen.
+
+Record the decision whichever way it goes. An unmade decision here
+reads as the restrictive answer, because that is what it currently is.
+
+---
+
 ## New debt found today
 
 ### D1 · Display device names are not stable — ✅ DONE (`812672a`)
@@ -862,13 +1197,46 @@ The lesson is cheap to apply: **this file is only true of the branch
 you are reading it on.** Check `git log master` for the item you are
 about to start, not just the table.
 
+**Reviewed 2026-10-19, after the competitive comparison.** The P5
+items are inserted rather than appended, and the placement follows
+[How this is ranked](#how-this-is-ranked) at the top of this file
+rather than the comparison's own scoring, which weights for a market
+and not for this telescope. Most of P5 is category 6, things that
+cost nothing now and pay later: a seam, a build floor, a tag, a
+license decision. A couple are category 4, in that they cost time or
+possibility every session.
+
+**P5.6 is the exception and goes in above everything else here**,
+because an unauthenticated command path that slews the mount is
+category 2 the moment `RADUK_WS_LAN` is set, and the hand-rolled
+parser underneath it is the only attacker-reachable C++ in the
+project. P5.5 and P5.1 come next on size: both are small and both
+finish, which is what category 6 work has to be to be worth queueing
+at all. P5.4, P5.3 and P5.2 are category 6 at medium size and sit
+below phase 46, which is category 4 and pays back every session.
+**P5.7 is not in this list**, because it is a decision rather than
+work; it sits with the other owner decisions further down.
+
+**The item that outranks all of it is not here, because it needs
+sky.** Clear-night item 3, the plate scale, is category 1 territory:
+every arcsecond figure the application reports derives from it, and by
+the comparison's own weighting it is the highest-value unticked item
+in the project. It costs no code at all. See [Live-sky debt,
+consolidated](#live-sky-debt-consolidated).
+
 | # | Item | Where | Size | Why here |
 |---|---|---|---|---|
 | ~~1~~ | **`SlewVariable()` — DONE 2026-10-17** (`eef6c25`) | Bench | — | Above the line |
 | ~~2~~ | **Assistant: retrieval over the real corpus** — DONE 2026-10-17 (`85b9d51`) | Bench | — | Above the line. 16 documents and the six most recent session logs, matched by line and bounded at 8.3 KB |
 | ~~3~~ | **Apparent size for the planets** — DONE 2026-10-17 (`f4f4bda`) | Bench | — | Decided for the ephemeris, and it cost almost nothing: `PlanetRADec` was already computing the Earth-planet distance for the declination and throwing it away. IAU 2015 equatorial radii and `2*atan(R/d)`. Saturn is reported twice over, because the 41" ring span is what has to fit the frame and the 18" globe is what "apparent size" means. Swept 16 years against published ranges — `tests/planet_apparent_size.cpp` |
 | ~~4~~ | **Phase 47, click to recentre** — DONE 2026-10-18 | Bench | — | `Ctrl`+click an object and it goes to the middle. No new orientation config: the phase 51 guide calibration already MEASURED how the image responds to a pulse, so it contains the camera angle, the mirror flip and the axis signs. The 2x2 solve moved into `src/core/GuideSolve.h` and the guide loop now calls the same one — two copies would be two sign conventions. Gated by `tests/recentre.cpp`, including a round trip that pushes the solved pulses back through the measured matrix |
-| 5 | **Pick again from the unscheduled list** | Bench | varies | Eleven features left, none half-built. Phase 47 has gone; on value to this rig **phase 46** (connect/disconnect hardware without restarting) is now the one that pays back every session, with phase 48 (framing recall) behind it |
+| 5 | **P5.6: fuzz the WebSocket frame parser, and authenticate the command path** | Bench | S-M | The only safety-flavored item left on the bench. An unauthenticated RFC 6455 parser in C++ that accepts mount commands; loopback-by-default is a good default and is not a control. Raised in the July 2026 security review and hardened in Phase 57 without the auth gap being closed |
+| 6 | **Pick again from the unscheduled list** | Bench | varies | Eleven features left, none half-built. Phase 47 has gone; on value to this rig **phase 46** (connect/disconnect hardware without restarting) is now the one that pays back every session, and the comparison scores it as an operational deficit against the whole field. Phase 48 (framing recall) is behind it |
+| 7 | **P5.5: lower the CMake floor** | Bench | S | The cheapest item on the list. One line, once the oldest workable version has been established by trying it |
+| 8 | **P5.1: exposure-midpoint SER timestamps** | Bench | S | Parity with SharpCap today, and a bounded chance to lead. Needs the exposure threaded to the stamp site, which the report got slightly wrong |
+| 9 | **P5.4: installer, tags, and no hardcoded `D:` paths** | Bench | M | The distribution half of phase 20, split out of a VH item that was never going to be started whole |
+| 10 | **P5.3: ASCOM reconsidered** | Bench | M | Not re-enabling (it is already live) but re-examining the blacklist that closes the generic path, and making it testable indoors |
+| 11 | **P5.2: `ICamera` and `IFocuser`** | Bench | M | Precondition for any hardware breadth at all. No visible feature at the end, and a hot path to not regress |
 | — | **Xbox controller** (P4.1) | **HELD** | M | No controller, no receiver, no Bluetooth in this machine. Feasibility proven (`8fed05a`); item 1 removes its software prerequisite. Phase 47's click-to-recentre is the other half of the same idea and is in |
 | — | **Rebuild the knowledge database** | Needs network | S | **Demoted: it would not do what was claimed.** `Allen's Star Names` is listed as the mythology source in the builder's docstring and there is **no loader for it**, so a rebuild recovers no mythology for the 670 non-solar objects — that code was never written. The distances it was really wanted for are already in. What is left is Wikipedia summaries for objects that lack one: a 20–30 minute rate-limited fetch for marginal gain |
 | — | **Mythology for the deep sky** | Content | M | The honest version of the item above. 670 narratives have no cultural context and no source is wired up to give them one. This is a content-sourcing decision, not a coding task |
@@ -923,6 +1291,17 @@ That is the same shape as the defect the test exists to catch —
 `ObjectKnowledgeDB` fails *gracefully* without the DLL, so nothing
 announces itself; it just quietly reports an empty knowledge base. A
 gate that depends on an untracked file is not a gate.
+
+### A decision for the owner, raised 2026-10-19
+
+**P5.7, the license.** PolyForm Noncommercial 1.0.0 is source-available
+and is not an OSI open-source license, so it is GPL-incompatible, it
+will not be packaged by a distribution, and it is closed to anyone
+whose employer runs a legal review. Against a stated bus factor of 1,
+that costs more than the commit count does: N.I.N.A. is 79%
+one author and survives anyway on MPL-2.0 and 78 contributors. Keep,
+relicense or dual-license, with the trade-offs set out in P5.7. Not a
+task, and not a recommendation already accepted.
 
 ### Both questions answered by the owner, 2026-10-17
 
@@ -1240,16 +1619,16 @@ the original tier numbers.
 |---|---|---|---|
 | ~~47~~ | ~~Pixel position / click to recentre~~ | — | **Done 2026-10-18.** `Ctrl`+click, on the measured guide calibration |
 | 47b | Pixel position readout + directional rose | M | The half of phase 47 that a plate solve really is needed for, split out when the other half shipped without one. Absolute RA/Dec under the cursor, and a rose showing which way a jog pushes the image |
-| 46 | Connect / disconnect all hardware | M | Operational quality; currently all-or-nothing at startup |
+| 46 | Connect / disconnect all hardware | M | Operational quality; currently all-or-nothing at startup. **The comparison counts "cannot connect or disconnect without a restart" as an operational deficit against all three competitors**, none of which require a restart to swap a device. Highest value of anything in this table to this rig |
 | 48 | Go to previous image (framing recall) | M | |
 | 30 | Push-to assistant | M | |
-| 31/32 | FWHM / Bahtinov focus | H | Star focus; autofocus is tuned for a planetary disc |
-| 18 | AVI / FITS output | M | |
+| 31/32 | FWHM / Bahtinov focus | H | Star focus; autofocus is tuned for a planetary disc. **A visible gap in the comparison**: SharpCap ships multi-star FWHM, HFD and Bahtinov aids with Pro auto-scans, FireCapture has a third-party autofocus plugin, ASICap has coarse/fine EAF buttons. Nothing in this tree implements either measure (checked: no FWHM or Bahtinov code in `src/`), and the planetary-disc V-curve does not substitute for star focus |
+| 18 | AVI / FITS output | M | **FITS leads, AVI follows, and the comparison raises the value of both.** FITS is the interop format the post-processing chain consumes and is the one output that would let this project touch any photometric or deep-sky workflow; AVI is a legacy container that chain does not want. SharpCap and FireCapture both write FITS; ASICap does not, so "every competitor writes FITS" is too strong, but the two that matter do. Neither writer exists anywhere in `src/` |
 | 19 | Multi-session stats dashboard | M | |
 | 34 | Solar / lunar framing | H | |
 | 43 | Deep sky image annotation | H | |
 | 33 | Stellar photometry | VH | |
-| 20 | Distribution / ASCOM support | VH | |
+| 20 | Distribution / ASCOM support | VH | **Re-scoped 2026-10-19: split in two and neither half is VH.** Distribution is P5.4 (M, installer, tags, and removing the hardcoded `D:` paths). ASCOM is P5.3 (M, and the premise was wrong: it is live, not disabled). Carrying them as one VH item is most of why neither has been started |
 
 
 ### Partial, and known broken
@@ -1267,7 +1646,21 @@ the original tier numbers.
 
 ---
 
+<a name="live-sky-debt-consolidated"></a>
 ## Live-sky debt, consolidated
+
+**Item 3, the plate scale, is the one to do first.** Added to this
+list explicitly on 2026-10-19, because being carried inside "existing
+items 1 to 10" had let it sit unweighted. By the comparison's own
+weighting it is the single highest-value unticked item in the whole
+project: `plateScaleArcsecPx = 0.203f` at `src/core/RigConfig.h:136` is
+a calculated number that has never once been checked against the sky,
+and **every arcsecond figure the application reports derives from it**,
+the ADC advisor, the drift readout, the overlay scales, the emulator's
+field of view and the figure the assistant quotes included. It also
+costs no code: plate-solve one frame and read the comparison line the
+app already prints. Nothing else on any list in this document returns
+as much for as little.
 
 Existing items 1–10 in `CLEAR-NIGHT-CHECKLIST.md`, plus two added by
 this round:

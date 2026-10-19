@@ -9,7 +9,7 @@ Organised by what you would actually notice, not by technical fault name.
 ### Black preview / no signal
 
 - Check the USB connection to the ASI678MC
-- Check the camera is not in use by another application — close FireCapture
+- Check the camera is not in use by another application
 - Restart RadukCapture
 
 ### The planet is not in frame

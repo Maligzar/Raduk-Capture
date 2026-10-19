@@ -50,8 +50,19 @@ $docs = @(
 ) + (Get-ChildItem (Join-Path $root "wiki") -Filter *.md -ErrorAction SilentlyContinue |
      ForEach-Object { "wiki\" + $_.Name })
 
+# Documents about OTHER projects cite other projects' commits -- the
+# comparison report measured a N.I.N.A. clone and quotes its hash. Those
+# will never be ancestors of our master, and reporting them as stale is
+# the tool crying wolf, which is how a checker gets switched off. This is
+# a rule rather than a guess at the surrounding prose: a file either is
+# about our repository or it is not.
+$foreignDocs = @(
+    "wiki\Comparison-With-Other-Software.md"
+)
+
 $seen = @{}
 foreach ($d in $docs) {
+    if ($foreignDocs -contains $d) { continue }
     $p = Join-Path $root $d
     if (-not (Test-Path $p)) { continue }
     $n = 0

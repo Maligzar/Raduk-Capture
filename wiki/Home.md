@@ -1,7 +1,7 @@
 # RadukCapture
 
 High-speed planetary capture suite for Windows. Pure Win32 + Direct2D, no
-frameworks, ~34,500 lines of C++20 across 86 source files. Built for a
+frameworks, ~44,754 lines of C++ across 100 source files. Built for a
 Celestron NexStar 8SE + ZWO ASI678MC + ZWO EAF, talking to each device
 directly: the ASI SDK for the camera, the EAF SDK for the focuser, and the
 raw NexStar serial command set for the mount. No ASCOM, no CPWI, no
@@ -19,6 +19,7 @@ and [`RadukCapture-Help.md`](https://github.com/Maligzar/Raduk-Capture/blob/mast
 | If you want to | Read |
 |----------------|------|
 | Understand what this is and why it exists | **[Overview](Overview)** |
+| Know how this compares to SharpCap, FireCapture and the rest | **[Comparison With Other Software](Comparison-With-Other-Software)** |
 | Build and run it tonight, with or without hardware | **[Getting Started](Getting-Started)** |
 | See how the whole thing fits together | **[Architecture Overview](Architecture-Overview)** |
 | Find the file that owns a behaviour | **[Code Map](Code-Map)** |
@@ -31,6 +32,7 @@ and [`RadukCapture-Help.md`](https://github.com/Maligzar/Raduk-Capture/blob/mast
 
 ### Foundations
 - **[Overview](Overview)** — purpose, design philosophy, target hardware, two-machine setup
+- **[Comparison With Other Software](Comparison-With-Other-Software)** — where this sits against SharpCap, FireCapture, ASICap, N.I.N.A. and Sequence Generator Pro, and what the ranking says to build next
 - **[Getting Started](Getting-Started)** — CMake, both build configurations, first launch
 - **[Architecture Overview](Architecture-Overview)** — layer map, window architecture, data flow
 - **[Threading Model](Threading-Model)** — six threads, who owns what, the handoff rules

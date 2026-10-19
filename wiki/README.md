@@ -2,7 +2,7 @@
 
 The GitHub wiki for this repository, kept here under version control.
 
-26 pages, ~6,600 lines. `Home.md` is the landing page; `_Sidebar.md` and
+27 pages, ~7,300 lines. `Home.md` is the landing page; `_Sidebar.md` and
 `_Footer.md` are GitHub wiki special pages that render on every page.
 
 ## Publishing

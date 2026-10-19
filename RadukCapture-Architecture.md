@@ -297,6 +297,23 @@ Three-stage acquisition state machine: Off → Searching → Centering → Locke
 - Histogram: three R/G/B tinted rows on black background (FC style), seeing + sharpness row
 - Status: HDD bar + FPS, BUF bar + LOST — painted below controls in WM_PAINT strip
 
+### Phase 46 — Connect / Disconnect All Hardware [COMPLETE 2026-10-18]
+
+One `[HW]` button on the toolbar for all three devices. The rig was all-or-nothing at startup before this: whatever was switched on and plugged in when the app launched was what the session had, and a camera that dropped off USB, a mount switched on late or a focuser in the wrong socket meant closing the app and starting again — in the dark, usually after something had already been framed.
+
+**What a press does is a decision, and it lives in `src/core/HardwareLink.h`.** Everything up means disconnect, which is the end-of-session case. Anything less means *connect what is missing*, not tear down what works — because the way a rig arrives at two-of-three is a device that was not ready yet, and losing the camera and focuser to pick up the mount is never the wanted answer. Disconnecting mid-recording asks first; connecting never does, since it cannot lose a capture.
+
+The button reports `3/3`, `2/3`, `1/3` or `OFF`. The plan asked for green / amber / red, and it is a count instead: these are stock `BS_PUSHBUTTON`s on a themed strip with no owner-draw anywhere in `ToolbarStrip.h`, and a count says more than amber does — it says how many devices to go looking for. Bold while anything is connected, matching every other button there.
+
+**`src/core/MountProxy.h` is the part that made this possible.** The mount pointer is handed out at startup and kept: the centroid tracker, the GoTo panel, both sky maps and the floating mount controller each hold it, and the tracker calls through it from its own thread. A reconnect is not `Connect()` on the same object — CPWI may have started since launch, so ASCOM is now right where NexStar direct was, or the hand control came up on a different COM port, since Windows assigns those by which socket the cable landed in. Picking again means a *new* object, and every pointer handed out earlier would point at the old one.
+
+So holders get the proxy, once, and the backend swaps underneath. The backend pointer is atomic and each forwarded call loads it exactly once, so a swap cannot tear a call in half. **Retired backends are kept alive rather than deleted**, because the tracker thread may be inside a 500 ms `PulseGuide` on one at the moment it is replaced, and a mutex here would mean the render loop's `Heartbeat()` waiting on that pulse — the serial block Phase 6.2 removed. A session retires a handful of backends at most.
+
+Disconnect order is the reverse of connect, and the first two steps are not optional: a recording left open mid-write is a truncated SER, and the tracker would keep pulsing a mount that is about to go away. Connect reuses `applyFormat` for the camera rather than repeating the ROI, ring-buffer and capture-thread steps — one restart path instead of two that drift apart — and restores the session's camera settings, so a reconnect mid-session looks like nothing happened.
+
+**What it cost to learn:** `main.cpp` had `static_cast<MountEmulator*>(mount)` for the emulator's closed-loop pointing provider. With `mount` now a proxy, that cast produced a pointer to a type the object is not, and the code then *wrote* through it while the camera's generator thread read through it every frame — landing in the proxy's own mutex and vector. The emulator reached its READY banner and died in the CRT on the first frame, `0xC0000409`. It is a `dynamic_cast` of `mountProxy.Backend()` now, resolved per call so a reconnect is followed, and type-checked so a non-emulator backend answers "no error" instead of corrupting memory. `IMount`'s own comments warn about exactly this twice; the warnings were right.
+
+Gated by `tests/hardware_link.cpp`: the state mapping, what a press does from each of the eight device combinations, when it asks first, and the sentence afterwards — which must say what *happened*, because "Hardware connected" when the mount never answered is how a night is lost to a telescope that was never going to track. **Not yet pressed in the running app**: the emulator starts and runs with the proxy in place, but the button itself has not been clicked.
 ### Phase 77 — AutoStakkert Handoff [SHIPPED; in-app launch UNDER RE-TEST 2026-10-18]
 
 `K`, or `AutoStackOnStop` in `rig.ini`, hands the finished recording to AutoStakkert and lets it stack unattended, so the round trip (stop, find the file, open AS, set it up, wait, export) becomes one step. Deliberately **not** a stacker: AS!4 does multi-point alignment and drizzle well and is free, and the preview's quick-look stacker exists to answer "is this sharp" at the telescope, not to produce the final image. What was missing was the handoff.
@@ -484,6 +501,9 @@ Frame memory allocated with `VirtualAlloc` (page-aligned, avoids heap fragmentat
 | SS_NOTIFY on section headers | Required for SS_OWNERDRAW statics to receive WM_LBUTTONDOWN |
 | UpdateStates state cache | Prevents 38 FPS SetWindowTextW → toolbar button flash |
 | scrollW in layout constants | Reserves SM_CXVSCROLL pixels so controls don't draw behind scrollbar |
+| One stable mount pointer (`MountProxy`) | Holders keep it for the session while the backend swaps, so a reconnect can pick a different transport or port without stranding the tracker, the panels or the maps |
+| Retired mount backends are kept, not freed | The tracker thread may be inside a 500 ms PulseGuide on one when it is replaced; a mutex instead would block the render loop's Heartbeat behind that pulse |
+| Partial link connects rather than disconnects | Two-of-three means a device was not ready yet; tearing down the two that work is never what was wanted |
 | AS handoff, not an in-app stacker | AutoStakkert does multi-point alignment and drizzle well and is free; the quick-look stacker answers "is this sharp" at the telescope. Only the handoff was missing |
 | `AutoStackOnStop` defaults OFF | Stacking is minutes of CPU on the capture machine; opt in rather than have it sprung on you mid-session |
 | One pixel→pulse solve (`GuideSolve.h`) | The guide loop and click-to-recentre share it. Two copies would be two sign conventions, and a wrong sign here steers the mount confidently the wrong way |
@@ -1259,12 +1279,14 @@ Multiple reticle shapes selectable from toolbar dropdown. Currently only crossha
 - Cycle via `RETICLE` button or dropdown
 - **Effort: Easy-Medium** — extend `PreviewRenderer::DrawReticle` with shape enum
 
-#### Phase 46 — Connect/Disconnect All Hardware
-Single toolbar button connects or disconnects camera + EAF + mount simultaneously.
-- `[HW]` toolbar button: green = all connected, amber = partial, red = all disconnected
-- On connect: open camera → open EAF → connect mount (same order as startup)
-- On disconnect: orderly shutdown of all three (stop capture first if recording)
-- **Effort: Medium** — orchestration logic, error handling, status indicator
+#### Phase 46 — Connect/Disconnect All Hardware [COMPLETE 2026-10-18]
+Single `[HW]` toolbar button for camera + EAF + mount. See section 2 for the design.
+- The button shows a **count** (`3/3`, `2/3`, `OFF`), not green/amber/red: these are stock push buttons with no owner-draw, and the count says how many devices to go looking for
+- A **partial** link connects the missing device rather than disconnecting the working ones — `raduk::core::NextAction`
+- On connect: camera → EAF → mount, the startup order, with the camera going through `applyFormat` so there is one capture-restart path
+- On disconnect: stop recording, stop the tracker, abort autofocus, then mount → focuser → camera. Asks first if a capture is running
+- `src/core/MountProxy.h` keeps the mount pointer stable so a reconnect may pick a different transport or port
+- Gated by `tests/hardware_link.cpp`; **not yet pressed in the running app**
 
 #### Phase 47 — Click to Recentre [COMPLETE 2026-10-18]
 `Ctrl`+click any pixel and the mount puts it at frame centre. Implemented in `src/core/GuideSolve.h`; see section 2 for the design.

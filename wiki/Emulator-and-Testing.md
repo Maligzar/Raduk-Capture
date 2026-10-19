@@ -230,10 +230,30 @@ Honest limits, worth knowing before trusting an emulator result:
 
 ---
 
-## There is no automated test suite
+## The test suite, and what it does not cover
 
-Worth stating plainly: this project has no unit tests, no integration
-tests, and no CI. Verification is the emulator plus the review documents in
+This section used to say there was no automated test suite. There is one,
+and it gates merges — corrected 2026-10-18.
+
+[`tests\run-tests.ps1`](https://github.com/Maligzar/Raduk-Capture/blob/master/tests/run-tests.ps1)
+builds and runs every suite in `tests\` and exits non-zero if any fails.
+On `master` that is 13 suites: `histogram_accuracy`, `adc_alignment`,
+`sensor_analysis`, `write_buffer_sizing`, `sky_conditions`,
+`capture_thread_submit`, `ai_context_facts`, `object_knowledge`,
+`object_panel_text`, `slew_variable`, `planet_apparent_size`,
+`profile_notes` and `recentre`. They run on the bench with no camera,
+mount or sky attached, which is what lets them gate anything.
+
+Beside them sit the **manual harnesses**, `tests\manual-*`, deliberately
+NOT in the gate because each needs hardware, third-party software or a
+real recording — a gate that cannot run on a clean checkout is not a
+gate.
+
+**There is still no CI.** Nothing runs these on push; the gate is a
+local one, run by hand before a commit. That is the honest limit of it.
+
+The suite does not cover the GUI, the device SDKs, or anything that
+needs sky. Those remain the emulator's job and the review documents in
 [`docs/`](https://github.com/Maligzar/Raduk-Capture/tree/master/docs):
 
 | Document | Covers |

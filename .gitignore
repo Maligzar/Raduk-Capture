@@ -35,3 +35,9 @@ raduk_session.log
 # only while something has the database open.
 data/*.db-shm
 data/*.db-wal
+
+# The live window layout, written beside the exe at runtime and keyed
+# to the monitors of the machine that wrote it. docs\workspace-5monitor.ini
+# is the tracked reference; this one is per-machine state. It was
+# committed by accident once, by a `git add -A` during a crash hunt.
+workspace.ini

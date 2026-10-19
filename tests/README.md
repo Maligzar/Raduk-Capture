@@ -47,8 +47,41 @@ which exists precisely to keep that distinction honest.
 
 ## Current tests
 
+Thirteen suites, all gating. Each runs on the bench with no camera,
+mount or sky attached.
+
 | Test | Covers |
 |---|---|
 | `histogram_accuracy` | Bayer channel assignment, what the G channel contains, clip percentages in 8- and 16-bit, left-aligned RAW16 handling, sampling coverage. Findings in [`docs/HISTOGRAM-ACCURACY.md`](../docs/HISTOGRAM-ACCURACY.md). |
 | `adc_alignment` | That the dispersion the ADC alignment window reports is the displacement actually in the frame: a known shift comes back, sub-pixel residuals resolve, direction is right, and — the one that matters — a banded planet with no dispersion reads zero rather than inventing a residual out of its cloud belts. |
 | `sensor_analysis` | The numbers the averaged histogram cannot show: Gr/Gb split measured and judged, per-channel headroom in stops, which channel limits the exposure, and that clipping reports a fraction rather than an invented stop count. |
+| `write_buffer_sizing` | That the write buffer is sized to the run and to the machine rather than to a flat 512 slots, never drops below the old floor, and never takes more than half of free memory. |
+| `sky_conditions` | Airmass against Kasten-Young, the resolution cost of altitude, the imaging window thresholds, and that a parked mount gets no projection rather than a confident wrong one. |
+| `capture_thread_submit` | That recording runs off the capture thread rather than the render loop: the frame limit flags without stopping, the quality gate skips rather than drops, and submission sustains far more than the old 62 fps ceiling. |
+| `ai_context_facts` | What the assistant is told about the rig — pixel pitch against plate scale, the live capture format, and the rule that the observing site never reaches the prompt at more than one decimal. |
+| `object_knowledge` | That the SQLite knowledge base is reachable at all (it fails *gracefully* when the DLL is missing, which is how an unread 2.4 MB database hid for months), and that names resolve across catalogue forms. |
+| `object_panel_text` | The sentences the object panel writes: light travel time, frame fill, brightness against the naked-eye limit, and the fields it refuses to print rather than printing nonsense. |
+| `slew_variable` | The variable-rate slew encoding, including the integer overflow that made an absurd rate encode as *stop*. |
+| `planet_apparent_size` | Apparent diameter and Earth-planet distance for all seven planets, swept across years and checked against published ranges — a wrong constant or a confused unit shows up as a range violation. |
+| `profile_notes` | That a SAVE cannot erase a profile's stored note, including the `saturn.ini` case that actually happened, while still allowing a deliberate clear. |
+| `recentre` | Click-to-recentre: the pixel→pulse solve, its refusals, and a round trip that pushes the solved pulses back through the measured matrix for square, rotated, mirrored and skewed cameras. |
+
+## Manual harnesses
+
+`tests\manual-*` are **not** in `run-tests.ps1` and are not meant to be.
+Each needs something a clean checkout does not have — hardware, a real
+recording, third-party software, or a running app — and a gate that
+cannot run on demand is not a gate. Run them by hand when the question
+they answer comes up.
+
+| Harness | Answers |
+|---|---|
+| `manual-autostakkert-launch.cpp` | Does the app's own launch path actually stack a file? Drives `AutoStakkertRunner` exactly as `main.cpp` does. Needs AutoStakkert installed and a recording. |
+| `manual-doc-truth.ps1` | Do the planning documents still say true things? Unresolvable commit citations, a section heading arguing with its own body, one phase described two ways in two files, dangling cross-references, and source files missing from the code map. Reads prose, so it reports things that are fine and misses things that are not — read each finding before believing it. |
+| `manual-emulator-blur-equivalence.cpp` | Is the retiled defocus blur the *same* blur? Checksums before and after. |
+| `manual-emulator-defocus-cost.cpp` | What does the emulator's defocus cost per frame? |
+| `manual-emulator-delivery-rate.cpp` | What frame rate does the emulator actually deliver? |
+| `manual-goto-layout-bounds.ps1` | Does the GoTo panel lay out inside its window? |
+| `manual-night-vision-coverage.ps1` | How much blue is left on screen with night vision on? Measured, not asserted. |
+| `manual-record-throughput.ps1` | What does the write path sustain, in MB/s, with how many drops? |
+| `manual-window-coverage.ps1` | Do all the windows land on the screens they are meant to? |

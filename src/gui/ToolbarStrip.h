@@ -23,6 +23,7 @@
 #endif
 
 #include "Theme.h"
+#include "../core/HardwareLink.h"   // Phase 46: what the [HW] button shows
 #include <windows.h>
 #include <commctrl.h>
 #include <functional>
@@ -58,7 +59,8 @@ enum ToolbarCmd : int {
     ID_TB_BIT8      = 3016,
     ID_TB_BIT16     = 3017,
     ID_TB_FRAME     = 3018,   // Phase 39: framing shot (boosted 5s preview)
-    ID_TB_LAST      = 3018,
+    ID_TB_HW        = 3019,   // Phase 46: connect / disconnect all hardware
+    ID_TB_LAST      = 3019,
 };
 
 // One resolution preset. FULL is first because it is the default and the
@@ -164,6 +166,10 @@ public:
     void SetAICallback      (std::function<void()> cb) { m_onAI       = cb; }
     void SetExitCallback    (std::function<void()> cb) { m_onExit     = cb; }
     void SetGhostCallback   (std::function<void()> cb) { m_onGhost    = cb; }
+    // Phase 46: one press connects what is missing, or disconnects
+    // everything when all three are up. The decision is
+    // raduk::core::NextAction's, not this button's.
+    void SetHardwareCallback(std::function<void()> cb) { m_onHardware = cb; }
     // Phase 45: the reticle button now cycles shapes, so its label has
     // to name the shape rather than just ON. Stored rather than written
     // directly, because UpdateStates owns that button's text and would
@@ -230,6 +236,33 @@ public:
             SendMessage(m_btnBit16, WM_SETFONT,
                         (WPARAM)(bits == 16 ? m_fontActive : m_font), TRUE);
         }
+    }
+
+    // Phase 46: which devices are live. Separate from UpdateStates for
+    // the same reason UpdateFormat is -- this changes when hardware
+    // comes or goes, not every render tick.
+    //
+    // The plan asked for green / amber / red. These are stock
+    // BS_PUSHBUTTONs on a themed strip, with no owner-draw and no
+    // per-button colour anywhere in this file, so the state is carried
+    // the way every other button here carries it: the label, plus the
+    // bold font when something is live. "2/3" also says more than amber
+    // does -- it says how many to go looking for.
+    void UpdateHardware(const raduk::core::DeviceLinks& links) {
+        if (!m_hwnd || !m_btnHW) return;
+        if (m_hwLinksKnown && links == m_lastLinks) return;
+        m_hwLinksKnown = true;
+        m_lastLinks = links;
+
+        const std::string label = raduk::core::LinkLabel(links);
+        wchar_t w[24] = {};
+        MultiByteToWideChar(CP_UTF8, 0, label.c_str(), -1, w, 24);
+        SetWindowTextW(m_btnHW, w);
+        // Bold while anything is connected: an unlit [HW] at a glance
+        // means nothing is talking to the app.
+        const bool any = links.Count() > 0;
+        SendMessage(m_btnHW, WM_SETFONT,
+                    (WPARAM)(any ? m_fontActive : m_font), TRUE);
     }
 
     // Update button labels to reflect active state — only repaints when changed
@@ -324,6 +357,7 @@ public:
             case ID_TB_HELP:     if (m_onHelp)     m_onHelp();     return true;
             case ID_TB_AI:       if (m_onAI)       m_onAI();       return true;
             case ID_TB_GHOST:    if (m_onGhost)    m_onGhost();    return true;
+            case ID_TB_HW:       if (m_onHardware) m_onHardware(); return true;
             case ID_TB_EXIT:     if (m_onExit)     m_onExit();     return true;
             case ID_TB_RES_FULL:
             case ID_TB_RES_1920:
@@ -364,6 +398,8 @@ private:
             { ID_TB_CLIP,     L"[CLIP]",      60, &m_btnClip     },
             { ID_TB_FRAME,    L"[FRAME]",     62, &m_btnFrame    },
             { ID_TB_GHOST,    L"[GH]",        40, &m_btnGhost    },
+            // Wide enough for the longest label it takes, "[HW] OFF".
+            { ID_TB_HW,       L"[HW] OFF",    74, &m_btnHW       },
             { ID_TB_HELP,     L"[?]",         36, &m_btnHelp     },
             { ID_TB_AI,       L"[AI]",        40, &m_btnAI       },
             // gap at i==12 — capture format group
@@ -386,9 +422,12 @@ private:
 
         for (int i = 0; i < nDefs; i++) {
             auto& d = defs[i];
+            // Indices, so they move when a button is inserted. [HW]
+            // went in at 10, which pushed the format group and EXIT
+            // along by one each.
             if (i == 3)  x += sep;   // gap before view buttons
-            if (i == 12) x += sep;   // gap before the format group
-            if (i == 18) x += sep;   // gap before EXIT
+            if (i == 13) x += sep;   // gap before the format group
+            if (i == 19) x += sep;   // gap before EXIT
 
             HWND btn = CreateWindowExW(
                 0, L"BUTTON", d.label,
@@ -428,6 +467,7 @@ private:
         if (m_btnHelp)     { DestroyWindow(m_btnHelp);     m_btnHelp     = nullptr; }
         if (m_btnAI)       { DestroyWindow(m_btnAI);       m_btnAI       = nullptr; }
         if (m_btnGhost)    { DestroyWindow(m_btnGhost);    m_btnGhost    = nullptr; }
+        if (m_btnHW)       { DestroyWindow(m_btnHW);       m_btnHW       = nullptr; }
         if (m_btnExit)     { DestroyWindow(m_btnExit);     m_btnExit     = nullptr; }
         if (m_btnResFull)  { DestroyWindow(m_btnResFull);  m_btnResFull  = nullptr; }
         if (m_btnRes1920)  { DestroyWindow(m_btnRes1920);  m_btnRes1920  = nullptr; }
@@ -460,6 +500,10 @@ private:
         m_lastAIVis       = false;
         m_lastGhostActive = false;
         m_lastResW = m_lastResH = m_lastBits = -1;
+        // Phase 46: the same hole. A rebuild gives [HW] its plain
+        // creation label, so the next UpdateHardware has to repaint
+        // even though the link state itself has not changed.
+        m_hwLinksKnown = false;
     }
 
     static LRESULT CALLBACK ToolbarWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -557,6 +601,15 @@ private:
     std::function<void()> m_onHelp;
     std::function<void()> m_onAI;
     std::function<void()> m_onGhost;
+    std::function<void()> m_onHardware;
+    HWND m_btnHW = nullptr;
+    // The link state last painted. m_hwLinksKnown distinguishes "all
+    // three down" from "never set", which matters because the
+    // all-down state is the DEFAULT-constructed one -- without the
+    // flag, the first paint of a disconnected rig is skipped as
+    // unchanged and the button keeps its creation-time label.
+    raduk::core::DeviceLinks m_lastLinks;
+    bool m_hwLinksKnown = false;
     std::function<void()> m_onExit;
     std::function<void(int,int)> m_onRes;
     std::function<void(int)>     m_onBits;

@@ -57,15 +57,21 @@ Three things specifically cannot be checked without sky or hardware:
   under a system tuned against raw frames. Worth doing deliberately, with
   before/after numbers on a real night -- not as a side effect.
 
-## 3. Known broken, not ours
+## 3. AutoStakkert — withdrawn, it works
 
-**AutoStakkert will not start on this machine.** It parses every option
-correctly and then never begins processing. Proven not to be
-RadukCapture: the identical command fails from a bare command prompt,
-and so does the exact command that worked earlier the same day.
-`AutoStackOnStop` ships off because of it. Next steps are reboot, then
-reinstall. See the Stacking section of the help file for how to tell a
-healthy run from a stuck one.
+**Corrected 2026-10-18.** This said AutoStakkert would not start on
+this machine and was "proven not to be ours", with a reboot and a
+reinstall as the next steps. None of that survived measurement: three
+runs on one recording — standalone, through the app's own launch path,
+and through it again with AutoStakkert already open — all stacked, all
+in about 51 s, with no reinstall and no reboot between them. There was
+never anything wrong with the app's code.
+
+What broke it originally is unexplained and not reproducible. The trap
+worth remembering is that launching from Git Bash rewrites the
+`/switches` into paths and produces an identical-looking failure; the
+log distinguishes them. `tests\manual-autostakkert-launch.cpp` re-runs
+the measurement on demand.
 
 ## 4. Review pass 2 — closed
 

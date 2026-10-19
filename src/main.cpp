@@ -63,6 +63,8 @@
 #include "gui/GoToPanel.h"
 #include "gui/SkyMapWindow.h"
 #include "core/GuideSolve.h"   // phase 47: a clicked pixel into guide pulses
+#include "core/MountProxy.h"   // phase 46: one mount pointer that never goes stale
+#include "core/HardwareLink.h" // phase 46: what the [HW] button shows and says
 #include "gui/ShareView.h"
 #include "gui/ObjectPanel.h"
 #include "gui/WorkspaceLayout.h"
@@ -698,8 +700,24 @@ static int RunApp(bool useEmulator) {
     // Send the V-curve to raduk_log.txt as well as the console, so a focus
     // run can be judged after the fact instead of only while watching it.
     autofocus.SetLogger([](const char* s) { Log("%s", s); });
-    std::unique_ptr<IMount> mountPtr;
+    // ── Phase 46: choosing a mount, more than once ─────────────
+    //
+    // This used to run straight-line at startup and never again, which
+    // is why it reads as a script rather than a function. It has to be
+    // callable twice now: a reconnect is not Connect() on the same
+    // object, because the right answer may have changed since launch --
+    // CPWI started, so ASCOM is now correct where NexStar direct was,
+    // or the hand control came up on a different COM port, since
+    // Windows assigns those by which socket the cable landed in.
+    //
+    // So it picks again, and returns a NEW backend. The proxy below is
+    // what everything else holds, so a new backend does not strand the
+    // tracker, the GoTo panel, the sky maps or the mount controller.
+    raduk::core::MountProxy mountProxy;
     bool startInRCControl = false;
+
+    auto connectMountBackend = [&]() -> std::unique_ptr<IMount> {
+        std::unique_ptr<IMount> mountPtr;
 
 #ifdef RADUK_EMULATOR
     {
@@ -749,7 +767,16 @@ static int RunApp(bool useEmulator) {
                     scan.port.c_str());
                 slog.System("Mount: RC direct via %s", scan.port.c_str());
                 g_mountForCrash = nm;
-                std::atexit(EmergencyStopOnExit);
+                // Once per process, not once per connect. atexit
+                // handlers accumulate, and this lambda can now run
+                // several times a session -- the standard only
+                // guarantees 32 slots, and registering the same stop
+                // thirty times would also run it thirty times.
+                static bool s_exitStopArmed = false;
+                if (!s_exitStopArmed) {
+                    std::atexit(EmergencyStopOnExit);
+                    s_exitStopArmed = true;
+                }
                 Log("[SAFETY] Heartbeat watchdog armed (timeout=%dms)\n",
                     raduk::core::NexStarMount::WATCHDOG_TIMEOUT_MS);
             } else {
@@ -761,7 +788,17 @@ static int RunApp(bool useEmulator) {
     } // end !useEmulator hardware path
 #endif // RADUK_EMULATOR
 
-    IMount* mount = mountPtr.get(); // may be nullptr
+        return mountPtr;
+    };
+
+    // Install the first backend. Null is a normal outcome -- no hand
+    // control, no CPWI -- and the proxy answers as a disconnected mount,
+    // which every caller already guards for.
+    mountProxy.SetBackend(connectMountBackend());
+
+    // The pointer handed to everything else, for the whole session. It
+    // is the proxy, never a backend: backends come and go.
+    IMount* mount = &mountProxy;
 
     // Phase 67: cord wrap. Measured as cumulative azimuth travel since
     // the cables were last dressed, not as absolute azimuth -- 350 and
@@ -784,10 +821,31 @@ static int RunApp(bool useEmulator) {
     //   RADUK_EMU_JITTER_AS    — seeing wander amplitude, arcsec (default 0.5)
     //   RADUK_EMU_DRIFT_AS     — RA tracking-error rate, arcsec/s (default 0.3)
     if (mount) {
-        auto* emuMount = static_cast<raduk::core::MountEmulator*>(mount);
-        cam.SetPointingErrorProvider([emuMount](float& eRA, float& eDec) {
-            return emuMount->GetPointingErrorArcsec(eRA, eDec);
+        // The CONCRETE emulator, never the mount pointer.
+        //
+        // `mount` is a MountProxy since phase 46, and this line used to
+        // static_cast it straight to MountEmulator -- a cast to a type
+        // the object is not. It then WROTE through that pointer
+        // (SetTrackingErrorRate below) while the camera's generator
+        // thread read through it every frame, landing in the proxy's own
+        // mutex and vector. The app reached its READY banner and died in
+        // the CRT on the first frame, which is exactly the failure
+        // IMount's own comments warn about twice: "a static_cast to
+        // NexStarMount here previously corrupted ASCOMMount instances".
+        //
+        // dynamic_cast, and resolved per call rather than captured once:
+        // type-checked, so a backend that is not an emulator answers "no
+        // error" instead of corrupting memory, and a reconnect that
+        // installs a new emulator backend is followed rather than
+        // ignored. One cast per generated frame costs nothing against
+        // generating the frame.
+        cam.SetPointingErrorProvider([&mountProxy](float& eRA, float& eDec) {
+            auto* em = dynamic_cast<raduk::core::MountEmulator*>(
+                           mountProxy.Backend());
+            return em ? em->GetPointingErrorArcsec(eRA, eDec) : false;
         });
+        auto* emuMount = dynamic_cast<raduk::core::MountEmulator*>(
+                             mountProxy.Backend());
         float rotDeg = 0.0f, jitAs = 0.5f, driftAs = 0.3f;
         char envBuf[32];
         if (GetEnvironmentVariableA("RADUK_EMU_ROTATION_DEG", envBuf, 32))
@@ -798,7 +856,7 @@ static int RunApp(bool useEmulator) {
             driftAs = (float)atof(envBuf);
         cam.SetCameraRotationDeg(rotDeg);
         cam.SetSeeingJitterArcsec(jitAs);
-        emuMount->SetTrackingErrorRate(driftAs, driftAs * 0.4f);
+        if (emuMount) emuMount->SetTrackingErrorRate(driftAs, driftAs * 0.4f);
         Log("[INIT] Closed-loop emulation: rot=%.1f deg jitter=%.2f\" drift=%.2f\"/s\n",
             rotDeg, jitAs, driftAs);
     }
@@ -2664,6 +2722,158 @@ static int RunApp(bool useEmulator) {
             (p.filePrefix.empty() ? p.name : p.filePrefix).c_str());
     };
 
+    // ── Phase 46: connect / disconnect all hardware ──────────
+    //
+    // Until now the rig was all-or-nothing at startup: whatever was
+    // switched on and plugged in when the app launched was what the
+    // session had. A camera that dropped off USB, a mount switched on
+    // late, a focuser in the wrong socket -- each meant closing the app
+    // and starting again, in the dark, usually after something had
+    // already been framed.
+    //
+    // One button, three devices. What a press does is
+    // raduk::core::NextAction's decision, not this code's: everything
+    // up means disconnect (end of session), anything less means pick up
+    // what is missing -- because the way a rig arrives at "two of three"
+    // is a device that was not ready yet, and tearing down the two that
+    // work is never the wanted answer there.
+    auto currentLinks = [&]() {
+        raduk::core::DeviceLinks d;
+        d.camera  = cam.IsOpen();
+        d.focuser = focuser.IsOpen();
+        d.mount   = mountProxy.IsConnected();
+        return d;
+    };
+
+    auto reportLinks = [&](const raduk::core::DeviceLinks& before) {
+        const raduk::core::DeviceLinks after = currentLinks();
+        const std::string msg = raduk::core::LinkSummary(before, after);
+        wchar_t w[256] = {};
+        MultiByteToWideChar(CP_UTF8, 0, msg.c_str(), -1, w, 256);
+        // Amber unless everything is up: a bar that says "connected"
+        // in green while the mount is missing is how a night gets lost
+        // to a telescope that was never going to track.
+        if (raduk::core::LinkStateOf(after) == raduk::core::LinkState::All)
+            notifBar.NotifyInfo(w);
+        else
+            notifBar.NotifyWarn(w);
+        Log("[HW] %s\n", msg.c_str());
+        slog.System("Hardware: %s", msg.c_str());
+        toolbar.UpdateHardware(after);
+    };
+
+    auto connectMissing = [&]() {
+        const raduk::core::DeviceLinks before = currentLinks();
+
+        // Camera first, same order as startup, because the preview and
+        // every analyser downstream hang off it.
+        if (!cam.IsOpen()) {
+            if (cam.Open(0)) {
+                Log("[HW] Camera: %s\n", cam.Name().c_str());
+                // The settings the session was using, not the camera's
+                // defaults: a reconnect mid-session should look like
+                // nothing happened.
+                const auto& rgs = raduk::core::RigConfig::Get();
+                if (rgs.HasLastCamera()) {
+                    cam.SetGain(rgs.lastGain >= 0 ? rgs.lastGain : 100);
+                    cam.SetExposure(rgs.lastExposureMs > 0.0f
+                                        ? (double)rgs.lastExposureMs : 8.0);
+                    cam.SetGamma(rgs.lastGamma >= 0 ? rgs.lastGamma : 50);
+                    cam.SetWhiteBalance(rgs.lastWbRed  >= 0 ? rgs.lastWbRed  : 52,
+                                        rgs.lastWbBlue >= 0 ? rgs.lastWbBlue : 47);
+                    cam.SetUSBBandwidth(rgs.lastUsb >= 0 ? rgs.lastUsb : 80);
+                    cam.SetHighSpeedMode(true);
+                }
+                // applyFormat owns the ROI, the ring buffer and the
+                // capture thread together. Reusing it here rather than
+                // repeating those three steps is the difference between
+                // one restart path and two that drift apart.
+                applyFormat(roiWidth, roiHeight, roiBits,
+                            roiStartX + roiWidth / 2,
+                            roiStartY + roiHeight / 2, "hardware connect");
+            } else {
+                Log("[HW] Camera: open failed\n");
+            }
+        }
+
+        if (!focuser.IsOpen()) {
+#ifdef RADUK_EMULATOR
+            focuser.Open(0);
+#else
+            if (!useEmulator && EAFFocuser::GetCount() > 0) focuser.Open(0);
+#endif
+            if (focuser.IsOpen())
+                Log("[HW] EAF: pos=%d\n", focuser.GetPosition());
+            else
+                Log("[HW] EAF: not found\n");
+        }
+
+        if (!mountProxy.IsConnected()) {
+            // A fresh choice, not a reconnect of the old object: CPWI
+            // may have started since launch, or the hand control may
+            // have come up on a different port.
+            mountProxy.SetBackend(connectMountBackend());
+            if (mountProxy.IsConnected()) {
+                controls.SetRCControl(startInRCControl);
+                Log("[HW] Mount: %s\n", mountProxy.ConnectionId().c_str());
+            }
+        }
+
+        reportLinks(before);
+    };
+
+    auto disconnectAll = [&]() {
+        const raduk::core::DeviceLinks before = currentLinks();
+
+        // Order is the reverse of connecting, and the first two steps
+        // are not optional: a recording left open mid-write is a
+        // truncated SER, and the tracker would keep pulsing a mount
+        // that is about to go away.
+        if (capturer.IsRecording()) {
+            capturer.StopRecording(false);   // not a normal finish: no auto-stack
+            usbMgr.SetCapturing(false);
+        }
+        if (tracker.IsRunning()) tracker.Reset();
+        autofocus.Abort();
+
+        if (mountProxy.IsConnected()) {
+            mountProxy.StopSlew(0);
+            mountProxy.StopSlew(1);
+            mountProxy.Disconnect();
+        }
+        // Forget the backend without destroying it -- the tracker
+        // thread may still be inside a pulse on it. MountProxy keeps
+        // retired backends alive for exactly that reason.
+        mountProxy.ClearBackend();
+
+        if (focuser.IsOpen()) focuser.Close();
+
+        if (cam.IsOpen()) {
+            capture.Stop();     // before the camera, always
+            cam.Close();
+        }
+
+        reportLinks(before);
+    };
+
+    auto doHardwareButton = [&]() {
+        const raduk::core::DeviceLinks links = currentLinks();
+        if (raduk::core::NeedsConfirmation(links, capturer.IsRecording())) {
+            if (MessageBoxW(window.Handle(),
+                    L"A capture is recording.\n\n"
+                    L"Disconnecting closes the file and stops the mount.\n"
+                    L"Disconnect anyway?",
+                    L"RadukCapture \u2014 Disconnect hardware",
+                    MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES)
+                return;
+        }
+        if (raduk::core::NextAction(links) ==
+                raduk::core::LinkAction::DisconnectAll)
+            disconnectAll();
+        else
+            connectMissing();
+    };
+
     // Reticle toggle — now lives on the frame bar. Keyboard R key still works.
     // preview.ToggleReticle() is the single source of truth for state.
     // ── Phase 39: framing shot ────────────────────────────────
@@ -3737,6 +3947,7 @@ static int RunApp(bool useEmulator) {
     toolbar.SetGoToCallback([&]()  { gotoPanel.ShowCentered(); });
     toolbar.SetReticleCallback([&]() { doReticle(); });
     toolbar.SetClipCallback([&]()    { preview.ToggleClip(); });
+    toolbar.SetHardwareCallback([&]() { doHardwareButton(); });
     // Phase 49: Help toggle — toolbar [?] button and ? key
     auto doHelp = [&]() { helpWindow.Toggle(); };
     toolbar.SetHelpCallback([&]()       { doHelp(); });
@@ -4300,6 +4511,12 @@ static int RunApp(bool useEmulator) {
                 helpWindow.IsVisible(),
                 aiChat.IsVisible(),
                 preview.GhostEnabled());
+            // Phase 46: and which devices are live. Same reasoning as
+            // UpdateFormat below -- it returns immediately unless the
+            // state changed, and calling it every tick means a device
+            // that drops on its own (a USB unplug, not a button press)
+            // still shows up on the button.
+            toolbar.UpdateHardware(currentLinks());
             // Cheap: returns immediately unless the format actually
             // changed. Called every tick so a window resize, which
             // rebuilds the buttons with plain labels, gets its active

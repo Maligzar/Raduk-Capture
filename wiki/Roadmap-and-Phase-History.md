@@ -335,8 +335,11 @@ source point into [`docs/`](https://github.com/Maligzar/Raduk-Capture/tree/maste
 | `NEXT-SESSION.md` | Working notes |
 
 Phase 80's review pass alone fixed eight confirmed defects. These documents
-are the nearest thing this project has to a regression record, since
-[there is no automated test suite](Emulator-and-Testing#there-is-no-automated-test-suite).
+carry the reasoning behind a change, which a test cannot; the regression
+record proper is
+[the test suite](Emulator-and-Testing#the-test-suite-and-what-it-does-not-cover),
+13 suites gating merges on `master`. This line used to say the project had
+no automated test suite — corrected 2026-10-18.
 
 ---
 

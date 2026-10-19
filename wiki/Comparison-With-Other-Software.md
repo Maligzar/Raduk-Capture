@@ -562,7 +562,8 @@ This comparison measured the tree, and the measurement disagreed with the
 project's own prose in six places: [Home](Home) claimed "~34,500 lines
 across 86 source files" against an actual **44,754 lines across 100 files**
 (83 `.h` totaling 30,194 and 17 `.cpp` totaling 14,560), since corrected
-there; "there is no automated test suite" against 13 gated tests; the
+there; "there is no automated test suite" against 13 gated tests, also
+since corrected; the
 emulator documented at 984 lines against 1,316; a bright-star table header
 claiming 255 stars against 97; the FITS writer marked shipped when none
 exists; and **`ASCOMMount` labeled Superseded when it is the mount path

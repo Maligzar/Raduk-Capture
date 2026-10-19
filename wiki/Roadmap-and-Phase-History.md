@@ -94,6 +94,26 @@ camera's internal buffer in the state that wedged it.
 > partially-wired feature waiting to surprise you, with one exception noted
 > below.
 
+### Tier 5 — competitive position
+
+Added 2026-10-19, out of the product comparison written up in
+[Comparison With Other Software](Comparison-With-Other-Software). Seven
+phases, P5.1 to P5.7, live in
+[`docs/ROADMAP-Next.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/ROADMAP-Next.md):
+exposure-midpoint SER timestamps, `ICamera` and `IFocuser` interfaces,
+the generic ASCOM path reconsidered, distribution split out of the
+very-hard phase 20, the CMake floor, fuzzing and authenticating the
+WebSocket command path, and a licence decision. P5.6 enters the live
+queue on its safety dimension, since the command set moves a telescope
+and has no authentication. P5.7 is kept out of the queue as an owner
+decision rather than a task.
+
+The comparison also re-weighted work already on the list. By its
+weighting the highest-value unticked item in the project is clear-night
+item 3, checking the plate scale against the sky: every arcsecond figure
+the application reports derives from a number that was calculated and
+never verified, and the fix costs no code.
+
 ### Tier 2
 
 | Phase | Feature | Effort |

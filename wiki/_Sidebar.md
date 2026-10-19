@@ -2,6 +2,7 @@
 
 **Foundations**
 - [Overview](Overview)
+- [Comparison With Other Software](Comparison-With-Other-Software)
 - [Getting Started](Getting-Started)
 - [Architecture Overview](Architecture-Overview)
 - [Threading Model](Threading-Model)

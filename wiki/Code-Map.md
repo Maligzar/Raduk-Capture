@@ -106,6 +106,8 @@ See [Tracking and Guiding](Tracking-and-Guiding), [Autofocus](Autofocus).
 | [`ObjectKnowledgeDB.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ObjectKnowledgeDB.h) | 277 | SQLite via runtime `LoadLibrary`; returns `""` when absent |
 | [`AutoStakkertRunner.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/AutoStakkertRunner.h) | 382 | AS!4 headless CLI handoff. CLI and in-app launch both verified 2026-10-18 |
 | [`GuideSolve.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/GuideSolve.h) | 151 | Pixel offset → guide pulses. The one solve, shared by the guide loop and click-to-recentre |
+| [`MountProxy.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/MountProxy.h) | 208 | Phase 46. One mount pointer that never goes stale: holders keep the proxy for the session while the backend swaps underneath, so a reconnect can pick a different transport or port |
+| [`HardwareLink.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/HardwareLink.h) | 134 | Phase 46. What the [HW] button shows, what a press does, and what it says afterwards — the decisions, kept out of the button |
 | [`TextConv.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/TextConv.h) | 71 | UTF-8 ↔ UTF-16, sized from the data rather than a fixed buffer |
 | [`ADCAlignment.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ADCAlignment.h) | 144 | Per-channel centroid displacement — measures what a dispersion corrector has left behind |
 | [`SkyConditions.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/SkyConditions.h) | 211 | Airmass, resolution cost and the imaging window, from altitude |

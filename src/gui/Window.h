@@ -89,6 +89,8 @@ public:
     void SetPixelClickHandler(std::function<void(float,float)> h){ m_onPixelClick        = h; }
     void SetZoomCycleHandler(std::function<void()> h)        { m_onZoomCycle        = h; }
     void SetGoToToggleHandler(std::function<void()> h)       { m_onGoToToggle       = h; }
+    void SetRecallFramingHandler(std::function<void()> h)    { m_onRecallFraming    = h; }
+    void SetRecallOffsetHandler(std::function<void()> h)     { m_onRecallOffset     = h; }
     void SetSkyMapToggleHandler(std::function<void()> h)     { m_onSkyMapToggle     = h; }
     void SetZoomWheelHandler(std::function<void(int)> h)     { m_onZoomWheel        = h; }
     void SetFocusFineHandler(std::function<void(int)> h)     { m_onFocusFine        = h; }
@@ -253,6 +255,8 @@ private:
     std::function<void(float,float)>    m_onPixelClick;
     std::function<void()>               m_onZoomCycle;
     std::function<void()>               m_onGoToToggle;
+    std::function<void()>               m_onRecallFraming;   // phase 48: Shift+G
+    std::function<void()>               m_onRecallOffset;    // phase 48: Ctrl+Shift+G
     std::function<void()>               m_onSkyMapToggle;
     std::function<void(int)>            m_onZoomWheel;
     std::function<void(int)>            m_onFocusFine;

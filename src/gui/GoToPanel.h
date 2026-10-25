@@ -237,6 +237,24 @@ public:
         DoGoTo(obj->ra, obj->dec, obj->name);
     }
 
+    // Phase 48: where a named object is NOW. Exact name only, case
+    // aside -- RequestGoToByName's substring search would send a recall
+    // of "Mars" to whichever brighter object happens to contain it.
+    // Planets are recomputed first, because a recall is usually of a
+    // planet, and a planet's position from the night it was recorded
+    // is a position it has since left.
+    bool LookupNow(const std::string& name, double& raH, double& decDeg) {
+        if (name.empty()) return false;
+        m_catalog.UpdatePlanets();
+        for (const auto& obj : m_catalog.Objects()) {
+            if (_stricmp(obj.name.c_str(), name.c_str()) == 0) {
+                raH = obj.ra; decDeg = obj.dec;
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ── Alignment state ────────────────────────────────────────
     enum class AlignState {
         Unknown,      // just started, haven't checked yet
@@ -245,6 +263,11 @@ public:
         Aligned,      // HC reports aligned — GoTo enabled
         PlateSynced   // user has plate-solved and synced — GoTo enabled
     };
+
+    // Phase 48: synced by a plate solve, which enables GoTo without the
+    // hand control reporting aligned. Read on its own because the align
+    // state above is only refreshed while the panel is open.
+    bool IsPlateSynced() const { return m_alignState == AlignState::PlateSynced; }
 
     bool IsGoToEnabled() const {
         return m_alignState == AlignState::Aligned

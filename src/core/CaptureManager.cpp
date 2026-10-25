@@ -79,6 +79,22 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
         return false;
     }
 
+    // Phase 48: the observation record, snapshotted at the start --
+    // where the mount was pointing when the run began is the framing
+    // worth returning to, not wherever it had drifted to by the end.
+    m_obs = ObservationRecord{};
+    {
+        const size_t slash = path.find_last_of("\\/");
+        m_obs.file = (slash == std::string::npos) ? path : path.substr(slash + 1);
+    }
+    m_obs.frameType = m_config.frameType;
+    m_obs.startUnix = (int64_t)time(nullptr);
+    m_obs.width     = width;
+    m_obs.height    = height;
+    m_obs.bitDepth  = bitDepth;
+    m_obs.colour    = "RGGB";   // SERWriter::Open's default, which is what is written
+    if (m_obsSource) m_obsSource(m_obs);
+
     // Reset stats
     m_status.framesRecorded.store(0);
     m_status.framesDropped.store(0);
@@ -125,8 +141,21 @@ void CaptureManager::StopRecording(bool normal) {
     // hand it straight to AutoStakkert without reconstructing a path.
     m_lastPath = m_writer.Path();
 
+    // The run's sky figures, read before Close() resets them.
+    {
+        const SERWriter::SkySummary sky = m_writer.SkyConditionsSummary();
+        if (sky.valid) {
+            m_obs.altStartDeg = sky.altStart;  m_obs.altEndDeg = sky.altEnd;
+            m_obs.altMinDeg   = sky.altMin;    m_obs.altMaxDeg = sky.altMax;
+            m_obs.azEndDeg    = sky.azEnd;
+            m_obs.airmassMean = sky.airmassMean;
+            m_obs.airmassMax  = sky.airmassMax;
+        }
+    }
+
     // Close SER writer (writes timestamp trailer, patches frame count)
     m_writer.Close();
+    WriteObservationRecord();
 
     uint32_t frames = m_status.framesRecorded.load();
     uint32_t drops  = m_status.framesDropped.load();
@@ -143,6 +172,34 @@ void CaptureManager::StopRecording(bool normal) {
     // limit inside SubmitFrame - which is how a planned capture
     // normally ends. Callers distinguish by the flag.
     if (m_onComplete) m_onComplete(m_lastPath, normal);
+}
+
+// Phase 48: <base>_observation.txt beside <base>.ser. Written on every
+// way out of a recording, an emergency stop included -- the frames on
+// disk are the same frames whatever ended the run, and a record that
+// only exists for tidy finishes is one nobody can rely on.
+void CaptureManager::WriteObservationRecord() {
+    if (m_lastPath.empty()) return;
+    m_obs.endUnix       = (int64_t)time(nullptr);
+    m_obs.durationSec   = m_status.elapsedSec.load();
+    m_obs.frames        = (int)m_status.framesRecorded.load();
+    m_obs.framesDropped = (int)m_status.framesDropped.load();
+
+    const std::string obsPath = ObservationPathFor(m_lastPath);
+    const std::string text    = SerializeObservation(m_obs);
+    FILE* f = nullptr;
+    if (fopen_s(&f, obsPath.c_str(), "w") != 0 || !f) {
+        Say("Could not write the observation record: " + obsPath);
+        return;
+    }
+    const bool ok = fwrite(text.data(), 1, text.size(), f) == text.size();
+    fclose(f);
+    if (!ok) {
+        Say("Observation record write failed: " + obsPath);
+        return;
+    }
+    m_lastObsPath = obsPath;
+    Say("Observation record: " + obsPath);
 }
 
 // Why a Push() failed, said once per recording -- the failing case

@@ -534,6 +534,7 @@ D:\RadukCapture\src\
 │   ├── CaptureThread.h / .cpp    ASI SDK capture thread (RT priority)
 │   ├── CaptureManager.h          Recording orchestration (SER + WriteBuffer)
 │   ├── SERWriter.h               SER v3 file format writer
+│   ├── ObservationRecord.h       Phase 48: record beside each capture + recall plans
 │   ├── FrameAnalyzer.h           Histogram + sharpness + seeing score
 │   ├── CentroidTracker.h         Three-stage planet lock + PulseGuide
 │   ├── GuideSolve.h              Pixel→pulse solve, shared: guide loop + recentre
@@ -926,7 +927,7 @@ SharpCap's toolbar has 19 buttons. RadukCapture currently has 7. Full parity req
 
 **New phases from tools review:**
 - **Phase 47 — Pixel Position / Click to Recentre:** Split in two by what it actually needs. **Recentring shipped** (2026-10-18) without a plate solve, on the Phase 51 guide calibration, which is already a measured pixel↔sky transform — see section 2. The **coordinate readout and directional rose** do need a solve, because the calibration is relative and not absolute, and remain outstanding as Phase 47b.
-- **Phase 48 — Goto Image (Return to Previous):** Load a previously saved SER/PNG, plate-solve its first frame to determine sky coordinates, then slew the mount to those coordinates. Allows returning to the exact same framing from a previous session.
+- **Phase 48 — Goto Image (Return to Previous):** Built 2026-10-25, without the plate solve this entry originally proposed: a planetary crop has no star field to solve. Each capture writes an observation record beside itself instead (`src/core/ObservationRecord.h`), and recall slews from that through the GoTo panel. See the Phase 48 section below; status in `docs/PHASE-STATUS.md`.
 
 ---
 
@@ -1304,11 +1305,11 @@ The half of the original Phase 47 that a plate solve is genuinely needed for. Sp
 - **Effort: Medium** — WCS math (plate solve result → pixel → sky coords), overlay drawing
 
 #### Phase 48 — Goto Previous Image
-Load a previously saved SER file, plate-solve its first frame, slew to those coordinates. Return to exact framing from any previous session.
-- "Return to last night's Jupiter session" via file picker
-- Plate-solves the first frame of the SER to get sky coordinates
-- Feeds into GoTo pipeline — same slew/center/sync path as GoTo panel
-- **Effort: Medium** — SER first-frame extraction + plate solve + GoTo invocation
+Return to a previous capture's framing. **Built 2026-10-25; status in `docs/PHASE-STATUS.md`.** The plate solve originally planned here was replaced (design settled 2026-10-18): a planetary crop has no star field to solve, and the app already knows where it was pointing when it records.
+- **Observation record.** `CaptureManager` writes `<name>_observation.txt` beside `<name>.ser` and `<name>_quality.txt` on every way out of a recording. `key = value` ASCII; unknown values omitted, unknown keys ignored, FITS keyword equivalents listed in the file header for phase 18. Pure format and parser in `src/core/ObservationRecord.h`; the live fields are filled by `main.cpp`'s observation source; the run's sky figures come from the same `SERWriter` accumulator as the quality sidecar's scope-position block.
+- **Recall (`Shift+G`).** File picker → `PlanRecall` → confirmation (default No) → `GoToPanel::RequestGoTo`, so the keep-out and cord-wrap gates and the profile auto-load apply unchanged. `PlanRecall` uses the catalogue's position *now* for a named target (planets move) and the recorded mount position otherwise, and refuses: no mount, unaligned, no site, under 15° altitude, within 20° of the Sun.
+- **Framing restore (`Ctrl+Shift+G`).** `PlanFramingRestore` turns "target is here, record says there" into a virtual click for phase 47's `PlanRecentre`; the pulses go through the same guards and sender as `Ctrl`+click.
+- Gated by `tests/observation_record.cpp`.
 
 #### Phase 49 — Help System
 In-app help window (`?` key or `[?]` toolbar button) showing the full reference guide.
@@ -1606,4 +1607,4 @@ Planetary imaging requires high-bandwidth USB stability. To prevent session loss
 
 ---
 
-*RadukCapture v2.0 — Built for the stars, from the observing site*
+*RadukCapture v2.1 — Built for the stars, from the observing site*

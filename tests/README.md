@@ -47,8 +47,8 @@ which exists precisely to keep that distinction honest.
 
 ## Current tests
 
-Thirteen suites, all gating. Each runs on the bench with no camera,
-mount or sky attached.
+Fourteen of the suites in `run-tests.ps1` are described here, all
+gating. Each runs on the bench with no camera, mount or sky attached.
 
 | Test | Covers |
 |---|---|
@@ -65,6 +65,7 @@ mount or sky attached.
 | `planet_apparent_size` | Apparent diameter and Earth-planet distance for all seven planets, swept across years and checked against published ranges — a wrong constant or a confused unit shows up as a range violation. |
 | `profile_notes` | That a SAVE cannot erase a profile's stored note, including the `saturn.ini` case that actually happened, while still allowing a deliberate clear. |
 | `recentre` | Click-to-recentre: the pixel→pulse solve, its refusals, and a round trip that pushes the solved pulses back through the measured matrix for square, rotated, mirrored and skewed cameras. |
+| `observation_record` | Phase 48. The record beside each capture round-trips every field; an unknown value stays unknown instead of becoming 0; the reader survives CRLF, comments, a newer version and a forged newline. Recall: a named target goes where the catalogue says it is now, and every refusal refuses — no mount, unaligned, no site, under 15°, near the Sun. Framing restore lands the target on its recorded pixel for square, rotated, mirrored and skewed cameras. |
 
 ## Manual harnesses
 

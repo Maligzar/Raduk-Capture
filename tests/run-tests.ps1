@@ -36,6 +36,7 @@ $Tests = @(
     @{ Name = "planet_apparent_size"; Sources = @() }
     @{ Name = "profile_notes";     Sources = @() }
     @{ Name = "recentre";          Sources = @() }
+    @{ Name = "observation_record"; Sources = @() }
     @{ Name = "hardware_link";     Sources = @() }
     @{ Name = "ws_protocol";       Sources = @("src\net\APEXTelemetry.cpp"); Asan = $true }
     @{ Name = "ws_fuzz";           Sources = @("src\net\APEXTelemetry.cpp"); Asan = $true }

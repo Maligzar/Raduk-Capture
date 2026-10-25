@@ -314,6 +314,8 @@ fullscreen.
 | `Shift+S` | Framing shot — boost gain and exposure for 5s, then restore |
 | `F11` | Toggle fullscreen |
 | `G` | Open GoTo panel |
+| `Shift+G` | **Recall a past capture** — pick its file and the telescope goes back to it. See **Going back to a previous capture**. |
+| `Ctrl+Shift+G` | After a recall, put the target back where it sat **in that capture's frame**. |
 | `H` | Cycle Channel Mode (All → Red → Green → Blue → All) |
 | `M` | Open Map (Sky Map) |
 | `F11` *(in the Sky Map window)* | Fill the display the map is on, with no title bar. `Esc` or `F11` again to come back. See **Putting the Sky Map on its own screen**. |
@@ -2425,10 +2427,60 @@ real site is stored. Most of it is written for you.
 
 ---
 
+## Going back to a previous capture (`Shift+G`, v2.1)
+
+Every recording now leaves a third file beside the `.ser` and the
+`_quality.txt`: **`<name>_observation.txt`**, the observation record. It
+says what the capture was — target, profile, start and end time in UTC,
+frames, format and ROI, exposure, gain, focuser position and
+temperature, where the mount was pointing (RA/Dec and alt/az), where
+the target sat in the frame, the altitude and airmass across the run,
+and the site. It is plain text, one `key = value` per line. A value
+the app could not read at the time is **left out**, never written as
+0, so a missing line means "not known".
+
+**`Shift+G`** opens a file picker on the capture folder. Pick any of
+the three files of a capture. The app reads the record, then:
+
+- If the record names a target the catalogue knows — a planet, the
+  Moon, a Messier object, a bright star — it slews to where that target
+  is **tonight**. A planet has moved since the night it was recorded,
+  so the old coordinates would miss it.
+- Otherwise (manual coordinates, or no target) it slews to the
+  **recorded mount position**.
+
+Before anything moves it checks, and refuses with the reason on the
+notification bar if any fail:
+
+| Check | Why |
+|---|---|
+| Mount connected and aligned (or plate-synced) | The same condition that enables the GoTo buttons. |
+| Site set | Without it the horizon cannot be checked, so recall does not guess. |
+| At least 15° up now | The Tonight list's own floor. |
+| At least 20° from the Sun | A recall is a slew picked from a file. It will not go near the Sun, even for a solar capture. Recall a solar session by hand from the GoTo panel. |
+
+Then it asks, **defaulting to No**, and shows where it is going. The
+slew is the GoTo panel's own, so the keep-out sector and the cable-wrap
+warning still apply, the matching profile is loaded, and acquisition
+starts after the slew as it does for any GoTo.
+
+**`Ctrl+Shift+G`** is for a capture framed off-centre on purpose — a
+planet set to one side to take its moons in. Acquisition centres the
+target after the slew; this nudges it back to where the record says it
+sat, using the same guide pulses as `Ctrl`+click recentre, with the
+same refusals: it needs a guide calibration, refuses while the tracker
+is centring (stop it first), refuses a frame size different from the
+recording's, and refuses a move longer than a 10 s pulse.
+
+A capture recorded before v2.1 has no record, and recall says so.
+
+---
+
 ## Phase History
 
-**The current version is v2.0**, matching the `v2.0` tag; the title bar
-reads `2.0.0`. Elsewhere in this file, labels from v1.2.4 to v1.2.7 date
+**The current version is v2.1**; the title bar reads `2.1.0`. v2.0
+matches the `v2.0` tag; v2.1 adds phase 48, the observation record and
+framing recall, and has no tag of its own yet. Elsewhere in this file, labels from v1.2.4 to v1.2.7 date
 when a behaviour changed. They were never declared in `src/Version.h`,
 which stayed at 1.2.3 from 2026-10-13 until it was set to 2.0.0 on
 2026-10-25, but they are kept because they still put the changes in
@@ -2531,7 +2583,8 @@ order.
 | v1.2.3 | 37 | Display stretch (`L`), and the histogram shows the real R/G/B channels for the first time |
 | v1.2.3 | 45 | Reticle moves, sizes and rotates (Ctrl+drag, Ctrl+wheel, Shift+wheel) |
 | v1.2.3 | 26 | Night vision reddens the whole interface, not just the preview |
+| v2.1 | 48 | Observation record beside every capture; `Shift+G` recalls a past capture's framing |
 
 ---
 
-*RadukCapture Help v2.0 — Updated after each release*
+*RadukCapture Help v2.1 — Updated after each release*

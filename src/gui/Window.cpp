@@ -437,6 +437,16 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (firstPress && m_onZoomCycle) m_onZoomCycle();
             return true;
         case 'G':
+            // Phase 48: Shift+G recalls a past capture's framing, on the
+            // GoTo key because it IS a GoTo -- to where a capture was.
+            // Ctrl+Shift+G then nudges the target back to where it sat
+            // in that capture's frame.
+            if (shift) {
+                const bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+                if (ctrl) { if (firstPress && m_onRecallOffset)  m_onRecallOffset();  }
+                else      { if (firstPress && m_onRecallFraming) m_onRecallFraming(); }
+                return true;
+            }
             if (firstPress && m_onGoToToggle) m_onGoToToggle();
             return true;
         case 'M':

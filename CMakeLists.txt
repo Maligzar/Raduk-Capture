@@ -162,6 +162,7 @@ add_executable(RadukCapture WIN32
     # Net
     src/net/WebSocketServer.cpp
     src/net/APEXTelemetry.cpp
+    src/net/PreviewStreamer.cpp
 )
 
 # ── Include directories ────────────────────────────────────────

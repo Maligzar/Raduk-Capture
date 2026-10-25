@@ -77,10 +77,11 @@ std::string b64encode(const uint8_t* in, size_t len) {
 }
 
 // ── WebSocket frame builder ───────────────────────────────────
-std::vector<uint8_t> buildTextFrame(const std::string& payload) {
+namespace {
+std::vector<uint8_t> buildDataFrame(uint8_t first, const uint8_t* p, size_t len) {
     std::vector<uint8_t> frame;
-    frame.push_back(0x81); // FIN + opcode text
-    size_t len = payload.size();
+    frame.reserve(len + 10);
+    frame.push_back(first);
     if (len <= 125) {
         frame.push_back((uint8_t)len);
     } else if (len <= 65535) {
@@ -91,8 +92,19 @@ std::vector<uint8_t> buildTextFrame(const std::string& payload) {
         frame.push_back(127);
         for (int i=7;i>=0;i--) frame.push_back((uint8_t)(len>>(i*8)));
     }
-    frame.insert(frame.end(), payload.begin(), payload.end());
+    frame.insert(frame.end(), p, p + len);
     return frame;
+}
+} // namespace
+
+std::vector<uint8_t> buildBinaryFrame(const std::vector<uint8_t>& payload) {
+    return buildDataFrame(0x82, payload.data(), payload.size());   // FIN + binary
+}
+
+std::vector<uint8_t> buildTextFrame(const std::string& payload) {
+    return buildDataFrame(0x81,                                    // FIN + text
+                          reinterpret_cast<const uint8_t*>(payload.data()),
+                          payload.size());
 }
 
 std::vector<uint8_t> buildCloseFrame() {
@@ -201,7 +213,9 @@ void WebSocketServer::Broadcast(const std::string& json) {
     for (auto& c : m_clients) {
         if (!c.upgraded || c.closed) continue;
         int sent = send(c.sock, (char*)frame.data(), (int)frame.size(), 0);
-        if (sent == SOCKET_ERROR) {
+        // Short, not just failed: with SO_SNDTIMEO a timed-out send can
+        // leave part of a frame on the wire, and that stream is broken.
+        if (sent != (int)frame.size()) {
             c.closed = true;
         }
     }
@@ -212,6 +226,41 @@ int WebSocketServer::ClientCount() const {
     int n = 0;
     for (const auto& c : m_clients) if (!c.closed && c.upgraded) n++;
     return n;
+}
+
+int WebSocketServer::PreviewSubscriberCount() const {
+    std::lock_guard<std::mutex> lk(m_clientMutex);
+    int n = 0;
+    for (const auto& c : m_clients) if (!c.closed && c.upgraded && c.wantsPreview) n++;
+    return n;
+}
+
+namespace {
+// Room in the socket's send buffer right now, without waiting. Not a
+// promise that a whole frame fits -- the send timeout covers the rest --
+// but it is what keeps a client that has stopped reading from costing
+// a timeout on every picture.
+bool WritableNow(SOCKET s) {
+    fd_set w; FD_ZERO(&w); FD_SET(s, &w);
+    timeval tv{0, 0};
+    return select(0, nullptr, &w, nullptr, &tv) == 1;
+}
+} // namespace
+
+int WebSocketServer::BroadcastPreview(const std::vector<uint8_t>& jpeg) {
+    if (!m_running.load() || jpeg.empty()) return 0;
+    const auto frame = buildBinaryFrame(jpeg);
+
+    std::lock_guard<std::mutex> lk(m_clientMutex);
+    int sentTo = 0;
+    for (auto& c : m_clients) {
+        if (!c.upgraded || c.closed || !c.wantsPreview) continue;
+        if (!WritableNow(c.sock)) continue;          // busy: skip this picture
+        const int sent = send(c.sock, (const char*)frame.data(), (int)frame.size(), 0);
+        if (sent != (int)frame.size()) { c.closed = true; continue; }
+        ++sentTo;
+    }
+    return sentTo;
 }
 
 void WebSocketServer::Run() {
@@ -250,6 +299,9 @@ void WebSocketServer::Run() {
                     printf("[WSServer] Refused a connection: %zu clients already\n",
                            m_clients.size());
                 } else {
+                    const DWORD sendTimeout = SEND_TIMEOUT_MS;
+                    setsockopt(cs, SOL_SOCKET, SO_SNDTIMEO,
+                               (const char*)&sendTimeout, sizeof(sendTimeout));
                     WsClient wc; wc.sock = cs; wc.acceptedMs = GetTickCount64();
                     m_clients.push_back(std::move(wc));
                     printf("[WSServer] Client connected (%d total)\n",
@@ -348,6 +400,13 @@ void WebSocketServer::HandleWsData(WsClient& c) {
         send(c.sock, (char*)f.data(), (int)f.size(), 0);
     }
     for (const auto& m : r.messages) {
+        // B3: the preview subscription is the server's own business --
+        // per client, and not a rig command.
+        switch (ws::ParsePreviewRequest(m)) {
+        case ws::PreviewRequest::On:  c.wantsPreview = true;  continue;
+        case ws::PreviewRequest::Off: c.wantsPreview = false; continue;
+        case ws::PreviewRequest::None: break;
+        }
         if (m_onCommand) m_onCommand(m);
     }
     if (r.fail) {

@@ -55,6 +55,7 @@
 #include "core/SessionLog.h"
 #include "net/WebSocketServer.h"
 #include "net/APEXTelemetry.h"
+#include "net/PreviewStreamer.h"
 #include "gui/Window.h"
 #include "gui/PreviewRenderer.h"
 #include "gui/Theme.h"
@@ -1025,6 +1026,16 @@ static int RunApp(bool useEmulator) {
             wsLan ? "0.0.0.0" : "127.0.0.1",
             wsLan ? " (LAN exposed — RADUK_WS_LAN=1)" : "");
     }
+
+    // B3: the dashboard's preview picture. Encoded and sent on its own
+    // thread; the render loop only decimates, twice a second, and only
+    // while a client has asked for it.
+    raduk::net::PreviewStreamer previewStreamer;
+    previewStreamer.Start([&wsServer](const std::vector<uint8_t>& jpeg) {
+        wsServer.BroadcastPreview(jpeg);
+    });
+    constexpr auto kPreviewInterval = std::chrono::milliseconds(500);
+    auto lastPreview = std::chrono::steady_clock::now();
 
     // ── Capture manager ────────────────────────────────────────
     CaptureManager capturer;
@@ -4366,6 +4377,23 @@ static int RunApp(bool useEmulator) {
         if (frame)
             analyzer.Submit(frame);
 
+        // B3: dashboard preview. The timer is checked first so the
+        // subscriber count (a lock) is asked twice a second, not per pass.
+        // RGB24 frames are skipped: DecimateFrame reads one sample a pixel.
+        if (frame && frame->data && frame->imgType != ASI_IMG_RGB24 &&
+            std::chrono::steady_clock::now() - lastPreview >= kPreviewInterval) {
+            lastPreview = std::chrono::steady_clock::now();
+            if (wsServer.PreviewSubscriberCount() > 0) {
+                raduk::net::PreviewImage pimg;
+                const bool bayer = frame->imgType == ASI_IMG_RAW8 ||
+                                   frame->imgType == ASI_IMG_RAW16;
+                if (raduk::net::DecimateFrame(frame->data, (int)frame->width,
+                                              (int)frame->height, frame->bitDepth,
+                                              bayer, pimg))
+                    previewStreamer.Submit(std::move(pimg));
+            }
+        }
+
         // ── ADC alignment (Phase 35) ──────────────────────────
         //
         // Here rather than in the readout block below, because the
@@ -5459,6 +5487,7 @@ static int RunApp(bool useEmulator) {
                           eafPos, eafTemp, lastRA, lastDec);
     }
 
+    previewStreamer.Stop();   // its sink sends through wsServer
     wsServer.Stop();
 
     // Shut down Phase 50 AI before hardware teardown

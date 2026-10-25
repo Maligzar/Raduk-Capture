@@ -176,6 +176,19 @@ does not bend.
 is a single-file browser dashboard in the repository root (~286 KB,
 self-contained). It connects directly to the WebSocket server.
 
+**`[DASH]` on the toolbar opens it already signed in.** The app looks
+for the page beside the exe and up to four folders above it (the
+repository root, from `build\Release`), asks Windows which browser
+handles `http`, and hands it `file:///…/RadukCaptureDashboard.html#token=<WsToken>`.
+The browser is named explicitly because opening a `file://` URL
+through the `.html` association can drop the fragment. The fragment is
+never sent to a server; the dashboard copies the token into its box
+and storage, strips it from the address bar with
+`history.replaceState`, switches to the RadukCapture tab and connects
+to `ws://localhost:8765` before its weather downloads start. Neither
+the token nor the URL is logged. The path and URL logic is
+`src/core/DashboardLaunch.h`, gated by `tests/dashboard_launch.cpp`.
+
 The full APEX integration is a three-column tab on the monitoring machine:
 connection and telemetry | preview canvas and histogram | capture
 control and seeing monitor, bridged by `apex_bridge.py` connecting to

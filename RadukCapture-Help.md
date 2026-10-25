@@ -438,6 +438,7 @@ capture format.
 | `[GH]` | — | Ghost/frame-stack display FX |
 | `[?]` | `?` | Toggle this Help window |
 | `[AI]` | — | Toggle the AI assistant chat panel |
+| `[DASH]` | — | **Open the browser dashboard, already signed in.** It connects to this PC by itself; see **The browser dashboard** |
 | `FULL` | — | **Whole sensor, 3840x2160** - the widest field, and the way back from any crop |
 | `1920` | — | 1920x1080 |
 | `1280` | — | 1280x960 - what `[ROI]` crops to |
@@ -1554,7 +1555,14 @@ not present one. On first launch it generates a random token and stores it in
 says that a token was generated and where it is, and never shows the token
 itself.
 
-To connect:
+**The quick way, on the capture PC: press `[DASH]`** on the toolbar. It
+opens the dashboard in your default browser with the token already in
+it, switches to the RadukCapture tab and connects. Nothing to copy. The
+token travels in the part of the link after `#`, which a browser never
+sends anywhere, and the dashboard clears it from the address bar as
+soon as it has read it.
+
+From another machine, or by hand:
 
 1. Open `rig.ini` on the capture PC and copy the `WsToken` value.
 2. In the dashboard, paste it into the **access token** box under the URL.
@@ -2591,7 +2599,8 @@ order.
 | v1.2.3 | 26 | Night vision reddens the whole interface, not just the preview |
 | v2.1 | 48 | Observation record beside every capture; `Shift+G` recalls a past capture's framing |
 | v2.2 | B3 | The browser dashboard shows the telescope's view, about twice a second |
+| v2.3 | — | `[DASH]` opens the browser dashboard already signed in |
 
 ---
 
-*RadukCapture Help v2.2 — Updated after each release*
+*RadukCapture Help v2.3 — Updated after each release*

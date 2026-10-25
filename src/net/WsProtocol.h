@@ -367,4 +367,29 @@ inline bool TokenLooksStrong(const std::string& t) {
     return true;
 }
 
+// ── B3: the preview subscription ─────────────────────────────
+//
+// The JPEG preview goes only to clients that ask for it, so a client
+// that does not know about binary messages -- apex_bridge.py, say -- is
+// never sent one. A client asks with {"cmd":"preview","arg":"on"} and
+// stops with "off". The server answers this itself; it is not a rig
+// command and never reaches the command queue.
+//
+// Whitespace is ignored, since JSON allows it anywhere between tokens
+// and none of these four strings contains a space. Anything else is
+// not a subscription and goes on to the command handler as before.
+enum class PreviewRequest { None, On, Off };
+
+inline PreviewRequest ParsePreviewRequest(const std::string& msg) {
+    if (msg.size() > 128) return PreviewRequest::None;
+    std::string s;
+    for (char c : msg)
+        if (c != ' ' && c != '\t' && c != '\r' && c != '\n') s += c;
+    if (s == R"({"cmd":"preview","arg":"on"})"  || s == R"({"arg":"on","cmd":"preview"})")
+        return PreviewRequest::On;
+    if (s == R"({"cmd":"preview","arg":"off"})" || s == R"({"arg":"off","cmd":"preview"})")
+        return PreviewRequest::Off;
+    return PreviewRequest::None;
+}
+
 } // namespace raduk::net::ws

@@ -1565,6 +1565,12 @@ saved with the URL, because the URL is also synced to the dashboard's helper
 server, where anything on the same WiFi could read it. Pasting a URL that ends
 in `?token=…` works too: the token is moved into its own box.
 
+**The preview picture.** Once connected, the dashboard's centre panel
+shows the telescope's view, updated about twice a second. It is a small,
+brightened copy for framing at a glance, not the recorded image: what
+goes into the SER file is untouched. It costs the capture nothing
+measurable, and it pauses when no dashboard is connected.
+
 **Why a token, when the server only listens on this PC?** Browsers let any
 web page open a WebSocket to `localhost`. Without a token, a page open in
 another tab could connect and slew the telescope. The token is the one thing
@@ -2584,7 +2590,8 @@ order.
 | v1.2.3 | 45 | Reticle moves, sizes and rotates (Ctrl+drag, Ctrl+wheel, Shift+wheel) |
 | v1.2.3 | 26 | Night vision reddens the whole interface, not just the preview |
 | v2.1 | 48 | Observation record beside every capture; `Shift+G` recalls a past capture's framing |
+| v2.2 | B3 | The browser dashboard shows the telescope's view, about twice a second |
 
 ---
 
-*RadukCapture Help v2.1 — Updated after each release*
+*RadukCapture Help v2.2 — Updated after each release*

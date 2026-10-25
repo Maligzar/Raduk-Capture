@@ -47,6 +47,7 @@ std::string b64encode(const uint8_t* in, size_t len);
 
 // ── WebSocket frame builders ──────────────────────────────────
 std::vector<uint8_t> buildTextFrame(const std::string& payload);
+std::vector<uint8_t> buildBinaryFrame(const std::vector<uint8_t>& payload);
 std::vector<uint8_t> buildCloseFrame();
 std::vector<uint8_t> buildPongFrame(const std::string& payload);
 
@@ -63,6 +64,7 @@ struct WsClient {
     bool    upgraded = false;
     ULONGLONG acceptedMs = 0;     // for the handshake deadline
     ws::FrameParser parser;       // carries fragment state between reads
+    bool    wantsPreview = false; // B3: asked for the JPEG preview
 };
 
 // ── WebSocketServer ───────────────────────────────────────────
@@ -118,7 +120,27 @@ public:
     // Broadcast a JSON string to all connected, upgraded clients
     void Broadcast(const std::string& json);
 
+    // B3: one JPEG, as a binary message, to the clients that asked for
+    // the preview (ws::ParsePreviewRequest). A client whose socket is
+    // not ready to take more is SKIPPED for this picture rather than
+    // waited on -- a browser that has stopped reading costs it pictures,
+    // never the caller time. Returns how many clients it went to.
+    int BroadcastPreview(const std::vector<uint8_t>& jpeg);
+
     int ClientCount() const;
+    int PreviewSubscriberCount() const;
+
+    // Every send() on a client socket gives up after this long, and a
+    // client whose send times out is dropped: a half-sent frame has
+    // broken its stream. Before B3 a client that stopped reading could
+    // block Broadcast() -- and the render loop that calls it -- for good.
+    //
+    // Sends happen under m_clientMutex, which also serialises them --
+    // two threads writing one socket at once would interleave frames --
+    // so this is also the most a stalled client can delay the server
+    // thread reading commands, STOP included. Short on purpose; the
+    // mount's own watchdog allows 8 s.
+    static constexpr DWORD SEND_TIMEOUT_MS = 500;
 
     bool IsRunning() const { return m_running.load(); }
 

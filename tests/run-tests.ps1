@@ -41,6 +41,7 @@ $Tests = @(
     @{ Name = "ws_protocol";       Sources = @("src\net\APEXTelemetry.cpp"); Asan = $true }
     @{ Name = "ws_fuzz";           Sources = @("src\net\APEXTelemetry.cpp"); Asan = $true }
     @{ Name = "ws_server_loopback"; Sources = @("src\net\WebSocketServer.cpp"); Asan = $true }
+    @{ Name = "preview_frame";     Sources = @("src\net\PreviewStreamer.cpp") }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

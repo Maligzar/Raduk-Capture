@@ -904,10 +904,12 @@ pieces are small and individually dull:
   tag` was empty against 58 commits. Neither was true: there are 13
   tags, `v1.0.6` to `v2.0`, against 220 commits on `master` (counted
   2026-10-25). What is missing is a release -- no artifact of any kind
-  is attached to any of them -- and the tags disagree with the source:
-  `src/Version.h` says `1.2.3` and has since `a1a64f6`, while `v2.0`
-  is dated 2026-10-12 and the help file describes features shipped in
-  v1.2.6, a number `Version.h` has never held.
+  is attached to any of them. The version numbers used to disagree as
+  well (`Version.h` 1.2.3, help-file labels up to v1.2.7, newest tag
+  `v2.0`); the owner settled that on 2026-10-25 as **2.0**, and
+  `src/Version.h` now reads `2.0.0`. The `v2.0` tag itself still points
+  at `6cb4032` from 2026-10-12, 111 commits back, so a release cut
+  from today's tree needs a new tag rather than that one.
 - **No installer.** There is `build_all.bat`, which is not something a
   person who is not the author can run.
 
@@ -919,9 +921,8 @@ re-scoped to the distribution half, which is this phase; the ASCOM
 half goes to P5.3; and neither remaining piece is VH.
 
 Done looks like: a path root resolved at runtime from the executable
-location or from `rig.ini`, with no `D:` literal left in `src/`; one
-version number, agreed between `src/Version.h`, the help file and the
-newest tag, which is an owner decision before it is a code change;
+location or from `rig.ini`, with no `D:` literal left in `src/`; a
+tag on the commit the release is built from, matching `src/Version.h`;
 and one artifact that somebody else could
 download and run.
 
@@ -1360,11 +1361,13 @@ have refuted in a second, and nothing did.
 
 - **"No tags, 58 commits"** (P5.4, P5.7). 13 tags and 220 commits.
   Corrected in both entries.
-- **Three version numbers.** `src/Version.h` is `1.2.3` and has been
-  since `a1a64f6`, though its own header says it is bumped on every
-  push. The help file describes v1.2.6 features. The newest tag is
-  `v2.0`, from 2026-10-12. **An owner decision**: which number is
-  real. It blocks P5.4's single agreed version.
+- **Three version numbers.** `src/Version.h` was `1.2.3` from
+  `a1a64f6` on, though its own header says it is bumped on every push;
+  the help file labelled features up to v1.2.7; the newest tag is
+  `v2.0`, from 2026-10-12. **Settled by the owner the same day: the
+  version is 2.0.** `Version.h` now reads `2.0.0` (CMake requires
+  three parts), and the help file, the architecture note and the wiki
+  say v2.0. The v1.2.4 to v1.2.7 labels stay, as dates of change.
 - **Phase 46 was "DONE" here and `BUILT` in `PHASE-STATUS.md`.** The
   status file is the one that counts, and the button has never been
   pressed in the running app. This file now says built and gated.

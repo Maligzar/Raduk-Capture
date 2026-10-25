@@ -2427,6 +2427,13 @@ real site is stored. Most of it is written for you.
 
 ## Phase History
 
+**The current version is v2.0**, matching the `v2.0` tag; the title bar
+reads `2.0.0`. Elsewhere in this file, labels from v1.2.4 to v1.2.7 date
+when a behaviour changed. They were never declared in `src/Version.h`,
+which stayed at 1.2.3 from 2026-10-13 until it was set to 2.0.0 on
+2026-10-25, but they are kept because they still put the changes in
+order.
+
 | Version | Phase | Feature |
 |---------|-------|---------|
 | v0.9 | 1–4 | Camera, EAF, NexStar — all devices communicating |
@@ -2527,4 +2534,4 @@ real site is stored. Most of it is written for you.
 
 ---
 
-*RadukCapture Help v1.2.3 — Updated after each release*
+*RadukCapture Help v2.0 — Updated after each release*

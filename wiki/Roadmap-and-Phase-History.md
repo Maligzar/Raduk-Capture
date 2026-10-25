@@ -198,11 +198,13 @@ and warns; the observer unwinds.
 configure time.
 
 ```c
-#define RADUK_VERSION_W  L"1.2.3"
-#define RADUK_VERSION_A   "1.2.3"
+#define RADUK_VERSION_W  L"2.0.0"
+#define RADUK_VERSION_A   "2.0.0"
 ```
 
-To bump the version, edit those two lines. Nothing else.
+To bump the version, edit those two lines. Nothing else. The form must be
+`MAJOR.MINOR.PATCH` — the configure step rejects anything else — so the
+`v2.0` tag is declared as `2.0.0`.
 
 ### How it propagates
 
@@ -213,10 +215,10 @@ and compiles that:
 
 | Consumer | Gets | Form |
 |----------|------|------|
-| Title bar | `RADUK_VERSION_A` directly, plus `main.cpp`'s compile timestamp | `1.2.3` |
-| `project(RadukCapture VERSION ...)` | Parsed from the header | `1.2.3` |
-| `FILEVERSION` / `PRODUCTVERSION` | `RADUK_VERSION_COMMA` | `1,2,3,0` |
-| `FileVersion` / `ProductVersion` strings | `RADUK_VERSION_DOT` | `1.2.3.0` |
+| Title bar | `RADUK_VERSION_A` directly, plus `main.cpp`'s compile timestamp | `2.0.0` |
+| `project(RadukCapture VERSION ...)` | Parsed from the header | `2.0.0` |
+| `FILEVERSION` / `PRODUCTVERSION` | `RADUK_VERSION_COMMA` | `2,0,0,0` |
+| `FileVersion` / `ProductVersion` strings | `RADUK_VERSION_DOT` | `2.0.0.0` |
 | Icon path in the resource | `RADUK_ICON_PATH`, absolute | — |
 
 The generated `.rc` is a build artefact and is not committed. The template
@@ -299,6 +301,8 @@ Condensed from the help file's phase history. The full table is in
 | v1.2.1 | Jog rate reaches the arrow keys; motion plot |
 | v1.2.2 | Per-frame quality scores; one shared sharpness definition; a ceiling that survives sensor noise; capture gate fixed |
 | v1.2.3 | Both configurations build from one script; ADC over the fitted filter's band; toolbar resolution and bit depth; one shared capture-format path; profiles apply resolution and limit; CAPTURE and PROFILE merged; assistant told the format and display modes; startup restores last camera state; night vision whole-interface and persisted; multi-reticle with move/size/rotate; framing shot; dark and flat masters; display stretch and real R/G/B histogram; advisory loop |
+| v1.2.4–1.2.7 | Labels in the help file only — `Version.h` stayed at 1.2.3. Five-monitor workspace, status/histogram/sharpness/ADC windows, `U` to clear the view, share view |
+| v2.0 | **The current version**, matching the `v2.0` tag. Declared as `2.0.0` from 2026-10-25, ending a stretch in which the source, the help file and the tag all named different numbers |
 
 ### Two version boundaries that invalidate old numbers
 

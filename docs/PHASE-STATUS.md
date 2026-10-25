@@ -47,7 +47,7 @@ matching.
 | P5.1 | Exposure-midpoint SER timestamps | `PLANNED` |
 | P5.2 | `ICamera` / `IFocuser` interfaces | `PLANNED` — checked 2026-10-25: neither exists; `DeviceFactory.h` still picks by `#ifdef RADUK_EMULATOR` |
 | P5.3 | ASCOM generic path reconsidered | `PLANNED` — the Celestron path is live; the blacklist that closes the generic path is unchanged |
-| P5.4 | Installer, releases, no hardcoded `D:` paths | `PLANNED` — 13 tags exist but no release; `src/Version.h` (1.2.3), the help file (v1.2.6) and the newest tag (`v2.0`) disagree, which the owner has to settle first |
+| P5.4 | Installer, releases, no hardcoded `D:` paths | `PLANNED` — 13 tags exist but no release. The version is settled at 2.0 (owner, 2026-10-25) and `src/Version.h` reads `2.0.0`, but the `v2.0` tag sits on `6cb4032`, 111 commits back, so a release needs a new tag |
 | P5.5 | CMake floor | `MEASURED (bench) 2026-10-25` — `48e53a9`; floor 3.21, built in both configurations with MSVC 14.50 and the compile flags read back; 3.16 builds but maps C++20 to `/std:c++latest` · owes: nothing |
 | P5.6 | WebSocket parser fuzzed, token on every connection | `GATED (bench) 2026-10-25` — `137dc5c`; `tests/ws_protocol.cpp`, `tests/ws_fuzz.cpp` (AddressSanitizer), `tests/ws_server_loopback.cpp` · **owes: one connection from the real dashboard to the real app, and `apex_bridge.py` on the streaming PC given the token if it is still in use** — it is not in this repository |
 | P5.7 | License | `PLANNED` — an owner decision, not code: keep PolyForm Noncommercial, relicense to MPL-2.0, or dual-license. Unmade |

@@ -278,6 +278,10 @@ public:
     void SetHighSpeedMode(bool en)       { m_highSpeed = en; }
     void SetFlip(ASI_FLIP_STATUS /*f*/)         {}
     bool SetStartPos(int /*x*/, int /*y*/)      { return true; } // no-op in emulator
+    // There is no sensor position to report, so say so: the phase 48
+    // observation record then leaves roi_x/roi_y out rather than
+    // recording a position the emulator never had.
+    bool GetStartPos(int& /*x*/, int& /*y*/) const { return false; }
 
     // ── Phase 52: closed-loop pointing input ───────────────────
     // Plate scale of the synthetic frames (arcsec/pixel). This is the

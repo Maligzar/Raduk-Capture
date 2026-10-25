@@ -907,7 +907,7 @@ pieces are small and individually dull:
   is attached to any of them. The version numbers used to disagree as
   well (`Version.h` 1.2.3, help-file labels up to v1.2.7, newest tag
   `v2.0`); the owner settled that on 2026-10-25 as **2.0**, and
-  `src/Version.h` now reads `2.0.0`. The `v2.0` tag itself still points
+  `src/Version.h` read `2.0.0` (2.1.0 since phase 48). The `v2.0` tag itself still points
   at `6cb4032` from 2026-10-12, 111 commits back, so a release cut
   from today's tree needs a new tag rather than that one.
 - **No installer.** There is `build_all.bat`, which is not something a
@@ -1365,7 +1365,7 @@ have refuted in a second, and nothing did.
   `a1a64f6` on, though its own header says it is bumped on every push;
   the help file labelled features up to v1.2.7; the newest tag is
   `v2.0`, from 2026-10-12. **Settled by the owner the same day: the
-  version is 2.0.** `Version.h` now reads `2.0.0` (CMake requires
+  version is 2.0.** `Version.h` read `2.0.0` (CMake requires
   three parts), and the help file, the architecture note and the wiki
   say v2.0. The v1.2.4 to v1.2.7 labels stay, as dates of change.
 - **Phase 46 was "DONE" here and `BUILT` in `PHASE-STATUS.md`.** The

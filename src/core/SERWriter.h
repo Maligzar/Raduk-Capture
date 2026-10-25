@@ -84,6 +84,27 @@ public:
         m_skySamples++;
     }
 
+    // The same accumulator, for the observation record (phase 48).
+    // Read it BEFORE Close(), which resets it. valid=false when nothing
+    // was noted -- no mount, or a run too short for a readout tick.
+    struct SkySummary {
+        bool   valid = false;
+        double altStart = 0, altEnd = 0, altMin = 0, altMax = 0;
+        double azStart = 0, azEnd = 0;
+        double airmassMean = 0, airmassMax = 0;
+    };
+    SkySummary SkyConditionsSummary() const {
+        SkySummary s;
+        if (!m_skySeen) return s;
+        s.valid = true;
+        s.altStart = m_skyAltStart; s.altEnd = m_skyAltEnd;
+        s.altMin   = m_skyAltMin;   s.altMax = m_skyAltMax;
+        s.azStart  = m_skyAzStart;  s.azEnd  = m_skyAzEnd;
+        s.airmassMean = (m_skySamples > 0) ? m_skyAirmassSum / m_skySamples : 0.0;
+        s.airmassMax  = m_skyAirmassMax;
+        return s;
+    }
+
     SERWriter(const SERWriter&) = delete;
     SERWriter& operator=(const SERWriter&) = delete;
 

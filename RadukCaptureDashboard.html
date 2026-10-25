@@ -1973,10 +1973,16 @@ function rcLoadProfile(name) {
 const RC_TOKEN_KEY = 'radukWsToken';
 // The box first: storage can be unavailable (a private window, blocked
 // site data), and a token typed in must still be used.
+// Copying from rig.ini, the easy mistake is taking the whole line, and
+// "WsToken=9f23..." is refused exactly like a wrong token, with nothing
+// to say why. Keep only the value.
+function rcTokenClean(t) {
+  return (t || '').trim().replace(/^WsToken\s*=\s*/i, '').replace(/^["']|["']$/g, '').trim();
+}
 function rcTokenGet() {
   const el = document.getElementById('rcWsToken');
-  if (el && el.value.trim()) return el.value.trim();
-  try { return localStorage.getItem(RC_TOKEN_KEY) || ''; } catch(e) { return ''; }
+  if (el && rcTokenClean(el.value)) return rcTokenClean(el.value);
+  try { return rcTokenClean(localStorage.getItem(RC_TOKEN_KEY)); } catch(e) { return ''; }
 }
 function rcTokenSet(t) {
   try { t ? localStorage.setItem(RC_TOKEN_KEY, t) : localStorage.removeItem(RC_TOKEN_KEY); } catch(e) {}
@@ -2005,7 +2011,10 @@ function rcUrlWithToken(url) {
   const urlEl = document.getElementById('rcWsUrl');
   if (tokEl) {
     tokEl.value = rcTokenGet();
-    tokEl.addEventListener('change', e => rcTokenSet(e.target.value.trim()));
+    tokEl.addEventListener('change', e => {
+      e.target.value = rcTokenClean(e.target.value);
+      rcTokenSet(e.target.value);
+    });
   }
   if (urlEl) urlEl.addEventListener('input', e => {
     const s = rcSplitToken(e.target.value.trim());
@@ -2054,18 +2063,24 @@ function rcToggleConnect() {
       rcWs.onmessage = (e) => {
         try { rcHandleData(JSON.parse(e.data)); } catch(ex) {}
       };
+      // A browser cannot see WHY a handshake failed: a refused token and a
+      // closed port both arrive as onerror then onclose. Say both causes,
+      // and do not let onclose paint over it, which is what hid this.
+      let rcOpened = false;
+      rcWs.addEventListener('open', () => { rcOpened = true; });
       rcWs.onerror = () => {
-        rcSetSyncMsg(rcTokenGet()
-          ? 'Connection failed — is RadukCapture running, and is the token current? Try IP address instead of hostname'
-          : 'Connection failed — enter the access token (WsToken in rig.ini on the capture PC)', 'err');
-        rcLogSession('[RC] WebSocket error — is RadukCapture running on the capture PC?', 'err');
+        const why = rcTokenGet()
+          ? 'Connection failed — either RadukCapture is not running, or the token is not the current WsToken in rig.ini next to the running exe'
+          : 'Connection failed — enter the access token (WsToken in rig.ini on the capture PC)';
+        rcSetSyncMsg(why, 'err');
+        rcLogSession('[RC] ' + why, 'err');
       };
       rcWs.onclose = () => {
-        rcConnected = false; rcRunning = false;
+        rcConnected = false; rcRunning = false; rcIsCapturing = false;
         rcSetStatus(false, false, null);
         document.getElementById('rcConnectBtn').textContent = 'CONNECT';
         document.getElementById('rcConnectBtn').className = 'rc-connect-btn connect';
-        rcSetSyncMsg('Connection closed.', '');
+        if (rcOpened) rcSetSyncMsg('Connection closed.', '');
         rcLogSession('[RC] Connection closed', 'warn');
       };
     } catch(e) {
@@ -2235,6 +2250,10 @@ function rcSetVal(id, val, color) {
 
 // ── Capture display ─────────────────────────────────────────
 function rcUpdateCaptureDisplay(capturing, data) {
+  // The capture button sends start or stop by this flag. It was declared
+  // and never assigned, so the button could start a recording and never
+  // stop one. Telemetry's `recording` is the truth; follow it.
+  rcIsCapturing = capturing;
   const btn = document.getElementById('rcRecBtn');
   const statusEl = document.getElementById('rcCapStatus');
   const recHud = document.getElementById('rcHudRec');

@@ -177,7 +177,7 @@ is a single-file browser dashboard in the repository root (~286 KB,
 self-contained). It connects directly to the WebSocket server.
 
 The full APEX integration is a three-column tab on the monitoring machine:
-connection and telemetry | live preview canvas and histogram | capture
+connection and telemetry | preview canvas and histogram | capture
 control and seeing monitor, bridged by `apex_bridge.py` connecting to
 `ws://<capture-pc>:8765`.
 
@@ -186,6 +186,10 @@ Two Phase 4 items remain deferred:
 - `apex_bridge.py` forwarding RC telemetry (emit `rc_running` rather than
   `fc_running`)
 - Weather-aware capture suggestions from APEX scoring
+
+**The preview canvas shows no image.** Nothing has ever drawn into it,
+and the app sends telemetry and a histogram but no frames. See B3 in
+`docs/ROADMAP-Next.md`.
 
 **The dashboard ships no real-world location.** It defaults to 0,0 and
 prompts "SET YOUR LOCATION" — see the privacy note below.

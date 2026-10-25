@@ -1606,4 +1606,4 @@ Planetary imaging requires high-bandwidth USB stability. To prevent session loss
 
 ---
 
-*RadukCapture v1.2.3 — Built for the stars, from the observing site*
+*RadukCapture v2.0 — Built for the stars, from the observing site*

@@ -1,4 +1,23 @@
-cmake_minimum_required(VERSION 4.2)
+# P5.5. The floor is 3.21, found by building, not guessed. Tested
+# 2026-10-25 with MSVC 14.50 (VS 2026), both configurations:
+#
+#   3.16.9  builds, but WRONG: maps C++20 to /std:c++latest, which on
+#           this compiler is a C++23 preview -- a different language
+#           from the one every other build compiles. Below the floor.
+#   3.21.0  builds, -std:c++20. The floor.
+#   3.22.6  builds, -std:c++20.
+#   4.1.2   builds (the CMake bundled with VS 2026, which the old 4.2
+#           floor refused), with Ninja and the VS 18 2026 generator.
+#   4.3.0   builds.
+#
+# "...4.2" is the policy ceiling: CMake 4.2 and newer behave exactly as
+# they did when 4.2 was the floor. Checked: under 4.3 the generated
+# build.ninja is byte-identical either way, in both configurations.
+#
+# Kitware's own CMake learned the "Visual Studio 18 2026" generator in
+# 4.2, so 3.21 to 4.1 need -G Ninja (shipped with Visual Studio) unless
+# they are VS's bundled build. build_all.bat uses the VS generator.
+cmake_minimum_required(VERSION 3.21...4.2)
 
 # ── Version — src/Version.h is the single source of truth ─────
 #

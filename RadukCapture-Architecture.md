@@ -682,7 +682,7 @@ At launch (hardware build), if any device is missing a dialog asks whether to la
 ## 10. WHAT TO INSTALL ON THE CAPTURE PC
 
 1. **Visual Studio 2026** (v18) — Community Edition, "Desktop development with C++" workload
-2. **CMake 4.2+** — bundled with VS 2026 or from cmake.org
+2. **CMake 3.21+** — the one bundled with VS 2026 (4.1.2) works, or from cmake.org. Below 4.2, Kitware's builds need `-G Ninja` (P5.5; tested versions are listed at the top of `CMakeLists.txt`)
 3. **ZWO ASI Camera SDK** — zwoastro.com -> Software -> Developers -> ASI Camera SDK
 4. **ZWO EAF SDK** — zwoastro.com -> Software -> Developers -> EAF SDK
 5. **ZWO Camera Driver** — installs with ASI SDK

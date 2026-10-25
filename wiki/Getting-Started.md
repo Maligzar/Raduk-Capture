@@ -11,7 +11,7 @@ telescope packed away.
 | Requirement | Notes |
 |-------------|-------|
 | Visual Studio with MSVC, C++20 | `set(CMAKE_CXX_STANDARD 20)` is enforced, not optional |
-| CMake ≥ 4.2 | `cmake_minimum_required(VERSION 4.2)` |
+| CMake ≥ 3.21 | `cmake_minimum_required(VERSION 3.21...4.2)`. Found by building with each version, not guessed. 3.16 builds but compiles as `/std:c++latest`, not C++20, so it is below the floor. Visual Studio 2026's bundled CMake (4.1.2) works. Kitware's builds older than 4.2 do not know the VS 2026 generator, so use `-G Ninja` with them |
 | Windows SDK | Direct2D, DirectWrite, Direct3D 11, WIC, Winsock2, WinHTTP |
 | ZWO ASI SDK | **Hardware build only.** Already vendored in `external/ASI_SDK` |
 | ZWO EAF SDK | **Hardware build only.** Already vendored in `external/EAF_SDK` |

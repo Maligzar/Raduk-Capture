@@ -237,10 +237,10 @@ and it gates merges — corrected 2026-10-18.
 
 [`tests\run-tests.ps1`](https://github.com/Maligzar/Raduk-Capture/blob/master/tests/run-tests.ps1)
 builds and runs every suite in `tests\` and exits non-zero if any fails.
-That is 17 suites: `histogram_accuracy`, `adc_alignment`,
+That is 18 suites: `histogram_accuracy`, `adc_alignment`,
 `sensor_analysis`, `write_buffer_sizing`, `sky_conditions`,
 `capture_thread_submit`, `ai_context_facts`, `object_knowledge`,
-`object_panel_text`, `slew_variable`, `planet_apparent_size`,
+`object_panel_text`, `slew_variable`, `mount_jog`, `planet_apparent_size`,
 `profile_notes`, `recentre`, `hardware_link`, and the three P5.6
 WebSocket suites `ws_protocol`, `ws_fuzz` and `ws_server_loopback`. The
 last three build under AddressSanitizer (`Asan = $true` in the list),

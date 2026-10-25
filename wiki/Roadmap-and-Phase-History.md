@@ -335,7 +335,7 @@ Phase 80's review pass alone fixed eight confirmed defects. These documents
 carry the reasoning behind a change, which a test cannot; the regression
 record proper is
 [the test suite](Emulator-and-Testing#the-test-suite-and-what-it-does-not-cover),
-17 suites gating merges. This line used to say the project had
+18 suites gating merges. This line used to say the project had
 no automated test suite — corrected 2026-10-18.
 
 ---

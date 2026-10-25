@@ -1432,9 +1432,6 @@ static int RunApp(bool useEmulator) {
             slog.Mount("MountCtrl: jog stop axis=%d", axis);
         }
     });
-    // Panel D-pad jogs (ControlPanel drives the mount itself) — still need
-    // the tracker suspend/resume bracket.
-    controls.SetJogActivityCallback(suspendTrackerForJog);
     mountCtrl.SetEmergencyStopCallback([&]() {
         Log("[SAFETY] MountCtrl: STOP pressed\n");
         slog.Mount("Emergency stop (MountCtrl)");

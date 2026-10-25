@@ -2076,7 +2076,7 @@ function rcToggleConnect() {
         rcLogSession('[RC] ' + why, 'err');
       };
       rcWs.onclose = () => {
-        rcConnected = false; rcRunning = false;
+        rcConnected = false; rcRunning = false; rcIsCapturing = false;
         rcSetStatus(false, false, null);
         document.getElementById('rcConnectBtn').textContent = 'CONNECT';
         document.getElementById('rcConnectBtn').className = 'rc-connect-btn connect';
@@ -2250,6 +2250,10 @@ function rcSetVal(id, val, color) {
 
 // ── Capture display ─────────────────────────────────────────
 function rcUpdateCaptureDisplay(capturing, data) {
+  // The capture button sends start or stop by this flag. It was declared
+  // and never assigned, so the button could start a recording and never
+  // stop one. Telemetry's `recording` is the truth; follow it.
+  rcIsCapturing = capturing;
   const btn = document.getElementById('rcRecBtn');
   const statusEl = document.getElementById('rcCapStatus');
   const recHud = document.getElementById('rcHudRec');

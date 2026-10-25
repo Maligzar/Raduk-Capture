@@ -893,7 +893,29 @@ location or from `rig.ini`, with no `D:` literal left in `src/`; a tag
 matching `src/Version.h`; and one artifact that somebody else could
 download and run.
 
-### P5.5 · Lower the CMake floor: effort S
+### P5.5 · Lower the CMake floor: effort S [DONE 2026-10-25]
+
+**Status: MEASURED (bench) 2026-10-25. The floor is 3.21, as
+`cmake_minimum_required(VERSION 3.21...4.2)`.** Every version below
+was built in both configurations with MSVC 14.50, and its compile
+flags were read, not just its exit code:
+
+| CMake | Result |
+|---|---|
+| 3.12.4 | not run: no `-S`/`-B` (3.13+), and it fails the C++20 test below anyway |
+| 3.16.9 | builds, but **wrong**: maps C++20 to `/std:c++latest`, a C++23 preview on this compiler |
+| 3.21.0 | builds, `-std:c++20`. **The floor** |
+| 3.22.6 | builds, `-std:c++20` |
+| 4.1.2 | builds with Ninja and the VS 18 2026 generator. This is **VS 2026's own bundled CMake, which the 4.2 floor refused** |
+| 4.3.0 | builds; generated `build.ninja` byte-identical to the 4.2-floor one |
+
+What the entry did not foresee: "configures and builds" is not enough
+of a test. 3.16 passes it and compiles a different language mode, which
+is the kind of quiet difference this project exists to refuse. The
+`...4.2` policy ceiling keeps current CMake's behaviour exactly as it
+was. Kitware builds below 4.2 lack the VS 2026 generator and need
+`-G Ninja`. Ubuntu 22.04 ships 3.22 and 24.04 ships 3.28, though
+RadukCapture is Windows-only, so that matters only for tooling.
 
 **Bench. Small.**
 
@@ -1234,7 +1256,7 @@ consolidated](#live-sky-debt-consolidated).
 | ~~5~~ | **Phase 46, connect/disconnect hardware** — DONE 2026-10-18 | Bench | — | One `[HW]` button, and `MountProxy` so a reconnect can pick a different transport or port without stranding the tracker and the panels that hold the mount pointer. The crash it caused on the way is worth reading: `main.cpp` was static_cast-ing the mount pointer to `MountEmulator` |
 | 6 | **P5.6: fuzz the WebSocket frame parser, and authenticate the command path** | Bench | S-M | The only safety-flavored item left on the bench. An unauthenticated RFC 6455 parser in C++ that accepts mount commands; loopback-by-default is a good default and is not a control. Raised in the July 2026 security review and hardened in Phase 57 without the auth gap being closed |
 | 7 | **Pick again from the unscheduled list** | Bench | varies | Ten features left, none half-built. On value to this rig **phase 48** (framing recall) is next, with phase 30 (push-to assistant) behind it |
-| 8 | **P5.5: lower the CMake floor** | Bench | S | The cheapest item on the list. One line, once the oldest workable version has been established by trying it |
+| ~~8~~ | **P5.5: lower the CMake floor** — DONE 2026-10-25, floor 3.21 by test | Bench | S | The cheapest item on the list. One line, once the oldest workable version has been established by trying it |
 | 9 | **P5.1: exposure-midpoint SER timestamps** | Bench | S | Parity with SharpCap today, and a bounded chance to lead. Needs the exposure threaded to the stamp site, which the report got slightly wrong |
 | 10 | **P5.4: installer, tags, and no hardcoded `D:` paths** | Bench | M | The distribution half of phase 20, split out of a VH item that was never going to be started whole |
 | 11 | **P5.3: ASCOM reconsidered** | Bench | M | Not re-enabling (it is already live) but re-examining the blacklist that closes the generic path, and making it testable indoors |

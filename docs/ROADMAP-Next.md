@@ -30,6 +30,16 @@ controller**, backlogged on hardware rather than finished, and the
 whole of **Tier 5**, which is new work and not a record of old work.
 Everything else above the live list is the dated record.
 
+**Reviewed again 2026-10-25,** after P5.5 and P5.6 merged, checking
+this file's claims against `git` and the tree rather than against
+itself. It found two figures that were never true (no tags, 58
+commits), a phase called done here and `BUILT` in
+[`PHASE-STATUS.md`](PHASE-STATUS.md), status asserted here for P5.5 and
+P5.6 that the status file had no row for, a fix that never reached the
+Done table, and a hardcoded-path list about half complete. All
+corrected in place; see [Found by the 2026-10-25
+review](#found-2026-10-25). The ranking did not change.
+
 ---
 
 ## How this is ranked
@@ -832,7 +842,7 @@ assumed harmless.
 `src/core/ASCOMMount.h` is a real 792-line `ITelescopeV3`
 implementation over COM `IDispatch` late binding. **It is not
 disabled, and the roadmap should not repeat that it is.**
-`src/main.cpp:720` calls `ASCOMMount::FindCPWIDriver()` first on the
+`src/main.cpp:738` calls `ASCOMMount::FindCPWIDriver()` first on the
 hardware path and only falls back to `NexStarMount` on the serial port
 when no driver resolves, or when the one that does turns out to be a
 simulator. The wiki marks the class "Superseded"
@@ -880,13 +890,24 @@ Distribution carries 15% of the comparison's weight and scored 1. The
 pieces are small and individually dull:
 
 - **Hardcoded output paths.** `D:\RadukCapture\...` is compiled into
-  at least `src/net/APEXTelemetry.h:89`, `src/gui/AIChatPanel.h:52-54`,
-  `src/gui/ControlPanel.cpp:1419`, `src/sky/PointingModel.h:72` and
-  `src/profiles/ProfileManager.h:22`, with `D:\astap\astap.exe` in
-  `src/sky/ASTAPSolver.h:54` besides. The application does not run
-  correctly on a machine with no D: drive, which is most machines.
-- **No tags and no releases.** `git tag` is empty against 58 commits,
-  and there is no artifact of any kind.
+  `src/main.cpp:104` (the log file itself), `:1034` and `:3757`,
+  `src/core/CaptureManager.h:36`, `src/core/SessionLog.h:40-47`,
+  `src/net/APEXTelemetry.h:89`, `src/gui/AIChatPanel.h:52-54`,
+  `src/gui/ControlPanel.cpp:1347`, `:1352` and `:2280`,
+  `src/sky/PointingModel.h:72` and `src/profiles/ProfileManager.h:22`;
+  `D:\astap\astap.exe` is in `src/sky/ASTAPSolver.h:54`, and two `D:`
+  AutoStakkert locations in `src/core/AutoStakkertRunner.h:175-178`.
+  Counted 2026-10-25 by grepping `src/` for `D:\\`; line numbers drift,
+  so re-grep rather than trusting this list. The application does not
+  run correctly on a machine with no D: drive, which is most machines.
+- **Tags, but no releases.** An earlier version of this entry said `git
+  tag` was empty against 58 commits. Neither was true: there are 13
+  tags, `v1.0.6` to `v2.0`, against 220 commits on `master` (counted
+  2026-10-25). What is missing is a release -- no artifact of any kind
+  is attached to any of them -- and the tags disagree with the source:
+  `src/Version.h` says `1.2.3` and has since `a1a64f6`, while `v2.0`
+  is dated 2026-10-12 and the help file describes features shipped in
+  v1.2.6, a number `Version.h` has never held.
 - **No installer.** There is `build_all.bat`, which is not something a
   person who is not the author can run.
 
@@ -898,8 +919,10 @@ re-scoped to the distribution half, which is this phase; the ASCOM
 half goes to P5.3; and neither remaining piece is VH.
 
 Done looks like: a path root resolved at runtime from the executable
-location or from `rig.ini`, with no `D:` literal left in `src/`; a tag
-matching `src/Version.h`; and one artifact that somebody else could
+location or from `rig.ini`, with no `D:` literal left in `src/`; one
+version number, agreed between `src/Version.h`, the help file and the
+newest tag, which is an owner decision before it is a code change;
+and one artifact that somebody else could
 download and run.
 
 ### P5.5 · Lower the CMake floor: effort S [DONE 2026-10-25]
@@ -981,8 +1004,9 @@ What was done, and what changed on the way:
 **Bench. Small to medium, and it carries a safety argument, which is
 why it sits where it does in the queue.**
 
-`src/net/WebSocketServer.h:83` says it plainly: the server binds
-127.0.0.1 by default and **the command set has NO authentication**.
+`src/net/WebSocketServer.h:83` said it plainly, until P5.6 replaced it
+with the token check: the server binds 127.0.0.1 by default and **the
+command set has NO authentication**.
 `RADUK_WS_LAN=1` exposes it on the LAN (`src/main.cpp:935-944`).
 Behind that socket is a hand-rolled RFC 6455 frame parser in C++, with
 hand-rolled SHA-1 and base64, reading attacker-controlled length
@@ -1038,10 +1062,10 @@ The comparison put a number against the thing this is usually weighed
 against. **N.I.N.A. is also effectively single-maintainer**, with
 6,467 of its 8,152 commits by one author, about 79%. It is in no
 danger of disappearing anyway, because MPL-2.0 plus 78 distinct commit
-authors means it can continue without him. This project has 58 commits
-from essentially one account and a license that keeps everyone else
-out. **For the bus-factor risk this project already records about
-itself, the license is doing more damage than the contributor count
+authors means it can continue without him. This project has 220 commits
+from essentially one person and a license that keeps everyone else
+out. (An earlier version said 58; it was never right.) **For the
+bus-factor risk this project already records about itself, the license is doing more damage than the contributor count
 is, and MPL-2.0 is the working proof inside this very category.**
 
 That is the finding. The decision is the owner's, and this entry is
@@ -1194,7 +1218,7 @@ concludes the document is unreliable.
 
 ## Ranked summary
 
-Updated 2026-10-17. Everything above the line is finished and pushed;
+Updated 2026-10-25. Everything above the line is finished and pushed;
 the ranking below it is what to pick up next.
 
 ### Done
@@ -1230,7 +1254,6 @@ the ranking below it is what to pick up next.
 | Emulator delivers 120 fps, cap lifted (P4.3) | `99140bc` |
 | `[PERF]` log behind `RADUK_PERF=1` | `9f886d6` |
 | Night-vision chrome, cheap half (D2) | `9f886d6` — Help 60%→10.7%, AI 88%→16%, GoTo 98%→39% |
-| Variable-rate slewing (`SlewVariable`) | the jog is no longer a nine-position switch |
 | Assistant told the truth about the rig (P3.6 C) | `545cbf9` — the prompt had the wrong pixel pitch since June |
 | Object panel (phase 92) | `be572c2` + `c3b567b` — Shift+I, and four defects the unread database was hiding |
 | Knowledge base reachable at last (92a) | `b97902d` — sqlite3.dll shipped; `sqlite3_open` needed `sqlite3_initialize` |
@@ -1239,7 +1262,6 @@ the ranking below it is what to pick up next.
 | Full-sensor frame rate — P4.4 diagnosis corrected | `bc88296` — the preview was never slow |
 | Preview stops re-deriving pixels it already has | `bc88296` — 27.1 ms → 2.0 ms at the full sensor |
 | Emulator defocus blur, 556 ms → 190 ms (P4.4a) | `ecd165c` — proved pixel-identical |
-| Emulator delivers 120 fps / 147 MB/s (P4.3) | `99140bc` |
 | AI chat text scales with the window (P3.3) | `179f8aa` |
 | GoTo panel scales; object names fixed (P3.3) | `dbc4832` — the catalogue had shown first letters only |
 | Repaint and rescue find every window (D3) | `a4b50a9` — 14 windows, 12 roles |
@@ -1247,8 +1269,12 @@ the ranking below it is what to pick up next.
 | Variable-rate slewing (P3.6 list item 1) | `eef6c25` — gated by `tests/slew_variable.cpp` |
 | An empty NOTES box can no longer erase a profile's note | `202822f` — the guard saturn.ini needed in `f2f2edc` |
 | Apparent size for the planets (list item 3) | `f4f4bda` — computed from the ephemeris, gated by `tests/planet_apparent_size.cpp` |
-| Connect / disconnect all hardware (phase 46) | `[HW]` button + `MountProxy`, gated by `tests/hardware_link.cpp` |
+| Connect / disconnect all hardware (phase 46) | `[HW]` button + `MountProxy`, gated by `tests/hardware_link.cpp` — **built and gated, not wired: the button has never been pressed in the running app** |
 | Click to recentre (phase 47, list item 4) | `Ctrl`+click, through the phase 51 calibration, gated by `tests/recentre.cpp` |
+| West and south jogs did nothing on the emulator | `b0015dc` (merged as #21) — a signed rate looked up as preset 0, "stopped"; gated by `tests/mount_jog.cpp` |
+| The mount panel: a clipped plot, and a D-pad that never existed | `9db7cd7` (merged as #22) |
+| Lower the CMake floor (P5.5) | `48e53a9` — 3.21, found by building |
+| Fuzz the WebSocket parser, token on every connection (P5.6) | `137dc5c` — gated by `tests/ws_protocol.cpp`, `ws_fuzz.cpp`, `ws_server_loopback.cpp`; **owes one real dashboard connection** |
 
 ---
 
@@ -1311,9 +1337,9 @@ consolidated](#live-sky-debt-consolidated).
 | ~~2~~ | **Assistant: retrieval over the real corpus** — DONE 2026-10-17 (`85b9d51`) | Bench | — | Above the line. 16 documents and the six most recent session logs, matched by line and bounded at 8.3 KB |
 | ~~3~~ | **Apparent size for the planets** — DONE 2026-10-17 (`f4f4bda`) | Bench | — | Decided for the ephemeris, and it cost almost nothing: `PlanetRADec` was already computing the Earth-planet distance for the declination and throwing it away. IAU 2015 equatorial radii and `2*atan(R/d)`. Saturn is reported twice over, because the 41" ring span is what has to fit the frame and the 18" globe is what "apparent size" means. Swept 16 years against published ranges — `tests/planet_apparent_size.cpp` |
 | ~~4~~ | **Phase 47, click to recentre** — DONE 2026-10-18 | Bench | — | `Ctrl`+click an object and it goes to the middle. No new orientation config: the phase 51 guide calibration already MEASURED how the image responds to a pulse, so it contains the camera angle, the mirror flip and the axis signs. The 2x2 solve moved into `src/core/GuideSolve.h` and the guide loop now calls the same one — two copies would be two sign conventions. Gated by `tests/recentre.cpp`, including a round trip that pushes the solved pulses back through the measured matrix |
-| ~~5~~ | **Phase 46, connect/disconnect hardware** — DONE 2026-10-18 | Bench | — | One `[HW]` button, and `MountProxy` so a reconnect can pick a different transport or port without stranding the tracker and the panels that hold the mount pointer. The crash it caused on the way is worth reading: `main.cpp` was static_cast-ing the mount pointer to `MountEmulator` |
+| ~~5~~ | **Phase 46, connect/disconnect hardware** — BUILT and GATED 2026-10-18; owes one press in the running app | Bench | — | One `[HW]` button, and `MountProxy` so a reconnect can pick a different transport or port without stranding the tracker and the panels that hold the mount pointer. The crash it caused on the way is worth reading: `main.cpp` was static_cast-ing the mount pointer to `MountEmulator` |
 | 6 | **P5.6: fuzz the WebSocket frame parser, and authenticate the command path** — GATED (bench) 2026-10-25; owes one real dashboard connection | Bench | S-M | The only safety-flavored item left on the bench. An unauthenticated RFC 6455 parser in C++ that accepts mount commands; loopback-by-default is a good default and is not a control. Raised in the July 2026 security review and hardened in Phase 57 without the auth gap being closed |
-| 7 | **Pick again from the unscheduled list** | Bench | varies | Ten features left, none half-built. On value to this rig **phase 48** (framing recall) is next, with phase 30 (push-to assistant) behind it |
+| 7 | **Pick again from the unscheduled list** | Bench | varies | Ten features left, none half-built. On value to this rig **phase 48** (framing recall) is next, with phase 30 (push-to assistant) behind it. Nothing of 48 is built yet: PR #21's branch was named `phase48-observation-record` but carried only the jog fix |
 | ~~8~~ | **P5.5: lower the CMake floor** — DONE 2026-10-25, floor 3.21 by test | Bench | S | The cheapest item on the list. One line, once the oldest workable version has been established by trying it |
 | 9 | **P5.1: exposure-midpoint SER timestamps** | Bench | S | Parity with SharpCap today, and a bounded chance to lead. Needs the exposure threaded to the stamp site, which the report got slightly wrong |
 | 10 | **P5.4: installer, tags, and no hardcoded `D:` paths** | Bench | M | The distribution half of phase 20, split out of a VH item that was never going to be started whole |
@@ -1325,6 +1351,35 @@ consolidated](#live-sky-debt-consolidated).
 | — | **Assistant: a larger model** (P3.6 option A) | — | M | Behind D4. An 8B at 4-bit fits the 2060's 6 GB |
 | — | **Emulator blur, further** (P4.4a tail) | Bench | S | Only if full-sensor bench work becomes routine. Focusing the emulated EAF skips it entirely today |
 | — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3 |
+
+<a name="found-2026-10-25"></a>
+### Found by the 2026-10-25 review
+
+Every item here is a claim this file made that `git` or `grep` could
+have refuted in a second, and nothing did.
+
+- **"No tags, 58 commits"** (P5.4, P5.7). 13 tags and 220 commits.
+  Corrected in both entries.
+- **Three version numbers.** `src/Version.h` is `1.2.3` and has been
+  since `a1a64f6`, though its own header says it is bumped on every
+  push. The help file describes v1.2.6 features. The newest tag is
+  `v2.0`, from 2026-10-12. **An owner decision**: which number is
+  real. It blocks P5.4's single agreed version.
+- **Phase 46 was "DONE" here and `BUILT` in `PHASE-STATUS.md`.** The
+  status file is the one that counts, and the button has never been
+  pressed in the running app. This file now says built and gated.
+- **P5.5 and P5.6 had status asserted only here.** This file ranks and
+  does not assert status, so `PHASE-STATUS.md` now carries a row for
+  every P5 item, and P5.6's outstanding connection test is tracked
+  there.
+- **The jog fix never reached the Done table**, and with it the note
+  that the emulator had been blind to two of four jog directions.
+  Added, and cross-referenced from clear-night item 14.
+- **The `D:` path list was about half the real one.** Expanded, with
+  the grep that produced it, because a fixed list is the thing that
+  goes stale.
+- Two rows were in the Done table twice, a section repeated the one
+  above it, and two cited line numbers had drifted. Removed or fixed.
 
 ### Found 2026-10-18 — SAVE could erase a profile's note
 
@@ -1428,21 +1483,6 @@ a genuine failure-to-begin shows every switch and then stops.
 `AutoStackOnStop` stays off, now for its own reason: stacking is
 minutes of CPU and should be opted into.
 `tests\manual-autostakkert-launch.cpp` re-runs the measurement.
-
-### The original two questions, for the record
-
-Neither is a task. Both are decisions only the owner can make, and
-both have been sitting in the document unanswered.
-
-1. **Does phase 16, the polar alignment assistant, apply at all?** The
-   8SE is alt-az unless it is on a wedge, and polar alignment is a
-   wedge-only procedure. If there is no wedge and none is planned, this
-   is not a deferred feature, it is a line to delete.
-2. **Is phase 77, the AutoStakkert in-app launch, worth keeping on the
-   list?** It is marked broken and *proven not to be ours* — the
-   identical command fails from a bare prompt. That makes it an
-   upstream or environment problem, and carrying it as app work is
-   misleading.
 
 ### Still open, carried from before
 
@@ -1685,7 +1725,9 @@ depend on them:
   calibration on a real star, and no bench test can produce one. What a
   night settles: that a click lands the planet in the middle first
   time, and that the ten-second pulse ceiling is the right place to
-  stop and slew instead.
+  stop and slew instead. Until `b0015dc` (2026-10-18) the emulator
+  ignored west and south jogs, so any recentring checked against it
+  before then saw only two of four directions.
 - **Item 1 — `SHARP_CEIL`**, which biases the capture gate and
   autofocus.
 - **Item 3 — plate scale**, never once checked against the sky, and
@@ -1776,8 +1818,8 @@ true the moment a phase was split in two.
 |---|---|---|---|
 | ~~47~~ | ~~Pixel position / click to recentre~~ | — | **Done 2026-10-18.** `Ctrl`+click, on the measured guide calibration |
 | 47b | Pixel position readout + directional rose | M | The half of phase 47 that a plate solve really is needed for, split out when the other half shipped without one. Absolute RA/Dec under the cursor, and a rose showing which way a jog pushes the image |
-| ~~46~~ | ~~Connect / disconnect all hardware~~ | — | **Done 2026-10-18.** `[HW]` button; `MountProxy` keeps the mount pointer stable across a reconnect |
-| 48 | Go to previous image (framing recall) | M | |
+| ~~46~~ | ~~Connect / disconnect all hardware~~ | — | **Built and gated 2026-10-18; owes one press in the running app.** `[HW]` button; `MountProxy` keeps the mount pointer stable across a reconnect |
+| 48 | Go to previous image (framing recall) | M | Design settled 2026-10-18: an observation record written beside each capture, not a plate solve, since a planetary crop has no solvable star field. **The prerequisite for 18 (FITS) and 19**, which want the metadata it collects |
 | 30 | Push-to assistant | M | |
 | 31/32 | FWHM / Bahtinov focus | H | Star focus; autofocus is tuned for a planetary disc. **A visible gap in the comparison**: SharpCap ships multi-star FWHM, HFD and Bahtinov aids with Pro auto-scans, FireCapture has a third-party autofocus plugin, ASICap has coarse/fine EAF buttons. Nothing in this tree implements either measure (checked: no FWHM or Bahtinov code in `src/`), and the planetary-disc V-curve does not substitute for star focus |
 | 18 | AVI / FITS output | M | **FITS leads, AVI follows, and the comparison raises the value of both.** FITS is the interop format the post-processing chain consumes and is the one output that would let this project touch any photometric or deep-sky workflow; AVI is a legacy container that chain does not want. SharpCap and FireCapture both write FITS; ASICap does not, so "every competitor writes FITS" is too strong, but the two that matter do. Neither writer exists anywhere in `src/` |

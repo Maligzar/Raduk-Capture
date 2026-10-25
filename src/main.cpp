@@ -69,6 +69,9 @@
 #include "core/ObservationRecord.h" // phase 48: the record beside each capture, and recall
 #include "core/MountProxy.h"   // phase 46: one mount pointer that never goes stale
 #include "core/HardwareLink.h" // phase 46: what the [HW] button shows and says
+#include "core/DashboardLaunch.h" // [DASH]: open the dashboard with its token
+#include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
+#pragma comment(lib, "shlwapi.lib")
 #include "gui/ShareView.h"
 #include "gui/ObjectPanel.h"
 #include "gui/WorkspaceLayout.h"
@@ -4226,6 +4229,58 @@ static int RunApp(bool useEmulator) {
     toolbar.SetReticleCallback([&]() { doReticle(); });
     toolbar.SetClipCallback([&]()    { preview.ToggleClip(); });
     toolbar.SetHardwareCallback([&]() { doHardwareButton(); });
+
+    // [DASH]: open the browser dashboard already holding the access token.
+    // The browser is asked for by name rather than by opening the file:
+    // handing a file:// URL to its file association can drop the
+    // #fragment, and the fragment is where the token rides (see
+    // DashboardLaunch.h for why). Neither the token nor the URL is
+    // logged -- this log is the assistant's corpus.
+    auto doDashboard = [&]() {
+        wchar_t exePath[MAX_PATH] = {};
+        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+        std::wstring exeDir(exePath);
+        const auto slash = exeDir.find_last_of(L"\\/");
+        if (slash != std::wstring::npos) exeDir = exeDir.substr(0, slash);
+
+        std::wstring page;
+        for (const auto& d : raduk::core::DashboardSearchDirs(exeDir)) {
+            const std::wstring p = d + L"\\" + raduk::core::kDashboardFile;
+            if (GetFileAttributesW(p.c_str()) != INVALID_FILE_ATTRIBUTES) { page = p; break; }
+        }
+        if (page.empty()) {
+            Log("[DASH] RadukCaptureDashboard.html not found beside the exe or above it\n");
+            notifBar.NotifyWarn(L"Dashboard not found - RadukCaptureDashboard.html "
+                                L"should be beside the exe or in a folder above it");
+            return;
+        }
+
+        const std::string& tok = RigConfig::Get().wsToken;
+        const bool withToken = raduk::net::ws::TokenLooksStrong(tok);
+        const std::string url = raduk::core::DashboardUrl(page, withToken ? tok : "");
+        const std::wstring wurl(url.begin(), url.end());   // ASCII: percent-encoded
+
+        wchar_t browser[MAX_PATH] = {};
+        DWORD n = MAX_PATH;
+        HINSTANCE r;
+        if (SUCCEEDED(AssocQueryStringW(ASSOCF_IS_PROTOCOL, ASSOCSTR_EXECUTABLE,
+                                        L"http", L"open", browser, &n))) {
+            const std::wstring arg = L"\"" + wurl + L"\"";
+            r = ShellExecuteW(nullptr, L"open", browser, arg.c_str(), nullptr, SW_SHOWNORMAL);
+        } else {
+            r = ShellExecuteW(nullptr, L"open", wurl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        }
+        if ((INT_PTR)r <= 32) {
+            Log("[DASH] Could not open the browser (ShellExecute %d)\n", (int)(INT_PTR)r);
+            notifBar.NotifyWarn(L"Could not open the browser for the dashboard");
+            return;
+        }
+        Log("[DASH] Dashboard opened%s\n",
+            withToken ? ", signed in" : " WITHOUT a token - WsToken in rig.ini is missing or too weak");
+        if (withToken) notifBar.NotifyInfo(L"Dashboard opened in the browser - it connects by itself");
+        else           notifBar.NotifyWarn(L"Dashboard opened, but there is no usable WsToken to give it");
+    };
+    toolbar.SetDashCallback([&]() { doDashboard(); });
     // Phase 49: Help toggle — toolbar [?] button and ? key
     auto doHelp = [&]() { helpWindow.Toggle(); };
     toolbar.SetHelpCallback([&]()       { doHelp(); });

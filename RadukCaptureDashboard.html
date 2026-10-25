@@ -2026,6 +2026,21 @@ function rcUrlWithToken(url) {
   });
 })();
 
+// ── Opened by RadukCapture's [DASH] button ──────────────────
+// The button hands over the token in the URL fragment, #token=<hex>.
+// It is taken into the token box and this browser's storage like a
+// pasted one, and stripped from the address bar at once so it does
+// not sit on screen. init() then connects to this PC by itself.
+const rcLaunchedByApp = (function() {
+  const m = /(?:^#|&)token=([0-9a-fA-F]{32,})(?:&|$)/.exec(location.hash || '');
+  if (!m) return false;
+  rcTokenSet(m[1]);
+  const tokEl = document.getElementById('rcWsToken');
+  if (tokEl) tokEl.value = m[1];
+  try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
+  return true;
+})();
+
 // ── WebSocket connection ────────────────────────────────────
 // Auto-set URL to localhost if opening the file locally
 (function() {
@@ -3507,6 +3522,15 @@ setInterval(() => {
 // ============================================================
 async function init(){
   runLoadingSequence();
+  // [DASH]: RadukCapture opened this page on its own PC, token and all.
+  // Connect now, before the weather downloads below, which can take a
+  // long time to give up at a dark site with no internet.
+  if (rcLaunchedByApp) {
+    const urlEl = document.getElementById('rcWsUrl');
+    if (urlEl) urlEl.value = 'ws://localhost:8765';
+    switchTab('fc');
+    if (!rcConnected) rcToggleConnect();
+  }
   // Load data immediately, let the CSS loading animation play independently
   // Don't block on animation — dashboard is usable as soon as data loads
   const loadDelay = new Promise(r=>setTimeout(r,1200)); // min visual loading time
@@ -3515,7 +3539,9 @@ async function init(){
   rcInit();
   // Attempt auto-connect if user previously connected
   const savedUrl = apexStorage.getSync('apexBridgeUrl');
-  if (savedUrl) {
+  // Not over a [DASH] launch: that one is already connected to this PC,
+  // and a saved remote URL in the box would misdescribe it.
+  if (savedUrl && !rcLaunchedByApp) {
     const wsEl = document.getElementById('wsUrl') || document.getElementById('rcWsUrl');
     if (wsEl) wsEl.value = savedUrl;
   }

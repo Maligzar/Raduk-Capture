@@ -1950,24 +1950,42 @@ here would.
 ends normally - you press stop, or it reaches its frame or time limit. An
 emergency stop never triggers it.
 
-**Known problem, still unresolved as of v1.2.3: this does not work on
-this machine.** AutoStakkert starts, parses every option correctly, then never
-begins processing. It is not RadukCapture - the identical command fails
-from a plain command prompt too, and so does the exact command that worked
-earlier the same day. `AutoStackOnStop` is off by default because of it.
+**This used to say it did not work. It does — re-measured 2026-10-18.**
+For a while this section carried a "known problem, unresolved" warning:
+AutoStakkert started, parsed every option, and never began processing.
+That was measured again on one 158 MB recording, three ways, with no
+reinstall and no reboot in between — on its own from PowerShell, through
+this app's own handoff, and through the handoff again with AutoStakkert
+already open. All three stacked, in about 51 seconds each.
 
-The command is sound and works when AutoStakkert is healthy, so you can
-always run it yourself:
+What originally caused it is unexplained and no longer reproducible.
+`AutoStackOnStop` is still off by default, but for its own reason now:
+stacking is minutes of CPU on the machine running the capture, and that
+should be something you choose rather than something that happens to you
+mid-session.
+
+You can always run the command yourself:
 
 ```
 AutoStakkert.exe "<file>.ser" /apgrid /process /hide /exit
                  /outputdirectory "<folder>"
 ```
 
-To tell a healthy run from a stuck one, open AutoStakkert's own log at
-`debug_data\log.txt`. A working run prints `Processing started` about
-half a second after `started...`; a stuck one never does. If it is stuck:
-reboot, then reinstall AutoStakkert if that does not help.
+If it ever does misbehave, AutoStakkert's own log at `debug_data\log.txt`
+tells you which kind of failure you have, and the two look identical from
+outside:
+
+- **Switches logged, but no `Processing started`** — AutoStakkert received
+  the instructions and did not begin. That is the failure this section used
+  to describe.
+- **No `command line ...` lines at all** — the switches never arrived. This
+  is almost always a shell problem rather than an AutoStakkert one: run from
+  **Git Bash or another MSYS shell**, `/apgrid` is rewritten into a path
+  (`C:/Program Files/Git/apgrid`) before AutoStakkert sees it. Use PowerShell
+  or `cmd`.
+
+A working run prints `Processing started` about half a second after
+`started...`.
 
 ### The `_quality.txt` file
 
@@ -2280,8 +2298,15 @@ a SER file cannot change format part-way through. Set the format first.
 ## What is not built yet
 
 Listed so nobody goes looking for it, and so the assistant does not promise
-it. These are planned, not missing by accident — see
-`RadukCapture-Architecture.md` for the full roadmap.
+it. These are planned, not missing by accident.
+
+**This list is derived from the `PLANNED` rows in
+[`docs/PHASE-STATUS.md`](docs/PHASE-STATUS.md), and nothing else belongs in
+it.** It is written down because the rule was broken: this section spent
+some weeks denying four features that the rest of this same file documents
+in full — click-to-recentre, the multi-monitor workspace, sensor analysis
+and the ADC alignment window. The assistant reads this file, so it was
+repeating those denials to whoever asked.
 
 **Calibration frames are a preview aid only.** Dark and flat correction
 exist and are applied to what you see, but the recorded SER stays raw — see
@@ -2298,24 +2323,32 @@ mask assistant. Autofocus plus the sharpness readout is what there is.
 helper covers mount orientation and the keep-out sector, which is a
 different job.
 
-**Alignment and framing helpers.** No push-to assistant, no click-on-the-
-preview to recentre, and no "go to previous image" framing recall. The
-reticle (four shapes, movable, sizeable, rotatable) and the framing shot do
-exist — see the **Reticle** and **Framing shot** sections.
+**Alignment and framing helpers.** No push-to assistant, and no "go to
+previous image" framing recall yet — that one is designed but not built.
+**Click-to-recentre does exist**: `Ctrl`+click the preview and the mount
+puts that spot in the middle — see [Centring by
+clicking](#centring-by-clicking). So do the reticle (four shapes, movable,
+sizeable, rotatable) and the framing shot — see the **Reticle** and
+**Framing shot** sections.
 
-**Display extras.** No multi-monitor workspace — every window opens on
-whichever screen the main window is on, and positions are not remembered
-between runs. Night vision (now including the whole interface), the
-single-channel R/G/B view and the display stretch all exist — see
-[Display stretch](#display-stretch).
+**Display extras.** Nothing outstanding here worth listing. The
+multi-monitor workspace exists and remembers where every window goes — see
+[The multi-monitor workspace](#the-multi-monitor-workspace-v124); so do
+night vision across the whole interface, the single-channel R/G/B view and
+the display stretch — see [Display stretch](#display-stretch).
 
-**Analysis extras.** No sensor-analysis or smart-histogram tooling, no
-stellar photometry, no multi-session statistics dashboard, no solar/lunar
-framing assistant, and no image annotation overlay on the preview.
+**Analysis extras.** No stellar photometry, no multi-session statistics
+dashboard, no solar/lunar framing assistant, and no image annotation overlay
+on the preview. **Sensor analysis and the smart histogram do exist** — the
+Gr/Gb split, per-channel headroom in stops, and which channel is limiting
+the exposure.
 
-**ADC alignment tool.** The ADC *advisor* tells you how much dispersion
-there is and whether a corrector is worth fitting (see [Filters](#filters)).
-It does not help you dial one in.
+**ADC alignment tool — built, and dark.** This is the one entry that is
+neither "exists" nor "missing". The alignment window is built and tested
+(`Shift+A`), and it stays dark until *ADC fitted* is ticked on the READY
+screen — because there is no corrector in the train to align. The ADC
+*advisor*, which tells you how much dispersion there is and whether a
+corrector is worth fitting, works regardless (see [Filters](#filters)).
 
 **Stacking.** Deliberately not built. The quick-look stacker is a preview so
 you know that night whether a capture was soft; AutoStakkert does the real
@@ -2419,7 +2452,7 @@ real site is stored. Most of it is written for you.
 | v1.2.1 | 75 | Jog rate now reaches the arrow keys; both rate selectors stay in step |
 | v1.2.1 | 75 | Motion plot on the Mount Controller — camera or mount source, labelled |
 | v1.2.2 | 76 | Per-frame quality scores; one shared sharpness definition; a ceiling that survives sensor noise |
-| v1.2.2 | 77 | AutoStakkert handoff — `K` and AutoStackOnStop (launch currently blocked, see above) |
+| v1.2.2 | 77 | AutoStakkert handoff — `K` and AutoStackOnStop. CLI and in-app launch both measured working 2026-10-18 |
 | v1.2.2 | 78 | Emulator jog rates follow the real NexStar curve |
 | v1.2.2 | 79 | Capture gate fixed; emulator can vary frame quality |
 | v1.2.3 | 80 | Both configurations build from one script — the hardware build had silently been broken for four phases |

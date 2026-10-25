@@ -789,24 +789,15 @@ alongside during validation.
 > PulseGuide path. First-hardware-light remains the true test of the guide
 > calibration (Phase 51) and correction dynamics (Phase 53).
 
-### 🔲 Next Up
+### What to do next
 
-| Phase | Feature | Priority |
-|-------|---------|---------|
-| Phase 26 | Night Vision Mode | Tier 1 |
-| Phase 49 | Help System | Tier 1 |
+This used to be a table. Seven of its eight rows had already shipped by the
+time anyone noticed, which is what a hand-maintained second copy of a status
+does.
 
-| Phase 38 | Single-Channel Display Mode | Tier 2 |
-| Phase 40 | Notification Bar | Tier 2 |
-| Phase 50 | Local AI Assistant | Tier 2 |
-| Phase 13 | Sky Survey / Pointing Model | Tier 2 |
-| Phase 14 | Session Planner | Tier 2 |
-| Phase 16 | Polar Alignment Assistant | Tier 2 |
-| Phase 17 | Live Stacking Preview | Tier 3 |
-| Phase 18 | AVI/FITS Output | Tier 3 |
-| Phase 19 | Multi-Session Stats Dashboard | Tier 3 |
-| Phase 20 | Distribution / ASCOM support | Tier 3 |
-| OBS Streaming | RTSP H.264 stream | 🚫 Deferred |
+**The queue lives in [`docs/ROADMAP-Next.md`](docs/ROADMAP-Next.md), and what
+each phase's status actually is lives in
+[`docs/PHASE-STATUS.md`](docs/PHASE-STATUS.md).** Neither is restated here.
 
 ---
 
@@ -871,27 +862,33 @@ SharpCap's toolbar has 19 buttons. RadukCapture currently has 7. Full parity req
 `[CENTROID]` `[LOCK]` `[ROI]` | `[C] COLOR` `[MAP]` `[GOTO]` `[RETICLE]`
 
 **SharpCap toolbar (19 items) mapped to RadukCapture:**
-| SharpCap | RadukCapture | Status |
-|---|---|---|
-| Live View toggle | — | Not needed (always live) |
-| Start Capture | `RECORD` button in panel | ✅ Covered (panel) |
-| Quick Capture | — | 🔲 Phase 22 snapshot covers this |
-| Stop Capture | `RECORD` button toggles | ✅ Covered |
-| Pause capture | — | 🔲 Add to toolbar (Phase 41) |
-| Snapshot (save PNG) | — | 🔲 Phase 22 |
-| Framing Shot | — | 🔲 Phase 39 |
-| Two Monitor Mode | — | 🔲 Phase 42 (five-screen workspace; SharpCap only does two) |
-| Live Stack | — | 🔲 Phase 17 |
-| Deep Sky Annotation | — | 🔲 Phase 43 |
-| Target Name | Notes field in panel | Partial |
-| Frame Type | — | 🔲 Phase 44 (Light/Dark/Flat/Bias labels in filename) |
-| Preview FX dropdown | — | 🔲 Phase 25 (Boost/Stack/RGB) |
-| Selection Area | ROI rubber-band | ✅ Done |
-| Reticule Overlays | `[RETICLE]` button | ✅ Done (1 type) — 🔲 Phase 45 multi-reticle |
-| Zoom | Scroll wheel + buttons | ✅ Done |
-| Image Histogram | Panel histogram section | ✅ Done |
-| Calculate Focus Score | AF button + sharpness HUD | ✅ Done |
-| Toggle Hardware | — | 🔲 Phase 46 (connect/disconnect all) |
+| SharpCap | RadukCapture |
+|---|---|
+| Live View toggle | — |
+| Start Capture | `RECORD` button in panel |
+| Quick Capture | — |
+| Stop Capture | `RECORD` button toggles |
+| Pause capture | — |
+| Snapshot (save PNG) | — |
+| Framing Shot | — |
+| Two Monitor Mode | — |
+| Live Stack | — |
+| Deep Sky Annotation | — |
+| Target Name | Notes field in panel |
+| Frame Type | — |
+| Preview FX dropdown | — |
+| Selection Area | ROI rubber-band |
+| Reticule Overlays | `[RETICLE]` button |
+| Zoom | Scroll wheel + buttons |
+| Image Histogram | Panel histogram section |
+| Calculate Focus Score | AF button + sharpness HUD |
+| Toggle Hardware | — |
+
+> The Status column is gone. This is a **mapping** — which SharpCap feature
+> corresponds to what here — and a mapping does not go stale. The status
+> beside it did, eleven times, because closing a phase meant remembering to
+> edit a table nobody was looking at. See
+> [`docs/PHASE-STATUS.md`](docs/PHASE-STATUS.md).
 
 **New phases from toolbar review:**
 - **Phase 41 — Pause Capture:** Pause/resume recording without closing the SER file. Frames continue displaying live but are not written to disk. Amber PAUSED indicator on RECORD button.
@@ -902,28 +899,30 @@ SharpCap's toolbar has 19 buttons. RadukCapture currently has 7. Full parity req
 - **Phase 46 — Connect/Disconnect All Hardware:** Single toolbar button connects or disconnects camera + EAF + mount simultaneously. Useful for session start/end.
 
 **Tools menu items mapped to RadukCapture:**
-| SharpCap Tool | RadukCapture | Status |
-|---|---|---|
-| Histogram | Panel HISTOGRAM section | ✅ Done |
-| Live Stack | — | 🔲 Phase 17 |
-| Polar Align | — | 🔲 Phase 16 |
-| Plate Solve Only | GoTo panel POINT SOLVE | ✅ Done |
-| Plate Solve & Resync | GoTo panel POINT SOLVE→SYNC | ✅ Done |
-| Sensor Analysis | — | 🔲 Phase 36 |
-| ADC Alignment | — | 🔲 Phase 35 |
-| Pixel Value Readout | — | 🔲 Phase 24 |
-| Pixel Position / Click to Recentre | `Ctrl`+click the preview | ✅ Recentre done (Phase 47); pixel→RA/Dec readout still 🔲 Phase 47b |
-| Deep Sky Image Annotation | — | 🔲 Phase 43 |
-| Ghosted Image Alignment | — | 🔲 Phase 29 |
-| Goto Image (return to previous) | — | 🔲 Phase 48 |
-| Goto Catalog Target | GoTo panel | ✅ Done |
-| Push-To Assistant | — | 🔲 Phase 30 |
-| Focus Assistant | AUTO FOCUS button | ✅ Done (V-curve) |
-| Seeing Monitor | Sharpness + rolling score | ✅ Done |
-| Feature Tracking | Phase 5 Centroid Tracking | ✅ Done |
-| Collimation Assistant | — | ➡ Not applicable (SCT) |
-| Solar/Lunar Framing | — | 🔲 Phase 34 |
-| Stellar Photometry | — | 🔲 Phase 33 |
+| SharpCap Tool | RadukCapture |
+|---|---|
+| Histogram | Panel HISTOGRAM section |
+| Live Stack | — |
+| Polar Align | — |
+| Plate Solve Only | GoTo panel POINT SOLVE |
+| Plate Solve & Resync | GoTo panel POINT SOLVE→SYNC |
+| Sensor Analysis | — |
+| ADC Alignment | — |
+| Pixel Value Readout | — |
+| Pixel Position / Click to Recentre | `Ctrl`+click the preview |
+| Deep Sky Image Annotation | — |
+| Ghosted Image Alignment | — |
+| Goto Image (return to previous) | — |
+| Goto Catalog Target | GoTo panel |
+| Push-To Assistant | — |
+| Focus Assistant | AUTO FOCUS button |
+| Seeing Monitor | Sharpness + rolling score |
+| Feature Tracking | Phase 5 Centroid Tracking |
+| Collimation Assistant | — |
+| Solar/Lunar Framing | — |
+| Stellar Photometry | — |
+
+> Status column removed, same reason as above.
 
 **New phases from tools review:**
 - **Phase 47 — Pixel Position / Click to Recentre:** Split in two by what it actually needs. **Recentring shipped** (2026-10-18) without a plate solve, on the Phase 51 guide calibration, which is already a measured pixel↔sky transform — see section 2. The **coordinate readout and directional rose** do need a solve, because the calibration is relative and not absolute, and remain outstanding as Phase 47b.
@@ -1507,59 +1506,77 @@ RTSP stream from the capture PC GPU (NVENC / Windows Media Foundation) → OBS M
 
 ### Phase Priority Summary
 
-| # | Phase | Tier | Effort | Status |
-|---|-------|------|--------|--------|
-| 52 | Closed-Loop Tracking Emulation | 0 | Medium | ✅ validated (emu) 2026-07-11 |
-| 51 | Guide Calibration & Axis Transform | 0 | Hard | ✅ validated (emu) 2026-07-11 |
-| 53 | Correction-Loop Dynamics | 0 | Medium | ✅ validated (emu) 2026-07-11 |
-| 54 | Auto-Sync Repair (ASTAP + J2000) | 0 | Easy-Med | ✅ validated (emu) 2026-07-11 |
-| 55 | Rig Configuration | 0 | Easy-Med | ✅ validated (emu) 2026-07-11 |
-| 56 | Frame-Path Memory Safety | 0 | Medium | ✅ validated (emu) 2026-07-11 |
-| 57 | Mount-Safety & Remote Hardening | 0 | Medium | ✅ validated (emu) 2026-07-11 |
-| 58 | Camera Fault Recovery | 0 | Medium | ✅ validated (emu) 2026-07-11 |
-| 59 | Capture & Assist Reliability | 0 | Medium | ✅ validated (emu) 2026-07-11 |
-| 12 | Auto-Exposure Assistant | 1 | Medium | ✅ v1.0.5 |
-| 21 | Clipping Warning Overlay | 1 | Easy | ✅ v1.0.6 |
-| 22 | Snapshot PNG/FITS | 1 | Easy | ✅ v1.0.7 |
-| 25a | Quality Bar Graph | 1 | Easy | ✅ v1.0.7 |
-| 41 | Pause Capture | 1 | Easy | ✅ v1.0.8 |
-| 44 | Frame Type Labels + App Icon | 1 | Easy | ✅ v1.0.9 |
-| 23 | RGB Align Display Mode | 1 | Easy-Med | ✅ v1.0.10 |
-| 24 | Pixel Value Readout | 1 | Easy | ✅ v1.0.11 |
-| 49 | Help System | 1 | Medium | ✅ v1.0.x (gui/HelpWindow.h) |
-| 25 | Image Boost / Frame Stack FX | 1 | Medium | ✅ v1.0.12 |
-| 26 | Night Vision Mode | 2 | Easy | ✅ whole interface; measured 21%→0% blue in the panel. 48 cached D2D brushes in PreviewRenderer/SkyMapWindow still follow only from launch |
-| 38 | Single-Channel Display Mode | 2 | Easy | ✅ `H` key (PreviewRenderer ChannelMode) |
-| 40 | Notification Bar | 2 | Easy | ✅ (gui/NotificationBar.h) |
-| 45 | Multi-Reticle Overlays | 2 | Easy-Med | ✅ 4 shapes, Ctrl+drag / Ctrl+wheel / Shift+wheel |
-| 39 | Framing Shot | 2 | Easy-Med | ✅ `Shift+S` / [FRAME] |
-| 29 | Ghosted Image Overlay | 2 | Easy | ✅ ([GH] button) |
-| 13 | Sky Survey / Pointing Model | 2 | Medium | ✅ (sky/PointingModel.h) |
-| 14 | Session Planner | 2 | Medium | ✅ (GoToPanel planner rows) |
-| 37 | Display Stretch Mini Histogram | 2 | Medium | ✅ `L` + Black/White sliders; also fixed the histogram, which was luminance x3 not R/G/B |
-| 46 | Connect/Disconnect All HW | 2 | Medium | 🔲 |
-| 27 | Dark Frame Subtraction | 2 | Medium | ✅ preview only; built in-app, not loaded from PNG (a PNG is already debayered) |
-| 28 | Flat Frame Correction | 2 | Medium | ✅ preview only; normalised per Bayer position, not by a global mean |
-| 30 | Push-To Assistant | 2 | Medium | 🔲 |
-| 35 | ADC Alignment Tool | 2 | Medium | 🔲 |
-| 47 | Click to Recentre | 2 | Medium | ✅ `Ctrl`+click via the Phase 51 calibration — no plate solve needed; gated by `tests/recentre.cpp`, unverified on sky |
-| 47b | Pixel Position Readout + Directional Rose | 2 | Medium | 🔲 split from 47 — this half does need a plate solve |
-| 48 | Goto Previous Image | 2 | Medium | 🔲 |
-| 6.6 | GoTo Map Learning | 2 | Med-Hard | ◑ partial — auto solve+sync on lock ships; the accumulating map does not |
-| 42 | Five-Monitor Workspace | 2 | Medium | 🔲 re-estimated from Hard — the five windows are already separate top-levels, so only placement + persistence is missing |
-| 16 | Polar Alignment Assistant | 2 | Hard | 🔲 |
-| 43 | Deep Sky Image Annotation | 3 | Hard | 🔲 |
-| 17 | Live Stacking Preview | 3 | Hard | ◑ superseded by the quick-look stacker (Phase 74) |
-| 31 | Multi-Star FWHM Focus | 3 | Hard | 🔲 |
-| 32 | Bahtinov Mask Focus | 3 | Hard | 🔲 |
-| 18 | AVI/FITS Output | 3 | Medium | 🔲 |
-| 19 | Multi-Session Stats Dashboard | 3 | Medium | 🔲 |
-| 36 | Sensor Analysis / Smart Histogram | 3 | Hard | 🔲 |
-| 33 | Stellar Photometry | 3 | Very Hard | 🔲 |
-| 34 | Solar/Lunar Framing | 3 | Hard | 🔲 |
-| 12b | Ollama Integration | 3 | Medium | ✅ `W`; conditions detected in code, model only phrases them |
-| 20 | Distribution / ASCOM | 3 | Very Hard | 🔲 |
-| — | OBS Streaming | — | Hard | 🚫 Deferred |
+This is the **plan**: which phases exist, in which tier, at what effort.
+Those three do not decay.
+
+**It no longer carries status.** It used to, and three of its rows (35, 42
+and 36) were wrong about shipped features while the same document's other
+two status tables disagreed with it and with each other. Status lives in
+[`docs/PHASE-STATUS.md`](docs/PHASE-STATUS.md), once.
+
+Two measurements that were buried in the old Status column, kept because
+they are measurements:
+
+- **Phase 26, night vision:** measured 21% → 0% blue in the panel. 48 cached
+  D2D brushes in `PreviewRenderer` and `SkyMapWindow` still follow only from
+  launch.
+- **Phase 37, display stretch:** also fixed the histogram, which was
+  luminance ×3 rather than R/G/B.
+
+
+| # | Phase | Tier | Effort |
+|---|-------|------|--------|
+| 52 | Closed-Loop Tracking Emulation | 0 | Medium |
+| 51 | Guide Calibration & Axis Transform | 0 | Hard |
+| 53 | Correction-Loop Dynamics | 0 | Medium |
+| 54 | Auto-Sync Repair (ASTAP + J2000) | 0 | Easy-Med |
+| 55 | Rig Configuration | 0 | Easy-Med |
+| 56 | Frame-Path Memory Safety | 0 | Medium |
+| 57 | Mount-Safety & Remote Hardening | 0 | Medium |
+| 58 | Camera Fault Recovery | 0 | Medium |
+| 59 | Capture & Assist Reliability | 0 | Medium |
+| 12 | Auto-Exposure Assistant | 1 | Medium |
+| 21 | Clipping Warning Overlay | 1 | Easy |
+| 22 | Snapshot PNG/FITS | 1 | Easy |
+| 25a | Quality Bar Graph | 1 | Easy |
+| 41 | Pause Capture | 1 | Easy |
+| 44 | Frame Type Labels + App Icon | 1 | Easy |
+| 23 | RGB Align Display Mode | 1 | Easy-Med |
+| 24 | Pixel Value Readout | 1 | Easy |
+| 49 | Help System | 1 | Medium |
+| 25 | Image Boost / Frame Stack FX | 1 | Medium |
+| 26 | Night Vision Mode | 2 | Easy |
+| 38 | Single-Channel Display Mode | 2 | Easy |
+| 40 | Notification Bar | 2 | Easy |
+| 45 | Multi-Reticle Overlays | 2 | Easy-Med |
+| 39 | Framing Shot | 2 | Easy-Med |
+| 29 | Ghosted Image Overlay | 2 | Easy |
+| 13 | Sky Survey / Pointing Model | 2 | Medium |
+| 14 | Session Planner | 2 | Medium |
+| 37 | Display Stretch Mini Histogram | 2 | Medium |
+| 46 | Connect/Disconnect All HW | 2 | Medium |
+| 27 | Dark Frame Subtraction | 2 | Medium |
+| 28 | Flat Frame Correction | 2 | Medium |
+| 30 | Push-To Assistant | 2 | Medium |
+| 35 | ADC Alignment Tool | 2 | Medium |
+| 47 | Click to Recentre | 2 | Medium |
+| 47b | Pixel Position Readout + Directional Rose | 2 | Medium |
+| 48 | Goto Previous Image | 2 | Medium |
+| 6.6 | GoTo Map Learning | 2 | Med-Hard |
+| 42 | Five-Monitor Workspace | 2 | Medium |
+| 16 | Polar Alignment Assistant | 2 | Hard |
+| 43 | Deep Sky Image Annotation | 3 | Hard |
+| 17 | Live Stacking Preview | 3 | Hard |
+| 31 | Multi-Star FWHM Focus | 3 | Hard |
+| 32 | Bahtinov Mask Focus | 3 | Hard |
+| 18 | AVI/FITS Output | 3 | Medium |
+| 19 | Multi-Session Stats Dashboard | 3 | Medium |
+| 36 | Sensor Analysis / Smart Histogram | 3 | Hard |
+| 33 | Stellar Photometry | 3 | Very Hard |
+| 34 | Solar/Lunar Framing | 3 | Hard |
+| 12b | Ollama Integration | 3 | Medium |
+| 20 | Distribution / ASCOM | 3 | Very Hard |
+| — | OBS Streaming | — | Hard |
 
 **Phases 60-84 are not in this table.** They were reactive work -- reviews,
 defect fixes and things the rig turned out to need -- rather than items from
@@ -1567,12 +1584,14 @@ this plan, and they are recorded in the Phase History table in
 `RadukCapture-Help.md`. This table remains the roadmap of *planned* features;
 the help file is the record of what shipped.
 
-The 🔲 rows above are the outstanding plan. Nothing in them is
-half-built: each is unstarted.
+The rows above are the plan, not a status. Some of them are half-built --
+6.6 reports but does not correct, and 47b is one half of a split phase --
+which is why `PARTIAL` is a state in
+[`docs/PHASE-STATUS.md`](docs/PHASE-STATUS.md) and why this sentence no
+longer tries to make a claim it cannot keep.
 
 ---
 
-*RadukCapture v1.2.3 — Built for the stars, from the observing site*
 ### 6.3 Fault Tolerance & Auto-Recovery (Self-Healing)
 Planetary imaging requires high-bandwidth USB stability. To prevent session loss during I/O stalls (e.g., drive swaps, OS bus contention), RadukCapture implements a hardware-level auto-reset state machine.
 
@@ -1584,3 +1603,7 @@ Planetary imaging requires high-bandwidth USB stability. To prevent session loss
     3.  A **100ms thread sleep** occurs to allow the USB controller to flush and the camera's 256MB DDR3 buffer to clear.
     4.  `StartVideoCapture` is re-issued.
 * **Telemetry:** Each reset event increments `recoveryResets` in the `CaptureStats` struct, which is broadcast via WebSocket to the APEX dashboard for real-time health monitoring.
+
+---
+
+*RadukCapture v1.2.3 — Built for the stars, from the observing site*

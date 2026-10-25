@@ -163,6 +163,14 @@ inline double JogRateArcsecPerSec(int preset) {
         3600.0,     // 8 = 1 deg/s <- FAST
         10800.0     // 9 = 3 deg/s <- max slew
     };
+    // A PRESET INDEX, 0-9, and never a signed rate. Direction is a
+    // separate argument everywhere in this codebase, so a caller holding
+    // a signed rate must pass its magnitude and apply the sign itself.
+    //
+    // Worth stating because the clamp below is a trap: a negative lands
+    // on kRate[0], which is "stopped", so a caller that passes -9 gets
+    // silence rather than an error. MountEmulator did exactly that and
+    // every westward and southward jog on the bench did nothing.
     if (preset < 0) preset = 0;
     if (preset > 9) preset = 9;
     return kRate[preset];

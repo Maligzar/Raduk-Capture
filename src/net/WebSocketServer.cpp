@@ -5,7 +5,21 @@
 // ============================================================
 #include "WebSocketServer.h"
 
+#include <bcrypt.h>
+#pragma comment(lib, "bcrypt.lib")
+
 namespace raduk::net {
+
+std::string GenerateWsToken() {
+    uint8_t bytes[32];
+    if (BCryptGenRandom(nullptr, bytes, sizeof(bytes), BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
+        return "";
+    static const char hex[] = "0123456789abcdef";
+    std::string t;
+    for (uint8_t b : bytes) { t += hex[b >> 4]; t += hex[b & 0xF]; }
+    SecureZeroMemory(bytes, sizeof(bytes));
+    return t;
+}
 
 // ── SHA-1 for WebSocket handshake (RFC 6455 §4.2.2) ──────────
 // Minimal self-contained implementation — only used once per
@@ -84,6 +98,36 @@ std::vector<uint8_t> buildTextFrame(const std::string& payload) {
 std::vector<uint8_t> buildCloseFrame() {
     return {0x88, 0x00}; // FIN + close opcode, no payload
 }
+
+// RFC 6455 5.5.3: a pong carries the ping's payload back. The parser has
+// already held a ping to 125 bytes, so the 7-bit length always fits.
+std::vector<uint8_t> buildPongFrame(const std::string& payload) {
+    std::vector<uint8_t> frame;
+    frame.push_back(0x8A);                   // FIN + pong
+    frame.push_back((uint8_t)payload.size());
+    frame.insert(frame.end(), payload.begin(), payload.end());
+    return frame;
+}
+
+namespace {
+// The only answers a refused handshake gets. Fixed strings: nothing the
+// client sent is echoed back.
+const char* StatusLine(int status) {
+    switch (status) {
+    case 401: return "HTTP/1.1 401 Unauthorized\r\n";
+    case 426: return "HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\n";
+    case 431: return "HTTP/1.1 431 Request Header Fields Too Large\r\n";
+    case 503: return "HTTP/1.1 503 Service Unavailable\r\n";
+    default:  return "HTTP/1.1 400 Bad Request\r\n";
+    }
+}
+
+void Refuse(SOCKET s, int status) {
+    std::string r = StatusLine(status);
+    r += "Content-Length: 0\r\nConnection: close\r\n\r\n";
+    send(s, r.data(), (int)r.size(), 0);
+}
+} // namespace
 
 bool WebSocketServer::Start(uint16_t port, bool bindAny) {
     if (m_running.load()) return true;
@@ -200,10 +244,17 @@ void WebSocketServer::Run() {
             SOCKET cs = accept(m_listenSock, nullptr, nullptr);
             if (cs != INVALID_SOCKET) {
                 std::lock_guard<std::mutex> lk(m_clientMutex);
-                WsClient wc; wc.sock = cs;
-                m_clients.push_back(std::move(wc));
-                printf("[WSServer] Client connected (%d total)\n",
-                       (int)m_clients.size());
+                if (m_clients.size() >= MAX_CLIENTS) {
+                    Refuse(cs, 503);
+                    closesocket(cs);
+                    printf("[WSServer] Refused a connection: %zu clients already\n",
+                           m_clients.size());
+                } else {
+                    WsClient wc; wc.sock = cs; wc.acceptedMs = GetTickCount64();
+                    m_clients.push_back(std::move(wc));
+                    printf("[WSServer] Client connected (%d total)\n",
+                           (int)m_clients.size());
+                }
             }
         }
 
@@ -240,105 +291,87 @@ void WebSocketServer::Run() {
     }
 }
 
+// P5.6: the parsing is ws::ParseHandshake's; this decides and answers.
+// Never print the request line or the token -- the console is the
+// session log, and the session log is read by the AI assistant.
 void WebSocketServer::HandleHandshake(WsClient& c) {
-    // Wait for double CRLF (end of HTTP headers)
-    if (c.recvBuf.find("\r\n\r\n") == std::string::npos) return;
-
-    // Extract Sec-WebSocket-Key
-    std::string key;
-    size_t pos = c.recvBuf.find("Sec-WebSocket-Key:");
-    if (pos == std::string::npos) { c.closed = true; return; }
-    pos += 18;
-    while (pos < c.recvBuf.size() && c.recvBuf[pos] == ' ') pos++;
-    size_t end = c.recvBuf.find("\r\n", pos);
-    if (end == std::string::npos) { c.closed = true; return; }
-    key = c.recvBuf.substr(pos, end - pos);
+    const ws::Handshake h = ws::ParseHandshake(c.recvBuf);
+    if (h.state == ws::Handshake::State::Incomplete) return;
+    if (h.state == ws::Handshake::State::Bad) {
+        printf("[WSServer] Refused a malformed upgrade request (%d)\n", h.status);
+        Refuse(c.sock, h.status);
+        c.closed = true;
+        return;
+    }
+    if (!ws::TokenEquals(m_token, h.token)) {
+        printf("[WSServer] Refused a client: %s\n",
+               m_token.empty() ? "no WsToken is configured, so nobody is admitted"
+                               : "missing or wrong token");
+        Refuse(c.sock, 401);
+        c.closed = true;
+        return;
+    }
 
     // Compute accept value: SHA1(key + GUID) | base64
     static const char GUID[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-    std::string combined = key + GUID;
+    std::string combined = h.key + GUID;
     uint8_t hash[20];
     sha1::compute((const uint8_t*)combined.data(), combined.size(), hash);
     std::string accept = b64encode(hash, 20);
 
-    // Send 101 Switching Protocols
-    // Include Access-Control-Allow-Origin so browsers can connect from
-    // any origin (file://, dashboard PC, phone, etc.)
+    // No Access-Control-Allow-Origin. It never did anything for a
+    // WebSocket -- browsers do not run CORS on the upgrade -- and it read
+    // as a statement that any origin was welcome.
     std::string response =
         "HTTP/1.1 101 Switching Protocols\r\n"
         "Upgrade: websocket\r\n"
         "Connection: Upgrade\r\n"
-        "Access-Control-Allow-Origin: *\r\n"
         "Sec-WebSocket-Accept: " + accept + "\r\n"
         "\r\n";
 
     send(c.sock, response.data(), (int)response.size(), 0);
     c.upgraded = true;
-    c.recvBuf.clear();
+    // Only the request. A client may send its first frame in the same
+    // packet; the old code cleared the whole buffer and lost it.
+    c.recvBuf.erase(0, h.consumed);
     printf("[WSServer] Client upgraded to WebSocket\n");
+    if (!c.recvBuf.empty()) HandleWsData(c);
 }
 
 void WebSocketServer::HandleWsData(WsClient& c) {
-    while (c.recvBuf.size() >= 2) {
-        const uint8_t* d = (const uint8_t*)c.recvBuf.data();
-        uint8_t  opcode = d[0] & 0x0F;
-        bool     masked = (d[1] & 0x80) != 0;
-        uint64_t payLen = d[1] & 0x7F;
-        size_t   hdrLen = 2;
+    ws::FeedResult r = c.parser.Feed(c.recvBuf);
 
-        if (payLen == 126) {
-            if (c.recvBuf.size() < 4) break;
-            payLen = ((uint64_t)d[2]<<8)|d[3]; hdrLen = 4;
-        } else if (payLen == 127) {
-            if (c.recvBuf.size() < 10) break;
-            payLen = 0;
-            for (int i=0;i<8;i++) payLen=(payLen<<8)|d[2+i];
-            hdrLen = 10;
-        }
-
-        // Phase 57 (S1): clamp the attacker-controlled 64-bit length
-        // BEFORE any arithmetic — unclamped it could integer-wrap
-        // totalLen or terminate the app via a multi-GB resize().
-        if (payLen > MAX_WS_PAYLOAD) {
-            printf("[WSServer] Oversized frame (%llu bytes) — dropping client\n",
-                   (unsigned long long)payLen);
-            c.closed = true;
-            return;
-        }
-
-        size_t maskLen = masked ? 4 : 0;
-        size_t totalLen = hdrLen + maskLen + (size_t)payLen;
-        if (c.recvBuf.size() < totalLen) break;
-
-        if (opcode == 0x8) { // Close
-            auto f = buildCloseFrame();
-            send(c.sock, (char*)f.data(), (int)f.size(), 0);
-            c.closed = true; break;
-        }
-
-        if (opcode == 0x9) { // Ping → Pong
-            uint8_t pong[2] = {0x8A, 0x00};
-            send(c.sock, (char*)pong, 2, 0);
-        }
-
-        if (opcode == 0x1 || opcode == 0x2) { // Text or Binary
-            std::string payload;
-            payload.resize(payLen);
-            const uint8_t* maskKey = d + hdrLen;
-            const uint8_t* payData = d + hdrLen + maskLen;
-            for (uint64_t i = 0; i < payLen; i++)
-                payload[i] = (char)(payData[i] ^ (masked ? maskKey[i&3] : 0));
-
-            // Dispatch command
-            if (m_onCommand) m_onCommand(payload);
-        }
-
-        c.recvBuf.erase(0, totalLen);
+    // Pongs first: they answer frames that arrived before anything the
+    // parser may have refused after them.
+    for (const auto& p : r.pings) {
+        auto f = buildPongFrame(p);
+        send(c.sock, (char*)f.data(), (int)f.size(), 0);
+    }
+    for (const auto& m : r.messages) {
+        if (m_onCommand) m_onCommand(m);
+    }
+    if (r.fail) {
+        // r.why is one of the parser's own fixed strings, never peer text.
+        printf("[WSServer] Protocol violation (%s) -- dropping client\n", r.why);
+        c.closed = true;
+        return;
+    }
+    if (r.close) {
+        auto f = buildCloseFrame();
+        send(c.sock, (char*)f.data(), (int)f.size(), 0);
+        c.closed = true;
     }
 }
 
 void WebSocketServer::PurgeClosedClients() {
     std::lock_guard<std::mutex> lk(m_clientMutex);
+    const ULONGLONG now = GetTickCount64();
+    for (auto& c : m_clients) {
+        if (!c.closed && !c.upgraded && now - c.acceptedMs > HANDSHAKE_DEADLINE_MS) {
+            printf("[WSServer] Dropping a client that never finished its upgrade\n");
+            c.closed = true;
+        }
+    }
     for (auto it = m_clients.begin(); it != m_clients.end(); ) {
         if (it->closed) {
             if (it->sock != INVALID_SOCKET) {

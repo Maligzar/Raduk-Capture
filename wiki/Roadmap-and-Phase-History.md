@@ -103,9 +103,10 @@ phases, P5.1 to P5.7, live in
 exposure-midpoint SER timestamps, `ICamera` and `IFocuser` interfaces,
 the generic ASCOM path reconsidered, distribution split out of the
 very-hard phase 20, the CMake floor, fuzzing and authenticating the
-WebSocket command path, and a licence decision. P5.6 enters the live
-queue on its safety dimension, since the command set moves a telescope
-and has no authentication. P5.7 is kept out of the queue as an owner
+WebSocket command path, and a licence decision. P5.6 entered the live
+queue on its safety dimension, since the command set moves a telescope;
+it is now built, with a token required on every connection (see
+[Telemetry and Dashboard](Telemetry-and-Dashboard#every-connection-needs-a-token-p56)). P5.7 is kept out of the queue as an owner
 decision rather than a task.
 
 The comparison also re-weighted work already on the list. By its
@@ -188,10 +189,6 @@ settling which is right is a measurement on a real mount.
 **Auto-unwinding the cord wrap.** Shedding a turn means rotating up to
 360°, a long motion that can snag something by itself. The app forecasts
 and warns; the observer unwinds.
-
-**Authentication on the telemetry server.** The network boundary is the
-control — loopback by default, LAN exposure an explicit opt-in. See
-[Telemetry and Dashboard](Telemetry-and-Dashboard#loopback-by-default-and-why).
 
 ---
 
@@ -338,7 +335,7 @@ Phase 80's review pass alone fixed eight confirmed defects. These documents
 carry the reasoning behind a change, which a test cannot; the regression
 record proper is
 [the test suite](Emulator-and-Testing#the-test-suite-and-what-it-does-not-cover),
-13 suites gating merges on `master`. This line used to say the project had
+18 suites gating merges. This line used to say the project had
 no automated test suite — corrected 2026-10-18.
 
 ---

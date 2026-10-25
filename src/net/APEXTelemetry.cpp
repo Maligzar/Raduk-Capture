@@ -147,7 +147,10 @@ bool APEXCommand::Parse(const std::string& json, APEXCommand& out) {
         while (pos < json.size() && json[pos] == ' ') ++pos;
         if (pos >= json.size() || json[pos] == '"') return ""; // quoted — handled above
         size_t end = pos;
-        while (end < json.size() && (isdigit(json[end]) || json[end] == '-')) ++end;
+        // isdigit() on a plain char is undefined for bytes >= 0x80, which
+        // are negative on MSVC -- and this string came off the network.
+        while (end < json.size() &&
+               (isdigit(static_cast<unsigned char>(json[end])) || json[end] == '-')) ++end;
         return json.substr(pos, end - pos);
     };
 

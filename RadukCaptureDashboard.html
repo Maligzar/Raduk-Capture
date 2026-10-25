@@ -912,7 +912,10 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
           <input class="rc-url-input" id="rcWsUrl" value="ws://localhost:8765" placeholder="ws://localhost:8765 or ws://<capture-pc>:8765">
           <button class="rc-connect-btn connect" id="rcConnectBtn" onclick="rcToggleConnect()">CONNECT</button>
         </div>
-        <div style="font-size:9px;color:var(--text-dim);padding:2px 10px 4px;letter-spacing:1px">Local: ws://localhost:8765 · Remote: ws://&lt;capture-pc&gt;:8765 or ws://[IP]:8765</div>
+        <div class="rc-url-row">
+          <input class="rc-url-input" id="rcWsToken" type="password" autocomplete="off" spellcheck="false" placeholder="access token: WsToken in rig.ini">
+        </div>
+        <div style="font-size:9px;color:var(--text-dim);padding:2px 10px 4px;letter-spacing:1px">Local: ws://localhost:8765 · Remote: ws://&lt;capture-pc&gt;:8765 or ws://[IP]:8765 · Token is kept in this browser only</div>
         <div class="rc-sync-msg" id="rcSyncMsg">Connect to RadukCapture WebSocket — enter IP if hostname fails</div>
       </div>
     </div>
@@ -1958,6 +1961,62 @@ function rcLoadProfile(name) {
   document.getElementById('rcHudTarget').textContent = `${sym} ${name.toUpperCase()}`;
 }
 
+// ── WebSocket access token (P5.6) ───────────────────────────
+// RadukCapture refuses any connection without ?token=<WsToken from
+// rig.ini>. Without it, any web page open in this browser could connect
+// to localhost and slew the mount.
+//
+// The token is kept OUT of the saved URL on purpose: apexStorage copies
+// the URL to the Flask helper's /api/store, which anything on the WiFi
+// can read. The token goes to this browser's localStorage and nowhere
+// else, and is added only at the moment of connecting.
+const RC_TOKEN_KEY = 'radukWsToken';
+// The box first: storage can be unavailable (a private window, blocked
+// site data), and a token typed in must still be used.
+function rcTokenGet() {
+  const el = document.getElementById('rcWsToken');
+  if (el && el.value.trim()) return el.value.trim();
+  try { return localStorage.getItem(RC_TOKEN_KEY) || ''; } catch(e) { return ''; }
+}
+function rcTokenSet(t) {
+  try { t ? localStorage.setItem(RC_TOKEN_KEY, t) : localStorage.removeItem(RC_TOKEN_KEY); } catch(e) {}
+}
+// A URL pasted with ?token= in it: move the token to its own field, so
+// the URL that gets saved and displayed never carries it.
+function rcSplitToken(url) {
+  try {
+    const u = new URL(url);
+    const t = u.searchParams.get('token');
+    if (t) { u.searchParams.delete('token'); return { url: u.toString().replace(/\/$/, ''), token: t }; }
+  } catch(e) {}
+  return { url, token: '' };
+}
+function rcUrlWithToken(url) {
+  const t = rcTokenGet();
+  if (!t) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.set('token', t);
+    return u.toString();
+  } catch(e) { return url; }
+}
+(function() {
+  const tokEl = document.getElementById('rcWsToken');
+  const urlEl = document.getElementById('rcWsUrl');
+  if (tokEl) {
+    tokEl.value = rcTokenGet();
+    tokEl.addEventListener('change', e => rcTokenSet(e.target.value.trim()));
+  }
+  if (urlEl) urlEl.addEventListener('input', e => {
+    const s = rcSplitToken(e.target.value.trim());
+    if (s.token) {
+      rcTokenSet(s.token);
+      if (tokEl) tokEl.value = s.token;
+      e.target.value = s.url;
+    }
+  });
+})();
+
 // ── WebSocket connection ────────────────────────────────────
 // Auto-set URL to localhost if opening the file locally
 (function() {
@@ -1982,7 +2041,7 @@ function rcToggleConnect() {
     rcSetSyncMsg('Connecting…', 'info');
     document.getElementById('rcConnectBtn').textContent = 'CONNECTING…';
     try {
-      rcWs = new WebSocket(url);
+      rcWs = new WebSocket(rcUrlWithToken(url));
       rcWs.onopen = () => {
         rcConnected = true;
         rcSetStatus(true, false, null);
@@ -1996,7 +2055,9 @@ function rcToggleConnect() {
         try { rcHandleData(JSON.parse(e.data)); } catch(ex) {}
       };
       rcWs.onerror = () => {
-        rcSetSyncMsg('Connection failed — is RadukCapture running? Try IP address instead of hostname', 'err');
+        rcSetSyncMsg(rcTokenGet()
+          ? 'Connection failed — is RadukCapture running, and is the token current? Try IP address instead of hostname'
+          : 'Connection failed — enter the access token (WsToken in rig.ini on the capture PC)', 'err');
         rcLogSession('[RC] WebSocket error — is RadukCapture running on the capture PC?', 'err');
       };
       rcWs.onclose = () => {
@@ -3096,7 +3157,7 @@ function wsConnect() {
   document.getElementById('wsConnectBtn').className = 'ws-connect-btn disconnect';
 
   try {
-    ws = new WebSocket(url);
+    ws = new WebSocket(rcUrlWithToken(url));
   } catch(e) {
     wsSyncMsg(`WebSocket error: ${e.message}`, 'err');
     return;

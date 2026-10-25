@@ -170,8 +170,9 @@ See [Rendering and UI](Rendering-and-UI).
 | File | Lines | Owns |
 |------|-------|------|
 | [`gpu/GPUDebayer.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gpu/GPUDebayer.h) | 382 | D3D11 `cs_5_0` RGGB compute shader, DXGI→D2D interop, nullptr fallback |
-| [`net/WebSocketServer.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/net/WebSocketServer.h) / `.cpp` | 116 / 356 | RFC 6455 on Winsock2, self-contained SHA-1, loopback default |
-| [`net/APEXTelemetry.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/net/APEXTelemetry.h) / `.cpp` | 137 / 163 | Flat telemetry struct, `ToJSON()` via `ostringstream`, command parse |
+| [`net/WebSocketServer.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/net/WebSocketServer.h) / `.cpp` | 146 / 389 | Winsock2 sockets, self-contained SHA-1, loopback default, token required (P5.6) |
+| [`net/WsProtocol.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/net/WsProtocol.h) | 370 | RFC 6455 frames, the upgrade handshake and the token check, with no sockets, so they can be tested and fuzzed |
+| [`net/APEXTelemetry.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/net/APEXTelemetry.h) / `.cpp` | 137 / 166 | Flat telemetry struct, `ToJSON()` via `ostringstream`, command parse |
 | [`sky/SkyObject.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/SkyObject.h) | 642 | VSOP87 planets, 110 Messier, NGC subset, bright stars, Julian date helpers |
 | [`sky/ASTAPSolver.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/ASTAPSolver.h) | 334 | BMP export, ASTAP invocation with FOV hint, `.ini` parse, threaded |
 | [`sky/PointingModel.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/PointingModel.h) | 284 | CSV history, inverse-distance-squared `GetCorrection()`. **Reports, does not apply** |

@@ -34,18 +34,56 @@ bool wsLan = GetEnvironmentVariableA("RADUK_WS_LAN", wsEnv, 8) > 0 && ...;
 wsServer.Start(8765, wsLan);
 ```
 
-> **The command set slews the mount with no authentication.** Anything that
-> can reach port 8765 can issue `goto_target`. So the default binds
-> `127.0.0.1` and the LAN exposure is an explicit, logged opt-in:
+> The default binds `127.0.0.1` and the LAN exposure is an explicit,
+> logged opt-in:
 >
 > ```
 > [INIT] WebSocket server on 0.0.0.0:8765 (LAN exposed — RADUK_WS_LAN=1)
 > ```
 
-**Set `RADUK_WS_LAN=1` only on a trusted LAN.** There is no auth layer, no
-token, and no TLS — adding one is not on the roadmap, so the network
-boundary is the whole control. If the capture machine is on a network you
-do not fully control, leave it on loopback and use a reverse tunnel.
+**Set `RADUK_WS_LAN=1` only on a trusted LAN.** There is no TLS. If the
+capture machine is on a network you do not fully control, leave it on
+loopback and use a reverse tunnel.
+
+### Every connection needs a token (P5.6)
+
+Loopback was never the whole answer. **Browsers do not apply the
+same-origin policy to WebSockets**, so any web page open on the capture PC
+could connect to `ws://localhost:8765` and issue `goto_target`
+(cross-site WebSocket hijacking). Binding to loopback keeps the LAN out; it
+does not keep out the observer's own browser.
+
+So the upgrade request must carry `?token=<WsToken>`. The token is 32
+bytes from `BCryptGenRandom`, written as 64 hex characters to `rig.ini`
+(untracked) on first launch, compared in constant time, and **never
+logged** — the console is the session log, which the AI assistant reads.
+A wrong or missing token gets `401` before anything the client sent is
+dispatched. The rules fail closed: an empty or hand-weakened token (under
+32 hex characters) admits nobody rather than everybody.
+
+The dashboard keeps the token in its own field, in that browser's
+`localStorage` only, and adds it at connect time. It is deliberately kept
+out of the saved URL, which `apexStorage` also syncs to the helper
+server's unauthenticated `/api/store`.
+
+### The parser, tested on its own
+
+The protocol lives in
+[`src/net/WsProtocol.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/net/WsProtocol.h),
+with no sockets in it, so it can be tested. Three suites gate a merge:
+
+| Suite | What it does |
+|---|---|
+| `tests/ws_protocol.cpp` | One case per RFC 6455 rule: masking, RSV bits, reserved opcodes, control-frame limits, minimal lengths, fragmentation, UTF-8, the handshake, the token |
+| `tests/ws_fuzz.cpp` | Mutated and chunked traffic under AddressSanitizer; a differential (legal traffic must decode identically however it is split); UTF-8 against an independent reference, plus every code point |
+| `tests/ws_server_loopback.cpp` | The real server on a real loopback socket: 401 without the token, 101 with it, no `Access-Control-Allow-Origin` |
+
+Defects fixed on the way in: a fragmented command was dispatched as its
+**first fragment** and the rest dropped; a frame sent in the same packet
+as the handshake was thrown away; unmasked client frames were accepted;
+pings got an empty pong; header names were matched case-sensitively.
+The server also caps clients at 16 and drops a connection that has not
+finished its upgrade in 10 s.
 
 ### The include-order trap
 

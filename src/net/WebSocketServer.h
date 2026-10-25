@@ -29,6 +29,8 @@
 #include <functional>
 #include <sstream>
 
+#include "WsProtocol.h"
+
 #pragma comment(lib, "ws2_32.lib")
 
 namespace raduk::net {
@@ -46,6 +48,12 @@ std::string b64encode(const uint8_t* in, size_t len);
 // ── WebSocket frame builders ──────────────────────────────────
 std::vector<uint8_t> buildTextFrame(const std::string& payload);
 std::vector<uint8_t> buildCloseFrame();
+std::vector<uint8_t> buildPongFrame(const std::string& payload);
+
+// P5.6: 32 bytes from the OS's cryptographic generator, as 64 lowercase
+// hex characters. Empty if the generator fails -- and an empty token
+// admits nobody, so a failure here fails closed.
+std::string GenerateWsToken();
 
 // ── Client state ──────────────────────────────────────────────
 struct WsClient {
@@ -53,6 +61,8 @@ struct WsClient {
     bool    closed  = false;
     std::string recvBuf;  // partial HTTP or WS data
     bool    upgraded = false;
+    ULONGLONG acceptedMs = 0;     // for the handshake deadline
+    ws::FrameParser parser;       // carries fragment state between reads
 };
 
 // ── WebSocketServer ───────────────────────────────────────────
@@ -80,8 +90,27 @@ public:
     static constexpr uint64_t MAX_WS_PAYLOAD = 1  * 1024 * 1024;
     static constexpr size_t   MAX_RECV_BUF   = 2  * 1024 * 1024;
 
-    // Binds 127.0.0.1 by default — the command set has NO authentication.
-    // Set bindAny=true only on a trusted LAN (remote APEX dashboard).
+    // P5.6 -- more limits, for the same reason:
+    //   MAX_CLIENTS        select() on Windows watches at most 64 sockets,
+    //                      and nobody runs more than a few dashboards.
+    //   HANDSHAKE_DEADLINE a connection that never finishes its upgrade
+    //                      would otherwise hold a slot forever.
+    static constexpr size_t    MAX_CLIENTS           = 16;
+    static constexpr ULONGLONG HANDSHAKE_DEADLINE_MS = 10000;
+
+    // P5.6: the shared secret every client must present as ?token= in
+    // its upgrade request. Set it BEFORE Start(); the server thread reads
+    // it without a lock. Empty refuses everyone -- that is deliberate.
+    //
+    // Loopback binding alone was never enough. Browsers do not apply the
+    // same-origin policy to WebSockets, so any web page the observer has
+    // open could connect to ws://localhost:8765 and slew the mount
+    // (cross-site WebSocket hijacking). The token is what a hostile page
+    // cannot know.
+    void SetRequiredToken(const std::string& token) { m_token = token; }
+
+    // Binds 127.0.0.1 by default. Set bindAny=true only on a trusted LAN
+    // (remote APEX dashboard); the token is required either way.
     bool Start(uint16_t port = 8765, bool bindAny = false);
 
     void Stop();
@@ -111,6 +140,7 @@ private:
     mutable std::mutex                  m_clientMutex;
     std::vector<WsClient>               m_clients;
     std::function<void(const std::string&)> m_onCommand;
+    std::string                         m_token;
 };
 
 } // namespace raduk::net

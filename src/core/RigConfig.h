@@ -242,6 +242,16 @@ struct RigConfig {
 
     std::string mountPort;
 
+    // P5.6: the WebSocket server's shared secret. 64 hex characters,
+    // generated on first run by main.cpp. Deliberately NOT written by
+    // Save(): it has one writer, SaveWsToken(), so saving the rest of
+    // the rig can never change or clear it. Never log it.
+    std::string wsToken;
+
+    void SaveWsToken() const {
+        WritePrivateProfileStringA("Rig", "WsToken", wsToken.c_str(), IniPath().c_str());
+    }
+
     // Singleton — loads rig.ini on first access
     static RigConfig& Get() {
         static RigConfig cfg = LoadFromDisk();
@@ -404,6 +414,7 @@ private:
             GetPrivateProfileStringA("Rig", "MountPort", "", pbuf, sizeof(pbuf), p.c_str());
             cfg.mountPort = pbuf;
         }
+        cfg.wsToken = rs("WsToken", "");
 
         // Sanity clamps — a corrupted INI must not produce absurd pulse
         // sizing or site math

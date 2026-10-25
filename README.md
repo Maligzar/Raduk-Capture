@@ -36,7 +36,8 @@ Direct2D — no frameworks.
   capture format and whether it is cropped, which display modes are altering
   the image, seeing, focus, and tonight's imaging windows
 - **WebSocket telemetry** + browser dashboard for remote monitoring
-  (loopback-only by default; `RADUK_WS_LAN=1` to expose on a trusted LAN)
+  (loopback-only by default; `RADUK_WS_LAN=1` to expose on a trusted LAN;
+  every connection needs the access token generated into `rig.ini`)
 
 ## Building
 

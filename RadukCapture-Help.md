@@ -1540,6 +1540,46 @@ All files go to the configured output directory (default: `D:\RadukCapture\captu
 
 ---
 
+## The browser dashboard (remote monitoring)
+
+`RadukCaptureDashboard.html` connects to RadukCapture over a WebSocket on
+port 8765 to show telemetry and send commands, including commands that
+move the mount and focuser.
+
+**It needs an access token.** RadukCapture refuses any connection that does
+not present one. On first launch it generates a random token and stores it in
+`rig.ini` next to the executable, as `WsToken` under `[Rig]`. The session log
+says that a token was generated and where it is, and never shows the token
+itself.
+
+To connect:
+
+1. Open `rig.ini` on the capture PC and copy the `WsToken` value.
+2. In the dashboard, paste it into the **access token** box under the URL.
+3. Press **CONNECT**.
+
+The dashboard keeps the token in that browser only. It is deliberately not
+saved with the URL, because the URL is also synced to the dashboard's helper
+server, where anything on the same WiFi could read it. Pasting a URL that ends
+in `?token=…` works too: the token is moved into its own box.
+
+**Why a token, when the server only listens on this PC?** Browsers let any
+web page open a WebSocket to `localhost`. Without a token, a page open in
+another tab could connect and slew the telescope. The token is the one thing
+such a page cannot know.
+
+- **Connection refused, every time:** the token is missing or out of date.
+  Copy it from `rig.ini` again.
+- **The log says WsToken is not at least 32 hex characters:** the value in
+  `rig.ini` was edited by hand into something too weak to trust. RadukCapture
+  then refuses every connection rather than accept it. Delete the line and
+  restart to have a new one generated.
+- **Connecting from another machine** still also needs `RADUK_WS_LAN=1` set
+  on the capture PC. Use it on a trusted home network only, and never forward
+  the port to the internet.
+
+---
+
 ## Hardware Reference
 
 | Device | Model | Connection |
@@ -2347,6 +2387,7 @@ real site is stored. Most of it is written for you.
 | `AdvisoryIntervalS` | Seconds between advice checks; 30-3600, default 180. |
 | `LastRoiWidth` / `LastRoiHeight` / `LastBitDepth` | Capture format to restore at launch. See **What is remembered between sessions**. |
 | `LastGain` / `LastExposureMs` / `LastGamma` / `LastWbRed` / `LastWbBlue` / `LastUsb` | Camera state to restore. Each is ignored individually if out of range. |
+| `WsToken` | The browser dashboard's access token. Generated on first launch; see **The browser dashboard**. Delete the line to have a new one made. Never paste it anywhere public. |
 | `FilterLowNm` / `FilterHighNm` | Band edges in nanometres; these are what the ADC model actually uses. Edit them for a filter that is not a preset — the SETUP picker will then show blank rather than overwrite them. Both are reset to the UV/IR cut default if either falls outside 300–1200nm, or the band is narrower than 10nm, because a nonsense band would push the Edlen model outside its domain and return an authoritative-looking meaningless figure. |
 
 ---

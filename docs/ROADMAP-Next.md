@@ -910,7 +910,42 @@ line 1. Guessing a lower number without testing would be worse than
 leaving it alone, because the failure would move from the first line
 of configuration to somewhere deep in the build.
 
-### P5.6 · The WebSocket parser is the one place memory safety is not theoretical: effort S to M
+### P5.6 · The WebSocket parser is the one place memory safety is not theoretical: effort S to M [GATED 2026-10-25]
+
+**Status: GATED (bench) 2026-10-25 — `tests/ws_protocol.cpp`,
+`tests/ws_fuzz.cpp` (under AddressSanitizer), `tests/ws_server_loopback.cpp`.
+owes: one connection from the real dashboard to the real app, and from
+`apex_bridge.py` on the streaming PC if that is still in use — it is not in
+this repository and will need the token too.**
+
+What was done, and what changed on the way:
+
+- **The threat was wider than this entry said.** Loopback did not keep
+  out the observer's own browser: browsers do not apply the same-origin
+  policy to WebSockets, so any page open on the capture PC could connect
+  to `ws://localhost:8765` and slew the mount. The token is therefore
+  required on loopback too, not only under `RADUK_WS_LAN`.
+- **Token:** 32 bytes from `BCryptGenRandom`, 64 hex characters in
+  `rig.ini` as `WsToken`, sent as `?token=` (browsers cannot set headers
+  on a WebSocket), compared in constant time, never logged. Empty or
+  under 32 hex characters admits nobody.
+- **Parser** moved out of the socket code into `src/net/WsProtocol.h`.
+  Defects fixed: a fragmented command was dispatched as its first
+  fragment and the rest dropped; a frame arriving with the handshake was
+  discarded; unmasked frames, RSV bits and reserved opcodes were
+  accepted; pings got an empty pong; header names were case-sensitive;
+  `Access-Control-Allow-Origin: *` was sent. `APEXCommand::Parse` called
+  `isdigit` on a signed `char` from the network (undefined for bytes ≥ 0x80).
+- **Limits added:** 16 clients (Windows `select()` watches 64 sockets at
+  most), a 10 s handshake deadline, an 8 KB handshake, reassembled
+  messages held to 1 MB.
+- **The fuzzer was checked against planted bugs**, since one that has
+  never failed proves nothing: removing the wait-for-whole-frame check was
+  caught by AddressSanitizer, accepting surrogates by the UTF-8 reference,
+  and dropping continuation frames by the differential. A fourth mutant
+  (an off-by-one in the UTF-8 truncation test) survived because it is
+  equivalent: the byte it reads is the string's terminating NUL, which
+  fails the continuation test either way.
 
 **Bench. Small to medium, and it carries a safety argument, which is
 why it sits where it does in the queue.**
@@ -1232,7 +1267,7 @@ consolidated](#live-sky-debt-consolidated).
 | ~~3~~ | **Apparent size for the planets** — DONE 2026-10-17 (`f4f4bda`) | Bench | — | Decided for the ephemeris, and it cost almost nothing: `PlanetRADec` was already computing the Earth-planet distance for the declination and throwing it away. IAU 2015 equatorial radii and `2*atan(R/d)`. Saturn is reported twice over, because the 41" ring span is what has to fit the frame and the 18" globe is what "apparent size" means. Swept 16 years against published ranges — `tests/planet_apparent_size.cpp` |
 | ~~4~~ | **Phase 47, click to recentre** — DONE 2026-10-18 | Bench | — | `Ctrl`+click an object and it goes to the middle. No new orientation config: the phase 51 guide calibration already MEASURED how the image responds to a pulse, so it contains the camera angle, the mirror flip and the axis signs. The 2x2 solve moved into `src/core/GuideSolve.h` and the guide loop now calls the same one — two copies would be two sign conventions. Gated by `tests/recentre.cpp`, including a round trip that pushes the solved pulses back through the measured matrix |
 | ~~5~~ | **Phase 46, connect/disconnect hardware** — DONE 2026-10-18 | Bench | — | One `[HW]` button, and `MountProxy` so a reconnect can pick a different transport or port without stranding the tracker and the panels that hold the mount pointer. The crash it caused on the way is worth reading: `main.cpp` was static_cast-ing the mount pointer to `MountEmulator` |
-| 6 | **P5.6: fuzz the WebSocket frame parser, and authenticate the command path** | Bench | S-M | The only safety-flavored item left on the bench. An unauthenticated RFC 6455 parser in C++ that accepts mount commands; loopback-by-default is a good default and is not a control. Raised in the July 2026 security review and hardened in Phase 57 without the auth gap being closed |
+| 6 | **P5.6: fuzz the WebSocket frame parser, and authenticate the command path** — GATED (bench) 2026-10-25; owes one real dashboard connection | Bench | S-M | The only safety-flavored item left on the bench. An unauthenticated RFC 6455 parser in C++ that accepts mount commands; loopback-by-default is a good default and is not a control. Raised in the July 2026 security review and hardened in Phase 57 without the auth gap being closed |
 | 7 | **Pick again from the unscheduled list** | Bench | varies | Ten features left, none half-built. On value to this rig **phase 48** (framing recall) is next, with phase 30 (push-to assistant) behind it |
 | 8 | **P5.5: lower the CMake floor** | Bench | S | The cheapest item on the list. One line, once the oldest workable version has been established by trying it |
 | 9 | **P5.1: exposure-midpoint SER timestamps** | Bench | S | Parity with SharpCap today, and a bounded chance to lead. Needs the exposure threaded to the stamp site, which the report got slightly wrong |

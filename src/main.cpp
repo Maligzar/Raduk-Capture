@@ -989,9 +989,33 @@ static int RunApp(bool useEmulator) {
     std::vector<SessionEvent> pendingEvents; // accumulates between broadcasts
     std::mutex eventsMutex;
 
-    // Phase 57 (review S1): loopback-only by default — the WS command set
-    // slews the mount with no authentication. Set RADUK_WS_LAN=1 to expose
-    // it on the LAN for the APEX dashboard machine (trusted WiFi only).
+    // Phase 57 (review S1): loopback-only by default. Set RADUK_WS_LAN=1 to
+    // expose it on the LAN for the APEX dashboard machine (trusted WiFi only).
+    //
+    // P5.6: and a token either way. Loopback did not keep out a hostile
+    // web page in the observer's own browser -- browsers let any page open
+    // a WebSocket to localhost. The token lives in rig.ini (untracked) and
+    // is NEVER logged: this log feeds the AI assistant's corpus. Only its
+    // location is.
+    {
+        auto& rc = RigConfig::Get();
+        if (rc.wsToken.empty()) {
+            rc.wsToken = GenerateWsToken();
+            if (!rc.wsToken.empty()) {
+                rc.SaveWsToken();
+                Log("[INIT] WebSocket: generated a new access token (rig.ini, [Rig] WsToken)\n");
+            }
+        }
+        if (raduk::net::ws::TokenLooksStrong(rc.wsToken)) {
+            wsServer.SetRequiredToken(rc.wsToken);
+        } else {
+            // Not replaced: overwriting a value somebody typed would hide
+            // the mistake. Refusing everyone makes it visible instead.
+            Log("[INIT] WebSocket: WsToken in rig.ini is not at least %zu hex characters - "
+                "refusing ALL dashboard connections. Delete the line to have a new one generated.\n",
+                raduk::net::ws::kMinTokenHex);
+        }
+    }
     {
         char wsEnv[8] = {};
         bool wsLan = GetEnvironmentVariableA("RADUK_WS_LAN", wsEnv, 8) > 0

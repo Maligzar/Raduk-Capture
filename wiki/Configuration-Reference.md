@@ -62,6 +62,7 @@ FilterHighNm=700
 | `PlateScaleArcsecPx` | 0.203 | **Nominal** image scale. Seeds overlays and the ASTAP FOV hint. **The correction loop never uses it** — see [Tracking](Tracking-and-Guiding) |
 | `GuideRateArcsecPerSec` | 7.5 | Assumed guide rate. Calibration **measures** the real one and warns if they disagree by more than 2× |
 | `MountPort` | *(empty)* | Pin a COM port. Empty means auto-detect; a stale value falls back to auto-detect rather than failing |
+| `WsToken` | *(generated)* | The [dashboard's](Telemetry-and-Dashboard) access token: 64 hex characters, made on first launch. Under 32 hex characters and the server admits nobody. Delete it to get a new one |
 
 #### Filter — the one that silently changes a number
 
@@ -276,7 +277,7 @@ defaults cannot disagree.
 
 | Variable | Effect |
 |----------|--------|
-| `RADUK_WS_LAN=1` | Expose the [telemetry server](Telemetry-and-Dashboard) on the LAN instead of loopback. **The command set can slew the mount with no authentication** |
+| `RADUK_WS_LAN=1` | Expose the [telemetry server](Telemetry-and-Dashboard) on the LAN instead of loopback. The command set can slew the mount; every connection still needs `WsToken`. Trusted networks only, never port-forwarded |
 | `RADUK_EMU_*` | Emulator simulation switches — see [Emulator and Testing](Emulator-and-Testing) |
 
 ---

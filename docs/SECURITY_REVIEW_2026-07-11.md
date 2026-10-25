@@ -71,7 +71,7 @@ the address exposure is only mitigated, not eliminated, until history is gone.
 
 | Surface | Exposure | State |
 |---|---|---|
-| WebSocket server :8765 (mount/focuser commands, **no auth**) | Loopback-only by default; LAN requires `RADUK_WS_LAN=1` | Hardened Phase 57 (frame-length clamp, recv cap) — acceptable for trusted LAN; do not port-forward |
+| WebSocket server :8765 (mount/focuser commands, **no auth**) | Loopback-only by default; LAN requires `RADUK_WS_LAN=1` | Hardened Phase 57 (frame-length clamp, recv cap) — acceptable for trusted LAN; do not port-forward. **Added 2026-10-25, P5.6:** a token is now required on every connection, loopback included, and the parser is fuzzed under AddressSanitizer — see `docs/ROADMAP-Next.md` P5.6 |
 | Dashboard (browser) | Calls public weather/astro APIs outbound; connects to the WS above | Location now user-supplied; no inbound surface |
 | AI assistant | Outbound to `localhost:11434` (Ollama) only | OK |
 | ASTAP plate solver | Launches a local `astap.exe`; temp files uniquely named, process killed on timeout | Hardened Phase 54 |

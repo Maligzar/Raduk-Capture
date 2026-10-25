@@ -18,6 +18,7 @@
 #include "SessionLog.h"
 #include "FrameSlot.h"
 #include "Sharpness.h"
+#include "ObservationRecord.h"
 #include <string>
 #include <thread>
 #include <atomic>
@@ -83,6 +84,19 @@ public:
             m_writer.NoteSkyConditions(altDeg, azDeg, airmass,
                                        seeingFactor, dispersionArcsec);
     }
+
+    // Phase 48: who fills in the observation record. Called on the
+    // thread that calls StartRecording(), just after the SER opens,
+    // and expected to fill in what only the app knows -- target,
+    // profile, exposure, gain, focuser, mount position. The manager
+    // adds the file, the format and the run's own numbers itself, so
+    // EVERY route into a recording leaves a record, including the
+    // format-change restart, not just the RECORD button.
+    void SetObservationSource(std::function<void(ObservationRecord&)> fn) {
+        m_obsSource = std::move(fn);
+    }
+    // Path of the most recently written record, empty if none yet.
+    const std::string& LastObservationPath() const { return m_lastObsPath; }
 
     // ── Recording control ──────────────────────────────────────
 
@@ -204,6 +218,10 @@ private:
     std::string BuildFilePath(int width, int height, int bitDepth);
 
     std::string     m_lastPath;      // most recently finished recording
+    std::function<void(ObservationRecord&)> m_obsSource;
+    ObservationRecord m_obs;         // this run's record, filled at start
+    std::string     m_lastObsPath;
+    void WriteObservationRecord();
     std::function<void(const std::string&, bool)> m_onComplete;
     CaptureConfig   m_config;
     WriteBuffer     m_writeBuffer;

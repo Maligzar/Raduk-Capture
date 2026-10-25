@@ -22,6 +22,8 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <shellscalingapi.h>  // SetProcessDpiAwarenessContext — must be after windows.h
+#include <commdlg.h>          // phase 48: the recall file picker (LEAN_AND_MEAN leaves it out)
+#pragma comment(lib, "comdlg32.lib")
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
@@ -64,6 +66,7 @@
 #include "gui/GoToPanel.h"
 #include "gui/SkyMapWindow.h"
 #include "core/GuideSolve.h"   // phase 47: a clicked pixel into guide pulses
+#include "core/ObservationRecord.h" // phase 48: the record beside each capture, and recall
 #include "core/MountProxy.h"   // phase 46: one mount pointer that never goes stale
 #include "core/HardwareLink.h" // phase 46: what the [HW] button shows and says
 #include "gui/ShareView.h"
@@ -2472,18 +2475,21 @@ static int RunApp(bool useEmulator) {
     // Everything that could make the move wrong refuses instead. The
     // notification says which, because "nothing happened" is the one
     // response that teaches the user nothing.
-    auto doRecentreClick = [&](float sxD2D, float syD2D) {
-        int fx = 0, fy = 0;
-        if (!preview.ScreenToFramePixel(sxD2D, syD2D, fx, fy)) return;
-
+    // The guards a recentre needs before it may pulse, and the pulse
+    // sender itself. Shared with phase 48's framing restore, so the two
+    // can never disagree about when moving is safe or how it is done.
+    // 'who' starts every refusal, so the user knows which one refused.
+    auto recentreReady = [&](const wchar_t* who,
+                             raduk::core::GuideCalibration& cal,
+                             raduk::core::GuideResponse& resp) -> bool {
         if (!mount || !mount->IsConnected()) {
-            notifBar.NotifyWarn(L"Recentre: no mount connected");
-            return;
+            notifBar.NotifyWarn(std::wstring(who) + L": no mount connected");
+            return false;
         }
         if (!tracker.HasCalibration()) {
-            notifBar.NotifyWarn(L"Recentre needs a guide calibration "
-                                L"-- run it once, then click");
-            return;
+            notifBar.NotifyWarn(std::wstring(who) + L" needs a guide "
+                                L"calibration -- run it once first");
+            return false;
         }
         // While the loop is actively correcting, a manual move is two
         // hands on the same wheel: it would pull the target off centre
@@ -2491,20 +2497,52 @@ static int RunApp(bool useEmulator) {
         const auto stage = tracker.Stage();
         if (stage == raduk::core::AcquisitionStage::Locked ||
             stage == raduk::core::AcquisitionStage::Centering) {
-            notifBar.NotifyWarn(L"Recentre: the tracker is centring "
-                                L"already -- stop it first");
-            return;
+            notifBar.NotifyWarn(std::wstring(who) + L": the tracker is "
+                                L"centring already -- stop it first");
+            return false;
         }
 
-        const raduk::core::GuideCalibration cal = tracker.Calibration();
-        raduk::core::GuideResponse resp{ cal.exPerMs, cal.eyPerMs,
-                                        cal.nxPerMs, cal.nyPerMs };
-        {
-            double altNow = -1.0, azNow = 0.0;
-            if (mount->GetAltAz(altNow, azNow))
-                resp = raduk::core::RescaleForAltitude(resp, cal.altDeg,
-                                                       (float)altNow);
-        }
+        cal  = tracker.Calibration();
+        resp = raduk::core::GuideResponse{ cal.exPerMs, cal.eyPerMs,
+                                           cal.nxPerMs, cal.nyPerMs };
+        double altNow = -1.0, azNow = 0.0;
+        if (mount->GetAltAz(altNow, azNow))
+            resp = raduk::core::RescaleForAltitude(resp, cal.altDeg,
+                                                   (float)altNow);
+        return true;
+    };
+
+    // NexStar's PulseGuide blocks for the duration, so the pulses go on
+    // their own thread and the UI is not held for several seconds --
+    // which means the caller must have had its say already.
+    auto sendRecentrePulses = [&](int eMs, int nMs) {
+        suspendTrackerForJog(true);
+        IMount* mnt = mount;
+        std::thread([mnt, eMs, nMs, suspendTrackerForJog]() {
+            using raduk::core::GuideDirection;
+            if (eMs != 0) {
+                mnt->PulseGuide(eMs > 0 ? GuideDirection::East
+                                        : GuideDirection::West,
+                                eMs > 0 ? eMs : -eMs);
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            if (nMs != 0) {
+                mnt->PulseGuide(nMs > 0 ? GuideDirection::North
+                                        : GuideDirection::South,
+                                nMs > 0 ? nMs : -nMs);
+            }
+            Log("[RECENTRE] pulses done\n");
+            suspendTrackerForJog(false);
+        }).detach();
+    };
+
+    auto doRecentreClick = [&](float sxD2D, float syD2D) {
+        int fx = 0, fy = 0;
+        if (!preview.ScreenToFramePixel(sxD2D, syD2D, fx, fy)) return;
+
+        raduk::core::GuideCalibration cal;
+        raduk::core::GuideResponse resp;
+        if (!recentreReady(L"Recentre", cal, resp)) return;
 
         // 10 s is about 75" at the configured guide rate, which is far
         // more than a planet ever sits from centre. Past that the right
@@ -2531,10 +2569,7 @@ static int RunApp(bool useEmulator) {
         slog.Mount("Recentre from [%d,%d]: %.1f\" (E/W %dms N/S %dms)",
                    fx, fy, plan.offsetArcsec, plan.eastMs, plan.northMs);
 
-        // Said before the move, not after. NexStar's PulseGuide blocks
-        // for the duration, so the pulses go on their own thread and
-        // the UI is not held for several seconds -- which means the
-        // main thread must have had its say already.
+        // Said before the move, not after.
         {
             wchar_t w[160] = {};
             swprintf(w, 160, L"Recentring %.0f px (%.1f\")  E/W %dms  N/S %dms",
@@ -2542,26 +2577,190 @@ static int RunApp(bool useEmulator) {
                      plan.eastMs, plan.northMs);
             notifBar.NotifyInfo(w);
         }
+        sendRecentrePulses(plan.eastMs, plan.northMs);
+    };
 
-        suspendTrackerForJog(true);
-        IMount* mnt = mount;
-        const int eMs = plan.eastMs, nMs = plan.northMs;
-        std::thread([mnt, eMs, nMs, suspendTrackerForJog]() {
-            using raduk::core::GuideDirection;
-            if (eMs != 0) {
-                mnt->PulseGuide(eMs > 0 ? GuideDirection::East
-                                        : GuideDirection::West,
-                                eMs > 0 ? eMs : -eMs);
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            }
-            if (nMs != 0) {
-                mnt->PulseGuide(nMs > 0 ? GuideDirection::North
-                                        : GuideDirection::South,
-                                nMs > 0 ? nMs : -nMs);
-            }
-            Log("[RECENTRE] pulses done\n");
-            suspendTrackerForJog(false);
-        }).detach();
+    // ── Phase 48: framing recall ("go to previous image") ─────
+    //
+    // Shift+G: pick a past capture, and the telescope goes back to it.
+    // Its observation record says what it was pointed at; the slew is
+    // the GoTo panel's own DoGoTo, so the keep-out sector, the cord-
+    // wrap forecast and the profile auto-load all apply exactly as for
+    // any other GoTo. Nothing here commands the mount directly.
+    //
+    // PlanRecall adds what the GoTo buttons check elsewhere -- aligned,
+    // above the Tonight list's 15 degree floor -- and one thing no GoTo
+    // checks yet: distance from the Sun. Then a confirmation, defaulting
+    // to No, because a slew picked from a file is a slew the person at
+    // the eyepiece did not see coming.
+    //
+    // Ctrl+Shift+G, afterwards: put the target back where it sat in the
+    // recorded frame, through the click-to-recentre path above. Only
+    // needed when that framing was off-centre on purpose; acquisition
+    // after the GoTo centres it otherwise.
+    raduk::core::ObservationRecord recallRec;
+    bool recallLoaded = false;
+
+    auto toWide = [](const std::string& s) {
+        std::wstring w;
+        const int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
+        if (n > 1) { w.resize(n - 1); MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, &w[0], n); }
+        return w;
+    };
+
+    auto doRecallFraming = [&]() {
+        wchar_t fileBuf[MAX_PATH] = {};
+        const std::wstring initDir = toWide(controls.GetOutputDir());
+        OPENFILENAMEW ofn{};
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner   = window.Handle();
+        ofn.lpstrFilter = L"Captures (*_observation.txt, *.ser)\0*_observation.txt;*.ser\0"
+                          L"All files\0*.*\0";
+        ofn.lpstrFile   = fileBuf;
+        ofn.nMaxFile    = MAX_PATH;
+        ofn.lpstrInitialDir = initDir.empty() ? nullptr : initDir.c_str();
+        ofn.lpstrTitle  = L"Recall framing - pick a past capture";
+        ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+        if (!GetOpenFileNameW(&ofn)) return;
+
+        std::string picked;
+        {
+            const int n = WideCharToMultiByte(CP_UTF8, 0, fileBuf, -1, nullptr, 0, nullptr, nullptr);
+            if (n > 1) { picked.resize(n - 1); WideCharToMultiByte(CP_UTF8, 0, fileBuf, -1, &picked[0], n, nullptr, nullptr); }
+        }
+        const std::string obsPath = raduk::core::ObservationPathFor(picked);
+
+        std::string text;
+        if (FILE* f = _wfopen(toWide(obsPath).c_str(), L"rb")) {
+            char buf[4096];
+            size_t got;
+            while ((got = fread(buf, 1, sizeof(buf), f)) > 0 && text.size() < (1u << 20))
+                text.append(buf, got);
+            fclose(f);
+        } else {
+            notifBar.NotifyWarn(L"Recall: no observation record beside that capture "
+                                L"-- it was recorded before phase 48");
+            Log("[RECALL] no record at %s\n", obsPath.c_str());
+            return;
+        }
+
+        raduk::core::ObservationRecord rec;
+        std::string why;
+        if (!raduk::core::ParseObservation(text, rec, &why)) {
+            notifBar.NotifyWarn(L"Recall: " + toWide(why));
+            Log("[RECALL] %s: %s\n", obsPath.c_str(), why.c_str());
+            return;
+        }
+
+        raduk::core::RecallInputs in;
+        in.mountConnected = mount && mount->IsConnected();
+        in.mountAligned   = in.mountConnected &&
+                            (mount->IsAligned() || gotoPanel.IsPlateSynced());
+        double tRa = 0, tDec = 0;
+        if (gotoPanel.LookupNow(rec.target, tRa, tDec)) {
+            in.targetResolved = true;
+            in.resolvedRaH = tRa; in.resolvedDecDeg = tDec;
+        }
+        if (gotoPanel.LookupNow("Sun", tRa, tDec)) {
+            in.sunKnown = true;
+            in.sunRaH = tRa; in.sunDecDeg = tDec;
+        }
+        in.altitudeNow = [](double ra, double dec, double& alt) {
+            if (!raduk::core::RigConfig::Get().SiteIsSet()) return false;
+            double az = 0;
+            raduk::core::RADecToAltAzNow(ra, dec, alt, az);
+            return true;
+        };
+
+        const raduk::core::RecallPlan plan = raduk::core::PlanRecall(rec, in);
+        if (!plan.valid) {
+            notifBar.NotifyWarn(L"Recall refused: " + toWide(plan.why));
+            Log("[RECALL] refused %s: %s\n", rec.file.c_str(), plan.why.c_str());
+            slog.Mount("Recall refused (%s): %s", rec.file.c_str(), plan.why.c_str());
+            return;
+        }
+
+        const std::string when = raduk::core::FormatUtcIso(rec.startUnix);
+        const std::wstring wFile = toWide(rec.file), wWhen = toWide(when);
+        const std::wstring wTarget = toWide(rec.target), wProfile = toWide(rec.profile);
+        wchar_t msg[900];
+        swprintf(msg, 900,
+            L"Slew the telescope back to this capture?\n\n"
+            L"  Capture:   %s\n"
+            L"  Recorded:  %s\n"
+            L"  Target:    %s\n"
+            L"  Profile:   %s\n\n"
+            L"  Slew to:   RA %.4fh  Dec %+.3f°  (%s)\n"
+            L"  Altitude now: %.0f°\n\n"
+            L"The slew goes through the normal GoTo, so the keep-out and "
+            L"cable-wrap checks still apply.",
+            wFile.c_str(),
+            wWhen.empty()    ? L"(time not recorded)" : wWhen.c_str(),
+            wTarget.empty()  ? L"(none recorded)"     : wTarget.c_str(),
+            wProfile.empty() ? L"(none recorded)"     : wProfile.c_str(),
+            plan.raHours, plan.decDeg,
+            plan.fromCatalogue ? L"where it is tonight" : L"the recorded mount position",
+            plan.altNowDeg);
+        if (MessageBoxW(window.Handle(), msg, L"Recall framing",
+                        MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) {
+            Log("[RECALL] declined: %s\n", rec.file.c_str());
+            return;
+        }
+
+        Log("[RECALL] %s -> %s RA %.4fh Dec %+.3f (%s), alt %.1f\n",
+            rec.file.c_str(), plan.name.c_str(), plan.raHours, plan.decDeg,
+            plan.fromCatalogue ? "catalogue now" : "recorded position",
+            plan.altNowDeg);
+        slog.Mount("Recall %s: %s", rec.file.c_str(), plan.name.c_str());
+
+        recallRec    = rec;
+        recallLoaded = true;
+        gotoPanel.RequestGoTo(plan.raHours, plan.decDeg, plan.name);
+    };
+
+    auto doRecallOffset = [&]() {
+        if (!recallLoaded) {
+            notifBar.NotifyWarn(L"Framing restore: recall a capture first (Shift+G)");
+            return;
+        }
+        if (mount && mount->IsConnected() && mount->IsSlewing()) {
+            notifBar.NotifyWarn(L"Framing restore: the mount is still slewing");
+            return;
+        }
+        if (!tracker.LastCentroidValid()) {
+            notifBar.NotifyWarn(L"Framing restore: no target in the frame to move "
+                                L"-- start acquisition so it is found");
+            return;
+        }
+        raduk::core::GuideCalibration cal;
+        raduk::core::GuideResponse resp;
+        if (!recentreReady(L"Framing restore", cal, resp)) return;
+
+        const float nx = tracker.LastCentroidX(), ny = tracker.LastCentroidY();
+        const raduk::core::RecentrePlan plan = raduk::core::PlanFramingRestore(
+            recallRec, nx, ny,
+            preview.FrameWidthPx(), preview.FrameHeightPx(),
+            resp, cal.arcsecPerPx, 10000);
+        if (!plan.valid) {
+            wchar_t w[160] = {};
+            MultiByteToWideChar(CP_UTF8, 0, plan.why, -1, w, 160);
+            notifBar.NotifyWarn(std::wstring(L"Framing restore: ") + w);
+            Log("[RECALL] offset refused: %s (now %.0f,%.0f, recorded %.0f,%.0f)\n",
+                plan.why, nx, ny, recallRec.targetXPx, recallRec.targetYPx);
+            return;
+        }
+        Log("[RECALL] offset (%.0f,%.0f) -> (%.0f,%.0f): E/W %dms N/S %dms\n",
+            nx, ny, recallRec.targetXPx, recallRec.targetYPx,
+            plan.eastMs, plan.northMs);
+        slog.Mount("Recall framing restore: E/W %dms N/S %dms",
+                   plan.eastMs, plan.northMs);
+        {
+            wchar_t w[160] = {};
+            swprintf(w, 160, L"Restoring recorded framing %.0f px  E/W %dms  N/S %dms",
+                     plan.offsetPx, plan.eastMs, plan.northMs);
+            notifBar.NotifyInfo(w);
+        }
+        sendRecentrePulses(plan.eastMs, plan.northMs);
     };
 
     // Forward clicks to preview renderer for frame bar + ROI drag start
@@ -3173,6 +3372,51 @@ static int RunApp(bool useEmulator) {
         if (!normal) return;
         if (!raduk::core::RigConfig::Get().autoStackOnStop) return;
         doStackFile(path);
+    });
+
+    // ── Phase 48: what goes into the observation record ──────
+    //
+    // Everything here is read from the live rig, not from the panels:
+    // the sliders write straight to the camera, so the camera is the
+    // only place the settings in force are certain to be. A value that
+    // cannot be read is left unknown and the record omits it -- it is
+    // never filled with a plausible guess.
+    capturer.SetObservationSource([&](raduk::core::ObservationRecord& r) {
+        r.appVersion = RADUK_VERSION_A;
+        r.target = gotoPanel.CurrentTarget();
+        if (const TargetProfile* ap = profiles.Active()) r.profile = ap->name;
+        if (cam.IsOpen()) {
+            r.exposureMs = cam.GetControl(ASI_EXPOSURE) / 1000.0;
+            r.gain       = (double)cam.GetControl(ASI_GAIN);
+            int w = 0, h = 0, bin = 0; ASI_IMG_TYPE it{};
+            if (cam.GetROI(w, h, bin, it)) r.bin = bin;
+            int sx = -1, sy = -1;
+            if (cam.GetStartPos(sx, sy)) { r.roiX = sx; r.roiY = sy; }
+        }
+        if (focuser.IsOpen()) {
+            r.focuserPos   = focuser.GetPosition();
+            const float tc = focuser.GetTemperature();
+            // The EAF reports -273 when it has no sensor reading.
+            if (tc > -100.0f) r.focuserTempC = tc;
+        }
+        if (mount && mount->IsConnected()) {
+            double ra = 0, dec = 0, alt = 0, az = 0;
+            if (mount->GetRADec(ra, dec)) { r.raHours = ra; r.decDeg = dec; }
+            if (mount->GetAltAz(alt, az)) { r.altDeg = alt; r.azDeg = az; }
+        }
+        // Only while the tracker is running: with it off, the last
+        // centroid is from whatever it last looked at, possibly
+        // another target, and a framing recall would chase it.
+        if (tracker.Stage() != raduk::core::AcquisitionStage::Off &&
+            tracker.LastCentroidValid()) {
+            r.targetXPx = tracker.LastCentroidX();
+            r.targetYPx = tracker.LastCentroidY();
+        }
+        const auto& rigc = raduk::core::RigConfig::Get();
+        if (rigc.SiteIsSet()) {
+            r.siteLatDeg = rigc.siteLatDeg;
+            r.siteLonDeg = rigc.siteLonDeg;
+        }
     });
     controls.SetDockToggleCallback([&]() {});
 
@@ -3804,6 +4048,8 @@ static int RunApp(bool useEmulator) {
     window.SetZoomCycleHandler([&]()        { doZoom();              });
     window.SetFullscreenToggleHandler([&]() { doFullscreen();        });
     window.SetGoToToggleHandler([&]()       { gotoPanel.ShowCentered(); });
+    window.SetRecallFramingHandler(doRecallFraming);   // phase 48
+    window.SetRecallOffsetHandler(doRecallOffset);
     window.SetSkyMapToggleHandler([&]()     { skyMap.Toggle();       });
     // Shift+M. The second map, for the control screen, so the first
     // can stay where people can see it.

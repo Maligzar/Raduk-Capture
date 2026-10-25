@@ -187,9 +187,17 @@ Two Phase 4 items remain deferred:
   `fc_running`)
 - Weather-aware capture suggestions from APEX scoring
 
-**The preview canvas shows no image.** Nothing has ever drawn into it,
-and the app sends telemetry and a histogram but no frames. See B3 in
-`docs/ROADMAP-Next.md`.
+**The preview picture** (B3, 2026-10-25). A dashboard that sends
+`{"cmd":"preview","arg":"on"}` receives a small JPEG of the preview
+about twice a second, as a binary WebSocket message: at most 640
+pixels wide, auto-levelled, around 5 KB. It is a framing aid and
+nothing more -- the pixels are decimated and stretched, and raw frames
+still never cross the network. Clients that do not ask, like
+`apex_bridge.py`, are never sent one. The render loop does only the
+decimation, twice a second; encoding and sending run on a thread of
+their own, and a client too slow to keep up is skipped, then dropped
+after a 500 ms send timeout. Measured at the full sensor: capture rate
+unchanged, no drops.
 
 **The dashboard ships no real-world location.** It defaults to 0,0 and
 prompts "SET YOUR LOCATION" — see the privacy note below.

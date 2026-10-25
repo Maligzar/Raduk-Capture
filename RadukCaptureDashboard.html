@@ -2051,7 +2051,11 @@ function rcToggleConnect() {
     document.getElementById('rcConnectBtn').textContent = 'CONNECTING…';
     try {
       rcWs = new WebSocket(rcUrlWithToken(url));
+      rcWs.binaryType = 'blob';   // B3: binary messages are JPEG previews
       rcWs.onopen = () => {
+        // B3: the preview is opt-in per client, so a client that cannot
+        // take binary messages is never sent one.
+        rcWs.send(JSON.stringify({ cmd: 'preview', arg: 'on' }));
         rcConnected = true;
         rcSetStatus(true, false, null);
         rcSetSyncMsg('Connected to RadukCapture — waiting for telemetry…', 'ok');
@@ -2061,6 +2065,7 @@ function rcToggleConnect() {
         if (rcSimInterval) { clearInterval(rcSimInterval); rcSimInterval = null; }
       };
       rcWs.onmessage = (e) => {
+        if (e.data instanceof Blob) { rcDrawPreview(e.data); return; }
         try { rcHandleData(JSON.parse(e.data)); } catch(ex) {}
       };
       // A browser cannot see WHY a handshake failed: a refused token and a
@@ -2077,6 +2082,7 @@ function rcToggleConnect() {
       };
       rcWs.onclose = () => {
         rcConnected = false; rcRunning = false; rcIsCapturing = false;
+        rcClearPreview();
         rcSetStatus(false, false, null);
         document.getElementById('rcConnectBtn').textContent = 'CONNECT';
         document.getElementById('rcConnectBtn').className = 'rc-connect-btn connect';
@@ -2129,6 +2135,33 @@ function rcSetStatus(bridgeOk, rcOk, camera) {
 function rcSetSyncMsg(msg, type) {
   const el = document.getElementById('rcSyncMsg');
   el.textContent = msg; el.className = 'rc-sync-msg ' + (type||'');
+}
+
+// ── B3: the preview picture ──────────────────────────────────
+// RadukCapture sends a small auto-levelled JPEG of the preview, about
+// twice a second, as a binary message. The canvas takes the picture's
+// own size and CSS object-fit scales it into the panel. A picture that
+// arrives while the last is still decoding is dropped: the next one is
+// half a second away and newer.
+let rcPreviewBusy = false;
+let rcPreviewCount = 0;
+function rcDrawPreview(blob) {
+  if (rcPreviewBusy || typeof createImageBitmap !== 'function') return;
+  rcPreviewBusy = true;
+  createImageBitmap(blob).then(bmp => {
+    const cv = document.getElementById('rcPreview');
+    if (cv) {
+      if (cv.width !== bmp.width)   cv.width  = bmp.width;
+      if (cv.height !== bmp.height) cv.height = bmp.height;
+      cv.getContext('2d').drawImage(bmp, 0, 0);
+    }
+    if (bmp.close) bmp.close();
+    rcPreviewCount++;
+  }).catch(() => {}).finally(() => { rcPreviewBusy = false; });
+}
+function rcClearPreview() {
+  const cv = document.getElementById('rcPreview');
+  if (cv) cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
 }
 
 // ── Data handler (live telemetry directly from RadukCapture) ──────

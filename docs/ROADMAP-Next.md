@@ -1773,7 +1773,49 @@ codebase already do the work: `SkyMapWindow::TextWidth` uses
 needed, and `HelpWindow::FontPxFor` is the existing shrink-to-fit loop.
 `ObjectPanel` already holds `m_dwrite`.
 
-#### B3 · The dashboard's preview canvas has never shown an image
+#### B3 · The dashboard's preview canvas has never shown an image — DONE 2026-10-25
+
+**Fed, not labelled** (the owner's call). The app sends a small JPEG of
+the preview, about twice a second, to dashboards that ask for one:
+
+- **Render loop:** every 500 ms, and only while a client is subscribed,
+  `DecimateFrame` (`src/net/PreviewFrame.h`) reads one Bayer cell per
+  output pixel into a picture at most 640 wide, auto-levelled at the
+  99.9th percentile. About 230 thousand cell reads at the full sensor.
+- **Its own thread:** `PreviewStreamer` encodes with WIC and keeps only
+  the newest picture; a slow consumer replaces, never queues.
+- **Server:** binary messages, only to clients that sent
+  `{"cmd":"preview","arg":"on"}` (so `apex_bridge.py` is never sent
+  one), skipping a client whose socket is full. Every client socket now
+  has a 500 ms send timeout, and a short send drops the client -- before
+  this, a client that stopped reading could block `Broadcast()` and the
+  render loop with it indefinitely.
+
+Gated by `tests/preview_frame.cpp` (Bayer order, RAW16, sizes, the
+auto-level, the subscription message, a WIC round trip, newest-wins)
+and a new section of `tests/ws_server_loopback.cpp` (only a subscriber
+receives it, as one binary frame, and "off" stops it).
+
+Measured 2026-10-25 on the emulator, full sensor (3840x2160), blur
+off, `RADUK_EMU_FPS=120`, 15 s per leg, read from the app's own
+telemetry by a separate WebSocket client:
+
+| | capture fps | dropped | previews |
+|---|---|---|---|
+| preview off | 36.5 | 0 | — |
+| preview on | 36.7 | 0 | 1.94/s, 5.6 KB each, 11 KB/s |
+| off again | 37.0 | 0 | — |
+
+A subscriber that never reads: the healthy client's telemetry kept
+coming (60 messages in 30 s), with one 1 s gap when a send to the
+stalled client hit the 500 ms timeout and the server dropped it. That
+is the designed worst case, and the most a stalled browser can delay
+a command, STOP included -- the mount's own watchdog allows 8 s.
+Not measured: the same while RECORDING. Recording runs on the capture
+thread (`37b8c50`) and the preview touches only the render loop and
+its own thread, but that is an argument, not a number.
+
+The entry as raised:
 
 Found 2026-10-25, testing P5.6 with the real dashboard. The RC tab's
 centre column is a black `rcPreview` canvas under a HUD, and nothing
@@ -1784,8 +1826,7 @@ public release (`9bc0036`). The thing meant to feed it was the RTSP
 stream, phase 7, which is `DROPPED`.
 
 Category 3 in [How this is ranked](#how-this-is-ranked): a feature
-that is on screen and does nothing. Two honest fixes, and the choice
-is the owner's:
+that is on screen and does nothing. Two honest fixes were offered:
 
 - **Say so.** Replace the canvas with a "telemetry only — no image
   feed" panel. Minutes.

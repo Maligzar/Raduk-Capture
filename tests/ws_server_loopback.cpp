@@ -14,6 +14,7 @@
 
 #include "net/WebSocketServer.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <mutex>
@@ -165,7 +166,56 @@ int main() {
     }
     closesocket(s);
 
-    printf("\n3. A server never given a token admits nobody\n");
+    printf("\n3. B3: the preview goes only to a client that asked for it\n");
+    {
+        auto open = [&]() {
+            SOCKET c = Dial();
+            SendAll(c, Request("/?token=" + token));
+            ReadResponse(c);
+            return c;
+        };
+        SOCKET a = open();
+        SOCKET b = open();
+        SendAll(a, Frame(true, 1, R"({"cmd":"preview","arg":"on"})"));
+        for (int i = 0; i < 40 && srv.PreviewSubscriberCount() != 1; i++)
+            std::this_thread::sleep_for(std::chrono::milliseconds(25));
+        Check(srv.PreviewSubscriberCount() == 1, "one client subscribed");
+        Check(received().size() == 2, "  and the subscription is not dispatched as a rig command");
+
+        std::vector<uint8_t> jpeg(300);
+        for (size_t i = 0; i < jpeg.size(); i++) jpeg[i] = (uint8_t)(i * 7);
+        Check(srv.BroadcastPreview(jpeg) == 1, "BroadcastPreview reaches exactly one client");
+
+        std::string got;
+        char buf[512];
+        while (got.size() < 4 + jpeg.size()) {
+            int n = recv(a, buf, sizeof(buf), 0);
+            if (n <= 0) break;
+            got.append(buf, n);
+        }
+        const bool header = got.size() >= 4 && (unsigned char)got[0] == 0x82 &&
+                            (unsigned char)got[1] == 126 &&
+                            (((unsigned char)got[2] << 8) | (unsigned char)got[3]) == 300;
+        Check(header, "  as one binary frame of the right length");
+        Check(got.size() == 4 + jpeg.size() &&
+              std::equal(jpeg.begin(), jpeg.end(), got.begin() + 4,
+                         [](uint8_t x, char y) { return x == (uint8_t)y; }),
+              "  carrying the bytes unchanged");
+
+        DWORD shortTmo = 300;
+        setsockopt(b, SOL_SOCKET, SO_RCVTIMEO, (const char*)&shortTmo, sizeof(shortTmo));
+        Check(recv(b, buf, sizeof(buf), 0) <= 0, "the client that did not ask gets nothing");
+
+        SendAll(a, Frame(true, 1, R"({ "cmd" : "preview", "arg" : "off" })"));
+        for (int i = 0; i < 40 && srv.PreviewSubscriberCount() != 0; i++)
+            std::this_thread::sleep_for(std::chrono::milliseconds(25));
+        Check(srv.PreviewSubscriberCount() == 0, "\"off\" unsubscribes, whitespace and all");
+        Check(srv.BroadcastPreview(jpeg) == 0, "  and nothing more is sent");
+        closesocket(a);
+        closesocket(b);
+    }
+
+    printf("\n4. A server never given a token admits nobody\n");
     srv.Stop();
     WebSocketServer bare;
     bare.Start(kPort, false);

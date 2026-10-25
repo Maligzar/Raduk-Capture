@@ -1563,6 +1563,12 @@ saved with the URL, because the URL is also synced to the dashboard's helper
 server, where anything on the same WiFi could read it. Pasting a URL that ends
 in `?token=…` works too: the token is moved into its own box.
 
+**The preview picture.** Once connected, the dashboard's centre panel
+shows the telescope's view, updated about twice a second. It is a small,
+brightened copy for framing at a glance, not the recorded image: what
+goes into the SER file is untouched. It costs the capture nothing
+measurable, and it pauses when no dashboard is connected.
+
 **Why a token, when the server only listens on this PC?** Browsers let any
 web page open a WebSocket to `localhost`. Without a token, a page open in
 another tab could connect and slew the telescope. The token is the one thing

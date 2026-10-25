@@ -133,6 +133,16 @@ void CaptureManager::StopRecording(bool normal) {
 
     m_status.recording.store(false);
 
+    // Phase 48: the run ends HERE, not when the drain below finishes --
+    // a buffer sized to the whole run can take minutes to reach disk.
+    // Measured directly because elapsedSec is only kept up to date for
+    // time-limited runs; a frame-limited run left it at 0, and the
+    // first record written in the app said a 3.5 minute capture took
+    // 0.00 s.
+    m_obs.endUnix     = (int64_t)time(nullptr);
+    m_obs.durationSec = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - m_startTime).count();
+
     // Signal writer thread to finish draining and exit
     m_writerRunning.store(false);
     if (m_writerThread.joinable()) m_writerThread.join();
@@ -180,9 +190,7 @@ void CaptureManager::StopRecording(bool normal) {
 // only exists for tidy finishes is one nobody can rely on.
 void CaptureManager::WriteObservationRecord() {
     if (m_lastPath.empty()) return;
-    m_obs.endUnix       = (int64_t)time(nullptr);
-    m_obs.durationSec   = m_status.elapsedSec.load();
-    m_obs.frames        = (int)m_status.framesRecorded.load();
+    m_obs.frames       = (int)m_status.framesRecorded.load();
     m_obs.framesDropped = (int)m_status.framesDropped.load();
 
     const std::string obsPath = ObservationPathFor(m_lastPath);

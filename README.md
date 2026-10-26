@@ -120,5 +120,9 @@ that better. See **What is not built yet** in
 
 ## License
 
-PolyForm Noncommercial 1.0.0 — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
-property of Suzhou ZWO Co., Ltd. under their own terms.
+Mozilla Public License 2.0 — see [LICENSE](LICENSE). Relicensed from
+PolyForm Noncommercial 1.0.0 on 2026-10-26; MPL-2.0 is weak copyleft, so
+changes to covered files must be published, and the file-level scope is
+what lets this link against proprietary vendor SDKs at all. The ZWO SDKs
+under `external/` remain the property of Suzhou ZWO Co., Ltd. under their
+own terms, and sqlite3 under `external/` is public domain.

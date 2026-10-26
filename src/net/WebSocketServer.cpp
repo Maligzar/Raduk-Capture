@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // ============================================================
 // WebSocketServer.cpp — out-of-line definitions for WebSocketServer.h
 // (SHA-1 / base64 / frame helpers live here so every TU that includes

@@ -1047,12 +1047,22 @@ in view while doing it: a managed-language server with no
 authentication would not be safer in practice than a fuzzed C++ one
 with a token.
 
-### P5.7 · License: PolyForm Noncommercial is the binding constraint on continuity
+### P5.7 · License: relicensed to MPL-2.0 — ✅ DECIDED 2026-10-26
 
-**Effort: an owner decision, not code. Nothing here can be done by
-writing software.**
+**The decision is taken: MPL-2.0.** `LICENSE` carries the Mozilla
+Public License 2.0, and the Exhibit A header is on all 136 files under
+`src/` and `tests/`. `external/` is untouched, because none of it is
+this project's to relicense: the ZWO SDKs remain Suzhou ZWO Co., Ltd.'s
+under their own terms and sqlite3 is public domain.
 
-`LICENSE` is PolyForm Noncommercial 1.0.0. It is source-available and
+One property of MPL that matters here and was not the reason for
+choosing it: file-level copyleft permits linking against proprietary
+vendor SDKs, which a strong-copyleft license would have made awkward
+for exactly the ASI and EAF dependencies this application is built on.
+
+The finding that led to it is kept below as the record of why.
+
+`LICENSE` was PolyForm Noncommercial 1.0.0. It is source-available and
 it is not an OSI open-source license, because it discriminates by
 field of use. Three consequences follow mechanically rather than as
 opinion: it is GPL-incompatible, it will not be packaged by any Linux
@@ -1088,8 +1098,10 @@ not pretending the decision has been taken:
   that administration is not free and should be priced before it is
   chosen.
 
-Record the decision whichever way it goes. An unmade decision here
-reads as the restrictive answer, because that is what it currently is.
+The second option was taken. What was given up is stated plainly in it:
+a manufacturer may now ship this, subject to publishing their changes
+to the covered files. What was bought is distribution packaging, GPL
+compatibility, and contributors whose employers run a legal review.
 
 ---
 
@@ -1340,7 +1352,7 @@ consolidated](#live-sky-debt-consolidated).
 | ~~4~~ | **Phase 47, click to recentre** — DONE 2026-10-18 | Bench | — | `Ctrl`+click an object and it goes to the middle. No new orientation config: the phase 51 guide calibration already MEASURED how the image responds to a pulse, so it contains the camera angle, the mirror flip and the axis signs. The 2x2 solve moved into `src/core/GuideSolve.h` and the guide loop now calls the same one — two copies would be two sign conventions. Gated by `tests/recentre.cpp`, including a round trip that pushes the solved pulses back through the measured matrix |
 | ~~5~~ | **Phase 46, connect/disconnect hardware** — BUILT and GATED 2026-10-18; owes one press in the running app | Bench | — | One `[HW]` button, and `MountProxy` so a reconnect can pick a different transport or port without stranding the tracker and the panels that hold the mount pointer. The crash it caused on the way is worth reading: `main.cpp` was static_cast-ing the mount pointer to `MountEmulator` |
 | 6 | **P5.6: fuzz the WebSocket frame parser, and authenticate the command path** — WIRED (emu) 2026-10-25: the real dashboard connects with the token and jogs the mount; owes one remote stop seen to work, and `apex_bridge.py` | Bench | S-M | The only safety-flavored item left on the bench. An unauthenticated RFC 6455 parser in C++ that accepts mount commands; loopback-by-default is a good default and is not a control. Raised in the July 2026 security review and hardened in Phase 57 without the auth gap being closed |
-| 7 | **Pick again from the unscheduled list** | Bench | varies | Ten features left, none half-built. On value to this rig **phase 48** (framing recall) is next, with phase 30 (push-to assistant) behind it. Nothing of 48 is built yet: PR #21's branch was named `phase48-observation-record` but carried only the jog fix |
+| 7 | **Pick again from the unscheduled list** | Bench | varies | Nine features left. Phase 48 has gone: `WIRED (emu)` and `GATED (bench)` on 2026-10-25, so **phase 30** (push-to assistant) is next on value to this rig. What state any of them is actually in is [`PHASE-STATUS.md`](PHASE-STATUS.md)'s question, not this row's — this row said "nothing of 48 is built yet" for a week after it shipped |
 | ~~8~~ | **P5.5: lower the CMake floor** — DONE 2026-10-25, floor 3.21 by test | Bench | S | The cheapest item on the list. One line, once the oldest workable version has been established by trying it |
 | 9 | **P5.1: exposure-midpoint SER timestamps** | Bench | S | Parity with SharpCap today, and a bounded chance to lead. Needs the exposure threaded to the stamp site, which the report got slightly wrong |
 | 10 | **P5.4: installer, tags, and no hardcoded `D:` paths** | Bench | M | The distribution half of phase 20, split out of a VH item that was never going to be started whole |
@@ -1432,16 +1444,16 @@ That is the same shape as the defect the test exists to catch —
 announces itself; it just quietly reports an empty knowledge base. A
 gate that depends on an untracked file is not a gate.
 
-### A decision for the owner, raised 2026-10-19
+### Answered by the owner, 2026-10-26
 
-**P5.7, the license.** PolyForm Noncommercial 1.0.0 is source-available
-and is not an OSI open-source license, so it is GPL-incompatible, it
-will not be packaged by a distribution, and it is closed to anyone
-whose employer runs a legal review. Against a stated bus factor of 1,
-that costs more than the commit count does: N.I.N.A. is 79%
-one author and survives anyway on MPL-2.0 and 78 contributors. Keep,
-relicense or dual-license, with the trade-offs set out in P5.7. Not a
-task, and not a recommendation already accepted.
+**P5.7, the license: MPL-2.0.** Raised 2026-10-19 out of the
+competitive comparison, decided a week later. PolyForm Noncommercial
+1.0.0 was source-available and not an OSI license, so it was
+GPL-incompatible, unpackageable by any distribution, and closed to
+anyone whose employer runs a legal review. Against a stated bus factor
+of 1 that cost more than the commit count did: N.I.N.A. is 79% one
+author and survives anyway on MPL-2.0 and 78 contributors. The
+relicense is done; see P5.7 for what it bought and what it gave up.
 
 ### Both questions answered by the owner, 2026-10-17
 
@@ -1891,7 +1903,7 @@ true the moment a phase was split in two.
 | ~~47~~ | ~~Pixel position / click to recentre~~ | — | **Done 2026-10-18.** `Ctrl`+click, on the measured guide calibration |
 | 47b | Pixel position readout + directional rose | M | The half of phase 47 that a plate solve really is needed for, split out when the other half shipped without one. Absolute RA/Dec under the cursor, and a rose showing which way a jog pushes the image |
 | ~~46~~ | ~~Connect / disconnect all hardware~~ | — | **Built and gated 2026-10-18; owes one press in the running app.** `[HW]` button; `MountProxy` keeps the mount pointer stable across a reconnect |
-| 48 | Go to previous image (framing recall) | M | Design settled 2026-10-18: an observation record written beside each capture, not a plate solve, since a planetary crop has no solvable star field. **The prerequisite for 18 (FITS) and 19**, which want the metadata it collects |
+| ~~48~~ | ~~Go to previous image (framing recall)~~ | — | **Done 2026-10-25.** An observation record beside each capture and `Shift+G` to return to one. `WIRED (emu)`, `GATED (bench)` |
 | 30 | Push-to assistant | M | |
 | 31/32 | FWHM / Bahtinov focus | H | Star focus; autofocus is tuned for a planetary disc. **A visible gap in the comparison**: SharpCap ships multi-star FWHM, HFD and Bahtinov aids with Pro auto-scans, FireCapture has a third-party autofocus plugin, ASICap has coarse/fine EAF buttons. Nothing in this tree implements either measure (checked: no FWHM or Bahtinov code in `src/`), and the planetary-disc V-curve does not substitute for star focus |
 | 18 | AVI / FITS output | M | **FITS leads, AVI follows, and the comparison raises the value of both.** FITS is the interop format the post-processing chain consumes and is the one output that would let this project touch any photometric or deep-sky workflow; AVI is a legacy container that chain does not want. SharpCap and FireCapture both write FITS; ASICap does not, so "every competitor writes FITS" is too strong, but the two that matter do. Neither writer exists anywhere in `src/` |

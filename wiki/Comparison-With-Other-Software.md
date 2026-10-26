@@ -222,7 +222,7 @@ so the correction belongs at the stamp site or must be threaded through
 | Hardware breadth | ~14 native families + ASCOM + Alpaca | ~8 native vendors + ASCOM + INDI | ZWO only (camera, EAF, EFW) | 1 camera, 1 focuser; mount via `IMount`, ASCOM or NexStar |
 | Extensibility | IronPython (Pro-gated; no NumPy/SciPy/AstroPy) | Java `.jar` plugins since v2.5 | None | None |
 | Platform | Windows, 64-bit only from 2026 | Windows, macOS, Linux x64, aarch64 | Windows, macOS, Linux | Windows only by construction |
-| License / cost | Free + GBP 14/yr Pro (2024 price) | Freeware; commercial use prohibited | Free, ZWO hardware only | PolyForm Noncommercial 1.0.0 |
+| License / cost | Free + GBP 14/yr Pro (2024 price) | Freeware; commercial use prohibited | Free, ZWO hardware only | MPL-2.0 (was PolyForm Noncommercial until 2026-10-26) |
 
 Read the focus-aid row as four different things rather than one shared
 capability: only SharpCap ships star-focus measurement.
@@ -345,13 +345,16 @@ managed-runtime affordance whose Win32/C++ equivalents are separate
 processes with IPC or manual DLL versioning, and it connects directly to
 109 plugins and 78 distinct commit-author addresses across 8,152 commits.
 RadukCapture has no plugin architecture, no public API, no CI, and a
-single-author history, and its **PolyForm Noncommercial 1.0.0 license is
-what most limits its continuity story**: not an open-source license under
-the OSD's no-discrimination criterion, therefore GPL-incompatible,
-unpackageable by Linux distributions, and unavailable to contributors whose
-employers run legal review. It is the right instrument against commercial
-appropriation and the wrong one if the goal is contributions, where
-MPL-2.0 matches and N.I.N.A. is the working proof.
+single-author history. Its license **was** what most limited its
+continuity story: PolyForm Noncommercial 1.0.0 is not an open-source
+license under the OSD's no-discrimination criterion, therefore
+GPL-incompatible, unpackageable by Linux distributions, and unavailable to
+contributors whose employers run legal review. That finding is the one
+thing in this comparison the project acted on directly: **it relicensed to
+MPL-2.0 on 2026-10-26**, matching N.I.N.A., which is the working proof in
+this category. What it gave up is the protection PolyForm bought, since a
+manufacturer may now ship the capture engine subject to publishing changes
+to the covered files.
 
 > **One claim deliberately absent.** No developer-productivity multiplier
 > appears on this page: no methodologically defensible study was found, and
@@ -436,9 +439,10 @@ scores of 1 are made of.
   floor that will refuse to configure on most current distributions.
 - **Windows-only by construction. No CI**, 13 tests touching 5 of 17
   `.cpp` files, and **no authentication on the remote-control path**.
-- **PolyForm Noncommercial** forecloses distribution packaging, corporate
+- ~~**PolyForm Noncommercial** forecloses distribution packaging, corporate
   contributors, and GPL compatibility at once, in a project whose bus
-  factor is already 1.
+  factor is already 1.~~ **Closed 2026-10-26: relicensed to MPL-2.0.** The
+  bus factor of 1 is unchanged; what changed is that it is now survivable.
 
 ---
 
@@ -490,9 +494,10 @@ that the mount backend already works and is preferred at startup while
 `DeviceHub` and the simulators are what is excluded; distribution split out
 of the very-hard phase 20, which is where it had been parked and is why it
 never moved; the CMake 4.2 floor; WebSocket fuzzing and authentication; and
-the PolyForm Noncommercial versus MPL-2.0 license decision. P5.6 sits in
-the live queue at position 5 on its safety dimension, and P5.7 is held out
-of the queue as an owner decision rather than an engineering task. The tier
+the PolyForm Noncommercial versus MPL-2.0 license decision, **taken on
+2026-10-26 in favour of MPL-2.0**. P5.6 sits in the live queue on its
+safety dimension, and P5.7 was held out of the queue as an owner decision
+rather than an engineering task. The tier
 is not reproduced here: read it in `docs/ROADMAP-Next.md`, and see
 [Roadmap and Phase History](Roadmap-and-Phase-History) for how the tiers
 are organized and what the phase record already holds.

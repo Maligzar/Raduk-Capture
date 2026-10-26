@@ -19,6 +19,7 @@
 #include "FrameSlot.h"
 #include "Sharpness.h"
 #include "ObservationRecord.h"
+#include "Paths.h"
 #include <string>
 #include <thread>
 #include <atomic>
@@ -34,7 +35,7 @@ namespace raduk::core {
 enum class LimitType { Frames, Time };
 
 struct CaptureConfig {
-    std::string outputDir   = "D:\\RadukCapture\\captures";
+    std::string outputDir   = Paths::Captures();
     std::string filePrefix  = "Capture";      // e.g. "Jupiter"
     std::string frameType   = "Light";        // Phase 44: Light/Dark/Flat/Bias
     LimitType   limitType   = LimitType::Frames;

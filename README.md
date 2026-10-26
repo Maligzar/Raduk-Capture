@@ -63,6 +63,11 @@ auto-detect, and will refuse to overwrite a site you entered by hand).
 
 ```ini
 [Rig]
+; Where the app keeps captures, logs, profiles and data. Leave it
+; blank and it resolves itself: an existing D:\RadukCapture is kept
+; so the original rig needs no edit, otherwise it sits beside the
+; executable. Set it to put the tree on the disk you want.
+DataRoot=
 SiteLatDeg=0.0
 SiteLonDeg=0.0
 SiteElevationM=0.0

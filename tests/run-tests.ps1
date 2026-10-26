@@ -45,6 +45,7 @@ $Tests = @(
     @{ Name = "dashboard_launch";  Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
     @{ Name = "ser_timestamp_midpoint"; Sources = @() }
+    @{ Name = "paths_resolution"; Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

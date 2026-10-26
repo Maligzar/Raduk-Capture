@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <sstream>
+#include "core/Paths.h"
 #include <iomanip>
 
 namespace raduk::net {
@@ -86,7 +87,7 @@ struct APEXTelemetry {
 
     // ── Storage ──────────────────────────────────────────────
     double      disk_free_gb    = 0.0;
-    std::string output_dir      = "D:\\RadukCapture\\captures";
+    std::string output_dir      = raduk::core::Paths::Captures();
     std::string file_prefix     = "Jupiter";
     std::string capture_file;
 

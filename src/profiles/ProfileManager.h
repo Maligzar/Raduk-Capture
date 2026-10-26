@@ -10,6 +10,7 @@
 #include <vector>
 #include <windows.h>
 #include <cstdio>
+#include "core/Paths.h"
 
 namespace raduk::profiles {
 
@@ -19,7 +20,7 @@ public:
 
     // Initialize — sets the profiles directory and loads all profiles.
     // Creates default profiles if directory is empty.
-    void Init(const std::string& profilesDir = "D:\\RadukCapture\\profiles") {
+    void Init(const std::string& profilesDir = raduk::core::Paths::Profiles()) {
         m_dir = profilesDir;
         CreateDirectoryA(m_dir.c_str(), nullptr);
         LoadAll();

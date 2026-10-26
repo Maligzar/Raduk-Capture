@@ -26,6 +26,7 @@
 #include <mutex>
 #include <fstream>
 #include <cstdio>
+#include "core/Paths.h"
 #include <cmath>
 #include <algorithm>
 #include <ctime>
@@ -69,7 +70,7 @@ inline double AngularSeparationArcsec(double ra1_h, double dec1_deg,
 
 class PointingModel {
 public:
-    explicit PointingModel(const std::string& dataDir = "D:\\RadukCapture\\data")
+    explicit PointingModel(const std::string& dataDir = raduk::core::Paths::Data())
         : m_dataDir(dataDir) {
         // Ensure data directory exists
         std::wstring wdir(dataDir.begin(), dataDir.end());

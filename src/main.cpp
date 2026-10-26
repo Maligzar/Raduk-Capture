@@ -48,6 +48,7 @@
 #include "core/CordWrap.h"
 #include "core/SkyMath.h"
 #include "core/TextConv.h"
+#include "core/Paths.h"
 #include "core/Readiness.h"
 #include "gui/ReadinessDialog.h"
 #include "gui/RigSetupDialog.h"
@@ -109,7 +110,7 @@ using namespace raduk::profiles;
 static FILE* g_log = nullptr;
 
 static void LogInit() {
-    g_log = fopen("D:\\RadukCapture\\raduk_log.txt", "w");
+    g_log = fopen(raduk::core::Paths::LogFile().c_str(), "w");
     if (!g_log) g_log = fopen("raduk_log.txt", "w");
     AllocConsole();
     freopen("CONOUT$", "w", stdout);
@@ -326,7 +327,7 @@ static LRESULT CALLBACK StartupDlgProc(HWND hDlg, UINT msg,
                 } else {
                     if (s->lblHint)
                         SetWindowTextW(s->lblHint,
-                            L"Build failed. Check D:\\RadukCapture\\build_emulator.bat");
+                            L"Build failed. Check build_emulator.bat in the source tree.");
                     return 0;
                 }
                 DestroyWindow(hDlg);
@@ -1062,7 +1063,7 @@ static int RunApp(bool useEmulator) {
     capturer.SetSessionLog(&slog);
     {
         CaptureConfig cfg;
-        cfg.outputDir        = "D:\\RadukCapture\\captures";
+        cfg.outputDir        = raduk::core::Paths::Captures();
         cfg.filePrefix       = "Jupiter";
         cfg.limitType        = LimitType::Frames;
         cfg.limitFrames      = 1000;
@@ -4047,7 +4048,7 @@ static int RunApp(bool useEmulator) {
 
         std::string outDir  = controls.GetOutputDir();
         std::string prefix  = controls.GetFilePrefix();
-        if (outDir.empty())  outDir  = "D:\\RadukCapture\\captures";
+        if (outDir.empty())  outDir  = raduk::core::Paths::Captures();
         if (prefix.empty())  prefix  = "Capture";
 
         // Timestamp: YYYYMMDD_HHMMSS

@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <ctime>
 #include <mutex>
+#include "Paths.h"
 
 namespace raduk::core {
 
@@ -36,15 +37,21 @@ public:
             time_t now = time(nullptr);
             struct tm t;
             localtime_s(&t, &now);
-            char buf[256];
-            sprintf_s(buf, "D:\\RadukCapture\\logs\\session_%04d%02d%02d_%02d%02d%02d.log",
+            // The stamp is fixed-length, so this buffer is provably
+            // big enough; the ROOT is not, which is why it is
+            // concatenated rather than printed into a fixed buffer.
+            // sprintf_s terminates the process on overflow, and the
+            // root stopped being a 20-character literal when it
+            // became configurable.
+            char stamp[32];
+            snprintf(stamp, sizeof(stamp), "session_%04d%02d%02d_%02d%02d%02d.log",
                 t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
                 t.tm_hour, t.tm_min, t.tm_sec);
-            logPath = buf;
+            logPath = Paths::Logs() + "\\" + stamp;
         }
 
         // Ensure directory exists
-        CreateDirectoryA("D:\\RadukCapture\\logs", nullptr);
+        Paths::EnsureSub("logs");
 
         m_file = fopen(logPath.c_str(), "w");
         if (!m_file) {

@@ -46,6 +46,7 @@ $Tests = @(
     @{ Name = "leoben_weather";    Sources = @() }
     @{ Name = "ser_timestamp_midpoint"; Sources = @() }
     @{ Name = "paths_resolution"; Sources = @() }
+    @{ Name = "ascom_driver_choice"; Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

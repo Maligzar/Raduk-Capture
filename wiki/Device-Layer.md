@@ -229,7 +229,7 @@ virtuals with safe defaults.
 |---------|--------|
 | `NexStarMount` | **Primary.** Direct serial, auto-detected port |
 | `MountEmulator` | Emulator builds. Closed-loop tracking simulation |
-| `ASCOMMount` | **Superseded.** Built and tested, kept for potential future use. All known CPWI/DeviceHub/ASIMount/JustAHub/simulator drivers are blacklisted in `FindCPWIDriver()` |
+| `ASCOMMount` | **Tried first on a hardware build**, with NexStar serial as the fallback. CPWI heads the preferred ProgID list. Discovery refuses ASIFocuser (not a telescope), ASIMount and the hubs (this rig: COM3, misconfiguration), and the simulators (so an unattended start never points at a pretend mount). `AscomProgId` in `rig.ini` names a driver directly and bypasses all of that |
 
 CPWI is not used. NexStar direct is faster, has no COM or registry
 dependencies, and supports every required command. A CPWI handoff path

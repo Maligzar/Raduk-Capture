@@ -68,6 +68,11 @@ auto-detect, and will refuse to overwrite a site you entered by hand).
 ; so the original rig needs no edit, otherwise it sits beside the
 ; executable. Set it to put the tree on the disk you want.
 DataRoot=
+; Pin an ASCOM telescope driver by ProgID and skip discovery.
+; Empty discovers, preferring CPWI. Set it to
+; ASCOM.Simulator.Telescope to exercise the ASCOM path with no
+; mount attached, which discovery will not do on its own.
+AscomProgId=
 SiteLatDeg=0.0
 SiteLonDeg=0.0
 SiteElevationM=0.0

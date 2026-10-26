@@ -305,7 +305,8 @@ Condensed from the help file's phase history. The full table is in
 | v2.0 | Matches the `v2.0` tag. Declared as `2.0.0` from 2026-10-25, ending a stretch in which the source, the help file and the tag all named different numbers |
 | v2.1 | Phase 48: an observation record beside every capture, and `Shift+G` framing recall |
 | v2.2 | B3: the browser dashboard shows the telescope's view, a small JPEG about twice a second; every dashboard socket gets a 500 ms send timeout |
-| v2.3 | **The current version.** `[DASH]` on the toolbar opens the browser dashboard with the access token already in it, and it connects by itself. No tag yet |
+| v2.3 | `[DASH]` on the toolbar opens the browser dashboard with the access token already in it, and it connects by itself |
+| v2.4 | **The current version.** The dashboard from any device on the home network (`WsLan`, `WsLanOpen`), and it stays connected; weather and sky from Leoben into the ADC, the status window, the observation record and the assistant. No tag yet |
 
 ### Two version boundaries that invalidate old numbers
 

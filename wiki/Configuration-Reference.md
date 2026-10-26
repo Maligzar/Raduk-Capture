@@ -63,6 +63,10 @@ FilterHighNm=700
 | `GuideRateArcsecPerSec` | 7.5 | Assumed guide rate. Calibration **measures** the real one and warns if they disagree by more than 2× |
 | `MountPort` | *(empty)* | Pin a COM port. Empty means auto-detect; a stale value falls back to auto-detect rather than failing |
 | `WsToken` | *(generated)* | The [dashboard's](Telemetry-and-Dashboard) access token: 64 hex characters, made on first launch. Under 32 hex characters and the server admits nobody. Delete it to get a new one |
+| `WsLan` | 0 | `1` = bind `0.0.0.0` instead of loopback. Same as `RADUK_WS_LAN=1`; either turns it on |
+| `WsLanOpen` | 0 | `1` = a peer on a **private** address (10/8, 172.16/12, 192.168/16, 169.254/16) is admitted without the token. Needs `WsLan`. Loopback and public peers still need it -- `ws::PeerExemptFromToken` is the whole rule. The owner's decision for a trusted home network, 2026-10-25 |
+| `LeobenUrl` | *(empty)* | `http://host:port` of Leoben, the source of [weather and sky conditions](Telemetry-and-Dashboard#weather-from-leoben). Empty = off. https, paths and users are refused |
+| `LeobenToken` | *(empty)* | Leoben's `LEOBEN_API_TOKEN`, sent as `Authorization: Bearer`. Never logged |
 
 #### Filter — the one that silently changes a number
 
@@ -277,7 +281,7 @@ defaults cannot disagree.
 
 | Variable | Effect |
 |----------|--------|
-| `RADUK_WS_LAN=1` | Expose the [telemetry server](Telemetry-and-Dashboard) on the LAN instead of loopback. The command set can slew the mount; every connection still needs `WsToken`. Trusted networks only, never port-forwarded |
+| `RADUK_WS_LAN=1` | Expose the [telemetry server](Telemetry-and-Dashboard) on the LAN instead of loopback -- the same as `WsLan=1` in `rig.ini`. The command set can slew the mount; every connection needs `WsToken` unless `WsLanOpen=1` exempts private-network peers. Never port-forwarded |
 | `RADUK_EMU_*` | Emulator simulation switches — see [Emulator and Testing](Emulator-and-Testing) |
 
 ---

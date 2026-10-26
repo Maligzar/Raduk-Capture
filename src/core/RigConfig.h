@@ -252,6 +252,24 @@ struct RigConfig {
         WritePrivateProfileStringA("Rig", "WsToken", wsToken.c_str(), IniPath().c_str());
     }
 
+    // The home network (owner's decision, 2026-10-25). Hand-set in
+    // rig.ini and, like WsToken, never written by Save().
+    //   WsLan=1      listen on the home network, not only this PC.
+    //                RADUK_WS_LAN=1 in the environment still does it too.
+    //   WsLanOpen=1  a client on a PRIVATE network address needs no
+    //                token. Loopback and public addresses still do --
+    //                ws::PeerExemptFromToken is the whole rule.
+    bool wsLan     = false;
+    bool wsLanOpen = false;
+
+    // Leoben, the owner's assistant on another PC, as a source of
+    // weather and sky conditions. Empty URL = off. The token is
+    // Leoben's LEOBEN_API_TOKEN; never log it.
+    //   LeobenUrl=http://elminster:5000
+    //   LeobenToken=<Leoben's API token>
+    std::string leobenUrl;
+    std::string leobenToken;
+
     // Singleton — loads rig.ini on first access
     static RigConfig& Get() {
         static RigConfig cfg = LoadFromDisk();
@@ -415,6 +433,10 @@ private:
             cfg.mountPort = pbuf;
         }
         cfg.wsToken = rs("WsToken", "");
+        cfg.wsLan       = rs("WsLan", "0") == "1";
+        cfg.wsLanOpen   = rs("WsLanOpen", "0") == "1";
+        cfg.leobenUrl   = rs("LeobenUrl", "");
+        cfg.leobenToken = rs("LeobenToken", "");
 
         // Sanity clamps — a corrupted INI must not produce absurd pulse
         // sizing or site math

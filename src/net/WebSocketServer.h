@@ -65,6 +65,7 @@ struct WsClient {
     ULONGLONG acceptedMs = 0;     // for the handshake deadline
     ws::FrameParser parser;       // carries fragment state between reads
     bool    wantsPreview = false; // B3: asked for the JPEG preview
+    uint32_t peerIpv4 = 0;        // host byte order; 0 = not IPv4 / unknown
 };
 
 // ── WebSocketServer ───────────────────────────────────────────
@@ -110,6 +111,12 @@ public:
     // (cross-site WebSocket hijacking). The token is what a hostile page
     // cannot know.
     void SetRequiredToken(const std::string& token) { m_token = token; }
+
+    // WsLanOpen in rig.ini: a client on a PRIVATE home-network address
+    // may connect without the token (ws::PeerExemptFromToken says
+    // exactly who). Loopback and public addresses still need it. Set
+    // BEFORE Start(), like the token.
+    void SetLanOpen(bool open) { m_lanOpen = open; }
 
     // Binds 127.0.0.1 by default. Set bindAny=true only on a trusted LAN
     // (remote APEX dashboard); the token is required either way.
@@ -163,6 +170,7 @@ private:
     std::vector<WsClient>               m_clients;
     std::function<void(const std::string&)> m_onCommand;
     std::string                         m_token;
+    bool                                m_lanOpen = false;
 };
 
 } // namespace raduk::net

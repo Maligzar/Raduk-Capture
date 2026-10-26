@@ -79,6 +79,22 @@ public:
         // or without a corrector in the train: an ADC cancels the colour
         // smear, nothing cancels the extra air.
         raduk::core::SkyQuality sky;
+
+        // Weather from Leoben on the home network. Plain fields rather
+        // than the client's own type, so this window does not depend on
+        // the network code. configured=false hides the row entirely.
+        struct Weather {
+            bool   configured = false;  // LeobenUrl is set
+            bool   fresh      = false;  // a reading under 30 minutes old
+            int    ageMin     = -1;
+            int    score      = -1;     // Leoben's imaging score, 0-100
+            char   verdict[12]= {};     // GO / CAUTION / NO-GO
+            double cloudPct   = 0;
+            double windMph    = 0;
+            double tempF      = 0;
+            char   dewRisk[12]= {};
+            char   state[40]  = {};     // why there is no fresh reading
+        } wx;
     };
 
     // One fixed drive, as the scanner last saw it.
@@ -416,6 +432,44 @@ private:
             strcpy_s(r.rightLabel, "SEE");
             snprintf(r.rightValue, sizeof(r.rightValue), "x%.2f", sk.seeingFactor);
             r.rightClr = r.fill;
+            rows.push_back(r);
+        }
+
+        // ── The weather, from Leoben ────────────────────────────
+        //
+        // The bar is Leoben's imaging score, so "is tonight any good"
+        // reads from across the room like the SKY row above it. Units
+        // are Leoben's own -- mph and F -- so this row and Leoben's
+        // page show the same numbers for the same sky.
+        if (m_data.wx.configured) {
+            const auto& w = m_data.wx;
+            Row r;
+            strcpy_s(r.label, "WX");
+            if (w.fresh) {
+                r.pct = w.score < 0 ? 0.0f : (float)w.score;
+                const bool go = strcmp(w.verdict, "GO") == 0;
+                const bool caution = strcmp(w.verdict, "CAUTION") == 0;
+                r.fill = go ? Theme::NV(RGB(0, 200, 110))
+                       : caution ? Theme::NV(RGB(255, 170, 0))
+                                 : Theme::NV(RGB(255, 60, 90));
+                snprintf(r.barText, sizeof(r.barText),
+                         "%s  cloud %.0f%%  wind %.0f mph  dew %s  %d min",
+                         w.verdict[0] ? w.verdict : "--", w.cloudPct, w.windMph,
+                         w.dewRisk[0] ? w.dewRisk : "?", w.ageMin);
+                strcpy_s(r.rightLabel, "AIR");
+                snprintf(r.rightValue, sizeof(r.rightValue), "%.0fF", w.tempF);
+                r.rightClr = strcmp(w.dewRisk, "warning") == 0 ? Theme::NV(RGB(255, 60, 90))
+                           : strcmp(w.dewRisk, "elevated") == 0 ? Theme::NV(RGB(255, 170, 0))
+                                                                : Theme::NV(RGB(0, 229, 255));
+            } else {
+                r.pct = 0.0f;
+                r.fill = Theme::NV(RGB(60, 70, 85));
+                snprintf(r.barText, sizeof(r.barText), "Leoben: %s",
+                         w.state[0] ? w.state : "no reading");
+                strcpy_s(r.rightLabel, "AIR");
+                strcpy_s(r.rightValue, "--");
+                r.rightClr = Theme::NV(RGB(120, 136, 156));
+            }
             rows.push_back(r);
         }
 

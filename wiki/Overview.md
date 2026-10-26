@@ -166,8 +166,9 @@ the capture PC, and only the finished stack transfers. Telemetry payloads
 are tiny and work over WiFi. The RTSP preview stream is designed but not
 built; see [Roadmap and Phase History](Roadmap-and-Phase-History).
 
-The telemetry server binds **loopback only** by default. Set
-`RADUK_WS_LAN=1` to expose it on a trusted LAN. See
+The telemetry server binds **loopback only** by default. `WsLan=1` in
+`rig.ini` (or `RADUK_WS_LAN=1`) exposes it on a trusted home network, and
+`WsLanOpen=1` lets devices there connect without the token. See
 [Telemetry and Dashboard](Telemetry-and-Dashboard).
 
 ---

@@ -144,7 +144,13 @@ void CaptureThread::Run() {
 
             // Fill metadata
             slot->dataSize = frameSizeBytes;
-            slot->timestamp = Timestamp::Now();
+            // Stamp the midpoint of integration, not arrival. The SER
+            // trailer is the only consumer of this value as an absolute
+            // time; the fps figure below and lastFrameTimestamp both use
+            // differences, where a constant offset cancels. It stops
+            // cancelling only while the exposure is being changed, which
+            // perturbs one interval by half the change and nothing after.
+            slot->timestamp = Timestamp::ExposureMidpointUs(Timestamp::Now(), expMs);
             slot->frameNumber = m_stats.framesCaptured.load(std::memory_order_relaxed);
             slot->width = roiWidth;
             slot->height = roiHeight;

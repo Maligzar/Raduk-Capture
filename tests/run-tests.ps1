@@ -44,6 +44,7 @@ $Tests = @(
     @{ Name = "preview_frame";     Sources = @("src\net\PreviewStreamer.cpp") }
     @{ Name = "dashboard_launch";  Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
+    @{ Name = "ser_timestamp_midpoint"; Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

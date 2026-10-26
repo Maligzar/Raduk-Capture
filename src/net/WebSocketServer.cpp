@@ -290,7 +290,9 @@ void WebSocketServer::Run() {
         // New connection?
         if (m_listenSock != INVALID_SOCKET &&
             FD_ISSET(m_listenSock, &readSet)) {
-            SOCKET cs = accept(m_listenSock, nullptr, nullptr);
+            sockaddr_in peer{};
+            int peerLen = sizeof(peer);
+            SOCKET cs = accept(m_listenSock, (sockaddr*)&peer, &peerLen);
             if (cs != INVALID_SOCKET) {
                 std::lock_guard<std::mutex> lk(m_clientMutex);
                 if (m_clients.size() >= MAX_CLIENTS) {
@@ -303,6 +305,8 @@ void WebSocketServer::Run() {
                     setsockopt(cs, SOL_SOCKET, SO_SNDTIMEO,
                                (const char*)&sendTimeout, sizeof(sendTimeout));
                     WsClient wc; wc.sock = cs; wc.acceptedMs = GetTickCount64();
+                    wc.peerIpv4 = (peer.sin_family == AF_INET)
+                                ? ntohl(peer.sin_addr.s_addr) : 0;
                     m_clients.push_back(std::move(wc));
                     printf("[WSServer] Client connected (%d total)\n",
                            (int)m_clients.size());
@@ -355,13 +359,22 @@ void WebSocketServer::HandleHandshake(WsClient& c) {
         c.closed = true;
         return;
     }
-    if (!ws::TokenEquals(m_token, h.token)) {
+    const bool tokenOk = ws::TokenEquals(m_token, h.token);
+    const bool lanExempt = !tokenOk && ws::PeerExemptFromToken(m_lanOpen, c.peerIpv4);
+    if (!tokenOk && !lanExempt) {
         printf("[WSServer] Refused a client: %s\n",
                m_token.empty() ? "no WsToken is configured, so nobody is admitted"
                                : "missing or wrong token");
         Refuse(c.sock, 401);
         c.closed = true;
         return;
+    }
+    if (lanExempt) {
+        // The peer's address, which is the owner's own device on their
+        // own network -- never the token, which this client did not send.
+        printf("[WSServer] Admitted %u.%u.%u.%u without a token (home network, WsLanOpen)\n",
+               c.peerIpv4 >> 24, (c.peerIpv4 >> 16) & 0xFF,
+               (c.peerIpv4 >> 8) & 0xFF, c.peerIpv4 & 0xFF);
     }
 
     // Compute accept value: SHA1(key + GUID) | base64

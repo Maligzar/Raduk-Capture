@@ -227,6 +227,24 @@ int main() {
     }
     bare.Stop();
 
+    printf("\n5. WsLanOpen does not open the door to this PC's own browser\n");
+    {
+        WebSocketServer lan;
+        lan.SetRequiredToken(token);
+        lan.SetLanOpen(true);
+        lan.Start(kPort, false);
+        SOCKET t = Dial();
+        SendAll(t, Request("/"));
+        Check(ReadResponse(t).rfind("HTTP/1.1 401", 0) == 0,
+              "LAN-open server, loopback client, no token: still 401");
+        closesocket(t);
+        SOCKET u = Dial();
+        SendAll(u, Request("/?token=" + token));
+        Check(ReadResponse(u).rfind("HTTP/1.1 101", 0) == 0, "  and with the token: 101");
+        closesocket(u);
+        lan.Stop();
+    }
+
     printf("\n%s\n", g_fail == 0 ? "ALL CHECKS PASSED" : "SOME CHECKS FAILED");
     return g_fail == 0 ? 0 : 1;
 }

@@ -22,6 +22,9 @@
 
 #pragma once
 #include <cmath>
+#include <cstdint>
+#include <ctime>
+#include <mutex>
 #include <string>
 #include <cstdio>
 #include "RigConfig.h"
@@ -38,6 +41,13 @@ struct ADCResult {
     // nothing on screen says which.
     float bandLowNm        = 400.0f;
     float bandHighNm       = 700.0f;
+    // The air the figure was computed through, and whether it was
+    // measured (Leoben's live conditions) or the standard atmosphere
+    // for the site's elevation. Same reason as the band: one number,
+    // two possible meanings.
+    float airPressureHpa   = 0.0f;
+    float airTempK         = 0.0f;
+    bool  airLive          = false;
 
     // Severity label for UI display
     const char* SeverityLabel() const {
@@ -49,8 +59,62 @@ struct ADCResult {
     }
 };
 
+// The air between the telescope and the target.
+struct ADCAir {
+    double pressureHpa = 0.0;   // STATION pressure, at the site's elevation
+    double tempK       = 288.0;
+    bool   live        = false;
+};
+
 class ADCAssistant {
 public:
+    // ── Live air, from Leoben ─────────────────────────────────
+    //
+    // Dispersion scales with P/T, and the model below used the standard
+    // atmosphere for the site's elevation and a fixed 15 C. A real
+    // night differs: a cold winter night at high pressure carries
+    // several percent more dispersion than the model said, a warm low
+    // the reverse. When Leoben's conditions are fresh, main.cpp passes
+    // them in here -- already reduced to STATION pressure (see
+    // LeobenWeather.h, where the trap is) -- and Compute uses them.
+    // Older than 30 minutes, and the standard atmosphere is back.
+    static void SetLiveAir(double stationHpa, double tempK, int64_t whenUnix) {
+        std::lock_guard<std::mutex> lk(s_airMu);
+        // Physically plausible only: a parse that went wrong must fall
+        // back to the model rather than put a nonsense pressure into
+        // the advice.
+        if (stationHpa < 500.0 || stationHpa > 1100.0 || tempK < 200.0 || tempK > 330.0) return;
+        s_liveHpa = stationHpa; s_liveTempK = tempK; s_liveWhen = whenUnix;
+    }
+    static void ClearLiveAir() {
+        std::lock_guard<std::mutex> lk(s_airMu);
+        s_liveWhen = 0;
+    }
+    static constexpr int64_t kLiveAirMaxAgeSec = 30 * 60;
+
+    // The standard atmosphere at the site's elevation, 15 C.
+    static ADCAir ModelAir() {
+        ADCAir a;
+        const double h = RigConfig::Get().siteElevationM;
+        a.pressureHpa = 1013.25 * std::pow(1.0 - 2.25577e-5 * h, 5.25588);
+        a.tempK = 288.0;
+        a.live = false;
+        return a;
+    }
+
+    // What Compute will use right now.
+    static ADCAir CurrentAir(int64_t nowUnix) {
+        {
+            std::lock_guard<std::mutex> lk(s_airMu);
+            if (s_liveWhen > 0 && nowUnix >= s_liveWhen &&
+                nowUnix - s_liveWhen <= kLiveAirMaxAgeSec) {
+                ADCAir a; a.pressureHpa = s_liveHpa; a.tempK = s_liveTempK; a.live = true;
+                return a;
+            }
+        }
+        return ModelAir();
+    }
+
     // ── Main computation ──────────────────────────────────────
     // altitudeDeg: telescope altitude above horizon (0–90°)
     // Returns R-B atmospheric dispersion in arcseconds.
@@ -70,8 +134,15 @@ public:
     // Delta = R_blue - R_red
     //
     static ADCResult Compute(double altitudeDeg) {
+        return Compute(altitudeDeg, CurrentAir((int64_t)std::time(nullptr)));
+    }
+
+    static ADCResult Compute(double altitudeDeg, const ADCAir& air) {
         ADCResult r;
         r.altitudeDeg = (float)altitudeDeg;
+        r.airPressureHpa = (float)air.pressureHpa;
+        r.airTempK       = (float)air.tempK;
+        r.airLive        = air.live;
 
         // Clamp to valid range
         if (altitudeDeg <= 0.0 || altitudeDeg > 90.0) {
@@ -99,9 +170,11 @@ public:
         // with pressure, so reported figures were about 3.5% low at this
         // site. Small in absolute terms (0.2" on a 5.3" dispersion) but
         // wrong, and wrong by more at any other elevation.
-        const double h = RigConfig::Get().siteElevationM;
-        const double P = 1013.25 * std::pow(1.0 - 2.25577e-5 * h, 5.25588);
-        constexpr double T = 288.0;   // temperature K (~15°C nominal)
+        //
+        // The standard-atmosphere figure is now ModelAir(); live air
+        // from Leoben replaces it when fresh (SetLiveAir above).
+        const double P = air.pressureHpa;
+        const double T = air.tempK;
 
         // Edlen (1966) formula for refractive index of dry air at STP,
         // simplified two-term Cauchy expansion:
@@ -175,6 +248,11 @@ public:
 
 private:
     static constexpr double ADC_PI = 3.14159265358979323846;
+
+    static inline std::mutex s_airMu;
+    static inline double     s_liveHpa   = 0.0;
+    static inline double     s_liveTempK = 288.0;
+    static inline int64_t    s_liveWhen  = 0;    // 0 = no live air
 };
 
 } // namespace raduk::core

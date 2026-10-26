@@ -367,6 +367,40 @@ inline bool TokenLooksStrong(const std::string& t) {
     return true;
 }
 
+// ── LAN peers without a token (owner's decision, 2026-10-25) ─
+//
+// With WsLan and WsLanOpen set in rig.ini, a client on the home
+// network may connect without the token: the owner judged the network
+// trusted and wanted any device on it -- Leoben on Elminster, a
+// tablet -- to reach the dashboard with nothing to type. The cost was
+// stated when it was chosen: any web page open in a browser on that
+// network can then send mount commands.
+//
+// What stays guarded, at no cost to that decision:
+//   - LOOPBACK still needs the token. A page in a browser on the
+//     capture PC itself is the case P5.6 was about, and [DASH] supplies
+//     the token there anyway.
+//   - Only PRIVATE addresses are let in: 10/8, 172.16/12, 192.168/16
+//     and link-local 169.254/16. A public address -- the port forwarded
+//     by mistake, or a router doing something unexpected -- still needs
+//     the token.
+//
+// `ipv4` is in host byte order: 192.168.1.17 is 0xC0A80111.
+inline bool IsPrivateLanPeer(uint32_t ipv4) {
+    const uint32_t a = ipv4 >> 24, b = (ipv4 >> 16) & 0xFF;
+    if (a == 10) return true;
+    if (a == 172 && b >= 16 && b <= 31) return true;
+    if (a == 192 && b == 168) return true;
+    if (a == 169 && b == 254) return true;
+    return false;
+}
+
+// Whether a client may skip the token. The token itself is checked
+// first and separately by the server; this is only the exemption.
+inline bool PeerExemptFromToken(bool lanOpen, uint32_t peerIpv4) {
+    return lanOpen && IsPrivateLanPeer(peerIpv4);
+}
+
 // ── B3: the preview subscription ─────────────────────────────
 //
 // The JPEG preview goes only to clients that ask for it, so a client

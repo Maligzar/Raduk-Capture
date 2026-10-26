@@ -106,6 +106,22 @@ struct ObservationRecord {
     double      siteLatDeg = kObsUnknown;
     double      siteLonDeg = kObsUnknown;
 
+    // Conditions at the start of the run, from Leoben's weather service
+    // on the home network. Absent when Leoben was off or its last
+    // reading was more than 30 minutes old -- a stale sky is worse in a
+    // record than none, because nothing would say it was stale.
+    std::string wxSource;                     // "leoben"
+    double      wxAgeMin     = kObsUnknown;   // age of the reading at start
+    double      cloudPct     = kObsUnknown;
+    double      airTempC     = kObsUnknown;
+    double      humidityPct  = kObsUnknown;
+    double      windMs       = kObsUnknown;
+    double      gustMs       = kObsUnknown;
+    double      dewPointC    = kObsUnknown;
+    double      pressureHpa  = kObsUnknown;   // STATION pressure, at the site
+    double      imagingScore = kObsUnknown;   // Leoben's 0-100
+    std::string wxVerdict;                    // GO / CAUTION / NO-GO
+
     bool HasMountPosition() const {
         return ObsKnown(raHours) && ObsKnown(decDeg);
     }
@@ -242,6 +258,7 @@ inline std::string SerializeObservation(const ObservationRecord& r) {
     o += "#       gain=GAIN focuser_pos=FOCUSPOS focuser_temp_c=FOCTEMP\n";
     o += "#       ra_hours*15=RA dec_deg=DEC bin=XBINNING/YBINNING\n";
     o += "#       colour=BAYERPAT site_lat_deg=SITELAT site_lon_deg=SITELONG\n";
+    o += "#       air_temp_c=AMBTEMP humidity_pct=HUMIDITY pressure_hpa=PRESSURE\n";
     o += "#\n";
 
     char fv[48];
@@ -290,6 +307,18 @@ inline std::string SerializeObservation(const ObservationRecord& r) {
 
     Num(o, "site_lat_deg", r.siteLatDeg, 4);
     Num(o, "site_lon_deg", r.siteLonDeg, 4);
+
+    Str(o, "wx_source",     r.wxSource);
+    Num(o, "wx_age_min",    r.wxAgeMin,     1);
+    Num(o, "cloud_pct",     r.cloudPct,     0);
+    Num(o, "air_temp_c",    r.airTempC,     1);
+    Num(o, "humidity_pct",  r.humidityPct,  0);
+    Num(o, "wind_ms",       r.windMs,       1);
+    Num(o, "gust_ms",       r.gustMs,       1);
+    Num(o, "dew_point_c",   r.dewPointC,    1);
+    Num(o, "pressure_hpa",  r.pressureHpa,  1);
+    Num(o, "imaging_score", r.imagingScore, 0);
+    Str(o, "wx_verdict",    r.wxVerdict);
     return o;
 }
 
@@ -393,6 +422,17 @@ inline bool ParseObservation(const std::string& text, ObservationRecord& r,
         else if (k == "airmass_max")   ToDouble(v, r.airmassMax);
         else if (k == "site_lat_deg")  ToDouble(v, r.siteLatDeg);
         else if (k == "site_lon_deg")  ToDouble(v, r.siteLonDeg);
+        else if (k == "wx_source")     r.wxSource = v;
+        else if (k == "wx_age_min")    ToDouble(v, r.wxAgeMin);
+        else if (k == "cloud_pct")     ToDouble(v, r.cloudPct);
+        else if (k == "air_temp_c")    ToDouble(v, r.airTempC);
+        else if (k == "humidity_pct")  ToDouble(v, r.humidityPct);
+        else if (k == "wind_ms")       ToDouble(v, r.windMs);
+        else if (k == "gust_ms")       ToDouble(v, r.gustMs);
+        else if (k == "dew_point_c")   ToDouble(v, r.dewPointC);
+        else if (k == "pressure_hpa")  ToDouble(v, r.pressureHpa);
+        else if (k == "imaging_score") ToDouble(v, r.imagingScore);
+        else if (k == "wx_verdict")    r.wxVerdict = v;
         // anything else: a later version's field, ignored
     }
 

@@ -97,6 +97,11 @@ struct AISessionState {
 
     // Output directory (for captures scan)
     std::string outputDir;
+
+    // The sky, from Leoben's weather service on the home network. Empty
+    // when there is no fresh reading -- then the model is told it does
+    // not know, rather than left to guess at tonight's weather.
+    std::string weather;
 };
 
 class AIContextBuilder {
@@ -707,6 +712,10 @@ public:
             }
         }
         ss << "EAF: " << s.eafPos << "  Temp: " << s.eafTempC << "°C\n";
+        if (!s.weather.empty())
+            ss << "Weather (Leoben, measured): " << s.weather << "\n";
+        else
+            ss << "Weather: unknown - no current reading. Do not guess at the sky.\n";
         ss << "Recording: " << (s.recording ? "YES" : "NO");
         if (s.recording) {
             ss << "  Frames: " << s.framesRecorded

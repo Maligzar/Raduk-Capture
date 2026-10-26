@@ -1226,6 +1226,7 @@ Capture health and disk space, one bar per row.
 |---|---|---|
 | `REC` | How much of the capture drive's free space this recording has used | Live FPS |
 | `BUF` | Ring-buffer slots in use — amber past 50%, red past 80% | Frames lost |
+| `WX` | Leoben's imaging score, green GO / amber CAUTION / red NO-GO, with cloud, wind, dew risk and the reading's age. Only when `LeobenUrl` is set | Air temperature, coloured by dew risk |
 | one per drive | Space **used** | Percent **free** |
 
 **`REC` is bytes written by the current recording**, not disk usage. It
@@ -1590,9 +1591,89 @@ such a page cannot know.
   `rig.ini` was edited by hand into something too weak to trust. RadukCapture
   then refuses every connection rather than accept it. Delete the line and
   restart to have a new one generated.
-- **Connecting from another machine** still also needs `RADUK_WS_LAN=1` set
-  on the capture PC. Use it on a trusted home network only, and never forward
-  the port to the internet.
+- **Connecting from another machine:** see the next section.
+
+### From another device on your home network
+
+Leoben on Elminster, a tablet, a laptop -- anything on the same network
+can use the dashboard, with nothing to type but the capture PC's name.
+
+1. In `rig.ini` on the capture PC, under `[Rig]`, set `WsLan=1` (listen on
+   the home network, not only this PC) and `WsLanOpen=1` (a device on the
+   home network needs no token). Restart RadukCapture. The log confirms it:
+   `WebSocket server on 0.0.0.0:8765 (home network ...) - private-network
+   clients need no token`.
+2. Let it through Windows Firewall, once, from an administrator PowerShell
+   on the capture PC. The rule covers home networks (the **Private**
+   profile) only:
+
+   ```
+   New-NetFirewallRule -DisplayName "RadukCapture dashboard (home network)" -Direction Inbound -Protocol TCP -LocalPort 8765 -Profile Private -Action Allow
+   ```
+
+   If Windows still blocks it, check the network itself is set to Private:
+   `Get-NetConnectionProfile`.
+3. Open the dashboard on the other device -- through Leoben (**Astro ->
+   RadukCapture**), or the file itself -- and in the RadukCapture tab enter
+   `ws://<capture PC's name or IP>:8765` once and press **CONNECT**.
+
+From then on it **stays connected**: if RadukCapture is closed, or not
+started yet, the dashboard waits and retries -- after 3 s, then 5, 10, 20
+and every 30 -- and connects as soon as RadukCapture is up. Only
+**STOP RETRYING** / **DISCONNECT** stops that. When Leoben serves the page,
+the address is saved on Leoben, so every device that opens the dashboard
+through it finds the rig without being told.
+
+**What `WsLanOpen` costs, said plainly:** any web page open in any browser
+on your network can then send the rig commands, including mount moves. That
+was judged acceptable for a trusted home network. Two things stay closed
+regardless: a browser on the capture PC itself still needs the token
+(`[DASH]` supplies it), and an address from outside your network -- the
+port forwarded by mistake -- still needs it too. Never forward port 8765.
+
+It does not trouble a game on the same network: telemetry is a few hundred
+bytes twice a second, and the preview picture about 11 KB a second, only
+while a dashboard is open.
+
+---
+
+## Weather from Leoben
+
+Leoben, the assistant on Elminster, already runs a careful weather service
+for the site: several forecast sources blended, an imaging score, wind
+stability, dew risk. RadukCapture reads its current conditions every 10
+minutes rather than keeping a second weather service of its own.
+
+**Setting it up**
+
+- On Elminster, Leoben has to accept requests from the network: in
+  `leoben.config.json`, `server.expose_lan` set to `true`, and a
+  `LEOBEN_API_TOKEN` in its `.env`. Leoben refuses to listen on the network
+  without both.
+- On the capture PC, in `rig.ini`: `LeobenUrl=http://elminster:5000` (or
+  Elminster's address) and `LeobenToken=` the same token.
+
+**What it is used for**
+
+- **The ADC.** Dispersion scales with air pressure and temperature, and the
+  model has used a standard atmosphere for your elevation and a fixed 15 C.
+  With Leoben's reading it uses the real air. Leoben reports sea-level
+  pressure, as weather services do; RadukCapture converts it to the
+  pressure at your elevation before using it -- the sea-level figure would
+  overstate dispersion by several percent. The log says when live air is in
+  use: `[LEOBEN] ADC now uses live air: ... hPa at the site`.
+- **The status window's `WX` row** -- see **The status window**.
+- **The observation record** written beside each capture keeps the cloud,
+  temperature, humidity, wind, dew point, pressure and Leoben's verdict at
+  the start of the run.
+- **The assistant** is told the measured conditions, so "is tonight any
+  good?" gets a real answer -- or is told plainly that it does not know.
+
+**When Leoben is off** -- Elminster asleep, or busy with a game -- nothing
+breaks. RadukCapture asks again every 2 minutes, the `WX` row says why there
+is no reading, and after 30 minutes without one the ADC goes back to the
+standard atmosphere and the record leaves the weather out rather than write
+a stale sky. The request is a few hundred bytes every 10 minutes.
 
 ---
 
@@ -2437,6 +2518,10 @@ real site is stored. Most of it is written for you.
 | `LastRoiWidth` / `LastRoiHeight` / `LastBitDepth` | Capture format to restore at launch. See **What is remembered between sessions**. |
 | `LastGain` / `LastExposureMs` / `LastGamma` / `LastWbRed` / `LastWbBlue` / `LastUsb` | Camera state to restore. Each is ignored individually if out of range. |
 | `WsToken` | The browser dashboard's access token. Generated on first launch; see **The browser dashboard**. Delete the line to have a new one made. Never paste it anywhere public. |
+| `WsLan` | `1` = the dashboard server listens on the home network too, not only this PC. Off by default. See **From another device on your home network**. |
+| `WsLanOpen` | `1` = a device on the home network (a private address) needs no token. Only with `WsLan=1`. This PC and outside addresses still need it. |
+| `LeobenUrl` | Where Leoben is, as `http://name:port` -- for example `http://elminster:5000`. Empty = no weather from Leoben. See **Weather from Leoben**. |
+| `LeobenToken` | Leoben's API token (its `LEOBEN_API_TOKEN`). Never logged. |
 | `FilterLowNm` / `FilterHighNm` | Band edges in nanometres; these are what the ADC model actually uses. Edit them for a filter that is not a preset — the SETUP picker will then show blank rather than overwrite them. Both are reset to the UV/IR cut default if either falls outside 300–1200nm, or the band is narrower than 10nm, because a nonsense band would push the Edlen model outside its domain and return an authoritative-looking meaningless figure. |
 
 ---
@@ -2600,7 +2685,8 @@ order.
 | v2.1 | 48 | Observation record beside every capture; `Shift+G` recalls a past capture's framing |
 | v2.2 | B3 | The browser dashboard shows the telescope's view, about twice a second |
 | v2.3 | — | `[DASH]` opens the browser dashboard already signed in |
+| v2.4 | — | The dashboard from any device on the home network, staying connected; weather and sky from Leoben into the ADC, the status window, the observation record and the assistant |
 
 ---
 
-*RadukCapture Help v2.3 — Updated after each release*
+*RadukCapture Help v2.4 — Updated after each release*

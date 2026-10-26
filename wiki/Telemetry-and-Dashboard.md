@@ -43,7 +43,28 @@ wsServer.Start(8765, wsLan);
 
 **Set `RADUK_WS_LAN=1` only on a trusted LAN.** There is no TLS. If the
 capture machine is on a network you do not fully control, leave it on
-loopback and use a reverse tunnel.
+loopback and use a reverse tunnel. `WsLan=1` in `rig.ini` does the same as
+the environment variable, and is how this rig is set up.
+
+### The home network without a token (`WsLanOpen`, 2026-10-25)
+
+The owner's decision: on a trusted home network, a device should reach the
+dashboard with nothing to type. With `WsLan=1` and `WsLanOpen=1`, a peer on
+a **private** address -- 10/8, 172.16/12, 192.168/16, link-local 169.254/16
+-- is admitted without the token, and the server logs the address it let in.
+
+The cost was stated when it was chosen: any web page open in a browser
+anywhere on that network can send mount commands. Two things stay closed
+at no cost to the decision:
+
+- **Loopback still needs the token.** A page in a browser on the capture PC
+  is the case P5.6 was about, and `[DASH]` supplies the token there.
+- **Public addresses still need it.** If the port were ever forwarded, a
+  connection from outside meets the same 401 as before.
+
+The rule is `ws::PeerExemptFromToken` in `src/net/WsProtocol.h`, gated by
+`tests/leoben_weather.cpp` and a section of `tests/ws_server_loopback.cpp`.
+The firewall rule for it is in the help file.
 
 ### Every connection needs a token (P5.6)
 
@@ -252,9 +273,35 @@ recommended before the repository was advertised publicly and notes that
 the mitigation in later commits does not by itself complete it. Read §2
 directly before treating the repository as fully sanitised.
 
-**The network surface is small and unauthenticated by design.** One
-WebSocket port, loopback by default, with a command set that can move the
-telescope. Treat `RADUK_WS_LAN=1` as the security decision it is.
+**The network surface is small.** One WebSocket port, loopback by default
+and token-gated, with a command set that can move the telescope. Treat
+`WsLan` -- and `WsLanOpen` above all -- as the security decisions they are.
+
+---
+
+## Weather from Leoben
+
+RadukCapture is a *client* of Leoben as well as a server to it. With
+`LeobenUrl` and `LeobenToken` set, `LeobenClient` (`src/net/LeobenClient.h`)
+fetches `GET /weather/current` every 10 minutes -- every 2 after a failure
+-- with 5 s timeouts on its own thread, and keeps the last good reading.
+Parsing, unit conversion and the URL rules are pure, in
+`src/net/LeobenWeather.h`, gated by `tests/leoben_weather.cpp`.
+
+A reading is used only while **fresh** (30 minutes). Then:
+
+| Consumer | What it gets |
+|---|---|
+| ADC model | Live **station** pressure and temperature instead of the standard atmosphere and 15 C; `ADCResult::airLive` says which |
+| Status window | The `WX` row: Leoben's score and verdict, cloud, wind, dew risk, age |
+| Observation record | `wx_source`, `cloud_pct`, `air_temp_c`, `humidity_pct`, `wind_ms`, `gust_ms`, `dew_point_c`, `pressure_hpa`, `imaging_score`, `wx_verdict` |
+| Assistant | One measured weather line, or an explicit "unknown -- do not guess" |
+
+**Leoben's `pressure_inhg` is sea-level pressure** (Open-Meteo's
+`pressure_msl`). The ADC needs the air above the telescope, so it is
+reduced to station pressure with the site's elevation and temperature
+(`StationPressureHpa`). Used raw it would overstate dispersion by ~6% at a
+500 m site -- the error Phase 66 took out of the elevation model.
 
 ---
 

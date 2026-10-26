@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <style>
 :root {
   --void: #020509; --deep: #060d14; --panel: #0a1520; --border: #0e2235;
@@ -2052,17 +2053,54 @@ const rcLaunchedByApp = (function() {
   }
 })();
 
+// ── Staying connected ───────────────────────────────────────
+// Once a connection has worked, the dashboard keeps trying to hold one:
+// if RadukCapture is closed, or not started yet when the page opens --
+// Leoben on another PC is up long before the telescope is -- it retries
+// with a widening gap until RadukCapture answers. Only DISCONNECT stops
+// that, and the choice is remembered in this browser, so a page that
+// was left connected reconnects on its next load too.
+const RC_STAY_KEY = 'radukRcStayConnected';
+const RC_RETRY_MS = [3000, 5000, 10000, 20000, 30000];
+let rcRetryTimer = null, rcRetryStep = 0, rcRetryQuiet = false;
+function rcStayGet() { try { return localStorage.getItem(RC_STAY_KEY) === '1'; } catch(e) { return false; } }
+function rcStaySet(on) { try { on ? localStorage.setItem(RC_STAY_KEY, '1') : localStorage.removeItem(RC_STAY_KEY); } catch(e) {} }
+function rcCancelRetry() { if (rcRetryTimer) { clearTimeout(rcRetryTimer); rcRetryTimer = null; } }
+function rcScheduleRetry() {
+  rcCancelRetry();
+  const ms = RC_RETRY_MS[Math.min(rcRetryStep, RC_RETRY_MS.length - 1)];
+  rcRetryStep++;
+  rcSetSyncMsg('Waiting for RadukCapture — retrying in ' + Math.round(ms / 1000) + ' s', 'info');
+  document.getElementById('rcConnectBtn').textContent = 'STOP RETRYING';
+  document.getElementById('rcConnectBtn').className = 'rc-connect-btn disconnect';
+  rcRetryTimer = setTimeout(() => { rcRetryTimer = null; rcConnect(); }, ms);
+}
+
+// The button: connect, or stop -- whether connected, connecting or
+// waiting to retry. Stopping is the one thing that clears the intent.
 function rcToggleConnect() {
-  if (rcConnected) {
-    if (rcWs) { rcWs.close(); rcWs = null; }
+  if (rcConnected || rcRetryTimer || (rcWs && rcWs.readyState === WebSocket.CONNECTING)) {
+    rcStaySet(false);
+    rcCancelRetry();
+    rcRetryStep = 0; rcRetryQuiet = false;
+    if (rcWs) { const w = rcWs; rcWs = null; w.onclose = null; w.close(); }
+    rcConnected = false; rcRunning = false; rcIsCapturing = false;
+    rcClearPreview();
     rcSetStatus(false, false, null);
     rcSetSyncMsg('Disconnected.', '');
     document.getElementById('rcConnectBtn').textContent = 'CONNECT';
     document.getElementById('rcConnectBtn').className = 'rc-connect-btn connect';
     if (rcSimInterval) { clearInterval(rcSimInterval); rcSimInterval = null; }
   } else {
+    rcRetryStep = 0; rcRetryQuiet = false;
+    rcConnect();
+  }
+}
+
+function rcConnect() {
+  {
     const url = document.getElementById('rcWsUrl').value.trim() || 'ws://localhost:8765';
-    rcSetSyncMsg('Connecting…', 'info');
+    if (!rcRetryQuiet) rcSetSyncMsg('Connecting…', 'info');
     document.getElementById('rcConnectBtn').textContent = 'CONNECTING…';
     try {
       rcWs = new WebSocket(rcUrlWithToken(url));
@@ -2072,6 +2110,8 @@ function rcToggleConnect() {
         // take binary messages is never sent one.
         rcWs.send(JSON.stringify({ cmd: 'preview', arg: 'on' }));
         rcConnected = true;
+        rcStaySet(true);
+        rcRetryStep = 0; rcRetryQuiet = false;
         rcSetStatus(true, false, null);
         rcSetSyncMsg('Connected to RadukCapture — waiting for telemetry…', 'ok');
         document.getElementById('rcConnectBtn').textContent = 'DISCONNECT';
@@ -2089,9 +2129,11 @@ function rcToggleConnect() {
       let rcOpened = false;
       rcWs.addEventListener('open', () => { rcOpened = true; });
       rcWs.onerror = () => {
+        // While retrying, say it once rather than every attempt.
+        if (rcRetryQuiet) return;
         const why = rcTokenGet()
-          ? 'Connection failed — either RadukCapture is not running, or the token is not the current WsToken in rig.ini next to the running exe'
-          : 'Connection failed — enter the access token (WsToken in rig.ini on the capture PC)';
+          ? 'Connection failed — RadukCapture is not running or not reachable, or (on the capture PC itself) the token is not the current WsToken in rig.ini'
+          : 'Connection failed — RadukCapture is not running or not reachable. On the capture PC itself, enter the access token (WsToken in rig.ini)';
         rcSetSyncMsg(why, 'err');
         rcLogSession('[RC] ' + why, 'err');
       };
@@ -2101,8 +2143,16 @@ function rcToggleConnect() {
         rcSetStatus(false, false, null);
         document.getElementById('rcConnectBtn').textContent = 'CONNECT';
         document.getElementById('rcConnectBtn').className = 'rc-connect-btn connect';
-        if (rcOpened) rcSetSyncMsg('Connection closed.', '');
-        rcLogSession('[RC] Connection closed', 'warn');
+        if (rcOpened) {
+          rcSetSyncMsg('Connection closed.', '');
+          rcLogSession('[RC] Connection closed', 'warn');
+        }
+        if (rcStayGet()) {
+          if (rcOpened || !rcRetryQuiet)
+            rcLogSession('[RC] Will keep trying until RadukCapture answers', 'info');
+          rcRetryQuiet = true;
+          rcScheduleRetry();
+        }
       };
     } catch(e) {
       rcSetSyncMsg('Invalid WebSocket URL', 'err');
@@ -3530,6 +3580,22 @@ async function init(){
     if (urlEl) urlEl.value = 'ws://localhost:8765';
     switchTab('fc');
     if (!rcConnected) rcToggleConnect();
+  } else {
+    // Reconnect to the rig this page was last holding -- and, when a
+    // server hosts the page (Leoben), to the address saved THERE, so a
+    // tablet that has never connected before finds the rig too. Not
+    // awaited: the weather below must not wait on it, and the store
+    // read gives up after 800 ms anyway.
+    (async () => {
+      const saved = await apexStorage.get('apexBridgeUrl');
+      const urlEl = document.getElementById('rcWsUrl');
+      if (saved && urlEl && typeof saved === 'string') urlEl.value = saved;
+      if (rcStayGet() || (APEX_SERVER && saved)) {
+        rcStaySet(true);
+        rcRetryStep = 0; rcRetryQuiet = false;
+        if (!rcConnected && !rcRetryTimer) rcConnect();
+      }
+    })();
   }
   // Load data immediately, let the CSS loading animation play independently
   // Don't block on animation — dashboard is usable as soon as data loads

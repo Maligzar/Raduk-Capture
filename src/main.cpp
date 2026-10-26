@@ -58,6 +58,7 @@
 #include "net/WebSocketServer.h"
 #include "net/APEXTelemetry.h"
 #include "net/PreviewStreamer.h"
+#include "net/LeobenClient.h"     // weather and sky from Leoben, on the home network
 #include "gui/Window.h"
 #include "gui/PreviewRenderer.h"
 #include "gui/Theme.h"
@@ -1025,13 +1026,26 @@ static int RunApp(bool useEmulator) {
     }
     {
         char wsEnv[8] = {};
-        bool wsLan = GetEnvironmentVariableA("RADUK_WS_LAN", wsEnv, 8) > 0
-                     && wsEnv[0] == '1';
+        const auto& rc = RigConfig::Get();
+        bool wsLan = (GetEnvironmentVariableA("RADUK_WS_LAN", wsEnv, 8) > 0
+                      && wsEnv[0] == '1') || rc.wsLan;
+        // WsLanOpen means nothing while the server only listens on this PC.
+        const bool lanOpen = wsLan && rc.wsLanOpen;
+        wsServer.SetLanOpen(lanOpen);
         wsServer.Start(8765, wsLan);
-        Log("[INIT] WebSocket server on %s:8765%s\n",
+        Log("[INIT] WebSocket server on %s:8765%s%s\n",
             wsLan ? "0.0.0.0" : "127.0.0.1",
-            wsLan ? " (LAN exposed — RADUK_WS_LAN=1)" : "");
+            wsLan ? " (home network: WsLan / RADUK_WS_LAN)" : "",
+            lanOpen ? " - private-network clients need no token (WsLanOpen)" : "");
     }
+
+    // Weather and sky conditions from Leoben (LeobenUrl / LeobenToken in
+    // rig.ini). Off, silently, when no URL is set. Its own thread; the
+    // readout below only reads the last good reading.
+    raduk::net::LeobenClient leoben;
+    leoben.Start(RigConfig::Get().leobenUrl, RigConfig::Get().leobenToken,
+                 [](const std::string& s) { Log("%s\n", s.c_str()); });
+    bool leobenAirLogged = false;
 
     // B3: the dashboard's preview picture. Encoded and sent on its own
     // thread; the render loop only decimates, twice a second, and only
@@ -3420,6 +3434,27 @@ static int RunApp(bool useEmulator) {
             r.siteLatDeg = rigc.siteLatDeg;
             r.siteLonDeg = rigc.siteLonDeg;
         }
+        // The sky at the start of the run, from Leoben -- only when the
+        // reading is fresh; a stale one is left out, not written.
+        {
+            const auto ls = leoben.Get();
+            const int64_t nowU = (int64_t)std::time(nullptr);
+            if (raduk::net::LeobenFresh(ls.last, nowU)) {
+                const auto& c = ls.last;
+                r.wxSource    = "leoben";
+                r.wxAgeMin    = (nowU - c.fetchedUnix) / 60.0;
+                r.cloudPct    = c.cloudPct;
+                r.airTempC    = c.TempC();
+                r.humidityPct = c.humidityPct;
+                r.windMs      = c.WindMs();
+                r.gustMs      = c.GustMs();
+                r.dewPointC   = c.DewPointC();
+                r.pressureHpa = raduk::net::StationPressureHpa(
+                    c.PressureMslHpa(), rigc.siteElevationM, c.TempC());
+                if (c.imagingScore >= 0) r.imagingScore = c.imagingScore;
+                r.wxVerdict   = c.goNoGo;
+            }
+        }
     });
     controls.SetDockToggleCallback([&]() {});
 
@@ -4962,6 +4997,31 @@ static int RunApp(bool useEmulator) {
                     aiState.eafPos   = focuser.GetPosition();
                     aiState.eafTempC = focuser.GetTemperature();
                 }
+                // Weather, measured, from Leoben -- or nothing, and the
+                // context then says it is unknown. No coordinates go in:
+                // the site-precision rule covers this line too.
+                {
+                    const auto ls = leoben.Get();
+                    const int64_t nowU = (int64_t)std::time(nullptr);
+                    aiState.weather.clear();
+                    if (raduk::net::LeobenFresh(ls.last, nowU)) {
+                        const auto& c = ls.last;
+                        char wb[320];
+                        snprintf(wb, sizeof(wb),
+                                 "%s, imaging score %d/100; cloud %.0f%%, air %.1f C, "
+                                 "humidity %.0f%%, wind %.1f m/s gusting %.1f, "
+                                 "dew point %.1f C (dew risk %s), pressure %.0f hPa at the site; "
+                                 "reading %d min old",
+                                 c.goNoGo.empty() ? "no verdict" : c.goNoGo.c_str(),
+                                 c.imagingScore, c.cloudPct, c.TempC(), c.humidityPct,
+                                 c.WindMs(), c.GustMs(), c.DewPointC(),
+                                 c.dewRisk.empty() ? "unknown" : c.dewRisk.c_str(),
+                                 raduk::net::StationPressureHpa(c.PressureMslHpa(),
+                                     RigConfig::Get().siteElevationM, c.TempC()),
+                                 (int)((nowU - c.fetchedUnix) / 60));
+                        aiState.weather = wb;
+                    }
+                }
                 // Capture + buffer
                 aiState.recording      = capturer.IsRecording();
                 aiState.framesRecorded = capturer.FramesRecorded();
@@ -5405,6 +5465,44 @@ static int RunApp(bool useEmulator) {
                 sd.streaming    = cam.IsCapturing();
                 sd.sky          = skyTracker.Evaluate();
 
+                // Leoben's weather: into the status window, and -- when
+                // fresh -- into the ADC model as the real air above the
+                // scope, reduced from sea-level to station pressure.
+                {
+                    const auto ls = leoben.Get();
+                    const int64_t nowU = (int64_t)std::time(nullptr);
+                    auto& w = sd.wx;
+                    w.configured = ls.state != raduk::net::LeobenClient::State::Off;
+                    w.fresh = raduk::net::LeobenFresh(ls.last, nowU);
+                    if (w.fresh) {
+                        const auto& c = ls.last;
+                        w.ageMin   = (int)((nowU - c.fetchedUnix) / 60);
+                        w.score    = c.imagingScore;
+                        w.cloudPct = c.cloudPct;
+                        w.windMph  = c.windMph;
+                        w.tempF    = c.tempF;
+                        strncpy_s(w.verdict, c.goNoGo.c_str(), _TRUNCATE);
+                        strncpy_s(w.dewRisk, c.dewRisk.c_str(), _TRUNCATE);
+                        const double stHpa = raduk::net::StationPressureHpa(
+                            c.PressureMslHpa(), RigConfig::Get().siteElevationM, c.TempC());
+                        raduk::core::ADCAssistant::SetLiveAir(stHpa, c.TempC() + 273.15,
+                                                              c.fetchedUnix);
+                        if (!leobenAirLogged) {
+                            Log("[LEOBEN] ADC now uses live air: %.1f hPa at the site "
+                                "(%.1f at sea level), %.1f C\n",
+                                stHpa, c.PressureMslHpa(), c.TempC());
+                            leobenAirLogged = true;
+                        }
+                    } else {
+                        strncpy_s(w.state, raduk::net::LeobenClient::StateText(ls.state), _TRUNCATE);
+                        if (ls.last.valid) strncpy_s(w.state, "last reading is stale", _TRUNCATE);
+                        if (leobenAirLogged) {
+                            Log("[LEOBEN] No fresh reading - ADC back on the standard atmosphere\n");
+                            leobenAirLogged = false;
+                        }
+                    }
+                }
+
                 // Both places, as asked: the status window for the
                 // desk, the mount panel's lamp for the eyepiece.
                 mountCtrl.SetSkyQuality(sd.sky);
@@ -5788,6 +5886,7 @@ static int RunApp(bool useEmulator) {
                           eafPos, eafTemp, lastRA, lastDec);
     }
 
+    leoben.Stop();
     previewStreamer.Stop();   // its sink sends through wsServer
     wsServer.Stop();
 

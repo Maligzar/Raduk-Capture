@@ -97,6 +97,36 @@ int64_t ts = (timestampUs != 0)
     : CurrentFileTimeUTC();   // fallback: no capture stamp available
 ```
 
+**What the stamp means (P5.1).** Phase 59 made the trailer say when the
+frame arrived rather than when the writer got to it, which was the bug. It
+did not make it say when the light was collected. A frame integrated over
+`exposureMs` has its light spread across that window, and the honest single
+number for it is the middle, so the capture thread now stamps
+`Timestamp::ExposureMidpointUs(Timestamp::Now(), expMs)` at
+[`src/core/CaptureThread.cpp`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/CaptureThread.cpp).
+
+> **It is an estimate and the wiki should not pretend otherwise.** Arrival
+> is later than the end of exposure by the sensor readout and the USB
+> transfer, and neither is observable from the capture thread. Subtracting
+> half the exposure removes the one term that is known and leaves that one
+> in, so the result is still biased late: at a 10 ms exposure it takes out
+> 5 ms of a bias that may be a few ms larger again, and at 1 ms the
+> residual dominates what was removed. The real fix is hardware.
+> `ASIGetVideoDataGPS` returns an `ASI_DATE_TIME` taken at the sensor, but
+> only on the GPS camera models, and the ASI678MC is not one.
+
+Frame intervals are unaffected while the exposure is steady, because both
+stamps move by the same amount; changing the exposure shifts one interval
+by half the change and nothing after it. Both properties are asserted in
+[`tests/ser_timestamp_midpoint.cpp`](https://github.com/Maligzar/Raduk-Capture/blob/master/tests/ser_timestamp_midpoint.cpp).
+
+SharpCap's author has stated that SharpCap's SER timestamp is frame-arrival
+with no exposure correction while its FITS path does subtract the exposure.
+This was therefore parity rather than a deficit, and the correction is a
+bounded move past it.
+
+---
+
 ### Epoch conversion
 
 Windows `FILETIME` counts 100 ns ticks since 1601-01-01. SER counts ticks

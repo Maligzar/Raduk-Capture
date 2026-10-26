@@ -8,6 +8,8 @@
 #include "ControlPanel.h"
 #include "Theme.h"
 #include "core/RigConfig.h"
+#include "core/Paths.h"
+#include "core/TextConv.h"
 #include <windowsx.h>
 #include <cstdio>
 #include <cstring>
@@ -1344,12 +1346,12 @@ std::string ControlPanel::GetFrameType() const {
 }
 
 std::string ControlPanel::GetOutputDir() const {
-    if (!m_editOutputDir) return "D:\\RadukCapture\\captures";
+    if (!m_editOutputDir) return raduk::core::Paths::Captures();
     wchar_t buf[MAX_PATH] = {};
     GetWindowTextW(m_editOutputDir, buf, MAX_PATH);
     char out[MAX_PATH] = {};
     for (int i = 0; i < MAX_PATH-1 && buf[i]; i++) out[i] = (char)buf[i];
-    return std::string(out[0] ? out : "D:\\RadukCapture\\captures");
+    return out[0] ? std::string(out) : raduk::core::Paths::Captures();
 }
 
 uint32_t ControlPanel::GetLimitFrames() const {
@@ -2277,7 +2279,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         TagControl(m_comboFrameType, Section::Capture);
         y += BH + 1;
     }
-    m_editOutputDir = MakeEditBox(L"D:\\RadukCapture\\captures",
+    m_editOutputDir = MakeEditBox(raduk::core::ToWide(raduk::core::Paths::Captures()).c_str(),
                                    x, y-1, w, BH-2, ID_EDIT_OUTPUT_DIR);
     SetWindowLong(m_editOutputDir, GWL_STYLE,
         GetWindowLong(m_editOutputDir, GWL_STYLE) & ~ES_NUMBER);

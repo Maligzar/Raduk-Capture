@@ -61,6 +61,7 @@ FilterHighNm=700
 |-----|---------|---------|
 | `PlateScaleArcsecPx` | 0.203 | **Nominal** image scale. Seeds overlays and the ASTAP FOV hint. **The correction loop never uses it** — see [Tracking](Tracking-and-Guiding) |
 | `GuideRateArcsecPerSec` | 7.5 | Assumed guide rate. Calibration **measures** the real one and warns if they disagree by more than 2× |
+| `DataRoot` | *(empty)* | Where the application keeps its own tree: captures, logs, profiles, data, and the crash log. Empty resolves at runtime, and the order is deliberate: an existing `D:\RadukCapture` is kept so the rig this was written on needs no edit and nothing moves, and only a machine that has no such directory falls back to the executable's own folder. Resolved once by [`src/core/Paths.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/Paths.h) |
 | `MountPort` | *(empty)* | Pin a COM port. Empty means auto-detect; a stale value falls back to auto-detect rather than failing |
 | `WsToken` | *(generated)* | The [dashboard's](Telemetry-and-Dashboard) access token: 64 hex characters, made on first launch. Under 32 hex characters and the server admits nobody. Delete it to get a new one |
 | `WsLan` | 0 | `1` = bind `0.0.0.0` instead of loopback. Same as `RADUK_WS_LAN=1`; either turns it on |

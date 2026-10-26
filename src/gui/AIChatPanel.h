@@ -25,6 +25,8 @@
 #include <cstdio>
 #include "../core/AIAssistant.h"
 #include "../core/AIContextBuilder.h"
+#include "core/Paths.h"
+#include "core/TextConv.h"
 
 namespace raduk::gui {
 
@@ -49,9 +51,9 @@ public:
         // Absolute paths for the same reason the database uses one --
         // the exe runs from build\Release and the documents do not
         // live beside it.
-        m_contextBuilder.LoadDocuments(L"D:\\RadukCapture\\docs");
-        m_contextBuilder.LoadSessionLogs(L"D:\\RadukCapture\\logs");
-        m_knowledgeDB.Open("D:\\RadukCapture\\data\\object_knowledge.db");
+        m_contextBuilder.LoadDocuments(raduk::core::ToWide(raduk::core::Paths::Docs()));
+        m_contextBuilder.LoadSessionLogs(raduk::core::ToWide(raduk::core::Paths::Logs()));
+        m_knowledgeDB.Open(raduk::core::Paths::Data() + "\\object_knowledge.db");
         m_contextBuilder.SetKnowledgeDB(&m_knowledgeDB);
 
         // Wire AIAssistant callbacks — post messages to keep UI on main thread

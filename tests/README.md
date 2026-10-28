@@ -16,6 +16,36 @@ it can be used as a gate:
 tests\run-tests.bat && build_all.bat
 ```
 
+## Running them from Linux, with caveats
+
+The gate is MSVC and `run-tests.ps1`. That is the only run that counts.
+But most of these tests can also be built with mingw-w64 and run under
+wine, which is worth knowing because it turns "written, not built" into
+something closer to evidence when the author is not on the Windows box:
+
+```bash
+sudo apt-get install -y mingw-w64 wine64
+x86_64-w64-mingw32-g++ -std=c++20 -O1 -static -static-libgcc -static-libstdc++ \
+  -I src -I external/ASI_SDK/include \
+  -o out/<name>.exe tests/<name>.cpp <extra sources> \
+  -lole32 -loleaut32 -lws2_32 -lbcrypt -lwindowscodecs -luuid
+WINEDEBUG=-all wine out/<name>.exe
+```
+
+**What it does not prove.** mingw is not MSVC: it accepts and rejects
+different things, so a green run here is evidence and not a gate. Three
+known gaps, all in the toolchain rather than in this code:
+
+| Symptom | Cause |
+|---|---|
+| `undefined reference to __imp__get_timezone` | An MSVC CRT symbol mingw does not ship. Hits anything pulling `RigConfig`: `ai_context_facts`, `mount_jog`, `leoben_weather`. They compile; they do not link |
+| `BCryptGenRandom` / WIC GUIDs undefined | Link libraries the command above now lists. Not a code problem |
+| `object_knowledge` cannot find its database | There is no `D:` here, so `Paths` falls back to the exe directory. Correct behaviour, and the test reports where it looked |
+
+It did earn its keep once: building under a stricter toolchain is what
+found `AIContextBuilder.h` using `uint32_t` with no `<cstdint>`, which
+MSVC had been hiding with a transitive include.
+
 ## Using them as a merge gate
 
 Nothing should merge to `master` with a failing test. The runner's exit

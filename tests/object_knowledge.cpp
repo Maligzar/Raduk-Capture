@@ -17,6 +17,7 @@
 // ============================================================
 
 #include "core/ObjectKnowledgeDB.h"
+#include "core/Paths.h"
 
 #include <cstdio>
 #include <string>
@@ -38,12 +39,18 @@ int main() {
     printf("\n=== Object knowledge database ===\n");
 
     ObjectKnowledgeDB db;
-    const bool opened = db.Open("D:\\RadukCapture\\data\\object_knowledge.db");
+    // Ask where the data actually lives rather than assuming. P5.4
+    // made the root configurable and moved fifteen call sites onto
+    // Paths; this test kept its own copy of the old literal, so it
+    // would have gone looking in the wrong place the first time
+    // anyone set DataRoot. Found by running the suite.
+    const std::string dbPath = raduk::core::Paths::Data() + "\\object_knowledge.db";
+    const bool opened = db.Open(dbPath);
 
     printf("\n1. Is it reachable at all\n");
     Check(opened && db.IsAvailable(),
           "the database opens, which means sqlite3.dll is deployed",
-          opened ? "" : "sqlite3.dll missing, or the .db has moved");
+          opened ? "" : ("not at " + dbPath + " - sqlite3.dll missing, or DataRoot points elsewhere").c_str());
 
     if (!db.IsAvailable()) {
         printf("\n  Nothing further can be checked without it.\n\n");

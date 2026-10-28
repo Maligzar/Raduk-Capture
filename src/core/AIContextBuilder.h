@@ -26,6 +26,7 @@
 #include <iomanip>
 #include <ctime>
 #include <cstdio>
+#include <cstdint>   // uint32_t below; MSVC pulls this in transitively, nothing else does
 #include "ObjectKnowledgeDB.h"
 #include "RigConfig.h"
 

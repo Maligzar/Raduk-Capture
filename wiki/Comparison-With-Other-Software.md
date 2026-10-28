@@ -567,14 +567,16 @@ since corrected; the
 emulator documented at 984 lines against 1,316; a bright-star table header
 claiming 255 stars against 97; the FITS writer marked shipped when none
 exists; and **`ASCOMMount` labeled Superseded when it is the mount path
-tried first**.
+tried first**, since corrected under P5.3.
 
 > **The last is the most consequential, because it propagated.**
 > "Superseded", and the claim that all known CPWI drivers are blacklisted,
-> are the wiki's own words at [Device Layer](Device-Layer#backend-status)
+> were the wiki's own words at [Device Layer](Device-Layer#backend-status)
 > and in the [Code Map](Code-Map) table, not the header's, and the research
 > behind this page inherited the error from the wiki rather than from the
-> source. The source says the opposite:
+> source. Both rows now say what the code does. The error is left described
+> here rather than deleted, because a page that measured the tree and found
+> the prose wrong should record how the wrong prose travelled. The source says the opposite:
 > [`src/main.cpp`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/main.cpp#L720)
 > calls `ASCOMMount::FindCPWIDriver()` before anything else on the hardware
 > build and falls back to NexStar direct, and CPWI is the first preferred

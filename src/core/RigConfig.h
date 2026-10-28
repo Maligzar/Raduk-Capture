@@ -242,6 +242,20 @@ struct RigConfig {
 
     std::string mountPort;
 
+    // Pin an exact ASCOM telescope ProgID, skipping discovery.
+    // Empty means discover, which is what it has always done.
+    //
+    // This exists because discovery refuses a set of drivers by
+    // name, and two of the reasons are about this machine rather
+    // than about the drivers: ASIMount grabs COM3 here, DeviceHub
+    // was misconfigured here. Both are right for this rig and
+    // neither is a fact about ASCOM. Naming a ProgID is not
+    // discovery, so the refusal list does not apply to it: set
+    // this to ASCOM.Simulator.Telescope to exercise the generic
+    // path with no mount on the desk, or to ASIMount on a rig that
+    // actually has one.
+    std::string ascomProgId;
+
     // P5.6: the WebSocket server's shared secret. 64 hex characters,
     // generated on first run by main.cpp. Deliberately NOT written by
     // Save(): it has one writer, SaveWsToken(), so saving the rest of
@@ -431,6 +445,7 @@ private:
             char pbuf[32] = {};
             GetPrivateProfileStringA("Rig", "MountPort", "", pbuf, sizeof(pbuf), p.c_str());
             cfg.mountPort = pbuf;
+        cfg.ascomProgId = rs("AscomProgId", "");
         }
         cfg.wsToken = rs("WsToken", "");
         cfg.wsLan       = rs("WsLan", "0") == "1";

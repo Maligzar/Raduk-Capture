@@ -64,7 +64,7 @@ See [Capture Pipeline](Capture-Pipeline), [Recording and SER Format](Recording-a
 | `EAF_focuser_stub.h` | 49 | SDK stubs |
 | [`EAFEmulator.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/EAFEmulator.h) | 161 | Simulated motor at realistic step rate |
 | [`NexStarMount.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/NexStarMount.h) / `.cpp` | 212 / **823** | NexStar serial, poll thread, watchdog, software-timed `PulseGuide`, `EmergencyStop` |
-| [`ASCOMMount.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ASCOMMount.h) | 792 | ASCOM `ITelescopeV3`. **Superseded**; all known CPWI drivers blacklisted |
+| [`ASCOMMount.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ASCOMMount.h) | 792 | ASCOM `ITelescopeV3`. **The preferred mount path on a hardware build**: `main.cpp` tries `FindCPWIDriver()` first and falls back to NexStar serial. CPWI is the first ProgID tried, not blacklisted |
 | [`MountEmulator.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/MountEmulator.h) | 414 | Closed-loop tracking model, `GetPointingErrorArcsec()`, real NexStar rate curve |
 | [`SerialPortScan.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/SerialPortScan.h) | 344 | `SERIALCOMM` enumeration plus NexStar echo probe; `busy` means CPWI |
 | [`USBTrafficManager.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/USBTrafficManager.h) / `.cpp` | 60 / 56 | Poll throttling during capture |

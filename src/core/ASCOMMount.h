@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <mutex>
 #include "IMount.h"
+#include "RigConfig.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
@@ -329,11 +330,46 @@ public:
 
     const std::string& ConnectionId() const override { return m_progID; }
 
+    // Whether discovery will refuse a ProgID of its own accord.
+    //
+    // Public and free of COM and the registry on purpose: it is the
+    // whole policy, and until it was lifted out of the search there
+    // was no way to check it without a mount on the desk. See
+    // tests/ascom_driver_choice.cpp.
+    //
+    // AscomProgId in rig.ini bypasses this entirely. Naming a driver
+    // is not discovery, and this list exists to stop discovery
+    // choosing badly on its own, not to overrule the owner.
+    static bool IsRefusedByDefault(const std::string& id) {
+        return id.find("ASIFocuser") != std::string::npos   // not a telescope at all
+            || id.find("ASIMount")   != std::string::npos   // this rig: grabs COM3
+            || id.find("DeviceHub")  != std::string::npos   // this rig: misconfigured
+            || id.find("JustAHub")   != std::string::npos
+            || id.find("OmniSim")    != std::string::npos   // indoors only
+            || id.find("Simulator")  != std::string::npos
+            || id.find("ScopeSim")   != std::string::npos;
+    }
+
     // ── ASCOM driver enumeration helper ───────────────────────
     // Returns ProgID of the best available CPWI/ASCOM telescope driver.
     // Reads HKLM\SOFTWARE\ASCOM\Telescope Drivers to find what's actually installed.
     // NOTE: CPWI must be running AND connected to the mount before calling this.
     static std::string FindCPWIDriver() {
+        // An explicit ProgID short-circuits the whole search. It is
+        // reported loudly, because a pinned driver that has stopped
+        // resolving should look different from no driver at all.
+        const std::string& pinned = RigConfig::Get().ascomProgId;
+        if (!pinned.empty()) {
+            printf("[ASCOMMount] AscomProgId pins the driver: %s\n", pinned.c_str());
+            std::wstring wid(pinned.begin(), pinned.end());
+            CLSID clsid{};
+            if (SUCCEEDED(CLSIDFromProgID(wid.c_str(), &clsid))) return pinned;
+            printf("[ASCOMMount] AscomProgId does not resolve: %s\n"
+                   "  -> check the spelling, or clear it to discover again\n",
+                   pinned.c_str());
+            return "";
+        }
+
         printf("[ASCOMMount] Enumerating ASCOM telescope drivers from registry...\n");
 
         // ── Step 1: Read ASCOM registry to find all registered telescope drivers ──
@@ -378,15 +414,35 @@ public:
             nullptr                    // DeviceHub removed — always misconfigured here
         };
 
-        // Drivers to never use — wrong hardware or known to cause COM3 conflicts
-        auto isBlacklisted = [](const std::string& id) {
-            return id.find("ASIMount")   != std::string::npos
-                || id.find("ASIFocuser") != std::string::npos
-                || id.find("DeviceHub")  != std::string::npos  // always misconfigured
-                || id.find("JustAHub")   != std::string::npos  // hub drivers
-                || id.find("OmniSim")    != std::string::npos
-                || id.find("Simulator")  != std::string::npos
-                || id.find("ScopeSim")   != std::string::npos;
+        // Drivers discovery will not pick on its own.
+        //
+        // Three different kinds of thing were in one list, and they
+        // do not deserve the same treatment:
+        //
+        //   ASIFocuser is a category error. A focuser registered
+        //   among telescope drivers is never the right answer for
+        //   anyone, so it stays refused unconditionally.
+        //
+        //   ASIMount, DeviceHub and JustAHub are facts about THIS
+        //   rig, not about the drivers. ASIMount grabs COM3 here and
+        //   this rig has no ZWO mount; DeviceHub was misconfigured
+        //   here. Both are the right default and neither should be a
+        //   law: an AM5 owner wants ASIMount, and DeviceHub is the
+        //   standard way to share one mount between this and PHD2.
+        //
+        //   The simulators are the expensive one. Refusing OmniSim,
+        //   Simulator and ScopeSim is what makes the generic ASCOM
+        //   path impossible to exercise without a mount on the desk,
+        //   in a project that emulates every device it owns. That is
+        //   why nothing below the preferred list has ever been run
+        //   indoors.
+        //
+        // All of it stays the default. AscomProgId in rig.ini names
+        // a ProgID directly and bypasses the list, because naming a
+        // driver is not discovery and the list's whole job is to
+        // stop discovery choosing badly on its own.
+        auto isRefusedByDefault = [](const std::string& id) {
+            return IsRefusedByDefault(id);
         };
 
         auto tryProgId = [&](const wchar_t* wid) -> std::string {
@@ -410,7 +466,7 @@ public:
 
         // ── Step 3: Try every registered driver from registry ──────────────────
         for (const auto& progId : registered) {
-            if (isBlacklisted(progId)) {
+            if (isRefusedByDefault(progId)) {
                 printf("[ASCOMMount] Skipping blacklisted driver: %s\n", progId.c_str());
                 continue;
             }

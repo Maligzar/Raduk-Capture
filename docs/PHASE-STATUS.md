@@ -57,7 +57,7 @@ matching.
 | 77 | AutoStakkert handoff | `MEASURED (rig) 2026-10-18` — 50.4 s through the app's own `StackAsync`, 8 files; three routes, same 158 MB recording · owes: nothing. `tests/manual-autostakkert-launch.cpp` re-runs it |
 | 6.6 | GoTo map learning | `PARTIAL` — auto solve+sync on lock ships; **the accumulating pointing map reports and does not correct**, which is the half that would help |
 | 35 | ADC alignment tool | `GATED (bench)` — `tests/adc_alignment.cpp` · owes: a corrector to align. The window exists and is deliberately dark until *ADC fitted* is ticked on the READY screen, because there is none in the train |
-| 30 | Push-to assistant | `PLANNED` |
+| 30 | Push-to assistant | `GATED (bench) 2026-10-30` - **the geometry only**. `src/sky/PushTo.h` turns a solved position and a target into a move instruction: great-circle separation, an equatorial N/E pair as the architecture note specified, and an alt/az up/right pair because this rig is an alt-az 8SE and that is the frame a person pushing it by hand works in. `tests/push_to.cpp`, 24 assertions, built with mingw-w64 and run under wine, all pass; it caught a wrong constant in its own expectations (the exact great circle for 1h of RA at dec 60 is 7.4839 deg, not the 7.5 that `15*cos(60)` suggests). **Not MSVC** · **owes the half that makes it a feature**: the repeating solve loop and the HUD line. Nothing calls `PushTo.h` yet |
 | 31 / 32 | Multi-star FWHM / Bahtinov focus | `PLANNED` — star focus; autofocus is tuned for a planetary disc |
 | 18 | AVI / FITS output | `PLANNED` — phase 48's observation record is the prerequisite, since FITS wants the metadata it collects |
 | 19 | Multi-session stats dashboard | `PLANNED` — same prerequisite |

@@ -503,6 +503,50 @@ fps that window holds ~21,000 frames; at the old ceiling, ~9,000.
 Stacking the best 10% is 2,100 against 900.
 
 
+## 15. The pixel readout's row order, which is a coin flip until a solve happens
+
+Added 2026-10-30 with phase 47b. This is the shortest item on the list
+and the only one whose answer is a single boolean.
+
+Hover the cursor over the image and the tooltip now names the RA and
+Dec under it. Every part of that arithmetic is gated by
+`tests/pixel_wcs.cpp` except one, and the one is not gateable here:
+**FITS counts image rows from the bottom and a frame buffer counts them
+from the top**, and whether ASTAP applies that flip to the top-down BMP
+it is handed is not something a machine without ASTAP can find out.
+
+It is a named flag, `PlateSolution::fitsBottomUp` in
+`src/sky/PixelWCS.h`, defaulted to the FITS convention, and both
+settings are pinned by tests. If it is wrong, the readout is reflected
+about the frame's centre line: Dec runs the wrong way and the error
+grows with distance from the middle, which is exactly the shape of a
+pointing error and will not announce itself.
+
+**The measurement, which takes about two minutes:**
+
+1. Plate solve any field.
+2. Hover near the TOP of the image and read the Dec. Hover near the
+   BOTTOM and read it again.
+3. Toward the top of the frame, Dec should be **higher** on an
+   unmirrored, unrotated setup.
+
+If it runs the other way, flip the default of `fitsBottomUp` and note
+it here. One field, one line.
+
+**Free with the same run, and worth more:** the rose in the top-left
+draws two pairs of arrows. The amber N/E pair comes from the solve. The
+green `jE`/`jN` pair is the measured guide calibration, so it owes
+nothing to any convention. They should point opposite ways, because
+driving the scope east slides the field west. If they disagree by more
+than 25 degrees the overlay prints `ROSE nn° OFF` and the solve's
+parity or the row order is wrong. **That warning appearing is the
+finding**, so write down the number.
+
+(The rose needs a guide calibration to show its green half, so this
+pairs naturally with item 14.)
+
+---
+
 ## Data, not code: five saved profiles hold the wrong resolution
 
 Not a sky test, but it will bite on the night and takes a minute to fix.

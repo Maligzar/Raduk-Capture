@@ -85,6 +85,19 @@ public:
     void SetSyncCallback(std::function<void(double,double)> cb)
         { m_onSync = cb; }
 
+    // Phase 47b. Every successful solve, with the frame it was of,
+    // so the preview can name the pixel under the cursor.
+    //
+    // Fired from Tick() rather than from the solver callback: the
+    // solver runs on a worker and the receiver draws, which is the
+    // same rule the rest of this file follows. A solve the panel
+    // used for something else still goes out, because the question
+    // "what is under the cursor" does not care why the frame was
+    // solved.
+    void SetWcsCallback(
+        std::function<void(const raduk::sky::SolveResult&, int, int)> cb)
+        { m_onWcs = cb; }
+
     // ── Lifecycle ──────────────────────────────────────────────
     bool Create(HWND parent, int x, int y, int w, int h) {
         m_parent = parent;
@@ -441,6 +454,24 @@ public:
         }
 
         PushToTick();
+        WcsTick();
+    }
+
+    // Phase 47b: hand the last solve to whoever draws the cursor.
+    void WcsTick() {
+        if (!m_wcsFresh.exchange(false)) return;
+        if (!m_onWcs) return;
+        // An unsolved result is the invalidation; the receiver treats
+        // it the same way it treats a solve that failed.
+        raduk::sky::SolveResult r;
+        int w = 0, h = 0;
+        {
+            std::lock_guard<std::mutex> lk(m_wcsMutex);
+            r = m_wcsResult;
+            w = m_wcsW;
+            h = m_wcsH;
+        }
+        m_onWcs(r, w, h);
     }
 
     // Phase 30. Two jobs, both on the main thread: show whatever
@@ -483,9 +514,11 @@ public:
 
         const double tgtRA  = m_pushToTargetRA;
         const double tgtDec = m_pushToTargetDec;
+        const uint32_t fw = m_lastFrameW, fh = m_lastFrameH;
+        const int gen = WcsGen();
 
-        m_solver.SolveAsync(m_lastFrameData.data(), m_lastFrameW, m_lastFrameH,
-            [this, tgtRA, tgtDec](raduk::sky::SolveResult result) {
+        m_solver.SolveAsync(m_lastFrameData.data(), fw, fh,
+            [this, tgtRA, tgtDec, fw, fh, gen](raduk::sky::SolveResult result) {
                 // WORKER THREAD. No Win32 UI here; PushToTick picks
                 // this up on the next pass.
                 std::string line;
@@ -513,7 +546,54 @@ public:
                     m_pushToLine = line;
                 }
                 m_pushToFresh.store(true);
+                PublishWcs(result, (int)fw, (int)fh, gen);
             });
+    }
+
+    // Called from whichever worker thread finished a solve. Stores
+    // and flags; Tick() delivers it. Deliberately takes the frame
+    // size alongside: a solve that finishes after a ROI change
+    // describes the frame it was given, not the one on screen now.
+    // A slew means the solved frame is no longer the frame. Sent as
+    // an unsolved result, because "forget it" and "here is a new
+    // one" are the same event to the receiver and splitting them
+    // into two callbacks is two chances to wire only one up.
+    //
+    // Lives here rather than at main.cpp's call sites so the panel's
+    // own GOTO buttons are covered along with everything that drives
+    // them from outside.
+    void InvalidateWcs() {
+        // Bump first. A solve already in flight captured the old
+        // generation and will now be dropped when it lands, which is
+        // the point: a solve of a frame from before the slew is not a
+        // description of where the scope is pointing now, and it would
+        // arrive looking exactly like a fresh one.
+        //
+        // Same idea as main.cpp's jogGeneration guarding the tracker
+        // resume timer, and for the same reason: the thing that
+        // finishes last is not the thing that is true.
+        m_wcsGen.fetch_add(1);
+        {
+            std::lock_guard<std::mutex> lk(m_wcsMutex);
+            m_wcsResult = raduk::sky::SolveResult{};
+            m_wcsW = m_wcsH = 0;
+        }
+        m_wcsFresh.store(true);
+    }
+
+    // The generation to stamp a solve with, read when it is SUBMITTED.
+    int WcsGen() const { return m_wcsGen.load(); }
+
+    void PublishWcs(const raduk::sky::SolveResult& r, int w, int h, int gen) {
+        if (!r.solved) return;
+        if (gen != m_wcsGen.load()) return;      // the mount moved meanwhile
+        {
+            std::lock_guard<std::mutex> lk(m_wcsMutex);
+            m_wcsResult = r;
+            m_wcsW = w;
+            m_wcsH = h;
+        }
+        m_wcsFresh.store(true);
     }
 
     // Submit current frame for plate solving (called every render tick when visible)
@@ -1764,6 +1844,10 @@ private:
             SetStatus(L"No mount connected");
             return;
         }
+        // Before the mount moves, not after: a solve-derived readout
+        // must stop answering the moment the frame stops being the
+        // frame that was solved.
+        InvalidateWcs();
         m_currentTarget = name;
         if (m_onTargetChanged) m_onTargetChanged(name);
 
@@ -1870,8 +1954,9 @@ private:
         uint32_t fw = m_lastFrameW, fh = m_lastFrameH;
         auto* data = m_lastFrameData.data();
 
+        const int gen = WcsGen();
         m_solver.SolveAsync(data, fw, fh,
-            [this](raduk::sky::SolveResult result) {
+            [this, fw, fh, gen](raduk::sky::SolveResult result) {
                 // Called from worker thread — post to main thread via message
                 if (result.solved) {
                     m_solvedRA  = result.ra;
@@ -1882,6 +1967,7 @@ private:
                         L"SOLVED: RA=%.4fh Dec=%.4f° FoV=%.3f°",
                         result.ra, result.dec, result.fovW);
                     PostSolveStatus(msg);
+                    PublishWcs(result, (int)fw, (int)fh, gen);
                     printf("[GoToPanel] Plate solve OK: RA=%.4fh Dec=%.4f°\n",
                            result.ra, result.dec);
                 } else {
@@ -1919,9 +2005,10 @@ private:
 
         SetStatus(L"Solving... (works great pointed at Jupiter, Saturn, or any bright star)");
 
-        m_solver.SolveAsync(m_lastFrameData.data(),
-                            m_lastFrameW, m_lastFrameH,
-            [this](raduk::sky::SolveResult result) {
+        const uint32_t sfw = m_lastFrameW, sfh = m_lastFrameH;
+        const int sgen = WcsGen();
+        m_solver.SolveAsync(m_lastFrameData.data(), sfw, sfh,
+            [this, sfw, sfh, sgen](raduk::sky::SolveResult result) {
                 // WORKER THREAD — only touch thread-safe state here.
                 // No Win32 UI calls (EnableWindow, SetWindowText etc).
                 // Tick() runs on main thread and applies pending UI changes.
@@ -1938,6 +2025,7 @@ private:
 
                     // Signal main thread to update UI via Tick()
                     m_pendingSyncSuccess.store(true);
+                    PublishWcs(result, (int)sfw, (int)sfh, sgen);
 
                     wchar_t msg[128];
                     swprintf(msg, 128,
@@ -2295,6 +2383,15 @@ private:
     // thread. A mutex rather than atomics because the hint is a
     // struct and a half-updated one would point somebody the wrong
     // way, which is the single worst thing this feature can do.
+    // Phase 47b: the last solve, on its way to the preview.
+    std::mutex             m_wcsMutex;
+    raduk::sky::SolveResult m_wcsResult;
+    int                    m_wcsW = 0;
+    int                    m_wcsH = 0;
+    std::atomic<bool>      m_wcsFresh{false};
+    std::atomic<int>       m_wcsGen{0};
+    std::function<void(const raduk::sky::SolveResult&, int, int)> m_onWcs;
+
     std::mutex             m_pushToMutex;
     raduk::sky::PushToHint m_pushToHint;
     std::string            m_pushToLine;

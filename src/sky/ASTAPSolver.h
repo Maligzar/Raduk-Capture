@@ -31,18 +31,9 @@
 #include <thread>
 #include <atomic>
 #include "../core/RigConfig.h"
+#include "SolveResult.h"
 
 namespace raduk::sky {
-
-struct SolveResult {
-    bool   solved   = false;
-    double ra       = 0.0;  // hours, J2000
-    double dec      = 0.0;  // degrees, J2000
-    double fovW     = 0.0;  // field width, degrees
-    double fovH     = 0.0;  // field height, degrees
-    double rotation = 0.0;  // degrees E of N
-    std::string error;
-};
 
 class ASTAPSolver {
 public:
@@ -213,14 +204,18 @@ private:
         //   PLTSOLVD=T/F        solve success flag
         //   CRVAL1=<deg>        solution centre RA, degrees
         //   CRVAL2=<deg>        solution centre Dec, degrees
-        //   CDELT1/CDELT2=<deg> degrees per pixel
-        //   CROTA2=<deg>        rotation E of N
+        //   CDELT1/CDELT2=<deg> degrees per pixel. CDELT1 is
+        //                       signed: negative is an ordinary sky
+        //                       image, positive means mirrored
+        //   CROTA1/CROTA2=<deg> rotation E of N
+        //   CRPIX1/CRPIX2       reference pixel, 1-based, bottom-up
+        //   CD1_1..CD2_2        the WCS matrix, when written
         //   ERROR=/WARNING=     diagnostics
         // (The previous parser looked for SOLVEAD=/SOLVEDEC=/FOVX= — keys
         // ASTAP never writes — so every solve reported failure.)
         SolveResult result;
         bool plateSolved = false;
-        double crval1 = 0, crval2 = 0, cdelt1 = 0, cdelt2 = 0, crota2 = 0;
+        WcsKeys keys;
         std::string errorText, warningText;
 
         std::string line;
@@ -240,24 +235,33 @@ private:
             };
 
             if      (key == "PLTSOLVD") plateSolved = (!val.empty() && (val[0]=='T' || val[0]=='t'));
-            else if (key == "CRVAL1")   crval1 = num();
-            else if (key == "CRVAL2")   crval2 = num();
-            else if (key == "CDELT1")   cdelt1 = num();
-            else if (key == "CDELT2")   cdelt2 = num();
-            else if (key == "CROTA2")   crota2 = num();
+            else if (key == "CRVAL1")   keys.crval1 = num();
+            else if (key == "CRVAL2")   keys.crval2 = num();
+            else if (key == "CDELT1") { keys.cdelt1 = num(); keys.hasCdelt = true; }
+            else if (key == "CDELT2") { keys.cdelt2 = num(); keys.hasCdelt = true; }
+            else if (key == "CROTA2") { keys.crota2 = num(); keys.hasCrota2 = true; }
+            else if (key == "CROTA1") { keys.crota1 = num(); keys.hasCrota1 = true; }
+            else if (key == "CD1_1")  { keys.cd11 = num(); ++keys.cdSeen; }
+            else if (key == "CD1_2")  { keys.cd12 = num(); ++keys.cdSeen; }
+            else if (key == "CD2_1")  { keys.cd21 = num(); ++keys.cdSeen; }
+            else if (key == "CD2_2")  { keys.cd22 = num(); ++keys.cdSeen; }
+            else if (key == "CRPIX1") { keys.crpix1 = num(); ++keys.crpixSeen; }
+            else if (key == "CRPIX2") { keys.crpix2 = num(); ++keys.crpixSeen; }
             else if (key == "ERROR")    errorText   = val;
             else if (key == "WARNING")  warningText = val;
         }
 
         if (plateSolved) {
-            result.solved   = true;
-            result.ra       = crval1 / 15.0; // degrees → hours
-            result.dec      = crval2;
-            result.fovW     = std::abs(cdelt1) * imgW;
-            result.fovH     = std::abs(cdelt2) * imgH;
-            result.rotation = crota2;
-            printf("[ASTAP] Solved: RA=%.4fh Dec=%.4f° FoV=%.3f°x%.3f° rot=%.1f°%s%s\n",
-                   result.ra, result.dec, result.fovW, result.fovH, result.rotation,
+            result.solved = true;
+            // Every convention-sensitive decision is in ApplyWcsKeys,
+            // in SolveResult.h, where tests/pixel_wcs.cpp compiles it.
+            ApplyWcsKeys(result, keys, imgW, imgH);
+            printf("[ASTAP] Solved: RA=%.4fh Dec=%.4f° FoV=%.3f°x%.3f° "
+                   "rot=%.1f° via %s%s%s%s\n",
+                   result.ra, result.dec, result.fovW, result.fovH,
+                   result.rotation,
+                   result.hasCd ? "CD matrix" : "CDELT",
+                   result.degPerPxX > 0.0 ? " MIRRORED" : "",
                    warningText.empty() ? "" : " warn: ",
                    warningText.c_str());
         } else {

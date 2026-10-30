@@ -1069,10 +1069,17 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
             m_renderTarget->DrawText(L"GHOST", 5, m_hudFont, ghRect, m_amberBrush);
         }
 
-        // Pixel Value Readout (Phase 24)
+        // Pixel Value Readout (Phase 24), now carrying the absolute
+        // coordinate as well when a solve can supply one (Phase 47b).
         if (m_pixelReadout && m_rgbBuffer && m_frameWidth > 0 && m_hasLastRect) {
             DrawPixelReadout(px, pw, ph);
         }
+
+        // Directional rose (Phase 47b). Not tied to the pixel readout:
+        // which way a jog pushes the image is worth knowing while
+        // framing, and the readout is a hover tooltip that is only
+        // there when the cursor is.
+        DrawDirectionRose(px, pw, ph);
 
         if (hasFrame && frame) {
             swprintf(buf, 256, L"LIVE  %ux%u  %s  %.1f FPS  FRAMES: %llu  DROPS: %d",
@@ -1307,6 +1314,121 @@ void PreviewRenderer::DrawTempPanel(float x, float y, float w, float h) {
                       LABELH, 1.0f);
 }
 
+// ── Phase 47b: how old is the solution, and which way is which ──
+
+raduk::sky::SolveAge PreviewRenderer::PlateAge() const {
+    if (!m_plate.valid || m_plateAtMs == 0) return raduk::sky::SolveAge{};
+    const unsigned long long now = GetTickCount64();
+    // A tick counter that has gone backwards is a clock that cannot be
+    // trusted to age anything, so the solution is treated as expired
+    // rather than as brand new.
+    if (now < m_plateAtMs) return raduk::sky::SolveAge{};
+    return raduk::sky::AgeSolve((double)(now - m_plateAtMs) / 1000.0,
+                                m_fieldRotRate);
+}
+
+raduk::sky::DirectionRose PreviewRenderer::BuildRose() const {
+    raduk::sky::DirectionRose r;
+    // The sky half needs a solve that is still worth believing. The jog
+    // half does not: it was measured on this rig and nothing about the
+    // passage of time makes a pulse push the image a different way.
+    if (PlateAge().usable) raduk::sky::FillSkyRose(r, m_plate);
+    if (m_hasJog) raduk::sky::FillJogRose(r, m_jogEx, m_jogEy, m_jogNx, m_jogNy);
+    return r;
+}
+
+// A compass in the top-left, below the title and above anything the
+// panels can reach: they stop at y=100 even on a short window, so this
+// band is the one place on the image that is never contended.
+//
+// Two pairs of arrows, drawn in different colours because they answer
+// different questions. North and east are where the sky is. The jog
+// arrows are where a pulse pushes the IMAGE, which is the question
+// somebody nudging the mount is actually asking, and is the pair that
+// was measured rather than derived.
+//
+// When both are present they should disagree by half a turn, since
+// driving the scope east slides the field west. If they do not, the
+// solve's parity or the row-order assumption in PixelWCS.h is wrong,
+// and the readout says so instead of quietly picking one.
+void PreviewRenderer::DrawDirectionRose(float px, float pw, float ph) {
+    if (!m_renderTarget || !m_hudFont) return;
+    if (!m_roseOn) return;
+
+    const raduk::sky::DirectionRose rose = BuildRose();
+    const bool anySky = rose.skyNorth.valid || rose.skyEast.valid;
+    const bool anyJog = rose.jogEast.valid  || rose.jogNorth.valid;
+    if (!anySky && !anyJog) return;
+
+    const float R    = 26.0f;            // arrow length
+    const float BOX  = R * 2.0f + 22.0f;
+    const float left = px + 8.0f;
+    const float top  = 32.0f;
+    // The title reserves the right 200px of this strip; the rose needs
+    // its box clear of that. The warning beside it needs more, and is
+    // gated on its own below rather than suppressing the whole rose.
+    if (pw < BOX + 220.0f) return;
+    if (ph < top + BOX + 20.0f) return;
+
+    const float cx = left + BOX * 0.5f;
+    const float cy = top  + BOX * 0.5f;
+
+    auto arrow = [&](const raduk::sky::RoseArrow& a, const wchar_t* label,
+                     ID2D1SolidColorBrush* br, float len) {
+        if (!a.valid || !br) return;
+        const D2D1_POINT_2F o = D2D1::Point2F(cx, cy);
+        const D2D1_POINT_2F t = D2D1::Point2F(cx + a.dx * len, cy + a.dy * len);
+        m_renderTarget->DrawLine(o, t, br, 1.4f);
+        // Head: two short strokes back along the shaft, rotated by
+        // about 25 degrees either side.
+        const float hx = -a.dx * 7.0f, hy = -a.dy * 7.0f;
+        const float c25 = 0.906f, s25 = 0.423f;
+        m_renderTarget->DrawLine(t,
+            D2D1::Point2F(t.x + hx * c25 - hy * s25, t.y + hx * s25 + hy * c25),
+            br, 1.4f);
+        m_renderTarget->DrawLine(t,
+            D2D1::Point2F(t.x + hx * c25 + hy * s25, t.y - hx * s25 + hy * c25),
+            br, 1.4f);
+        // Label just past the head, centred on it.
+        const float lx = cx + a.dx * (len + 10.0f);
+        const float ly = cy + a.dy * (len + 10.0f);
+        m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+        m_renderTarget->DrawText(label, (UINT32)wcslen(label), m_hudFont,
+            D2D1::RectF(lx - 16.0f, ly - 7.0f, lx + 16.0f, ly + 9.0f), br);
+    };
+
+    ID2D1SolidColorBrush* skyBr = m_amberBrush ? m_amberBrush : m_dimBrush;
+    ID2D1SolidColorBrush* jogBr = m_greenBrush ? m_greenBrush : m_dimBrush;
+
+    // The jog pair is drawn shorter so the two pairs stay readable
+    // when they lie along the same axis, which is the usual case.
+    arrow(rose.skyNorth, L"N", skyBr, R);
+    arrow(rose.skyEast,  L"E", skyBr, R);
+    arrow(rose.jogEast,  L"jE", jogBr, R * 0.62f);
+    arrow(rose.jogNorth, L"jN", jogBr, R * 0.62f);
+
+    // Say when the two halves contradict each other. 25 degrees is
+    // well past any real calibration error and well short of the 90
+    // and 180 that a parity or sign fault produces.
+    //
+    // Beside the rose rather than under it. Under it would be y=106 on
+    // the band boundary, and the histogram panel bottoms out at y=100
+    // on a short window, so the one warning in this feature would be
+    // the one thing it overprints.
+    const double disagree = raduk::sky::AgreementAngleDeg(rose);
+    const bool roomForWarning = (pw >= BOX + 150.0f + 220.0f);
+    if (disagree >= 25.0 && m_redBrush && roomForWarning) {
+        wchar_t w[48];
+        swprintf(w, 48, L"ROSE %.0f\u00b0 OFF", disagree);
+        m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+        m_renderTarget->DrawText(w, (UINT32)wcslen(w), m_hudFont,
+            D2D1::RectF(left + BOX + 4.0f, cy - 8.0f,
+                        left + BOX + 150.0f, cy + 9.0f),
+            m_redBrush);
+    }
+    m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+}
+
 void PreviewRenderer::DrawPixelReadout(float px, float pw, float ph) {
     if (!m_renderTarget || !m_hudFont) return;
 
@@ -1339,12 +1461,47 @@ void PreviewRenderer::DrawPixelReadout(float px, float pw, float ph) {
     swprintf(line1, 48, L"R:%3d  G:%3d  B:%3d", r, g, b);
     swprintf(line2, 32, L"[%d, %d]", fx, fy);
 
-    const float TW = 130.0f, TH = 36.0f, TPAD = 4.0f;
+    // Phase 47b: the absolute question, when a solve can answer it.
+    //
+    // The pixel CENTRE is asked for, not its corner. ScreenToFramePixel
+    // truncates to an integer index, which is the right answer for
+    // reading a sample out of the buffer and half a pixel off for
+    // asking where that sample is on the sky.
+    wchar_t line3[64] = L"";
+    wchar_t line4[48] = L"";
+    const raduk::sky::SolveAge age = PlateAge();
+    if (age.usable) {
+        const raduk::sky::SkyPoint sp =
+            raduk::sky::PixelToSky(m_plate, (double)fx + 0.5, (double)fy + 0.5);
+        const std::string coord = raduk::sky::FormatPixelSky(sp);
+        if (!coord.empty()) {
+            MultiByteToWideChar(CP_UTF8, 0, coord.c_str(), -1, line3, 64);
+            const std::string a = raduk::sky::FormatAge(age.ageSec);
+            // The age is always shown, not only when stale. A reader
+            // who can see "3s" never has to wonder whether the number
+            // above it is from this frame or from before the last slew.
+            std::string tag = "solve " + a;
+            if (age.stale) tag += "  STALE";
+            MultiByteToWideChar(CP_UTF8, 0, tag.c_str(), -1, line4, 48);
+        }
+    }
+    const bool hasSky = (line3[0] != L'\0');
+
+    const float TW = hasSky ? 218.0f : 130.0f;
+    const float TH = hasSky ?  66.0f :  36.0f;
+    const float TPAD = 4.0f;
     // Position tooltip: prefer right of cursor, flip left near edge
     float tx = sx + 10.0f;
     float ty = sy - TH - 4.0f;
     if (tx + TW > px + pw - 8) tx = sx - TW - 10.0f;
+    // The coordinate line made this box 218px wide, which is wide
+    // enough that flipping it left of the cursor can push it off the
+    // left edge on a narrow preview. Flipping was already the fix for
+    // the right edge; this is the other one.
+    if (tx < px + 4.0f) tx = px + 4.0f;
     if (ty < 4.0f) ty = sy + 10.0f;
+    if (ty + TH > ph - 4.0f) ty = ph - 4.0f - TH;
+    if (ty < 4.0f) ty = 4.0f;
 
     // Background
     {
@@ -1366,11 +1523,29 @@ void PreviewRenderer::DrawPixelReadout(float px, float pw, float ph) {
     m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
     ID2D1SolidColorBrush* txtBrush = m_pixelLocked ? m_greenBrush : m_amberBrush;
     if (!txtBrush) txtBrush = m_dimBrush;
+    ID2D1SolidColorBrush* dimBrush = m_dimBrush ? m_dimBrush : txtBrush;
     if (txtBrush) {
+        const float LH = 16.0f;
+        float ly = ty + 2.0f;
         m_renderTarget->DrawText(line1, (UINT32)wcslen(line1), m_hudFont,
-            D2D1::RectF(tx+TPAD, ty+2, tx+TW-TPAD, ty+TH/2+2), txtBrush);
+            D2D1::RectF(tx+TPAD, ly, tx+TW-TPAD, ly+LH), txtBrush);
+        ly += LH;
         m_renderTarget->DrawText(line2, (UINT32)wcslen(line2), m_hudFont,
-            D2D1::RectF(tx+TPAD, ty+TH/2+2, tx+TW-TPAD, ty+TH), m_dimBrush ? m_dimBrush : txtBrush);
+            D2D1::RectF(tx+TPAD, ly, tx+TW-TPAD, ly+LH), dimBrush);
+        if (hasSky) {
+            ly += LH;
+            m_renderTarget->DrawText(line3, (UINT32)wcslen(line3), m_hudFont,
+                D2D1::RectF(tx+TPAD, ly, tx+TW-TPAD, ly+LH), txtBrush);
+            ly += LH;
+            // Red when stale: the coordinate above is still drawn,
+            // because a reader who knows it is old can still use it,
+            // and hiding it would leave no way to tell a stale solve
+            // from no solve at all.
+            ID2D1SolidColorBrush* ageBr =
+                (age.stale && m_redBrush) ? m_redBrush : dimBrush;
+            m_renderTarget->DrawText(line4, (UINT32)wcslen(line4), m_hudFont,
+                D2D1::RectF(tx+TPAD, ly, tx+TW-TPAD, ly+LH), ageBr);
+        }
     }
 
     // Lock indicator

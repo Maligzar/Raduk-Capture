@@ -17,6 +17,7 @@
 #include <vector>
 #include <deque>
 #include <functional>
+#include "../sky/PixelWCS.h"
 #include "../core/FrameSlot.h"
 #include "core/CalibrationFrames.h"
 #include "../core/FrameAnalyzer.h"
@@ -417,6 +418,50 @@ public:
     int  FrameWidthPx()  const { return m_frameWidth; }
     int  FrameHeightPx() const { return m_frameHeight; }
 
+    // ── Phase 47b: naming the pixel, and the rose ─────────
+    //
+    // Both setters are MAIN THREAD ONLY. The solve that produces a
+    // solution finishes on a worker, and GoToPanel::WcsTick hands
+    // it over on the main thread for exactly this reason; calling
+    // these from a solver callback would be a data race against
+    // the draw.
+    void SetPlateSolution(const raduk::sky::PlateSolution& s) {
+        m_plate = s;
+        m_plateAtMs = s.valid ? GetTickCount64() : 0;
+    }
+
+    // Any commanded move invalidates the solution outright. Not a
+    // decay: the frame that was solved is simply not this frame
+    // any more, and a coordinate from the old one is wrong by the
+    // whole size of the move while looking entirely reasonable.
+    void ClearPlateSolution() {
+        m_plate = raduk::sky::PlateSolution{};
+        m_plateAtMs = 0;
+    }
+    bool HasPlateSolution() const { return m_plate.valid; }
+
+    // The measured guide response, px per ms of pulse. This is the
+    // half of the rose that owes nothing to a solve or to any
+    // convention, so it is set once after calibration and survives
+    // everything the solution does not.
+    void SetJogResponse(float exPerMs, float eyPerMs,
+                        float nxPerMs, float nyPerMs) {
+        m_jogEx = exPerMs; m_jogEy = eyPerMs;
+        m_jogNx = nxPerMs; m_jogNy = nyPerMs;
+        m_hasJog = true;
+    }
+    void ClearJogResponse() { m_hasJog = false; }
+
+    // Field rotation rate for the staleness check, deg/hr. An
+    // alt-az mount turns the field as it tracks, so a solve goes
+    // stale sitting still; see PixelWCS.h. Zero for an equatorial
+    // mount or a wedge.
+    void SetFieldRotationRate(double degPerHour) { m_fieldRotRate = degPerHour; }
+
+    void SetRoseEnabled(bool e) { m_roseOn = e; }
+    bool RoseEnabled()    const { return m_roseOn; }
+    void ToggleRose()           { m_roseOn = !m_roseOn; }
+
     // Left-click: toggle lock on current hover position
     void ClickPixelLock(float sx, float sy) {
         if (!m_pixelReadout) return;
@@ -527,6 +572,9 @@ private:
     void DrawTempPanel(float x, float y, float w, float h);
     void FillPanelBg(float x, float y, float w, float h);
     void DrawPixelReadout(float px, float pw, float ph);
+    void DrawDirectionRose(float px, float pw, float ph);
+    raduk::sky::DirectionRose BuildRose() const;
+    raduk::sky::SolveAge      PlateAge()  const;
     void DrawRubberBand();
     void DrawResetPopup();
 
@@ -605,6 +653,16 @@ private:
     bool                    m_pixelLocked   = false;
     float                   m_pixelHoverX   = 0.0f;
     float                   m_pixelHoverY   = 0.0f;
+
+    // Pixel position readout + directional rose (Phase 47b)
+    raduk::sky::PlateSolution m_plate;
+    unsigned long long      m_plateAtMs     = 0;
+    double                  m_fieldRotRate  =
+        raduk::sky::DefaultFieldRotationDegPerHour();
+    bool                    m_roseOn        = true;
+    bool                    m_hasJog        = false;
+    float                   m_jogEx = 0.0f, m_jogEy = 0.0f;
+    float                   m_jogNx = 0.0f, m_jogNy = 0.0f;
 
     // Display FX (Phase 25)
     DisplayFX               m_displayFX     = DisplayFX::Normal;

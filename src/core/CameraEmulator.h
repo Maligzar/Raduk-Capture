@@ -33,6 +33,7 @@
 #include <mutex>
 #include <chrono>
 #include <functional>
+#include "ASITypeMap.h"
 
 namespace raduk::core {
 
@@ -114,7 +115,7 @@ static const JupMoon JUP_MOONS[] = {
 };
 static const int NUM_JUP_MOONS = 4;
 
-class ASICamera {
+class ASICamera : public ICamera {
 public:
     ASICamera() = default;
     ~ASICamera() { Close(); }
@@ -131,20 +132,20 @@ public:
         info.CameraID  = 0;
         info.MaxWidth  = 3840;
         info.MaxHeight = 2160;
-        info.IsColor   = ASI_TRUE;
+        info.IsColorCam = ASI_TRUE;
         info.BayerPattern = ASI_BAYER_RG;
         info.PixelSize = 2.0;
         printf("[CameraEmulator] Enumerate: 1 emulated camera\n");
         return { info };
     }
 
-    bool Open(int /*cameraIndex*/) {
+    bool Open(int /*cameraIndex*/) override {
         if (m_isOpen) return false;
         strncpy_s(m_info.Name, "ZWO ASI678MC [EMU]", sizeof(m_info.Name));
         m_info.CameraID  = 0;
         m_info.MaxWidth  = 3840;
         m_info.MaxHeight = 2160;
-        m_info.IsColor   = ASI_TRUE;
+        m_info.IsColorCam = ASI_TRUE;
         m_info.BayerPattern = ASI_BAYER_RG;
         m_isOpen = true;
         // Open at the full sensor, like the real camera does. The app's
@@ -158,15 +159,15 @@ public:
         return true;
     }
 
-    void Close() {
+    void Close() override {
         if (!m_isOpen) return;
         StopVideoCapture();
         m_isOpen = false;
         printf("[CameraEmulator] Closed\n");
     }
 
-    bool IsOpen()      const { return m_isOpen; }
-    bool IsCapturing() const { return m_isCapturing; }
+    bool IsOpen()      const override { return m_isOpen; }
+    bool IsCapturing() const override { return m_isCapturing; }
 
     // ── Configuration ──────────────────────────────────────────
 
@@ -264,8 +265,8 @@ public:
 
     // ── Convenience setters ────────────────────────────────────
 
-    void SetGain(int gain)               { m_gain = gain; }
-    void SetExposure(double ms)          { m_exposureUs = (long)(ms * 1000.0); }
+    void SetGain(int gain) override               { m_gain = gain; }
+    void SetExposure(double ms) override { m_exposureUs = (long)(ms * 1000.0); }
     void SetGamma(int gamma)             { m_gamma = gamma; }
     void SetWhiteBalance(int r, int b)   { m_wbR = r; m_wbB = b; }
     // These are the setters callers actually use; SetControl is the other
@@ -277,11 +278,11 @@ public:
     void SetUSBBandwidth(int pct)        { m_usbBandwidth = pct; }
     void SetHighSpeedMode(bool en)       { m_highSpeed = en; }
     void SetFlip(ASI_FLIP_STATUS /*f*/)         {}
-    bool SetStartPos(int /*x*/, int /*y*/)      { return true; } // no-op in emulator
+    bool SetStartPos(int /*x*/, int /*y*/) override { return true; } // no-op in emulator
     // There is no sensor position to report, so say so: the phase 48
     // observation record then leaves roi_x/roi_y out rather than
     // recording a position the emulator never had.
-    bool GetStartPos(int& /*x*/, int& /*y*/) const { return false; }
+    bool GetStartPos(int& /*x*/, int& /*y*/) const override { return false; }
 
     // ── Phase 52: closed-loop pointing input ───────────────────
     // Plate scale of the synthetic frames (arcsec/pixel). This is the
@@ -459,7 +460,7 @@ public:
 
     // ── Video capture ──────────────────────────────────────────
 
-    bool StartVideoCapture() {
+    bool StartVideoCapture() override {
         if (!m_isOpen || m_isCapturing) return false;
         m_isCapturing = true;
         m_frameCounter = 0;
@@ -530,7 +531,7 @@ public:
         return true;
     }
 
-    void StopVideoCapture() {
+    void StopVideoCapture() override {
         if (!m_isCapturing) return;
         m_isCapturing = false;
         if (m_genThread.joinable()) m_genThread.join();
@@ -554,7 +555,7 @@ public:
         return ok;
     }
 
-    bool RestartCapture() {
+    bool RestartCapture() override {
         // Emulated §6.3 recovery: succeeds unless the camera is currently
         // "unplugged" by the injection window.
         return m_isCapturing && !InRemovedWindow();
@@ -596,12 +597,12 @@ public:
         return false; // timeout — no new frame within timeoutMs
     }
 
-    int GetDroppedFrames() const { return 0; }
+    int GetDroppedFrames() const override { return 0; }
 
     // ── Info ───────────────────────────────────────────────────
 
     const ASI_CAMERA_INFO& Info() const { return m_info; }
-    int   CameraId()    const { return 0; }
+    int   CameraId()    const override { return 0; }
     int   MaxWidth()    const { return 3840; }
     int   MaxHeight()   const { return 2160; }
     float Temperature() const { return m_sensorTemp; }
@@ -627,6 +628,46 @@ public:
     static const char* ErrorString(ASI_ERROR_CODE err) {
         (void)err; return "EMU_OK";
     }
+
+    // ── ICamera ────────────────────────────────────────────────
+    // Neutral vocabulary delegating to the ASI-typed methods
+    // above. Additive on purpose: the 43 existing GetControl
+    // call sites keep working untouched, and migrating them is
+    // the follow-up rather than a second risk in this commit.
+    bool SetRegion(int width, int height, int binning, ImageType type) override {
+        return SetROI(width, height, binning, asimap::ToAsi(type));
+    }
+    bool GetRegion(int& width, int& height, int& binning, ImageType& type) const override {
+        ASI_IMG_TYPE a{};
+        const bool ok = GetROI(width, height, binning, a);
+        type = asimap::FromAsi(a);
+        return ok;
+    }
+    bool SetControlValue(ControlId id, long value, bool autoMode = false) override {
+        return SetControl(asimap::ToAsi(id), value, autoMode);
+    }
+    long GetControlValue(ControlId id) const override {
+        return GetControl(asimap::ToAsi(id));
+    }
+    bool GetControlRange(ControlId id, ControlRange& range) const override {
+        ASI_CONTROL_CAPS caps{};
+        if (!GetControlCaps(asimap::ToAsi(id), caps)) return false;
+        range.min         = caps.MinValue;
+        range.max         = caps.MaxValue;
+        range.defaultVal  = caps.DefaultValue;
+        range.writable    = (caps.IsWritable == ASI_TRUE);
+        range.autoCapable = (caps.IsAutoSupported == ASI_TRUE);
+        return true;
+    }
+    bool GetFrame(uint8_t* buffer, int bufferSize, int timeoutMs,
+                  CaptureError& err) override {
+        ASI_ERROR_CODE raw = ASI_SUCCESS;
+        const bool ok = GetVideoFrameEx(buffer, bufferSize, timeoutMs, raw);
+        err = asimap::FromAsi(raw);
+        return ok;
+    }
+    CameraInfo Describe() const override { return asimap::Describe(m_info); }
+    float      GetTemperatureC() const override { return Temperature(); }
 
 private:
     // ── Synthetic frame generator ──────────────────────────────

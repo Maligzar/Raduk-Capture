@@ -32,16 +32,46 @@ The emulator headers declare classes with the **same names** —
 dispatch for the camera or focuser, no runtime branch, no possibility of a
 mixed build.
 
-| Device | Hardware class | Emulator class | Polymorphic? |
-|--------|---------------|----------------|--------------|
-| Camera | `ASICamera` (ZWO ASI SDK) | `CameraEmulator`, declared as `ASICamera` | No — same name, swapped header |
-| Focuser | `EAFFocuser` (ZWO EAF SDK) | `EAFEmulator`, declared as `EAFFocuser` | No — same name, swapped header |
-| Mount | `NexStarMount`, `ASCOMMount` | `MountEmulator` | **Yes** — all implement `IMount` |
+| Device | Hardware class | Emulator class | Interface |
+|--------|---------------|----------------|-----------|
+| Camera | `ASICamera` (ZWO ASI SDK) | `CameraEmulator`, declared as `ASICamera` | `ICamera` (P5.2) |
+| Focuser | `EAFFocuser` (ZWO EAF SDK) | `EAFEmulator`, declared as `EAFFocuser` | `IFocuser` (P5.2) |
+| Mount | `NexStarMount`, `ASCOMMount` | `MountEmulator` | `IMount` |
 
-> **Why the mount is the only polymorphic one.** There are two real
-> backends (serial and ASCOM), so a runtime choice genuinely exists. The
-> camera and focuser have exactly one SDK each, so the only variation is
-> hardware-versus-emulator, which is a build-time fact.
+The name collision is still how the build selects a device, and still
+costs nothing at runtime. What changed in P5.2 is that both sides of each
+pair now also implement an interface.
+
+> **This page used to argue the camera and focuser did not need one**, on
+> the grounds that each has exactly one SDK so the only variation is
+> build-time. That reasoning held for selection and missed two things.
+>
+> A second brand could not be added at all. Not "awkwardly": there was
+> nowhere to put it, which is the deficit the competitive comparison
+> scored hardest against SharpCap's fourteen native camera families.
+>
+> And nothing checked that the two classes of a pair agreed. They are
+> never compiled in the same translation unit, so a signature could drift
+> on one side and only the other build would discover it. That is not
+> hypothetical here: the emulator's `ASICamera2Stub.h` called a field
+> `IsColor` where the real SDK calls it `IsColorCam`, and it went
+> unnoticed because nothing used it. Writing `ICamera` found it
+> immediately.
+
+**`ICamera` is deliberately not typed in ASI terms.** An interface only
+ZWO can implement is the ZWO SDK with extra steps. Its vocabulary is this
+application's own, and it is small because the application's real use of
+the SDK is small: ten controls, three image types, four error outcomes,
+counted rather than guessed. Translation lives in
+[`ASITypeMap.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ASITypeMap.h)
+at the vendor boundary, which is exactly what a second brand would add its
+own copy of.
+
+**The seam exists but is not yet load-bearing.** The concrete classes keep
+their native ASI-typed methods and the 43 existing `GetControl(ASI_GAIN)`
+call sites are untouched. Migrating them is the follow-up; doing it in the
+same change that introduced the interface would have been two risks at
+once.
 
 `CMakeLists.txt` reinforces this: in emulator mode `DEVICE_SOURCES` is
 empty, so `ASICamera.cpp`, `EAFFocuser.cpp`, and `NexStarMount.cpp` are not

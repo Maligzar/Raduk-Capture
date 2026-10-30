@@ -18,10 +18,11 @@
 #include <atomic>
 #include <mutex>
 #include <chrono>
+#include "IFocuser.h"
 
 namespace raduk::core {
 
-class EAFFocuser {
+class EAFFocuser : public IFocuser {
 public:
     EAFFocuser()  = default;
     ~EAFFocuser() { Close(); }
@@ -36,7 +37,7 @@ public:
         return 1;
     }
 
-    bool Open(int /*index*/) {
+    bool Open(int /*index*/) override {
         if (m_isOpen) return false;
         // Start where this rig's focuser actually lives. The 8SE with the
         // EAF comes to focus around 150-175k - a measured run landed at
@@ -53,7 +54,7 @@ public:
         return true;
     }
 
-    void Close() {
+    void Close() override {
         if (!m_isOpen) return;
         m_isOpen = false;
         m_moving = false;
@@ -61,11 +62,11 @@ public:
         printf("[EAFEmulator] Closed\n");
     }
 
-    bool IsOpen() const { return m_isOpen; }
+    bool IsOpen() const override { return m_isOpen; }
 
     // ── Motion ─────────────────────────────────────────────────
 
-    bool MoveTo(int position) {
+    bool MoveTo(int position) override {
         if (!m_isOpen) return false;
         position = std::clamp(position, 0, 600000);
         std::lock_guard<std::mutex> lk(m_mutex);
@@ -75,13 +76,13 @@ public:
         return true;
     }
 
-    bool MoveRelative(int steps) {
+    bool MoveRelative(int steps) override {
         if (!m_isOpen) return false;
         int newPos = std::clamp(m_position.load() + steps, 0, 600000);
         return MoveTo(newPos);
     }
 
-    bool Stop() {
+    bool Stop() override {
         if (!m_isOpen) return false;
         std::lock_guard<std::mutex> lk(m_mutex);
         m_target = m_position.load();  // Cancel move — target = current
@@ -90,31 +91,31 @@ public:
         return true;
     }
 
-    bool IsMoving() const {
+    bool IsMoving() const override {
         return m_moving.load();
     }
 
-    int GetPosition() const {
+    int GetPosition() const override {
         return m_position.load();
     }
 
-    int GetMaxPosition() const { return 600000; }
+    int GetMaxPosition() const override { return 600000; }
 
     // ── Configuration ──────────────────────────────────────────
 
-    void SetReverse(bool reversed) {
+    void SetReverse(bool reversed) override {
         m_reversed = reversed;
         printf("[EAFEmulator] Reverse: %s\n", reversed ? "on" : "off");
     }
 
-    void SetBacklash(int steps) {
+    void SetBacklash(int steps) override {
         m_backlash = steps;
         printf("[EAFEmulator] Backlash: %d steps\n", steps);
     }
 
     // ── Temperature ────────────────────────────────────────────
 
-    float GetTemperature() const {
+    float GetTemperature() const override {
         // Stable temperature with minor noise — realistic for a focuser
         float noise = ((m_tempTick.load() % 10) - 5) * 0.02f;
         return 18.3f + noise;
@@ -122,7 +123,7 @@ public:
 
     // ── Info ───────────────────────────────────────────────────
 
-    int FocuserId() const { return 0; }
+    int FocuserId() const override { return 0; }
 
 private:
     // Motor simulation: moves position toward target at ~1000 steps/sec

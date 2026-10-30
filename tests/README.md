@@ -40,6 +40,7 @@ known gaps, all in the toolchain rather than in this code:
 |---|---|
 | `undefined reference to __imp__get_timezone` | An MSVC CRT symbol mingw does not ship. Hits anything pulling `RigConfig`: `ai_context_facts`, `mount_jog`, `leoben_weather`. They compile; they do not link |
 | `BCryptGenRandom` / WIC GUIDs undefined | Link libraries the command above now lists. Not a code problem |
+| `timeBeginPeriod` undefined when a test pulls `CameraEmulator.h` | MSVC honours the `#pragma comment(lib, "winmm.lib")` in that header; mingw ignores it. Add `-lwinmm` |
 | `object_knowledge` cannot find its database | There is no `D:` here, so `Paths` falls back to the exe directory. Correct behaviour, and the test reports where it looked |
 
 It did earn its keep once: building under a stricter toolchain is what

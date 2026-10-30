@@ -11,10 +11,11 @@
 #else
 #  include "EAF_focuser.h"
 #include <vector>
+#include "IFocuser.h"
 
 namespace raduk::core {
 
-class EAFFocuser {
+class EAFFocuser : public IFocuser {
 public:
     EAFFocuser() = default;
     ~EAFFocuser() { Close(); }
@@ -24,22 +25,22 @@ public:
 
     static int GetCount() { return EAFGetNum(); }
 
-    bool Open(int index);
-    void Close();
-    bool IsOpen() const { return m_isOpen; }
+    bool Open(int index) override;
+    void Close() override;
+    bool IsOpen() const override { return m_isOpen; }
 
-    bool MoveTo(int position);
-    bool MoveRelative(int steps);
-    bool Stop();
-    bool IsMoving() const;
-    int  GetPosition() const;
-    int  GetMaxPosition() const { return m_info.MaxStep; }
+    bool MoveTo(int position) override;
+    bool MoveRelative(int steps) override;
+    bool Stop() override;
+    bool IsMoving() const override;
+    int  GetPosition() const override;
+    int  GetMaxPosition() const override { return m_info.MaxStep; }
 
-    void SetReverse(bool reversed);
-    void SetBacklash(int steps);
+    void SetReverse(bool reversed) override;
+    void SetBacklash(int steps) override;
 
-    float GetTemperature() const;
-    int FocuserId() const { return m_focuserId; }
+    float GetTemperature() const override;
+    int FocuserId() const override { return m_focuserId; }
 
 private:
     int         m_focuserId = -1;

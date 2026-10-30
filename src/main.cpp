@@ -724,9 +724,23 @@ static int RunApp(bool useEmulator) {
     // tracker, the GoTo panel, the sky maps or the mount controller.
     raduk::core::MountProxy mountProxy;
     bool startInRCControl = false;
+    // Phase P5.3: set when a simulator is standing in for a real
+    // mount on the HARDWARE path, which is the case worth warning
+    // about -- an emulator build says what it is everywhere else, so
+    // it leaves this false on purpose.
+    //
+    // Lives out here because connectMountBackend runs once before the
+    // notification bar exists and again on every reconnect, long
+    // after it does.
+    bool mountIsSimulated = false;
 
     auto connectMountBackend = [&]() -> std::unique_ptr<IMount> {
         std::unique_ptr<IMount> mountPtr;
+        // Cleared on every fresh choice, not just on the ASCOM path.
+        // Set only where it becomes true, this stayed true after a
+        // reconnect fell through from a pinned simulator to the hand
+        // control, and the warning outlived the thing it warned about.
+        mountIsSimulated = false;
 
 #ifdef RADUK_EMULATOR
     {
@@ -747,14 +761,36 @@ static int RunApp(bool useEmulator) {
         std::string ascomProgId = ASCOMMount::FindCPWIDriver();
         if (!ascomProgId.empty()) {
             auto* am = new ASCOMMount();
-            if (am->Connect(ascomProgId) && !am->IsSimulator()) {
+            // The simulator rejection belongs to DISCOVERY, not to a
+            // driver the owner named in rig.ini; AcceptConnectedDriver
+            // holds that policy and tests/ascom_driver_choice.cpp
+            // gates it. Pinning a simulator is the only way to drive
+            // the generic ASCOM path without a mount on the desk, and
+            // this line used to refuse it.
+            const bool pinned = ASCOMMount::ProgIdWasPinned();
+            if (am->Connect(ascomProgId) &&
+                ASCOMMount::AcceptConnectedDriver(am->IsSimulator(), pinned)) {
                 mountPtr.reset(am);
                 startInRCControl = false;
-                Log("[INIT] Mount: ASCOM (%s) — CPWI in control\n", ascomProgId.c_str());
-                slog.System("Mount: CPWI active via %s", ascomProgId.c_str());
+                if (am->IsSimulator()) {
+                    // Said every time, at the loudest level the log
+                    // has. Forgetting that the mount is simulated is
+                    // the hazard the blanket rejection was protecting
+                    // against, so relaxing it owes a replacement
+                    // signal rather than silence.
+                    mountIsSimulated = true;
+                    Log("[INIT] Mount: ASCOM (%s) - *** SIMULATED, nothing will move ***\n",
+                        ascomProgId.c_str());
+                    slog.System("Mount: SIMULATED via %s (AscomProgId in rig.ini)",
+                                ascomProgId.c_str());
+                } else {
+                    Log("[INIT] Mount: ASCOM (%s) - CPWI in control\n", ascomProgId.c_str());
+                    slog.System("Mount: CPWI active via %s", ascomProgId.c_str());
+                }
             } else {
                 if (am->IsSimulator())
-                    Log("[INIT] ASCOM → simulator detected, ignoring\n");
+                    Log("[INIT] ASCOM → simulator discovered, not named; ignoring. "
+                        "Set AscomProgId in rig.ini to use one deliberately\n");
                 am->Disconnect();
                 delete am;
             }
@@ -1784,6 +1820,28 @@ static int RunApp(bool useEmulator) {
 
     // Phase 40: Notification Bar
     raduk::gui::NotificationBar notifBar;
+
+    // Phase P5.3: a simulated mount must never be a quiet fact.
+    //
+    // connectMountBackend decides this before the notification bar
+    // exists, and again on every reconnect long after it does, so the
+    // announcement is a lambda called from both rather than two copies
+    // of the wording. It fires on the TRANSITION, so a reconnect from
+    // simulator to real mount clears the claim instead of leaving the
+    // last warning standing.
+    bool mountSimAnnounced = false;
+    auto announceMountSim = [&]() {
+        if (mountIsSimulated == mountSimAnnounced) return;
+        mountSimAnnounced = mountIsSimulated;
+        if (mountIsSimulated)
+            notifBar.NotifyWarn(L"Mount is SIMULATED (AscomProgId in rig.ini) "
+                                L"- slews and jogs move nothing");
+        else
+            notifBar.NotifyInfo(L"Mount is a real telescope again");
+    };
+    // The startup mount choice was made before the bar existed, so it
+    // is announced here, the first moment there is anywhere to say it.
+    announceMountSim();
     notifBar.Create(window.Handle(), PANEL_WIDTH);
     notifBar.SetDismissCallback([&]() {
         window.SetNotifBarHeight(notifBar.Height());
@@ -3110,6 +3168,7 @@ static int RunApp(bool useEmulator) {
             // may have started since launch, or the hand control may
             // have come up on a different port.
             mountProxy.SetBackend(connectMountBackend());
+            announceMountSim();
             if (mountProxy.IsConnected()) {
                 controls.SetRCControl(startInRCControl);
                 Log("[HW] Mount: %s\n", mountProxy.ConnectionId().c_str());

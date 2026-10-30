@@ -1047,12 +1047,22 @@ in view while doing it: a managed-language server with no
 authentication would not be safer in practice than a fuzzed C++ one
 with a token.
 
-### P5.7 · License: PolyForm Noncommercial is the binding constraint on continuity
+### P5.7 · License: relicensed to MPL-2.0 — ✅ DECIDED 2026-10-26
 
-**Effort: an owner decision, not code. Nothing here can be done by
-writing software.**
+**The decision is taken: MPL-2.0.** `LICENSE` carries the Mozilla
+Public License 2.0, and the Exhibit A header is on all 136 files under
+`src/` and `tests/`. `external/` is untouched, because none of it is
+this project's to relicense: the ZWO SDKs remain Suzhou ZWO Co., Ltd.'s
+under their own terms and sqlite3 is public domain.
 
-`LICENSE` is PolyForm Noncommercial 1.0.0. It is source-available and
+One property of MPL that matters here and was not the reason for
+choosing it: file-level copyleft permits linking against proprietary
+vendor SDKs, which a strong-copyleft license would have made awkward
+for exactly the ASI and EAF dependencies this application is built on.
+
+The finding that led to it is kept below as the record of why.
+
+`LICENSE` was PolyForm Noncommercial 1.0.0. It is source-available and
 it is not an OSI open-source license, because it discriminates by
 field of use. Three consequences follow mechanically rather than as
 opinion: it is GPL-incompatible, it will not be packaged by any Linux
@@ -1088,8 +1098,10 @@ not pretending the decision has been taken:
   that administration is not free and should be priced before it is
   chosen.
 
-Record the decision whichever way it goes. An unmade decision here
-reads as the restrictive answer, because that is what it currently is.
+The second option was taken. What was given up is stated plainly in it:
+a manufacturer may now ship this, subject to publishing their changes
+to the covered files. What was bought is distribution packaging, GPL
+compatibility, and contributors whose employers run a legal review.
 
 ---
 
@@ -1432,16 +1444,16 @@ That is the same shape as the defect the test exists to catch —
 announces itself; it just quietly reports an empty knowledge base. A
 gate that depends on an untracked file is not a gate.
 
-### A decision for the owner, raised 2026-10-19
+### Answered by the owner, 2026-10-26
 
-**P5.7, the license.** PolyForm Noncommercial 1.0.0 is source-available
-and is not an OSI open-source license, so it is GPL-incompatible, it
-will not be packaged by a distribution, and it is closed to anyone
-whose employer runs a legal review. Against a stated bus factor of 1,
-that costs more than the commit count does: N.I.N.A. is 79%
-one author and survives anyway on MPL-2.0 and 78 contributors. Keep,
-relicense or dual-license, with the trade-offs set out in P5.7. Not a
-task, and not a recommendation already accepted.
+**P5.7, the license: MPL-2.0.** Raised 2026-10-19 out of the
+competitive comparison, decided a week later. PolyForm Noncommercial
+1.0.0 was source-available and not an OSI license, so it was
+GPL-incompatible, unpackageable by any distribution, and closed to
+anyone whose employer runs a legal review. Against a stated bus factor
+of 1 that cost more than the commit count did: N.I.N.A. is 79% one
+author and survives anyway on MPL-2.0 and 78 contributors. The
+relicense is done; see P5.7 for what it bought and what it gave up.
 
 ### Both questions answered by the owner, 2026-10-17
 

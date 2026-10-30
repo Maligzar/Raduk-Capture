@@ -237,14 +237,32 @@ and it gates merges — corrected 2026-10-18.
 
 [`tests\run-tests.ps1`](https://github.com/Maligzar/Raduk-Capture/blob/master/tests/run-tests.ps1)
 builds and runs every suite in `tests\` and exits non-zero if any fails.
-That is 18 suites: `histogram_accuracy`, `adc_alignment`,
+That is 26 suites: `histogram_accuracy`, `adc_alignment`,
 `sensor_analysis`, `write_buffer_sizing`, `sky_conditions`,
 `capture_thread_submit`, `ai_context_facts`, `object_knowledge`,
 `object_panel_text`, `slew_variable`, `mount_jog`, `planet_apparent_size`,
-`profile_notes`, `recentre`, `hardware_link`, and the three P5.6
-WebSocket suites `ws_protocol`, `ws_fuzz` and `ws_server_loopback`. The
-last three build under AddressSanitizer (`Asan = $true` in the list),
-and the runner copies the ASan runtime DLL beside them. They run on the bench with no camera,
+`profile_notes`, `recentre`, `observation_record`, `hardware_link`,
+`preview_frame`, `dashboard_launch`, `leoben_weather`, the three P5.6
+WebSocket suites `ws_protocol`, `ws_fuzz` and `ws_server_loopback`, and
+the four from Tier 5: `ser_timestamp_midpoint`, `paths_resolution`,
+`ascom_driver_choice` and `device_interfaces`. The WebSocket three build
+under AddressSanitizer (`Asan = $true` in the list), and the runner
+copies the ASan runtime DLL beside them.
+
+> **The gate is MSVC, and that is the only run that counts.** Most of
+> these also build with mingw-w64 and run under wine, which is how the
+> Tier 5 work was checked when the author was not at the Windows box. It
+> is evidence, not a pass: mingw accepts and rejects different things.
+> The recipe and its three known gaps are in
+> [`tests/README.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/tests/README.md).
+> It earned its keep once already, finding `AIContextBuilder.h` using
+> `uint32_t` with no `<cstdint>`, which MSVC had been hiding behind a
+> transitive include.
+
+> **A gap worth knowing.** No suite compiles `main.cpp` or
+> `CaptureThread.cpp`, so a green run says nothing about either. The
+> P5.2b migration touched ~55 call sites across both and was verified by
+> syntax-checking them directly in each build configuration instead. They run on the bench with no camera,
 mount or sky attached, which is what lets them gate anything.
 
 Beside them sit the **manual harnesses**, `tests\manual-*`, deliberately

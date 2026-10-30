@@ -1,6 +1,6 @@
 # Code Map
 
-Every source file, what it owns, and how big it is. ~34,500 lines across 86
+Every source file, what it owns, and how big it is. ~48,900 lines across 114
 files; **only 15 translation units compile** — the rest are header-only,
 included into `main.cpp`.
 
@@ -56,8 +56,8 @@ See [Capture Pipeline](Capture-Pipeline), [Recording and SER Format](Recording-a
 | File | Lines | Owns |
 |------|-------|------|
 | [`DeviceFactory.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/DeviceFactory.h) | 36 | **The compile-time hardware/emulator switch.** Include this, not individual device headers |
-| [`ICamera.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ICamera.h) | 163 | Abstract camera interface, P5.2. Brand-neutral on purpose: `ControlId`, `ImageType`, `CaptureError`, `CameraInfo` |
-| [`IFocuser.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/IFocuser.h) | 73 | Abstract focuser interface, P5.2 |
+| [`ICamera.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ICamera.h) | 197 | Abstract camera interface, P5.2. Brand-neutral on purpose: `ControlId`, `ImageType`, `CaptureError`, `CameraInfo` |
+| [`IFocuser.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/IFocuser.h) | 72 | Abstract focuser interface, P5.2 |
 | [`ASITypeMap.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ASITypeMap.h) | 103 | Translation between `ICamera`'s vocabulary and ZWO's. The whole cost of staying brand-neutral, in one file |
 | [`IMount.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/IMount.h) | 122 | Abstract mount interface, `GuideDirection`, RA/Dec formatters |
 | [`ASICamera.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ASICamera.h) / `.cpp` | 83 / 160 | ZWO ASI SDK wrapper |
@@ -122,6 +122,7 @@ See [Advisors](Advisors), [AI Assistant](AI-Assistant).
 
 | File | Lines | Owns |
 |------|-------|------|
+| [`Paths.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/Paths.h) | 115 | One data root, resolved once (P5.4). `DataRoot` in rig.ini, else an existing `D:\RadukCapture`, else the exe directory. Reads the ini directly rather than through `RigConfig`, so `LogInit()` can resolve before anything else is up |
 | [`RigConfig.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/RigConfig.h) | 471 | **Single source of truth** for site, optics, filter, geometry, switches, last session state. Singleton |
 | [`SiteLocator.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/SiteLocator.h) | 183 | Windows Location via `std::async`; `Denied` is a clean outcome |
 | [`SkyMath.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/SkyMath.h) | 98 | **One** copy of alt/az conversion, `NormDeg360`, `ShortestTurnDeg` |

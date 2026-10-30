@@ -359,9 +359,10 @@ MPL-2.0 matches and N.I.N.A. is the working proof.
 > library-level. C#/.NET ships an async model, JSON, HTTP and WebSocket
 > stacks, a test culture, and a package manager in the box; a
 > pure-Win32/C++20 project must write each one, and this one hand-emits its
-> JSON by hand. Where pure Win32 is weakest is **testability**: 13 gated
-> tests link 5 of 17 production `.cpp` files, 3,084 test lines against
-> 44,754 source.
+> JSON by hand. Where pure Win32 is weakest is **testability**: at the time
+> of writing, 13 gated tests linked 5 of 17 production `.cpp` files, 3,084
+> test lines against 44,754 source. (Now 26 gated tests; see
+> [what has changed](#what-has-changed-since-this-was-written).)
 
 ---
 
@@ -436,6 +437,8 @@ scores of 1 are made of.
   floor that will refuse to configure on most current distributions.
 - **Windows-only by construction. No CI**, 13 tests touching 5 of 17
   `.cpp` files, and **no authentication on the remote-control path**.
+  (Both of the last two have since changed: 26 gated tests, and the
+  command path requires a token.)
 - **PolyForm Noncommercial** forecloses distribution packaging, corporate
   contributors, and GPL compatibility at once, in a project whose bus
   factor is already 1.
@@ -477,6 +480,44 @@ In descending order of weighted points returned per unit of work.
 Items 1 through 4 together move the weighted score from **5.15 to between
 6.95 and 7.1**, past ASICap and within reach of FireCapture, and not one of
 them requires inventing anything.
+
+---
+
+## What has changed since this was written
+
+This page is a snapshot dated 18 October 2026 and the analysis above is
+left as it was. What follows is what the project did about it, so a
+reader is not misled by recommendations that have since been taken.
+
+**Six of the seven Tier 5 phases are on `master`.** Of the five
+ranking-movers listed above: the camera and focuser now have interfaces
+and the callers were migrated onto them (items 2 and 7), the generic
+ASCOM path is reachable via `AscomProgId` (item 2), the hardcoded `D:/`
+paths and the CMake 4.2 floor are gone (item 3), the SER trailer stamps
+the midpoint of integration (item 5), and the WebSocket command path
+requires a token (item 6).
+
+**Three things the page recommended have NOT happened**, and they are the
+three that matter most to the score:
+
+- **The real camera has still not been measured over real USB.** Item 1,
+  the single biggest weighted gain, and it needs a clear night rather
+  than code.
+- **The licence is undecided.** Item 4 remains open.
+- **The installer and tagged releases** are untouched; only the paths half
+  of distribution was done.
+
+**What the work does not yet prove.** A second camera brand is permitted
+rather than demonstrated: `EnumerateCameras` asks one backend because one
+exists. And every Tier 5 phase is recorded as `GATED (mingw+wine)` rather
+than MSVC, which is honest evidence and not the project's own gate.
+
+Two defects in this page's own evidence surfaced later and are worth
+recording. The ASCOM finding was wrong, inherited from a stale wiki label
+(see [Documentation drift, named](#documentation-drift-named)). And
+building under a stricter toolchain than MSVC found `AIContextBuilder.h`
+using `uint32_t` with no `<cstdint>`, and the emulator stub calling a
+field `IsColor` where the SDK calls it `IsColorCam`.
 
 ---
 

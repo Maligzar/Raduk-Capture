@@ -67,11 +67,29 @@ counted rather than guessed. Translation lives in
 at the vendor boundary, which is exactly what a second brand would add its
 own copy of.
 
-**The seam exists but is not yet load-bearing.** The concrete classes keep
-their native ASI-typed methods and the 43 existing `GetControl(ASI_GAIN)`
-call sites are untouched. Migrating them is the follow-up; doing it in the
-same change that introduced the interface would have been two risks at
-once.
+**The seam carries weight.** P5.2 introduced the interfaces unused, and
+P5.2b moved the callers onto them: 41 `GetControl(ASI_*)` calls, 7
+`Temperature()`, 8 region calls, and the three statics replaced by free
+functions (`FrameSizeBytes`, `EnumerateCameras`, `Describe(CaptureError)`,
+none of which could be virtual because C++ has no virtual statics).
+
+The one that matters is
+[`CaptureThread`](Capture-Pipeline): it held an `ASICamera*` and a raw
+`ASI_ERROR_CODE`, so the hot path was welded to one vendor. It holds an
+`ICamera*` and a `CaptureError` now, and neither file contains an ASI
+token.
+
+> **What is still vendor-typed, deliberately.** `FrameSlot::imgType` and
+> `TargetProfile::imgType` keep `ASI_IMG_TYPE`, because `TargetProfile`
+> persists it to `rig.ini` as an integer. Changing that is a saved-profile
+> compatibility question wearing an interface costume, so the conversion
+> happens at the two points that need it instead.
+
+**What is still unproven.** A second brand is now permitted rather than
+demonstrated: `EnumerateCameras` asks one backend because one exists. The
+first real QHY or Player One wrapper will probably find a rough edge in
+`ICamera`, which is much cheaper to discover now than before the seam
+existed.
 
 `CMakeLists.txt` reinforces this: in emulator mode `DEVICE_SOURCES` is
 empty, so `ASICamera.cpp`, `EAFFocuser.cpp`, and `NexStarMount.cpp` are not

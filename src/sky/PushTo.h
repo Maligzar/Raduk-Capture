@@ -94,6 +94,19 @@ inline double AngularSeparationDeg(double ra1Hours, double dec1Deg,
     return c * R2D;
 }
 
+// How close counts as centred, from the field the solve reported.
+//
+// A tenth of the frame scales with the optics, where a constant
+// would be generous on a finder and useless at f/10. The floor
+// stops a very narrow field demanding arcsecond precision from
+// somebody pushing a tube by hand, and the fallback covers a
+// solver that reported no field at all.
+inline double CentredToleranceDeg(double solvedFovWDeg) {
+    if (!(solvedFovWDeg > 0.0)) return 0.25;      // also catches NaN
+    const double tol = solvedFovWDeg * 0.1;
+    return tol < 0.05 ? 0.05 : tol;
+}
+
 // The instruction. curRa/curDec is where a plate solve says the
 // scope is; tgtRa/tgtDec is where it should be.
 //

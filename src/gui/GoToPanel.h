@@ -29,9 +29,12 @@
 #include <functional>
 #include <cstdio>
 #include <cmath>
+#include <mutex>
+#include <atomic>
 
 #include "../sky/SkyObject.h"
 #include "../sky/ASTAPSolver.h"
+#include "../sky/PushTo.h"
 #include "../sky/PointingModel.h"
 #include "../core/IMount.h"
 #include "../core/FrameSlot.h"
@@ -222,6 +225,89 @@ public:
     // assistant asked "what am I pointing at" answered with a filename.
     const std::string& CurrentTarget() const { return m_currentTarget; }
 
+    // ── Phase 30: push-to assistant ────────────────────────────
+    bool PushToActive() const { return m_pushToActive.load(); }
+
+    // Begin guiding the observer to a target by eye. Safe to call
+    // with no mount: that is the case it exists for.
+    void StartPushTo(double raHours, double decDeg, const std::string& name) {
+        m_pushToTargetRA  = raHours;
+        m_pushToTargetDec = decDeg;
+        m_pushToName      = name;
+        {
+            std::lock_guard<std::mutex> lk(m_pushToMutex);
+            m_pushToHint = raduk::sky::PushToHint{};
+            m_pushToLine.clear();
+        }
+        m_pushToLastKickMs = 0;          // solve immediately
+        m_pushToActive.store(true);
+        if (m_btnPushTo) SetWindowTextW(m_btnPushTo, L"PUSH-TO: ON");
+        wchar_t msg[160];
+        swprintf(msg, 160, L"Push-to: %hs — solving...", name.c_str());
+        SetStatus(msg);
+    }
+
+    // Where push-to gets its target. Mirrors the two GOTO buttons
+    // in the same order they sit on the panel: a selected object
+    // first, then the typed coordinates. Deliberately not a third
+    // way of naming a target -- one more place to type RA would be
+    // one more place for the two to disagree.
+    bool ResolveCurrentTarget(double& raHours, double& decDeg, std::string& name) {
+        if (m_listObjects) {
+            const int sel = ListView_GetNextItem(m_listObjects, -1, LVNI_SELECTED);
+            if (sel >= 0 && sel < (int)m_listItems.size()) {
+                const auto* obj = m_listItems[sel];
+                raHours = obj->ra;
+                decDeg  = obj->dec;
+                name    = obj->name;
+                return true;
+            }
+        }
+        if (m_editRA && m_editDec) {
+            wchar_t raBuf[32] = {}, decBuf[32] = {};
+            GetWindowTextW(m_editRA,  raBuf,  32);
+            GetWindowTextW(m_editDec, decBuf, 32);
+            const double ra  = _wtof(raBuf);
+            const double dec = _wtof(decBuf);
+            if (ra > 0 || dec != 0) {
+                raHours = ra;
+                decDeg  = dec;
+                name    = "Manual coords";
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // The button. Uses whatever the GoTo side already resolved as
+    // the current target, so push-to is not a second place to type
+    // coordinates.
+    void TogglePushTo() {
+        if (m_pushToActive.load()) { StopPushTo(); return; }
+
+        if (!m_solver.IsAvailable()) {
+            SetStatus(L"ASTAP not found - push-to needs a plate solver");
+            return;
+        }
+        if (m_lastFrameData.empty()) {
+            SetStatus(L"No frame yet - wait for the camera to stream");
+            return;
+        }
+        double ra = 0.0, dec = 0.0;
+        std::string name;
+        if (!ResolveCurrentTarget(ra, dec, name)) {
+            SetStatus(L"Pick a target first, or type RA/Dec");
+            return;
+        }
+        StartPushTo(ra, dec, name);
+    }
+
+    void StopPushTo() {
+        if (!m_pushToActive.exchange(false)) return;
+        if (m_btnPushTo) SetWindowTextW(m_btnPushTo, L"PUSH-TO: OFF");
+        SetStatus(L"Push-to stopped");
+    }
+
     // Search catalog by name (case-insensitive), slew to first match.
     // Used by APEX remote commands and sky map auto-GoTo.
     void RequestGoToByName(const std::string& name) {
@@ -353,6 +439,81 @@ public:
             swprintf(alnMsg, 32, L"Alignment points: %d", m_alignPoints);
             if (m_lblAlign) SetWindowTextW(m_lblAlign, alnMsg);
         }
+
+        PushToTick();
+    }
+
+    // Phase 30. Two jobs, both on the main thread: show whatever
+    // the last solve concluded, and start the next one.
+    void PushToTick() {
+        if (m_pushToFresh.exchange(false)) {
+            std::string line;
+            bool centred = false;
+            {
+                std::lock_guard<std::mutex> lk(m_pushToMutex);
+                line    = m_pushToLine;
+                centred = m_pushToHint.centred;
+            }
+            wchar_t wbuf[256];
+            MultiByteToWideChar(CP_UTF8, 0, line.c_str(), -1, wbuf, 256);
+            SetStatus(wbuf);
+
+            // Centred is the end of the job, not a reason to keep
+            // solving. Leaving it running would burn a solve every
+            // half minute telling somebody what they can already
+            // see, and would eventually drift back to "move" as the
+            // sky turns, which reads like a fault.
+            if (centred) StopPushTo();
+        }
+
+        if (!m_pushToActive.load())      return;
+        if (m_solver.IsSolving())        return;
+        if (m_lastFrameData.empty())     return;
+
+        const uint64_t now = GetTickCount64();
+        if (now - m_pushToLastKickMs < PUSHTO_MIN_GAP_MS) return;
+        m_pushToLastKickMs = now;
+
+        // Hint the solver with the TARGET rather than the mount's
+        // idea of where it is. In the case this feature exists for
+        // the mount is wrong or absent, so its position is the one
+        // number not worth trusting; the target is where the user
+        // is trying to get, and after the first nudge it is close.
+        m_solver.SetHint(m_pushToTargetRA, m_pushToTargetDec);
+
+        const double tgtRA  = m_pushToTargetRA;
+        const double tgtDec = m_pushToTargetDec;
+
+        m_solver.SolveAsync(m_lastFrameData.data(), m_lastFrameW, m_lastFrameH,
+            [this, tgtRA, tgtDec](raduk::sky::SolveResult result) {
+                // WORKER THREAD. No Win32 UI here; PushToTick picks
+                // this up on the next pass.
+                std::string line;
+                raduk::sky::PushToHint hint;
+
+                if (result.solved) {
+                    // The tolerance rule lives in PushTo.h so it can
+                    // be gated; see tests/push_to.cpp.
+                    const double tol =
+                        raduk::sky::CentredToleranceDeg(result.fovW);
+                    hint = raduk::sky::ComputePushTo(result.ra, result.dec,
+                                                     tgtRA, tgtDec, tol);
+                    line = "Push-to: " + raduk::sky::FormatPushTo(hint);
+                } else {
+                    // A failed solve is normal while the target is
+                    // far off and the field holds nothing known. Say
+                    // so and keep going rather than stopping.
+                    line = "Push-to: no solve (" + result.error +
+                           ") - try a wider view or a brighter field";
+                }
+
+                {
+                    std::lock_guard<std::mutex> lk(m_pushToMutex);
+                    m_pushToHint = hint;
+                    m_pushToLine = line;
+                }
+                m_pushToFresh.store(true);
+            });
     }
 
     // Submit current frame for plate solving (called every render tick when visible)
@@ -516,6 +677,7 @@ private:
         ID_BTN_GOTO_COORD = 2011,
         ID_LBL_ALIGN_STATE = 2012,
         ID_BTN_SOLVE_ALIGN = 2013,
+        ID_BTN_PUSHTO      = 2014,  // Phase 30: push-to assistant
         ID_TAB_MAIN        = 2020,  // Phase 14: tab control
         ID_LIST_TONIGHT    = 2021,  // Phase 14: tonight's planner list
         ID_BTN_GOTO_TONIGHT= 2022,  // Phase 14: GoTo selected from planner
@@ -847,6 +1009,8 @@ private:
         place(m_btnSolve, x,          y, hw, BH + 4);
         place(m_btnSync,  x + hw + 4, y, hw, BH + 4);
         y += BH + 4 + 8;
+        place(m_btnPushTo, x, y, cw, BH + 4);
+        y += BH + 4 + 8;
 
         place(m_lblAlign, x, y, cw, SH);              y += SH + 4;
 
@@ -967,6 +1131,7 @@ private:
         setVis(m_editDec,       g);
         setVis(m_btnGoToCoord,  g);
         setVis(m_btnSolve,      g);
+        setVis(m_btnPushTo,     g);
         setVis(m_btnSync,       g);
         setVis(m_btnStop,       g);
         setVis(m_lblStatus,     g);
@@ -1420,6 +1585,8 @@ private:
         int hw = (w-4)/2;
         m_btnSolve = Button(L"SOLVE FRAME", x,      y, hw, BH+4, ID_BTN_SOLVE);
         m_btnSync  = Button(L"SYNC MOUNT",  x+hw+4, y, hw, BH+4, ID_BTN_SYNC);
+        y += BH + 8;
+        m_btnPushTo = Button(L"PUSH-TO: OFF", x, y, w, BH+4, ID_BTN_PUSHTO);
         y += BH + 8;
 
         // Alignment points counter
@@ -1937,6 +2104,10 @@ private:
                     self->DoPlateSolve();
                     return 0;
                 }
+                if (id == ID_BTN_PUSHTO) {
+                    self->TogglePushTo();
+                    return 0;
+                }
                 if (id == ID_BTN_SYNC) {
                     self->DoSync();
                     return 0;
@@ -2100,6 +2271,34 @@ private:
     HWND m_editDec       = nullptr;
     HWND m_btnGoToCoord  = nullptr;
     HWND m_btnSolve      = nullptr;
+    HWND m_btnPushTo     = nullptr;
+
+    // ── Phase 30: push-to assistant ────────────────────────────
+    // A repeating plate solve that says which way to move the
+    // scope, for when the mount cannot be told to do it: not
+    // connected, badly aligned, or being pushed by hand.
+    //
+    // The cadence is deliberately "as fast as solving allows"
+    // rather than a timer. A solve takes 5 to 30 seconds and the
+    // answer is stale the moment the scope moves, so the useful
+    // rate is simply the solve rate. PUSHTO_MIN_GAP_MS exists only
+    // so a fast FAILURE cannot spin the CPU.
+    static constexpr uint64_t PUSHTO_MIN_GAP_MS = 1000;
+
+    std::atomic<bool>      m_pushToActive{false};
+    double                 m_pushToTargetRA  = 0.0;   // hours
+    double                 m_pushToTargetDec = 0.0;   // degrees
+    std::string            m_pushToName;
+    uint64_t               m_pushToLastKickMs = 0;    // main thread only
+
+    // Written by the solver worker, read by Tick on the main
+    // thread. A mutex rather than atomics because the hint is a
+    // struct and a half-updated one would point somebody the wrong
+    // way, which is the single worst thing this feature can do.
+    std::mutex             m_pushToMutex;
+    raduk::sky::PushToHint m_pushToHint;
+    std::string            m_pushToLine;
+    std::atomic<bool>      m_pushToFresh{false};
     HWND m_btnSync       = nullptr;
     HWND m_btnStop       = nullptr;
     HWND m_lblStatus     = nullptr;

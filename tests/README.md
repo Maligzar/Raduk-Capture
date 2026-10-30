@@ -33,15 +33,31 @@ WINEDEBUG=-all wine out/<name>.exe
 ```
 
 **What it does not prove.** mingw is not MSVC: it accepts and rejects
-different things, so a green run here is evidence and not a gate. Three
-known gaps, all in the toolchain rather than in this code:
+different things, so a green run here is evidence and not a gate.
 
-| Symptom | Cause |
-|---|---|
-| `undefined reference to __imp__get_timezone` | An MSVC CRT symbol mingw does not ship. Hits anything pulling `RigConfig`: `ai_context_facts`, `mount_jog`, `leoben_weather`. They compile; they do not link |
-| `BCryptGenRandom` / WIC GUIDs undefined | Link libraries the command above now lists. Not a code problem |
-| `timeBeginPeriod` undefined when a test pulls `CameraEmulator.h` | MSVC honours the `#pragma comment(lib, "winmm.lib")` in that header; mingw ignores it. Add `-lwinmm` |
-| `object_knowledge` cannot find its database | There is no `D:` here, so `Paths` falls back to the exe directory. Correct behaviour, and the test reports where it looked |
+With one harness-only shim (below), 25 of 27 suites build and pass this
+way. The two that fail do so for the environment, not the code:
+`object_knowledge` wants its database and `ai_context_facts` wants the
+project's docs and session logs, and with no `D:` drive present `Paths`
+resolves beside the executable where neither exists. Both pass on the rig.
+
+**The shim.** mingw's CRT does not export `_get_timezone`, which MSVC does
+and which anything pulling `RigConfig` reaches through `<ctime>`. That
+blocked `ai_context_facts`, `mount_jog`, `leoben_weather` and `push_to`
+from linking. A zero-offset stub, kept OUT of this repository because it
+exists only to work around a toolchain gap, unblocks all four:
+
+```cpp
+extern "C" int   _get_timezone(long* t) { if (t) *t = 0; return 0; }
+extern "C" void* __imp__get_timezone = (void*)&_get_timezone;
+```
+
+Only safe for tests whose assertions do not depend on the local timezone.
+
+Other link libraries worth knowing: `-lbcrypt` for `ws_server_loopback`,
+`-lwindowscodecs -luuid` for `preview_frame`, and `-lwinmm` for anything
+pulling `CameraEmulator.h`, because mingw ignores the
+`#pragma comment(lib, ...)` that MSVC honours.
 
 It did earn its keep once: building under a stricter toolchain is what
 found `AIContextBuilder.h` using `uint32_t` with no `<cstdint>`, which

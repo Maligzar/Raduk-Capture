@@ -56,6 +56,9 @@ See [Capture Pipeline](Capture-Pipeline), [Recording and SER Format](Recording-a
 | File | Lines | Owns |
 |------|-------|------|
 | [`DeviceFactory.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/DeviceFactory.h) | 36 | **The compile-time hardware/emulator switch.** Include this, not individual device headers |
+| [`ICamera.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ICamera.h) | 163 | Abstract camera interface, P5.2. Brand-neutral on purpose: `ControlId`, `ImageType`, `CaptureError`, `CameraInfo` |
+| [`IFocuser.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/IFocuser.h) | 73 | Abstract focuser interface, P5.2 |
+| [`ASITypeMap.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ASITypeMap.h) | 103 | Translation between `ICamera`'s vocabulary and ZWO's. The whole cost of staying brand-neutral, in one file |
 | [`IMount.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/IMount.h) | 122 | Abstract mount interface, `GuideDirection`, RA/Dec formatters |
 | [`ASICamera.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ASICamera.h) / `.cpp` | 83 / 160 | ZWO ASI SDK wrapper |
 | `ASICamera2Stub.h` | 139 | SDK type stubs for emulator builds |

@@ -47,6 +47,7 @@ $Tests = @(
     @{ Name = "ser_timestamp_midpoint"; Sources = @() }
     @{ Name = "paths_resolution"; Sources = @() }
     @{ Name = "ascom_driver_choice"; Sources = @() }
+    @{ Name = "device_interfaces"; Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────
@@ -62,7 +63,11 @@ if (-not (Test-Path $vcvars)) {
     exit 1
 }
 
-$inc = "/I `"$root\src`" /I `"$root\external\ASI_SDK\include`""
+# EAF_SDK joins ASI_SDK here because a test that includes the
+# device headers needs both. Without it, anything pulling
+# EAFEmulator.h outside an emulator build cannot find
+# EAF_focuser.h.
+$inc = "/I `"$root\src`" /I `"$root\external\ASI_SDK\include`" /I `"$root\external\EAF_SDK\include`""
 $failed = 0
 
 # ── sqlite3.dll beside the test binaries ────────────────────

@@ -101,7 +101,7 @@ typedef struct _ASI_CAMERA_INFO {
     int           CameraID;
     long          MaxHeight;
     long          MaxWidth;
-    ASI_BOOL      IsColor;
+    ASI_BOOL      IsColorCam;
     ASI_BAYER_PATTERN BayerPattern;
     int           SupportedBins[16];
     ASI_IMG_TYPE  SupportedVideoFormat[8];

@@ -178,6 +178,16 @@ int main() {
         }
     }
 
+    // ---- how close counts as close ---------------------------
+    printf("\n8. The centred tolerance scales with the field\n");
+    Near(CentredToleranceDeg(2.0),  0.20, 1e-9, "a 2 deg field tolerates 0.2 deg");
+    Near(CentredToleranceDeg(0.8),  0.08, 1e-9, "a 0.8 deg field tolerates 0.08 deg");
+    Near(CentredToleranceDeg(0.3),  0.05, 1e-9, "a narrow field is floored at 0.05, not 0.03");
+    Near(CentredToleranceDeg(0.0),  0.25, 1e-9, "no reported field falls back to 0.25");
+    Near(CentredToleranceDeg(-1.0), 0.25, 1e-9, "and so does a nonsensical one");
+    Check(CentredToleranceDeg(10.0) > CentredToleranceDeg(1.0),
+          "a wider field is always more forgiving");
+
     if (g_fail == 0) printf("\nPASS\n"); else printf("\nFAIL: %d\n", g_fail);
     return g_fail == 0 ? 0 : 1;
 }

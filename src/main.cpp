@@ -564,7 +564,7 @@ static int RunApp(bool useEmulator) {
     // Hardware build running as emulator (useEmulator=true): also skip SDK check.
 #ifndef RADUK_EMULATOR
     if (!useEmulator) {
-        auto cameras = ASICamera::Enumerate();
+        auto cameras = EnumerateCameras();
         if (cameras.empty()) {
             MessageBoxA(nullptr, "No cameras detected.", "RadukCapture", MB_ICONERROR);
             return 1;
@@ -642,14 +642,14 @@ static int RunApp(bool useEmulator) {
         }
     }
     const int reqW = roiWidth, reqH = roiHeight, reqBits = roiBits;
-    cam.SetROI(roiWidth, roiHeight, 1,
-               roiBits == 16 ? ASI_IMG_RAW16 : ASI_IMG_RAW8);
+    cam.SetRegion(roiWidth, roiHeight, 1,
+                  roiBits == 16 ? ImageType::Raw16 : ImageType::Raw8);
     // Read back what the camera accepted rather than trusting the request.
     {
-        int aW=roiWidth,aH=roiHeight,aB=1; ASI_IMG_TYPE aT=ASI_IMG_RAW8;
-        cam.GetROI(aW,aH,aB,aT);
+        int aW=roiWidth,aH=roiHeight,aB=1; ImageType aT=ImageType::Raw8;
+        cam.GetRegion(aW,aH,aB,aT);
         roiWidth=aW; roiHeight=aH;
-        roiBits = (aT == ASI_IMG_RAW16) ? 16 : 8;
+        roiBits = (aT == ImageType::Raw16) ? 16 : 8;
     }
     Log("[FORMAT] startup -> %dx%d %d-bit (requested %dx%d %d-bit, %s)\n",
         roiWidth, roiHeight, roiBits, reqW, reqH, reqBits,
@@ -967,8 +967,8 @@ static int RunApp(bool useEmulator) {
     // half the needed size, every frame was rejected as too small, and
     // the app started with a dead preview and a readiness dialog
     // blaming the camera.
-    int frameSizeBytes = ASICamera::FrameSize(
-        roiWidth, roiHeight, roiBits == 16 ? ASI_IMG_RAW16 : ASI_IMG_RAW8);
+    int frameSizeBytes = FrameSizeBytes(
+        roiWidth, roiHeight, roiBits == 16 ? ImageType::Raw16 : ImageType::Raw8);
     RingBuffer ring;
     ring.Allocate(DEFAULT_RING_SIZE, frameSizeBytes);
     CaptureThread capture;
@@ -1137,12 +1137,12 @@ static int RunApp(bool useEmulator) {
     // the camera, undoing the restore. Same fault, same fix as Phase 85.
     if (cam.IsOpen()) {
         controls.SetCameraSliders(
-            (int)cam.GetControl(ASI_GAIN),
-            (int)cam.GetControl(ASI_EXPOSURE),        // slider is in us
-            (int)cam.GetControl(ASI_GAMMA),
-            (int)cam.GetControl(ASI_WB_R),
-            (int)cam.GetControl(ASI_WB_B),
-            (int)cam.GetControl(ASI_BANDWIDTHOVERLOAD));
+            (int)cam.GetControlValue(ControlId::Gain),
+            (int)cam.GetControlValue(ControlId::ExposureUs),        // slider is in us
+            (int)cam.GetControlValue(ControlId::Gamma),
+            (int)cam.GetControlValue(ControlId::WhiteBalanceRed),
+            (int)cam.GetControlValue(ControlId::WhiteBalanceBlue),
+            (int)cam.GetControlValue(ControlId::UsbBandwidth));
     }
 
     // ── Toolbar strip (Win32 native buttons above preview) ─────
@@ -2087,21 +2087,21 @@ static int RunApp(bool useEmulator) {
         // tuning was lost on the next LOAD -- the settings that
         // actually worked never reached disk.
         if (cam.IsOpen()) {
-            p->gain         = (int)cam.GetControl(ASI_GAIN);
+            p->gain         = (int)cam.GetControlValue(ControlId::Gain);
             // SDK exposure is microseconds; the profile stores ms.
-            p->exposureMs   = (double)cam.GetControl(ASI_EXPOSURE) / 1000.0;
-            p->gamma        = (int)cam.GetControl(ASI_GAMMA);
-            p->wbRed        = (int)cam.GetControl(ASI_WB_R);
-            p->wbBlue       = (int)cam.GetControl(ASI_WB_B);
-            p->usbBandwidth = (int)cam.GetControl(ASI_BANDWIDTHOVERLOAD);
-            p->highSpeed    = cam.GetControl(ASI_HIGH_SPEED_MODE) != 0;
+            p->exposureMs   = (double)cam.GetControlValue(ControlId::ExposureUs) / 1000.0;
+            p->gamma        = (int)cam.GetControlValue(ControlId::Gamma);
+            p->wbRed        = (int)cam.GetControlValue(ControlId::WhiteBalanceRed);
+            p->wbBlue       = (int)cam.GetControlValue(ControlId::WhiteBalanceBlue);
+            p->usbBandwidth = (int)cam.GetControlValue(ControlId::UsbBandwidth);
+            p->highSpeed    = cam.GetControlValue(ControlId::HighSpeedMode) != 0;
 
-            int aW = 0, aH = 0, aB = 1; ASI_IMG_TYPE aT = ASI_IMG_RAW8;
-            if (cam.GetROI(aW, aH, aB, aT) && aW > 0 && aH > 0) {
+            int aW = 0, aH = 0, aB = 1; ImageType aT = ImageType::Raw8;
+            if (cam.GetRegion(aW, aH, aB, aT) && aW > 0 && aH > 0) {
                 p->roiWidth  = aW;
                 p->roiHeight = aH;
                 p->binning   = aB;
-                p->imgType   = aT;
+                p->imgType   = asimap::ToAsi(aT);  // TargetProfile persists the vendor enum
             }
         }
         // Focus is the setting most worth preserving: ApplyProfile drives
@@ -2824,12 +2824,12 @@ static int RunApp(bool useEmulator) {
         rg.lastRoiHeight = roiHeight;
         rg.lastBitDepth  = roiBits;
         if (cam.IsOpen()) {
-            rg.lastGain       = (int)cam.GetControl(ASI_GAIN);
-            rg.lastExposureMs = (float)(cam.GetControl(ASI_EXPOSURE) / 1000.0);
-            rg.lastGamma      = (int)cam.GetControl(ASI_GAMMA);
-            rg.lastWbRed      = (int)cam.GetControl(ASI_WB_R);
-            rg.lastWbBlue     = (int)cam.GetControl(ASI_WB_B);
-            rg.lastUsb        = (int)cam.GetControl(ASI_BANDWIDTHOVERLOAD);
+            rg.lastGain       = (int)cam.GetControlValue(ControlId::Gain);
+            rg.lastExposureMs = (float)(cam.GetControlValue(ControlId::ExposureUs) / 1000.0);
+            rg.lastGamma      = (int)cam.GetControlValue(ControlId::Gamma);
+            rg.lastWbRed      = (int)cam.GetControlValue(ControlId::WhiteBalanceRed);
+            rg.lastWbBlue     = (int)cam.GetControlValue(ControlId::WhiteBalanceBlue);
+            rg.lastUsb        = (int)cam.GetControlValue(ControlId::UsbBandwidth);
         }
         rg.Save();
         Log("[SESSION] Saved (%s): %dx%d %d-bit gain=%d exp=%.2fms gamma=%d wb=%d/%d usb=%d\n",
@@ -2856,7 +2856,7 @@ static int RunApp(bool useEmulator) {
         int h = std::max(2, std::min(reqH, cam.MaxHeight()));
         w = (w / 8) * 8;
         h = (h / 2) * 2;
-        const ASI_IMG_TYPE type = (bits == 16) ? ASI_IMG_RAW16 : ASI_IMG_RAW8;
+        const ImageType type = (bits == 16) ? ImageType::Raw16 : ImageType::Raw8;
 
         // The origin is NOT computed here. The camera may grant a
         // smaller mode than was asked for, and an origin clamped against
@@ -2876,17 +2876,17 @@ static int RunApp(bool useEmulator) {
         }
 
         capture.Stop();                      // required before SetROI
-        cam.SetROI(w, h, 1, type);
+        cam.SetRegion(w, h, 1, type);
 
         // Believe the camera, not the request. Both the real SDK and the
         // emulator clamp, and trusting the request is how the ring buffer
         // ends up sized for a frame that never arrives.
         {
             int aW = w, aH = h, aB = 1;
-            ASI_IMG_TYPE aT = type;
-            cam.GetROI(aW, aH, aB, aT);
+            ImageType aT = type;
+            cam.GetRegion(aW, aH, aB, aT);
             w = aW; h = aH;
-            bits = (aT == ASI_IMG_RAW16) ? 16 : 8;
+            bits = (aT == ImageType::Raw16) ? 16 : 8;
         }
 
         // Now that the real size is known, place it. Centre-in, origin-out:
@@ -2903,14 +2903,14 @@ static int RunApp(bool useEmulator) {
         roiWidth  = w; roiHeight = h; roiBits = bits;
         roiStartX = absX; roiStartY = absY;
 
-        const int bytes = ASICamera::FrameSize(
-            w, h, (bits == 16) ? ASI_IMG_RAW16 : ASI_IMG_RAW8);
+        const int bytes = FrameSizeBytes(
+            w, h, (bits == 16) ? ImageType::Raw16 : ImageType::Raw8);
         ring.Allocate(DEFAULT_RING_SIZE, bytes);
         capture.Start(cam, ring, 8.0);
 
         preview.SetFrameSize(w, h);
         preview.SetSensorROI(w, h);
-        statusBar.SetCameraStats(0.0, 0, cam.Temperature(), w, h, bits);
+        statusBar.SetCameraStats(0.0, 0, cam.GetTemperatureC(), w, h, bits);
         toolbar.UpdateFormat(w, h, bits);
 
         Log("[FORMAT] %s -> %dx%d @ (%d,%d)  %d-bit  %d bytes/frame\n",
@@ -3160,8 +3160,8 @@ static int RunApp(bool useEmulator) {
             Log("[FRAME] Refused - recording in progress\n");
             return;
         }
-        framing.savedGain  = (int)cam.GetControl(ASI_GAIN);
-        framing.savedExpUs = (long)cam.GetControl(ASI_EXPOSURE);
+        framing.savedGain  = (int)cam.GetControlValue(ControlId::Gain);
+        framing.savedExpUs = (long)cam.GetControlValue(ControlId::ExposureUs);
         framing.active.store(true);
 
         cam.SetGain(570);            // slider maximum; HCG well into deep gain
@@ -3404,10 +3404,10 @@ static int RunApp(bool useEmulator) {
         r.target = gotoPanel.CurrentTarget();
         if (const TargetProfile* ap = profiles.Active()) r.profile = ap->name;
         if (cam.IsOpen()) {
-            r.exposureMs = cam.GetControl(ASI_EXPOSURE) / 1000.0;
-            r.gain       = (double)cam.GetControl(ASI_GAIN);
-            int w = 0, h = 0, bin = 0; ASI_IMG_TYPE it{};
-            if (cam.GetROI(w, h, bin, it)) r.bin = bin;
+            r.exposureMs = cam.GetControlValue(ControlId::ExposureUs) / 1000.0;
+            r.gain       = (double)cam.GetControlValue(ControlId::Gain);
+            int w = 0, h = 0, bin = 0; ImageType it{};
+            if (cam.GetRegion(w, h, bin, it)) r.bin = bin;
             int sx = -1, sy = -1;
             if (cam.GetStartPos(sx, sy)) { r.roiX = sx; r.roiY = sy; }
         }
@@ -3571,7 +3571,7 @@ static int RunApp(bool useEmulator) {
         gotoPanel.SurveyProvideFrame(
             lastFrameForSolve.data(),
             lastFrameSolveW, lastFrameSolveH,
-            cam.IsOpen() ? cam.Temperature() : 0.0f,
+            cam.IsOpen() ? cam.GetTemperatureC() : 0.0f,
             lastAnalysis.valid ? lastAnalysis.seeingScore : 0.0f);
     });
 
@@ -3633,7 +3633,7 @@ static int RunApp(bool useEmulator) {
                 if (!lastFrameForSolve.empty() && lastFrameSolveW > 0) {
                     const TargetProfile* active = profiles.Active();
                     std::string target = active ? active->name : "Unknown";
-                    float camTemp   = cam.Temperature();
+                    float camTemp   = cam.GetTemperatureC();
                     float seeingScr = lastAnalysis.valid ? lastAnalysis.seeingScore : 0.0f;
                     gotoPanel.AutoSolveOnLock(
                         lastFrameForSolve.data(),
@@ -3833,8 +3833,8 @@ static int RunApp(bool useEmulator) {
         // loaded but doing nothing, and reporting that as "on" is the
         // one thing this label must never do.
         const char* dp = calib.DarkProblem(roiWidth, roiHeight, roiBits,
-                                           (int)cam.GetControl(ASI_GAIN),
-                                           cam.GetControl(ASI_EXPOSURE) / 1000.0);
+                                           (int)cam.GetControlValue(ControlId::Gain),
+                                           cam.GetControlValue(ControlId::ExposureUs) / 1000.0);
         const char* fp = calib.FlatProblem(roiWidth, roiHeight, roiBits);
         if (!calib.HasDark() && !calib.HasFlat()) {
             controls.SetCalStatus(L"Cal: none - DARK or FLAT to build");
@@ -3893,16 +3893,16 @@ static int RunApp(bool useEmulator) {
         if (calib.Building()) { calib.Abort();
             notifBar.NotifyInfo(L"Master build cancelled"); calStatus(); return; }
         calib.Begin(dark, roiWidth, roiHeight, roiBits,
-                    (int)cam.GetControl(ASI_GAIN),
-                    cam.GetControl(ASI_EXPOSURE) / 1000.0,
-                    cam.Temperature(), 32);
+                    (int)cam.GetControlValue(ControlId::Gain),
+                    cam.GetControlValue(ControlId::ExposureUs) / 1000.0,
+                    cam.GetTemperatureC(), 32);
         notifBar.NotifyInfo(dark
             ? L"Building master dark - cover the telescope now (32 frames)"
             : L"Building master flat - point at an evenly lit surface (32 frames)");
         Log("[CAL] Building master %s: %dx%d %d-bit gain=%d exp=%.2fms\n",
             dark ? "dark" : "flat", roiWidth, roiHeight, roiBits,
-            (int)cam.GetControl(ASI_GAIN),
-            cam.GetControl(ASI_EXPOSURE) / 1000.0);
+            (int)cam.GetControlValue(ControlId::Gain),
+            cam.GetControlValue(ControlId::ExposureUs) / 1000.0);
         calStatus();
     };
     controls.SetCalDarkCallback([&]() { beginCal(true);  });
@@ -4988,8 +4988,8 @@ static int RunApp(bool useEmulator) {
                 aiState.mountAz  = 0.0f;
                 // Camera
                 if (cam.IsOpen()) {
-                    aiState.gain       = (int)cam.GetControl(ASI_GAIN);
-                    aiState.exposureMs = (float)(cam.GetControl(ASI_EXPOSURE) / 1000.0);
+                    aiState.gain       = (int)cam.GetControlValue(ControlId::Gain);
+                    aiState.exposureMs = (float)(cam.GetControlValue(ControlId::ExposureUs) / 1000.0);
                 }
                 aiState.fps        = (float)stats.fps.load();
                 aiState.seeingScore= lastAnalysis.valid ? lastAnalysis.seeingScore : 0.0f;
@@ -5221,8 +5221,8 @@ static int RunApp(bool useEmulator) {
 
             // Phase 12 — Auto-Exposure: feed analysis, tick, apply/display
             if (ae.IsEnabled() && lastAnalysis.valid && cam.IsOpen()) {
-                long curGain = cam.GetControl(ASI_GAIN);
-                long curExpUs = cam.GetControl(ASI_EXPOSURE);
+                long curGain = cam.GetControlValue(ControlId::Gain);
+                long curExpUs = cam.GetControlValue(ControlId::ExposureUs);
                 double curExpMs = curExpUs / 1000.0;
 
                 ae.Feed(lastAnalysis.highlightDN,
@@ -5271,7 +5271,7 @@ static int RunApp(bool useEmulator) {
             statusBar.SetCameraStats(
                 stats.fps.load(),
                 (int)stats.droppedFrames.load(),
-                cam.IsOpen() ? cam.Temperature() : 0.0f,
+                cam.IsOpen() ? cam.GetTemperatureC() : 0.0f,
                 roiWidth, roiHeight, 8);
 
             // Phase 58: surface camera faults (USB drop / wedge) once per
@@ -5415,7 +5415,7 @@ static int RunApp(bool useEmulator) {
             }
 
             // ── FC-style temperature chart sample ─────────────
-            float camT = cam.IsOpen()     ? cam.Temperature()        : 0.0f;
+            float camT = cam.IsOpen()     ? cam.GetTemperatureC()        : 0.0f;
             float focT = focuser.IsOpen() ? focuser.GetTemperature() : 0.0f;
             preview.PushTempSample(camT, focT);
             tempWindow.Push(camT, focT);
@@ -5543,8 +5543,8 @@ static int RunApp(bool useEmulator) {
                     sc.fps       = fps;
                     sc.recording = sd.recording;
                     if (cam.IsOpen()) {
-                        sc.gain       = (int)cam.GetControl(ASI_GAIN);
-                        sc.exposureMs = cam.GetControl(ASI_EXPOSURE) / 1000.0;
+                        sc.gain       = (int)cam.GetControlValue(ControlId::Gain);
+                        sc.exposureMs = cam.GetControlValue(ControlId::ExposureUs) / 1000.0;
                     }
                     sc.haveAltitude = sd.sky.valid;
                     sc.altitudeDeg  = sd.sky.altitudeDeg;
@@ -5696,13 +5696,13 @@ static int RunApp(bool useEmulator) {
             if (wsServer.IsRunning() && wsServer.ClientCount() > 0) {
                 telemetry.rc_running     = true;
                 telemetry.fps            = stats.fps.load();
-                telemetry.exposure_ms    = cam.IsOpen() ? cam.GetControl(ASI_EXPOSURE)/1000.0 : 8.0;
-                telemetry.gain           = cam.IsOpen() ? (int)cam.GetControl(ASI_GAIN)    : 100;
-                telemetry.gamma          = cam.IsOpen() ? (int)cam.GetControl(ASI_GAMMA)   : 50;
-                telemetry.wb_red         = cam.IsOpen() ? (int)cam.GetControl(ASI_WB_R)    : 52;
-                telemetry.wb_blue        = cam.IsOpen() ? (int)cam.GetControl(ASI_WB_B)    : 47;
-                telemetry.usb_bw         = cam.IsOpen() ? (int)cam.GetControl(ASI_BANDWIDTHOVERLOAD) : 80;
-                telemetry.sensor_temp    = cam.IsOpen() ? cam.Temperature() : 0.0f;
+                telemetry.exposure_ms    = cam.IsOpen() ? cam.GetControlValue(ControlId::ExposureUs)/1000.0 : 8.0;
+                telemetry.gain           = cam.IsOpen() ? (int)cam.GetControlValue(ControlId::Gain)    : 100;
+                telemetry.gamma          = cam.IsOpen() ? (int)cam.GetControlValue(ControlId::Gamma)   : 50;
+                telemetry.wb_red         = cam.IsOpen() ? (int)cam.GetControlValue(ControlId::WhiteBalanceRed)    : 52;
+                telemetry.wb_blue        = cam.IsOpen() ? (int)cam.GetControlValue(ControlId::WhiteBalanceBlue)    : 47;
+                telemetry.usb_bw         = cam.IsOpen() ? (int)cam.GetControlValue(ControlId::UsbBandwidth) : 80;
+                telemetry.sensor_temp    = cam.IsOpen() ? cam.GetTemperatureC() : 0.0f;
                 telemetry.width          = roiWidth;
                 telemetry.height         = roiHeight;
                 telemetry.bit_depth      = 8;

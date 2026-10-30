@@ -10,7 +10,7 @@
 
 namespace raduk::core {
 
-bool CaptureThread::Start(ASICamera& camera, RingBuffer& ringBuffer,
+bool CaptureThread::Start(ICamera& camera, RingBuffer& ringBuffer,
                            double exposureMs, int cpuCore) {
     if (m_running.load()) {
         printf("[CaptureThread] Already running\n");
@@ -90,11 +90,11 @@ void CaptureThread::Run() {
 
     // Get current ROI info for frame metadata
     int roiWidth = 0, roiHeight = 0, roiBin = 0;
-    ASI_IMG_TYPE roiType = ASI_IMG_RAW8;
-    m_camera->GetROI(roiWidth, roiHeight, roiBin, roiType);
+    ImageType roiType = ImageType::Raw8;
+    m_camera->GetRegion(roiWidth, roiHeight, roiBin, roiType);
 
-    int frameSizeBytes = ASICamera::FrameSize(roiWidth, roiHeight, roiType);
-    uint8_t bitDepth = (roiType == ASI_IMG_RAW16) ? 16 : 8;
+    int frameSizeBytes = FrameSizeBytes(roiWidth, roiHeight, roiType);
+    uint8_t bitDepth = (roiType == ImageType::Raw16) ? 16 : 8;
 
     // Initialize FPS counter
     m_fpsStartTime = Timestamp::Now();
@@ -102,7 +102,7 @@ void CaptureThread::Run() {
 
     printf("[CaptureThread] Capture loop running — %dx%d %s (%d bytes/frame)\n",
            roiWidth, roiHeight,
-           (roiType == ASI_IMG_RAW16) ? "RAW16" : "RAW8",
+           (roiType == ImageType::Raw16) ? "RAW16" : "RAW8",
            frameSizeBytes);
 
     // Phase 58 (review C4 / Architecture §6.3): pipeline-wedge detection.
@@ -131,10 +131,10 @@ void CaptureThread::Run() {
         }
 
         // Pull a frame from the SDK
-        ASI_ERROR_CODE frameErr = ASI_SUCCESS;
-        bool gotFrame = m_camera->GetVideoFrameEx(slot->data,
-                                                   static_cast<int>(slot->bufferCapacity),
-                                                   timeoutMs, frameErr);
+        CaptureError frameErr = CaptureError::Success;
+        bool gotFrame = m_camera->GetFrame(slot->data,
+                                           static_cast<int>(slot->bufferCapacity),
+                                           timeoutMs, frameErr);
 
         if (gotFrame) {
             consecTimeouts = 0;
@@ -155,7 +155,12 @@ void CaptureThread::Run() {
             slot->width = roiWidth;
             slot->height = roiHeight;
             slot->bitDepth = bitDepth;
-            slot->imgType = roiType;
+            // FrameSlot still carries the vendor enum, and so does
+            // TargetProfile, which persists it to rig.ini as an int.
+            // Converting those is a persistence change, not an
+            // interface one, so the conversion stops here rather than
+            // rippling into saved profiles.
+            slot->imgType = asimap::ToAsi(roiType);
 
             // Hand it to the recorder BEFORE committing to the ring.
             //
@@ -186,8 +191,8 @@ void CaptureThread::Run() {
             // Frame not received — release the slot
             m_ringBuffer->ReleaseWrite(slot);
 
-            if (frameErr == ASI_ERROR_CAMERA_REMOVED ||
-                frameErr == ASI_ERROR_CAMERA_CLOSED) {
+            if (frameErr == CaptureError::CameraRemoved ||
+                frameErr == CaptureError::CameraClosed) {
                 // USB drop: the SDK call returns IMMEDIATELY, so back off
                 // instead of spinning, and retry a restart each second.
                 m_stats.errors.fetch_add(1, std::memory_order_relaxed);
@@ -196,7 +201,7 @@ void CaptureThread::Run() {
                     faultLogged = true;
                     printf("[CaptureThread] *** CAMERA FAULT: %s — attempting "
                            "recovery every 1s ***\n",
-                           ASICamera::ErrorString(frameErr));
+                           Describe(frameErr));
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 if (m_running.load(std::memory_order_relaxed) &&

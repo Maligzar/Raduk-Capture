@@ -109,6 +109,21 @@ it is now built, with a token required on every connection (see
 [Telemetry and Dashboard](Telemetry-and-Dashboard#every-connection-needs-a-token-p56)). P5.7 is kept out of the queue as an owner
 decision rather than a task.
 
+**Six of the seven are now on `master`.** P5.5 (the CMake floor, settled
+at 3.21 by test), P5.6, P5.1 (the SER stamp is the midpoint of
+integration, not arrival), P5.4's paths half (one configurable root in
+`Paths.h`, replacing `D:\RadukCapture` in fifteen places), P5.3 (the
+ASCOM refusal list became a default, with `AscomProgId` to name a driver
+past it), and P5.2 with its follow-up P5.2b, which moved the callers onto
+`ICamera` and `IFocuser` and took the vendor types out of the hot path.
+
+What each still owes is in
+[`PHASE-STATUS.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/PHASE-STATUS.md),
+and the same thing is owed by all of them: **a run of
+`tests\run-tests.ps1`**. They are recorded as `GATED (mingw+wine)`, which
+is honest evidence and not the gate. P5.4's installer and release halves
+are untouched, and P5.7 is still undecided.
+
 The comparison also re-weighted work already on the list. By its
 weighting the highest-value unticked item in the project is clear-night
 item 3, checking the plate scale against the sky: every arcsecond figure
@@ -343,8 +358,9 @@ Phase 80's review pass alone fixed eight confirmed defects. These documents
 carry the reasoning behind a change, which a test cannot; the regression
 record proper is
 [the test suite](Emulator-and-Testing#the-test-suite-and-what-it-does-not-cover),
-18 suites gating merges. This line used to say the project had
-no automated test suite — corrected 2026-10-18.
+26 suites gating merges. This line used to say the project had
+no automated test suite — corrected 2026-10-18, and the count has moved
+twice since.
 
 ---
 

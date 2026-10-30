@@ -122,12 +122,27 @@ public:
                         if (name.find(L"Simulator") != std::wstring::npos ||
                             name.find(L"simulator") != std::wstring::npos) {
                             m_isSimulator = true;
-                            printf("[ASCOMMount] *** WARNING: Connected to SIMULATOR ***\n");
-                            printf("[ASCOMMount] *** Device Hub is misconfigured.\n");
-                            printf("[ASCOMMount] *** Device Hub → Tools → Setup → Telescope\n");
-                            printf("[ASCOMMount] *** → choose ASCOM.CPWI.Telescope\n");
-                            printf("[ASCOMMount] *** If CPWI.Telescope doesn't resolve,\n");
-                            printf("[ASCOMMount] *** run CPWI installer → Repair\n");
+                            // Two very different situations wear the
+                            // same symptom, and the advice for one is
+                            // nonsense for the other. A pinned
+                            // simulator is the owner testing the
+                            // generic path; a discovered one is a
+                            // misconfiguration.
+                            if (ProgIdWasPinned()) {
+                                printf("[ASCOMMount] *** SIMULATED MOUNT, named in rig.ini ***\n");
+                                printf("[ASCOMMount] *** AscomProgId=%s\n",
+                                       RigConfig::Get().ascomProgId.c_str());
+                                printf("[ASCOMMount] *** Nothing here will move a telescope.\n");
+                                printf("[ASCOMMount] *** Clear AscomProgId in rig.ini to go back\n");
+                                printf("[ASCOMMount] *** to discovering the real mount.\n");
+                            } else {
+                                printf("[ASCOMMount] *** WARNING: Connected to SIMULATOR ***\n");
+                                printf("[ASCOMMount] *** Device Hub is misconfigured.\n");
+                                printf("[ASCOMMount] *** Device Hub → Tools → Setup → Telescope\n");
+                                printf("[ASCOMMount] *** → choose ASCOM.CPWI.Telescope\n");
+                                printf("[ASCOMMount] *** If CPWI.Telescope doesn't resolve,\n");
+                                printf("[ASCOMMount] *** run CPWI installer → Repair\n");
+                            }
                         }
                     }
                     VariantClear(&result);
@@ -348,6 +363,35 @@ public:
             || id.find("OmniSim")    != std::string::npos   // indoors only
             || id.find("Simulator")  != std::string::npos
             || id.find("ScopeSim")   != std::string::npos;
+    }
+
+    // Whether rig.ini named the driver, rather than discovery
+    // choosing it. One definition, because two places act on it: the
+    // search below skips its refusal list, and the caller relaxes the
+    // simulator rejection.
+    static bool ProgIdWasPinned() {
+        return !RigConfig::Get().ascomProgId.empty();
+    }
+
+    // Whether to keep a driver that has connected.
+    //
+    // The simulator rejection exists so DISCOVERY cannot hand back a
+    // fake mount: believing you are slewing a telescope while driving
+    // a simulation is the worst failure this class has. But it was
+    // applied unconditionally, which also refused a simulator the
+    // owner had named on purpose -- and naming one is the only way to
+    // exercise the generic ASCOM path without a mount on the desk.
+    //
+    // So it follows IsRefusedByDefault's rule, which was already
+    // written down a few lines up and then not honoured here: the
+    // list exists to stop discovery choosing badly on its own, not to
+    // overrule the owner.
+    //
+    // Pure and static so tests/ascom_driver_choice.cpp can hold the
+    // policy still without COM, a registry or a mount.
+    static bool AcceptConnectedDriver(bool isSimulator, bool progIdWasPinned) {
+        if (!isSimulator) return true;
+        return progIdWasPinned;
     }
 
     // ── ASCOM driver enumeration helper ───────────────────────

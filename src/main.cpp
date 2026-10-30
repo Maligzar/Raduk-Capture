@@ -1443,7 +1443,28 @@ static int RunApp(bool useEmulator) {
     // stop bumps the generation, and a timer only resumes if no newer jog
     // event happened while it slept.
     auto jogGeneration = std::make_shared<std::atomic<int>>(0);
-    auto suspendTrackerForJog = [&tracker, jogGeneration](bool start) {
+    // Phase 47b. suspendTrackerForJog is defined here, before the
+    // preview renderer exists, and is also copied into a detached
+    // thread. A shared_ptr to the action solves both: the lambda below
+    // captures it by value, so the detached copy keeps its own
+    // reference, and the real work is installed once the renderer is
+    // up. Until then it is a no-op, which is correct -- there can be
+    // no solution to invalidate before there is anything to draw it.
+    auto invalidateWcs = std::make_shared<std::function<void()>>([]{});
+
+    auto suspendTrackerForJog = [&tracker, invalidateWcs, jogGeneration](bool start) {
+        // Phase 47b. Every manual jog and every recentre pulse passes
+        // through here, so it is where a solve-derived readout stops
+        // being true. A GoTo is covered inside GoToPanel instead,
+        // because its own buttons never reach this lambda.
+        //
+        // What this does NOT catch is somebody driving the mount from
+        // the hand controller, which the app never sees. The age
+        // ceiling in PixelWCS.h is the only guard against that, and it
+        // is a weak one; detecting it properly needs the polled alt/az
+        // turned back into RA/Dec, which this rig has no inverse for
+        // yet. Recorded in PHASE-STATUS.md rather than left implied.
+        if (start) (*invalidateWcs)();
         if (start) {
             jogGeneration->fetch_add(1);
             if (tracker.IsRunning()) tracker.SuspendCorrections();
@@ -2460,6 +2481,33 @@ static int RunApp(bool useEmulator) {
         Log("[FATAL] PreviewRenderer init failed\n");
         analyzer.Stop(); capture.Stop(); cam.Close(); return 1;
     }
+
+    // Phase 47b: every solve, and every slew that invalidates one,
+    // on its way to the thing that draws the cursor. An unsolved
+    // result is the invalidation.
+    gotoPanel.SetWcsCallback([&](const raduk::sky::SolveResult& r,
+                                 int fw, int fh) {
+        if (!r.solved) {
+            preview.ClearPlateSolution();
+            Log("[WCS] cleared\n");
+            return;
+        }
+        const raduk::sky::PlateSolution ps =
+            raduk::sky::PlateSolutionFromSolve(r, fw, fh);
+        preview.SetPlateSolution(ps);
+        if (ps.valid) {
+            Log("[WCS] %dx%d  %.3f\"/px  %s  ref [%.1f,%.1f]\n",
+                fw, fh, raduk::sky::ArcsecPerPixel(ps),
+                raduk::sky::IsMirrored(ps) ? "mirrored" : "normal",
+                ps.refX, ps.refY);
+        } else {
+            Log("[WCS] solve carried no usable geometry\n");
+        }
+    });
+
+    // Now that there is something to draw on, the jog path can really
+    // clear the solution; see the shared_ptr above.
+    *invalidateWcs = [&preview]() { preview.ClearPlateSolution(); };
     preview.SetSensorROI(roiWidth, roiHeight);
 
     // Phase 89: hand the finished RGBA to the share view as well. An
@@ -5347,6 +5395,51 @@ static int RunApp(bool useEmulator) {
                             std::chrono::duration<double>(
                                 std::chrono::steady_clock::now()
                                     .time_since_epoch()).count());
+                    // Phase 47b: the measured half of the rose. Set
+                    // from the guide calibration whenever there is
+                    // one, cleared when there is not, so a stale
+                    // arrow cannot outlive the measurement it came
+                    // from. Four floats, so it is cheaper to resend
+                    // than to track whether it changed.
+                    if (tracker.HasCalibration()) {
+                        const auto cal = tracker.Calibration();
+                        preview.SetJogResponse(cal.exPerMs, cal.eyPerMs,
+                                               cal.nxPerMs, cal.nyPerMs);
+                    } else {
+                        preview.ClearJogResponse();
+                    }
+
+                    // Phase 47b: how fast this mount is rotating the
+                    // field right now, rather than the flat default.
+                    //
+                    // 15.04 deg/hr * cos(lat) * cos(az) / cos(alt), the
+                    // standard alt-az field rotation rate. Both inputs
+                    // are already polled for the cord wrap and the
+                    // airmass, so this costs nothing extra.
+                    //
+                    // fabs makes the azimuth convention moot: the rate
+                    // peaks near both north and south and the sign only
+                    // says which way the field turns, which a staleness
+                    // budget does not care about.
+                    //
+                    // Near the zenith cos(alt) collapses and the rate
+                    // runs away, which is physically true -- an alt-az
+                    // mount really cannot track through the zenith --
+                    // so it is capped rather than allowed to make the
+                    // readout expire instantly on a rounding error.
+                    if (alt >= 0.0f && az >= 0.0f) {
+                        const double D2R = 3.14159265358979 / 180.0;
+                        const double lat =
+                            raduk::core::RigConfig::Get().siteLatDeg;
+                        const double cAlt = std::cos(alt * D2R);
+                        double rate = 90.0;
+                        if (cAlt > 0.02)
+                            rate = std::fabs(15.041 * std::cos(lat * D2R)
+                                 * std::cos(az * D2R) / cAlt);
+                        if (rate > 90.0) rate = 90.0;
+                        preview.SetFieldRotationRate(rate);
+                    }
+
                     if (az >= 0.0f) {
                         cordWrap.Sample(az);
                         controls.SetMountAltAz(alt, az, true,

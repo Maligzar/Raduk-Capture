@@ -45,7 +45,11 @@ resolves beside the executable where neither exists. Both pass on the rig.
 and which anything pulling `RigConfig` reaches through `<ctime>`. That
 blocked `ai_context_facts`, `mount_jog`, `leoben_weather` and `push_to`
 from linking. A zero-offset stub, kept OUT of this repository because it
-exists only to work around a toolchain gap, unblocks all four:
+exists only to work around a toolchain gap, unblocks all four.
+(`pixel_wcs`, added with phase 47b, does not need it: `PixelWCS.h` and
+`SolveResult.h` deliberately pull in nothing but `<cmath>`, `<cstdio>`
+and `<string>`, which is what lets the convention-sensitive arithmetic
+be tested at all.)
 
 ```cpp
 extern "C" int   _get_timezone(long* t) { if (t) *t = 0; return 0; }

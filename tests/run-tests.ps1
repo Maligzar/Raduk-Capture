@@ -49,6 +49,7 @@ $Tests = @(
     @{ Name = "ascom_driver_choice"; Sources = @() }
     @{ Name = "device_interfaces"; Sources = @() }
     @{ Name = "push_to";          Sources = @() }
+    @{ Name = "pixel_wcs";        Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

@@ -40,7 +40,7 @@ public:
     // Start capturing frames from camera into the ring buffer.
     // exposureMs is used to calculate the SDK timeout.
     // cpuCore is the core to pin this thread to (-1 for no pinning).
-    bool Start(ASICamera& camera, RingBuffer& ringBuffer,
+    bool Start(ICamera& camera, RingBuffer& ringBuffer,
                double exposureMs, int cpuCore = -1);
 
     // Stop capture. Blocks until thread exits.
@@ -70,12 +70,13 @@ public:
 private:
     void Run();
 
-    ASICamera*              m_camera = nullptr;
+    ICamera*                m_camera = nullptr;
     RingBuffer*             m_ringBuffer = nullptr;
     std::atomic<double>     m_exposureMs{8.0};
     int                     m_cpuCore = -1;
 
-    std::thread             m_thread;
+    std::thread             m_thread;
+
     std::function<void(const FrameSlot*)> m_frameSink;
     std::atomic<bool>       m_running{false};
     CaptureStats            m_stats;

@@ -18,8 +18,8 @@
 //
 // Usage (main render loop, ~2Hz):
 //   ae.Feed(lastAnalysis.meanBrightness, lastAnalysis.clipPct,
-//           cam.GetControl(ASI_GAIN),
-//           cam.GetControl(ASI_EXPOSURE) / 1000.0);  // ms
+//           cam.GetControlValue(ControlId::Gain),
+//           cam.GetControlValue(ControlId::ExposureUs) / 1000.0);  // ms
 //   ae.Tick();
 //   if (ae.IsAuto()) {
 //       if (ae.SuggestGain() != ae.CurrentGain())

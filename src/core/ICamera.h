@@ -160,4 +160,38 @@ public:
     virtual int        CameraId() const = 0;
 };
 
+// ── Free helpers, so callers need no vendor header ─────────────
+//
+// These were static members of ASICamera, which meant every caller
+// that wanted a frame size or an error string had to name the ZWO
+// class. A static cannot be virtual, so they could not move onto
+// ICamera; as free functions over the neutral vocabulary they stop
+// being a reason to include the SDK.
+
+// Bytes one frame occupies. Pure arithmetic over the format, which
+// is why it does not need a camera to answer.
+inline int FrameSizeBytes(int width, int height, ImageType type) {
+    switch (type) {
+        case ImageType::Raw16: return width * height * 2;
+        case ImageType::Rgb24: return width * height * 3;
+        case ImageType::Raw8:
+        case ImageType::Y8:    return width * height;
+    }
+    return width * height;
+}
+
+// For logs and the status bar. Deliberately not "unknown error" for
+// the catch-all: a log line that says which of the four it was is
+// the difference between diagnosing an unplugged cable and not.
+inline const char* Describe(CaptureError err) {
+    switch (err) {
+        case CaptureError::Success:       return "success";
+        case CaptureError::Timeout:       return "timed out waiting for a frame";
+        case CaptureError::CameraRemoved: return "camera removed";
+        case CaptureError::CameraClosed:  return "camera closed";
+        case CaptureError::Other:         return "camera error";
+    }
+    return "camera error";
+}
+
 } // namespace raduk::core

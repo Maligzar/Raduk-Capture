@@ -34,3 +34,29 @@
     #include "ASCOMMount.h"
     #include "IMount.h"
 #endif
+
+// ── Enumeration, without naming a vendor ──────────────────────
+//
+// ASICamera::Enumerate() is static and returns ASI_CAMERA_INFO, so
+// every caller asking "is there a camera" had to name ZWO's class
+// and ZWO's struct to find out. A static cannot be virtual, so the
+// answer is a free function here, where the build already knows
+// which backend is compiled.
+//
+// This is the shape a second brand plugs into: ask each backend in
+// turn and concatenate. Today there is one, so it asks one.
+
+#include "ICamera.h"
+#include "ASITypeMap.h"
+#include <vector>
+
+namespace raduk::core {
+
+inline std::vector<CameraInfo> EnumerateCameras() {
+    std::vector<CameraInfo> out;
+    for (const auto& raw : ASICamera::Enumerate())
+        out.push_back(asimap::Describe(raw));
+    return out;
+}
+
+} // namespace raduk::core

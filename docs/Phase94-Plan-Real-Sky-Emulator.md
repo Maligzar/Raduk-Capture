@@ -238,10 +238,24 @@ small fraction of the work.
 | ~~**94.1**~~ | ~~A star as a target~~ **DONE 2026-10-31.** `EmuKind::Star`, six stars A0 to M2, Airy pattern from the aperture. Spectral colour baked into the emulator table rather than added as a column on `kBrightStars`: the emulator renders by name from its own table and reaching into `src/sky` for 50 rows it cannot use as a field would be the wrong dependency | S | This is the actual request. Opens autofocus, FWHM, sharpness and centroid-lock to a point source for the first time |
 | ~~**94.2**~~ | ~~Live planet apparent size~~ **DONE 2026-10-31.** Pushed from `main.cpp` beside `SetTargetName`, as planned. Measured on the day: the table had Mars 2.3x too big and Venus 2.4x too small | XS | The ephemeris already computes it and `tests/planet_apparent_size.cpp` already gates it. Mars runs 3.5" to 25", so the constant is wrong nearly always |
 | ~~**94.3**~~ | ~~The Moon~~ **DONE 2026-10-31.** Terminator from the real phase, four procedural maria, craters whose shadows lengthen toward the terminator, all in `src/core/LunarSurface.h`. One thing the plan did not foresee: at a 640x480 ROI a first-quarter frame sits so near the terminator that it exposed at 6 DN, so `m_peakTargetDn` now normalises against the patch's own maximum the way the disc path always did | M |
-| **94.4** | Pointing-centric rendering: the mount's RA/Dec decides what is in frame, not a name | M | The architectural flip. Prerequisite for any field, and on its own it makes a GoTo in the emulator show the target arriving off-centre and being centred, which it cannot today |
-| **94.5** | A real star field from a real catalog | L, data-bound | Gated on section 4. Go or no-go with the numbers in hand, not a foregone conclusion |
+| ~~**94.4**~~ | ~~Pointing-centric rendering~~ **BACKLOGGED 2026-10-31**, with 94.5, since it is the only thing 94.4 is for. **Returns with 94.5.** | M | **Corrected 2026-10-31. The standalone value claimed here was wrong.** This row said a GoTo "cannot today" show the target arriving off-centre and being centred. It can, and has been able to all along: `MountEmulator::GetPointingErrorArcsec` returns target minus mount in arcsec, cos(dec)-scaled, and the camera renders the target displaced by it, so the closed guide loop already runs. Measured on 2026-10-31 at a 640x480 ROI: 5 arcsec of error is indistinguishable from centred, 60 arcsec walks the disc off the edge, and at 600 arcsec the frame is background only. So **empty sky on a failed GoTo already works too**. What is genuinely missing is more than one object in frame at once, which only 94.5 needs. That makes this a prerequisite-only stage with no payoff of its own, and building it before 94.5 is decided would be speculative |
+| ~~**94.5**~~ | ~~A real star field from a real catalog~~ **BACKLOGGED 2026-10-31**, by the owner, with the numbers in hand. The only unique payoff is letting plate solves run indoors, and section 5 already says that would not settle the one thing worth settling. **Returns if** the solve paths need indoor exercise badly enough to justify a catalog dependency, or if a catalog is already on the rig and only a loader is wanted | L, data-bound |
 
-### Recommendation
+### Outcome, 2026-10-31
+
+**94.1, 94.2 and 94.3 shipped. 94.4 and 94.5 backlogged by the owner.**
+
+The request was for stars, real planets and a Moon that accounts for the
+sensor. All three are in. What is backlogged is the part that was never
+about the appearance of the frame: a solvable star field, whose only
+unique payoff is running plate solves indoors.
+
+Worth saying plainly, because it is the opposite of how the staging
+reads: stopping here is not stopping short. The three delivered stages
+are the ones the request asked for, and the two backlogged ones are an
+infrastructure project that happened to live in the same phase.
+
+### Recommendation as written, before the decision
 
 **Do 94.1 and 94.2.** Together they are days, not weeks, they deliver
 the stated goal, and 94.2 is nearly free because the hard part already
@@ -250,9 +264,18 @@ exists and is already tested.
 **Then stop and look at 94.3 and 94.4 separately.** Both are worth
 doing; neither is urgent.
 
-**Treat 94.5 as a separate decision with its own go/no-go**, taken once
-94.4 exists, since without pointing-centric rendering a field has
-nowhere to be. My own read is that the catalog cost is justified only by
+**Treat 94.5 as a separate decision with its own go/no-go.** Originally
+"taken once 94.4 exists"; since 94.4 turns out to have no standalone
+value (see its row), the order reverses: **decide 94.5 first**, and
+build 94.4 only if the answer is yes, because that is the only thing it
+is for.
+
+One route considered and rejected on 2026-10-31: a star field that is
+merely *populated* rather than solvable, enough for multi-star FWHM
+(roadmap row 31/32, ranked H) without a deep catalog. The arithmetic in
+section 4 kills it. Several stars in a 13 x 7 arcmin field needs
+magnitude 14 whether you want to solve the field or only to measure
+three stars in it, so there is no cheap middle path. My own read is that the catalog cost is justified only by
 the plate-solve payoff and not by the appearance of the frame, so the
 question to answer first is whether solving indoors is worth a catalog
 dependency. Confidence: medium. It turns on how much of the remaining

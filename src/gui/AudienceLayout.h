@@ -49,6 +49,8 @@
 #include "Theme.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstddef>
 
 namespace raduk::gui {
 namespace audience {
@@ -265,6 +267,115 @@ inline LRect CardInRow(const LRect& row, int count, int index,
 // other.
 inline float CardRadius(float bodyPx) {
     return Theme::Space::Scaled(bodyPx, Theme::Space::P_XS);
+}
+
+
+// ── Fitting text to a box ──────────────────────────────────────
+//
+// Phase 103 built this for the object panel's narrative and phase 104
+// moved it here, because the share view needed the same arithmetic and
+// a second copy of it is how two surfaces drift apart.
+//
+// An estimate, not a measurement. The faces are proportional, so this
+// works from an average advance, which is the right trade for CHOOSING
+// a size: a measured DWrite layout per candidate size means building
+// and discarding several per frame to decide something no reader can
+// perceive to the pixel. It errs toward predicting more height than
+// the text takes, because being wrong that way shrinks the text
+// slightly and being wrong the other way puts it outside the window.
+
+// Average glyph advance as a fraction of the em.
+//
+// Two values because the surfaces use different faces at different
+// weights, and one number for both would be wrong for both. The body
+// figure is the one phase 103 measured. The display figure is for the
+// bold caption face, which is wider; it is an estimate, and it is set
+// HIGH on purpose -- overestimating the advance predicts more lines
+// than the text takes, which shrinks text that would have fit rather
+// than letting text escape that would not have.
+inline constexpr float BODY_ADVANCE_EM    = 0.47f;
+inline constexpr float DISPLAY_ADVANCE_EM = 0.58f;
+inline constexpr float BODY_LINE_EM       = 1.30f;
+
+// Never go below this. These surfaces are read from across a room, and
+// text too small to read from there is no better than text that is not
+// on screen.
+inline constexpr float BODY_FLOOR_PX = 11.0f;
+
+inline float EstimatedLines(size_t chars, float width, float px,
+                            float advanceEm = BODY_ADVANCE_EM) {
+    const float charW = px * advanceEm;
+    if (charW <= 0.0f || width <= 0.0f) return 1.0f;
+    // A column narrower than eight characters is not a column; the
+    // floor keeps a pathological width from predicting thousands of
+    // lines and collapsing the size to the minimum.
+    const float perLine = (std::max)(8.0f, width / charW);
+    return (std::max)(1.0f, std::ceil((float)chars / perLine));
+}
+
+inline float EstimatedHeight(size_t chars, float width, float px,
+                             float advanceEm = BODY_ADVANCE_EM) {
+    return px * BODY_LINE_EM * EstimatedLines(chars, width, px, advanceEm);
+}
+
+// The largest size at or below want whose text is estimated to fit
+// boxH, never below floorPx. Returns floorPx when even that does not
+// fit: at that point the text genuinely cannot fit, and the honest
+// outcome is readable text that is shortened or clipped rather than
+// unreadable text that is complete.
+inline float FitPx(size_t chars, float width, float boxH, float want,
+                   float advanceEm = BODY_ADVANCE_EM,
+                   float floorPx = BODY_FLOOR_PX) {
+    if (chars == 0 || width <= 0.0f || boxH <= 0.0f) return want;
+    if (want <= floorPx) return floorPx;
+    if (EstimatedHeight(chars, width, want, advanceEm) <= boxH) return want;
+    // The range is at most a few dozen whole-pixel steps and this runs
+    // once per draw of one surface, so there is nothing to gain from
+    // bisecting and a readable loop to lose.
+    for (float px = std::floor(want); px >= floorPx; px -= 1.0f)
+        if (EstimatedHeight(chars, width, px, advanceEm) <= boxH) return px;
+    return floorPx;
+}
+
+// The largest size at or below want at which the text fits ONE line.
+//
+// Phase 104. Not FitPx: that asks whether the text fits a box of a
+// given HEIGHT, which is the wrong question for a caption whose block
+// is one line tall by construction. Asking it the wrong way had two
+// consequences, both caught by tests/share_caption.cpp before this
+// existed.
+//
+// It shrank everything. The share view's line box is 1.25 em and
+// BODY_LINE_EM is 1.30, so a single line at full size is predicted to
+// need more room than its own box -- and "Jupiter" came back shrunk.
+//
+// And it accepted two lines. At 140 characters it returned 23 px,
+// because two lines at 23 px do fit a 75 px box. They just land on the
+// detail line underneath, which is the failure the caller was trying
+// to avoid.
+//
+// So this asks about width only, which is what a one-line caption
+// actually constrains. Returns floorPx when even that will not hold
+// the text; the caller then shortens it.
+inline float FitPxOneLine(size_t chars, float width, float want,
+                          float advanceEm = BODY_ADVANCE_EM,
+                          float floorPx = BODY_FLOOR_PX) {
+    if (chars == 0 || width <= 0.0f) return want;
+    if (want <= floorPx) return floorPx;
+    for (float px = std::floor(want); px >= floorPx; px -= 1.0f)
+        if (EstimatedLines(chars, width, px, advanceEm) <= 1.0f) return px;
+    return floorPx;
+}
+
+// How many characters of a single line fit a width at a given size.
+// For a caption that must stay on ONE line, where shrinking has
+// already hit the floor and the remaining choice is what to cut.
+inline size_t CharsThatFit(float width, float px,
+                           float advanceEm = BODY_ADVANCE_EM) {
+    const float charW = px * advanceEm;
+    if (charW <= 0.0f || width <= 0.0f) return 0;
+    const float n = std::floor(width / charW);
+    return (n <= 0.0f) ? 0 : (size_t)n;
 }
 
 } // namespace audience

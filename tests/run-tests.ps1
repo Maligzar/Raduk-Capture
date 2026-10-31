@@ -64,6 +64,7 @@ $Tests = @(
     @{ Name = "exposure_rails"; Sources = @() }
     @{ Name = "workspace_state"; Sources = @() }
     @{ Name = "object_panel_fit"; Sources = @() }
+    @{ Name = "share_caption";   Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

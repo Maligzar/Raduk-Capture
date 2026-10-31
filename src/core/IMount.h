@@ -55,6 +55,79 @@ public:
     // here previously corrupted ASCOMMount instances.
     virtual bool TrackingModeKnown() const { return true; }
 
+    // ── Tracking RATE, which is a different thing ──────────────
+    //
+    // Phase 97. TrackingMode above is the mount's FRAME -- alt-az or
+    // equatorial. The rate is how fast it turns, and the application
+    // has never had an abstraction for it: ASCOMMount wrote the
+    // literal 0 at two sites with the comment
+    // "DriveRates: 0=Sidereal, 1=Lunar, 2=Solar, 3=King" beside it,
+    // so it knew the alternatives existed and pinned sidereal anyway.
+    //
+    // ── What that costs, measured ──────────────────────────────
+    //
+    // The Moon moves 13.176 deg/day east against the stars, which a
+    // sidereal mount loses at 0.55 arcsec/s, or 2.7 px/s on this rig.
+    // The answer depends entirely on the timescale, and conflating
+    // the three is how people come to believe sidereal blurs lunar
+    // frames:
+    //
+    //   per EXPOSURE  20 ms -> 0.05 px.  Nothing.
+    //   per RUN       60 s  -> 163 px, 4% of the frame. The stacker
+    //                          removes it.
+    //   per MOSAIC    8 min -> 277 arcsec against a 156-arcsec
+    //                          overlap at 20%. The drift exceeds the
+    //                          WHOLE overlap by 1.8x, so a mosaic in
+    //                          fixed offsets does not close.
+    //
+    // So this matters for mosaics and barely at all otherwise, which
+    // is why it arrives with MosaicPlan.h rather than on its own.
+    //
+    // King rate is deliberately absent. It corrects for refraction on
+    // a long sidereal exposure, which is a deep-sky concern; this is a
+    // lucky-imaging rig whose runs are seconds long.
+    enum TrackingRate { RATE_SIDEREAL = 0, RATE_LUNAR = 1, RATE_SOLAR = 2 };
+
+    // Returns false when the backend cannot set a rate, so a caller
+    // can say so rather than believe it worked. The default is that
+    // false: a backend opts in, exactly as SlewVariable does.
+    virtual bool SetTrackingRate(TrackingRate /*rate*/) { return false; }
+    virtual bool SupportsTrackingRate() const { return false; }
+
+    // The rate for a target, by name. Here rather than in each caller
+    // because "is this the Moon" is a decision that must come out the
+    // same everywhere.
+    //
+    // Matched on a WORD, not on equality. The catalogue calls them
+    // exactly "Moon" and "Sun", but this is also fed PROFILE names,
+    // which the owner chooses -- and a lunar session is far more
+    // likely to be filed as "Moon - Copernicus" or "Moon Tycho" than
+    // as the bare word. Requiring equality would hand every one of
+    // those sidereal rate without a murmur, which is precisely the
+    // silent near-miss this phase spent its time hunting.
+    //
+    // The separator requirement is what keeps it honest: "Moonrise"
+    // and "Sunset" are not the Moon and the Sun, and a bare prefix
+    // test would claim they were.
+    static TrackingRate RateForTarget(const char* name) {
+        if (!name) return RATE_SIDEREAL;
+        auto lower = [](char c) {
+            return (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
+        };
+        // True when `name` begins with `word` and what follows is
+        // either nothing or a separator.
+        auto leads = [&](const char* word) {
+            const char* a = name;
+            for (; *word; ++a, ++word)
+                if (!*a || lower(*a) != lower(*word)) return false;
+            return *a == '\0' || *a == ' ' || *a == '-' || *a == '_' ||
+                   *a == ':'  || *a == ',' || *a == '.' || *a == '\t';
+        };
+        if (leads("Moon")) return RATE_LUNAR;
+        if (leads("Sun"))  return RATE_SOLAR;
+        return RATE_SIDEREAL;
+    }
+
     // ── Jog slewing ────────────────────────────────────────────
     virtual bool SlewFixed(int axis, int direction, int rate) = 0;
     virtual void StopSlew(int axis) = 0;

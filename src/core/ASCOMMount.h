@@ -202,8 +202,11 @@ public:
     bool GoToRADec(double raHours, double decDegrees) override {
         if (!m_dispatch) return false;
         std::lock_guard<std::mutex> lk(m_mutex);
-        // Ensure tracking before slew
-        SetInt(L"TrackingRate", 0); // driveRate Sidereal
+        // Ensure tracking before slew, at whatever rate was last
+        // asked for. Phase 97: this used to write the literal 0 --
+        // sidereal -- on EVERY GoTo, so setting lunar rate and then
+        // slewing to the Moon silently put it back.
+        SetInt(L"TrackingRate", (int)m_rate);
 
         // Call SlewToCoordinatesAsync(RightAscension, Declination)
         DISPID did = GetDispId(L"SlewToCoordinatesAsync");
@@ -242,12 +245,47 @@ public:
         bool tracking = (mode != OFF);
         if (!SetBool(L"Tracking", tracking)) return false;
         if (tracking) {
-            // DriveRates: 0=Sidereal, 1=Lunar, 2=Solar, 3=King
-            SetInt(L"TrackingRate", 0);
+            // DriveRates: 0=Sidereal, 1=Lunar, 2=Solar, 3=King.
+            // Phase 97: the chosen rate, not the literal 0.
+            SetInt(L"TrackingRate", (int)m_rate);
         }
         printf("[ASCOMMount] Tracking: %s\n", TrackingModeName(mode));
         return true;
     }
+
+    // ── Tracking rate (phase 97) ───────────────────────────────
+    //
+    // ASCOM exposes this as the DriveRates enum on the TrackingRate
+    // property, with the same numbering this app's IMount::TrackingRate
+    // uses for the three it cares about, so the cast is the whole
+    // conversion.
+    //
+    // The rate is REMEMBERED rather than written and forgotten,
+    // because GoToRADec sets TrackingRate too and used to hard-code
+    // sidereal -- so before this, choosing lunar rate and then
+    // slewing to the Moon put it straight back to sidereal, which is
+    // the one sequence anybody would actually perform.
+    //
+    // Not every driver implements the property, and ITelescopeV3
+    // permits a driver to offer only sidereal. A failed write is
+    // reported rather than swallowed: a caller that believes it got
+    // lunar rate will plan a mosaic that cannot close.
+    bool SetTrackingRate(TrackingRate rate) override {
+        if (!m_dispatch) return false;
+        std::lock_guard<std::mutex> lk(m_mutex);
+        if (!SetInt(L"TrackingRate", (int)rate)) {
+            printf("[ASCOMMount] driver refused tracking rate %d; "
+                   "staying as it was\n", (int)rate);
+            return false;
+        }
+        m_rate = rate;
+        printf("[ASCOMMount] Tracking rate: %s\n",
+               rate == RATE_LUNAR ? "lunar"
+             : rate == RATE_SOLAR ? "solar" : "sidereal");
+        return true;
+    }
+
+    bool SupportsTrackingRate() const override { return true; }
 
     TrackingMode GetTrackingMode() override {
         if (!m_dispatch) return OFF;
@@ -881,6 +919,12 @@ private:
     bool         m_isSimulator    = false;
     std::string  m_progID;
     std::mutex   m_mutex;
+
+    // Phase 97. Remembered, because GoToRADec writes TrackingRate too
+    // and used to hard-code sidereal there -- so choosing lunar rate
+    // and then slewing to the Moon put it straight back, which is the
+    // one sequence anybody would actually perform.
+    TrackingRate m_rate = RATE_SIDEREAL;
 
     // Axis rates queried from driver at connect time.
     // m_axisRates[axis] = sorted list of valid rates (deg/sec, unsigned).

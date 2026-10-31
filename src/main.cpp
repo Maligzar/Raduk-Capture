@@ -604,6 +604,50 @@ static void ApplyProfile(const TargetProfile& p,
         if (p.trackingMode == "eq_north") mode = IMount::EQ_NORTH;
         if (p.trackingMode == "eq_south") mode = IMount::EQ_SOUTH;
         mount->SetTrackingMode(mode);
+
+        // ── Phase 97: the rate, which is not the mode ──────────
+        //
+        // AFTER SetTrackingMode, not before: that call writes the
+        // Tracking property, and a driver may ignore a rate written
+        // while tracking is off.
+        //
+        // Why it is here. ASCOMMount wrote the literal 0 -- sidereal
+        // -- at two sites, including on every GoTo, with the comment
+        // "DriveRates: 0=Sidereal, 1=Lunar, 2=Solar" beside it. The
+        // Moon moves 13.176 deg/day east against the stars, so a
+        // sidereal mount loses it at 0.55 arcsec/s, which on this
+        // rig is 2.7 px/s.
+        //
+        // That is NOT a smear problem: 20 ms of exposure is 0.05 px,
+        // and a 60-second run drifts 4% of the frame, which the
+        // stacker aligns out. It is a MOSAIC problem. The Moon is
+        // 2.4 frames wide and 4.2 tall here, so it needs eighteen
+        // panels, which is about eight minutes, which is 277 arcsec
+        // of drift against a 156-arcsec overlap at 20%. The drift
+        // exceeds the whole overlap by 1.8x and the mosaic does not
+        // close. See src/sky/MosaicPlan.h.
+        if (mode != IMount::OFF) {
+            const IMount::TrackingRate want =
+                IMount::RateForTarget(p.name.c_str());
+            if (want != IMount::RATE_SIDEREAL) {
+                // Reported either way. A caller that believes it has
+                // lunar rate will plan a mosaic that cannot close, so
+                // a refusal has to be visible rather than swallowed.
+                const bool got = mount->SetTrackingRate(want);
+                Log("[PROFILE] %s rate: %s\n",
+                    want == IMount::RATE_LUNAR ? "lunar" : "solar",
+                    got ? "set" : "REFUSED by backend, still sidereal");
+                if (got) slog.Mount("Tracking rate: %s",
+                                    want == IMount::RATE_LUNAR ? "lunar"
+                                                               : "solar");
+            } else {
+                // Back to sidereal when leaving the Moon or the Sun.
+                // Without this, selecting Jupiter after the Moon would
+                // keep lunar rate and drift the planet out at
+                // 0.55 arcsec/s -- a bug introduced by the fix.
+                mount->SetTrackingRate(IMount::RATE_SIDEREAL);
+            }
+        }
     }
     // Format after the control writes: it stops and restarts the capture
     // thread, and the gain/exposure values set above survive that.

@@ -695,6 +695,86 @@ wants, so it is mechanical once you have the screen in front of you.
 
 ---
 
+## 18. The first lunar mosaic, and whether the drift budget survives an 8SE
+
+Added 2026-10-31 with phase 97. **Numbered 18, not 17:** item 17 was in
+flight on a separate branch when this was written, and two items sharing
+a number would have been worse than numbering around it. Both are here
+now.
+
+Phase 97 computed the whole framing problem and has not seen the Moon.
+Everything below is arithmetic checked against almanac figures, which is
+not the same as having done it.
+
+### The numbers to confirm
+
+| | |
+|---|---|
+| Full sensor at 0.203″/px | 12.99′ × 7.31′ |
+| Moon tonight | 29.4′ to 33.5′, so 2.4 frames wide and 4.2 tall |
+| Panels at 20% overlap | 3 × 6 = **18** |
+| Drift under sidereal | 0.55″/s = **2.71 px/s** |
+| Deadline before the overlap is gone | **80 seconds** |
+
+1. **Confirm the apparent diameter against an almanac.** The app now
+   computes it; check tonight's figure against Stellarium or any
+   ephemeris. The series should be within about 0.5″. If it is out by a
+   factor of two, the diameter and the semidiameter have been confused
+   somewhere, which is the error the test exists to catch and would
+   mean the test is checking something other than what ships.
+
+2. **Watch the drift with sidereal tracking on.** Point at the Moon,
+   leave the mount at sidereal, and time how long the limb takes to
+   cross a known number of pixels. It should be 2.7 px/s. This is the
+   measurement the whole phase rests on and it takes a minute.
+
+3. **Then select the Moon as a profile and watch the log.** It should
+   say `[PROFILE] lunar rate: set`. If it says `REFUSED by backend,
+   still sidereal`, your ASCOM driver does not implement the
+   `TrackingRate` property — which `ITelescopeV3` permits — and every
+   mosaic plan below is void. Say so and the fallback becomes a
+   different problem.
+
+4. **Confirm the rate survives a GoTo.** This is the specific bug phase
+   97 fixed: `GoToRADec` wrote sidereal on *every* slew, so setting
+   lunar rate and then slewing to the Moon undid it. Set the rate, slew,
+   and re-check the drift. It should be near zero now.
+
+5. **Then select Jupiter.** The rate must go *back* to sidereal. Without
+   that, the fix would drift Jupiter out at 0.55″/s — a bug introduced
+   by the repair.
+
+### The real unknown: settle time
+
+The 8.3-minute figure assumes **20 s of capture and 8 s of settle per
+panel.** The capture time is yours to choose; the settle time is the
+mount's, and nobody has measured an 8SE's settle after a 10′ slew at
+this magnification.
+
+If it is 20 s rather than 8, eighteen panels take 12 minutes and the
+drift budget needs the lunar rate working rather than merely set. If it
+is 3 s, there is room for more overlap.
+
+**Measure it once:** slew one panel step and time how long until the
+image stops moving. That single number decides whether lunar mosaics are
+practical on this mount, and it is the one input to the plan that is
+pure guesswork today.
+
+### What not to bother with
+
+A lunar mosaic at a **small ROI**. A 640×480 crop needs 432 panels,
+which is 2.9 hours even after skipping the 56 that hold no Moon. The
+answer is the full sensor.
+
+### Solar
+
+The arithmetic covers the Sun and the optics do not. An 8″ SCT pointed
+at the Sun without a **full-aperture front filter** destroys the
+corrector and the camera behind it; a rear-cell filter is not
+sufficient, because the heat is concentrated before it reaches one.
+
+---
+
 ## What is already verified against hardware
 
 For contrast, so this list is not read as "nothing works":

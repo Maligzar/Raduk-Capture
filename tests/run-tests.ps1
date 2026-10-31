@@ -63,6 +63,7 @@ $Tests = @(
     @{ Name = "camera_panel";    Sources = @() }
     @{ Name = "exposure_rails"; Sources = @() }
     @{ Name = "workspace_state"; Sources = @() }
+    @{ Name = "motion";          Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

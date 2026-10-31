@@ -327,6 +327,146 @@ namespace Theme {
         return table[level];
     }
 
+    // ── Motion ────────────────────────────────────────────────
+    //
+    // Phase 96.5. Night vision flattens hue and compresses the
+    // luminance ladder, but it cannot touch timing: a fade takes the
+    // same 450 ms in a dark room as in a lit one. Motion is one of the
+    // few channels that survives the red filter intact, so what little
+    // of it this app has is worth getting right.
+    //
+    // DURATIONS. A half-decade ladder (x sqrt(10), so ~3.16 per rung)
+    // anchored at 150 ms. The anchor is not a preference: the two
+    // durations already in the app before this phase were ObjectPanel's
+    // 450 ms target cross-fade and ShareView's 1500 ms hint ramp, and
+    // those are rungs 1 and 2 of this ladder to within 5% (the true
+    // rungs are 150 / 474 / 1500). 450 is kept over 474 because it is
+    // the measured value and 24 ms is not perceptible.
+    //
+    // DWELLS are not motion. They are reading time, and they are listed
+    // here only because they were three different numbers in three
+    // files with nothing saying why. Now there are two, and the
+    // difference is a decision: a confirmation tells you what you just
+    // did, so you already know it; a notice tells you something you did
+    // not know, so it gets longer.
+    namespace Motion {
+        inline constexpr int BASE_MS = 150;
+        inline constexpr int STEPS   = 3;
+
+        // Rung 0: a state edge becoming legible -- something took its
+        //         pressed look, a transient surface arrived or left.
+        inline constexpr int FAST    = 150;
+        // Rung 1: a surface's content changing identity while the
+        //         surface itself stays put. ObjectPanel's cross-fade.
+        inline constexpr int CONTENT = 450;
+        // Rung 2: a slow decay at the tail of a dwell, long enough that
+        //         it reads as "this is leaving" and not as a glitch.
+        inline constexpr int LONG    = 1500;
+
+        inline constexpr int kRamp[STEPS] = { FAST, CONTENT, LONG };
+        enum : int { D_FAST = 0, D_CONTENT, D_LONG };
+
+        inline constexpr int StepAt(int step) {
+            if (step < 0)      step = 0;
+            if (step >= STEPS) step = STEPS - 1;
+            return kRamp[step];
+        }
+
+        inline constexpr int DWELL_CONFIRM = 5000;   // you did this
+        inline constexpr int DWELL_NOTICE  = 8000;   // you did not know this
+
+        // ── Progress ──
+        // Elapsed time as a fraction of a duration, clamped. A
+        // zero or negative duration is complete at once rather than
+        // dividing by zero: a caller that disables an animation by
+        // zeroing its duration gets the end state, not a crash.
+        inline constexpr float Progress(double elapsedMs, int durationMs) {
+            if (durationMs <= 0)      return 1.0f;
+            if (elapsedMs  <= 0.0)    return 0.0f;
+            const double t = elapsedMs / (double)durationMs;
+            return (t >= 1.0) ? 1.0f : (float)t;
+        }
+
+        // ── The fade curve ──
+        //
+        // Alpha compositing is linear in luminance; human lightness is
+        // not. CIE L* goes as the cube root of luminance, so a fade run
+        // on a linear alpha ramp does half of its *apparent* work in
+        // the first quarter of its duration and then crawls. Measured
+        // against this app's own tokens (see tests/motion.cpp):
+        //
+        //   night TEXT 200 over DEEP 14 : half-lightness at alpha 0.255
+        //   day   TEXT over DEEP        : half-lightness at alpha 0.186
+        //
+        // The alpha ramp that makes L* rise linearly is a power curve,
+        // and those two figures put its exponent at 1.97 and 2.42. Both
+        // surfaces are near-black (the backdrop carries under 1% of the
+        // foreground's luminance in both cases), which is why a plain
+        // power law is adequate at all and no per-call backdrop
+        // luminance is needed.
+        //
+        // So: a square. It is within 0.23 L* of ideal in the night case
+        // -- below the ~1.0 L* just-noticeable difference, i.e. exact
+        // for the condition this app is built for -- and 6.1 L* off in
+        // the day case, where it errs bright, which for a fade-in means
+        // arriving a shade early rather than lurking.
+        //
+        // The exponent is NOT 3. Alpha -> luminance -> L* suggests a
+        // cube, but L* = 116*Y^(1/3) - 16 and night text only reaches
+        // L* 42, so the -16 offset is a sixth of the range and pulls
+        // the exponent back to roughly 2.
+        inline constexpr float EaseIn(float t)  { return t * t; }
+
+        // Fading in: 0 at the start, opaque at the end.
+        inline constexpr float FadeIn(double elapsedMs, int durationMs) {
+            return EaseIn(Progress(elapsedMs, durationMs));
+        }
+
+        // Fading out: opaque while time remains, 0 when it runs out.
+        // The same curve read from the other end, so a surface that
+        // fades in and out is symmetric.
+        inline constexpr float FadeOut(double remainingMs, int durationMs) {
+            return EaseIn(Progress(remainingMs, durationMs));
+        }
+
+        // Windows per-window opacity is a byte. Rounds rather than
+        // truncating, so a fully opaque fade reaches 255 and not 254.
+        inline constexpr unsigned char AlphaByte(float a) {
+            if (a <= 0.0f) return 0;
+            if (a >= 1.0f) return 255;
+            return (unsigned char)(a * 255.0f + 0.5f);
+        }
+
+        // ── A transient surface's whole life ──
+        //
+        // Fade in over edgeMs, hold at full for dwellMs, fade out over
+        // edgeMs. The dwell is reading time and sits between the two
+        // edges rather than containing them, so raising a dwell never
+        // shortens the fade that precedes it.
+        //
+        // alive goes false once the surface has finished leaving,
+        // which is the signal to destroy it. One clock runs the whole
+        // life: there is no separate dwell timer to disagree with the
+        // fade, which is how the two could drift apart.
+        inline constexpr float TransientAlpha(double elapsedMs,
+                                              int dwellMs, int edgeMs,
+                                              bool& alive) {
+            alive = true;
+            if (elapsedMs < (double)edgeMs)
+                return FadeIn(elapsedMs, edgeMs);
+            const double hold = (double)edgeMs + (double)dwellMs;
+            if (elapsedMs < hold) return 1.0f;
+            const double left = hold + (double)edgeMs - elapsedMs;
+            if (left <= 0.0) { alive = false; return 0.0f; }
+            return FadeOut(left, edgeMs);
+        }
+
+        // A fade needs frames. 60 Hz is one frame per 16.7 ms; this is
+        // the repaint interval for a surface that is mid-transition,
+        // and it is only ever armed while one is running.
+        inline constexpr int FRAME_MS = 16;
+    }
+
     // ── Helper: Convert 0xAARRGGBB to D2D1::ColorF ────────────
 
     inline D2D1_COLOR_F NVf(D2D1_COLOR_F c);   // defined below

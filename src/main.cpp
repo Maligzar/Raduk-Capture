@@ -33,6 +33,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <functional>
 
 #include "Version.h"
 #include "core/DeviceFactory.h"
@@ -1900,8 +1901,68 @@ static int RunApp(bool useEmulator) {
         { "share",  shareView.Handle()  },
         { "objectpanel", objectPanel.Handle() },
     };
+    bool s_restoredAnyPanel = false;
+    // ── Phase 101: apply the saved open/closed state ──────────
+    //
+    // Startup only. Place() also runs on every display change, which
+    // is why it never shows a window itself and why this does not go
+    // inside it: a monitor coming or going is not a reason to reopen a
+    // panel somebody closed.
+    //
+    // Before the Place loop, not after. Place maximises a role only
+    // when the window is already visible, so a panel saved open AND
+    // maximised has to be open by the time Place reaches it or it
+    // comes back open but restored down.
+    //
+    // Each panel gets its own Show()/Hide() rather than a ShowWindow
+    // on its handle, because several of them do real work there. Not
+    // listed here: "main", which is the control window and is never a
+    // panel to be closed.
+    const std::vector<std::pair<const char*, std::function<void(bool)>>>
+    kPanelVisibility = {
+        { "skymap",      [&](bool v){ v ? skyMap.Show()         : skyMap.Hide(); } },
+        { "skymap2",     [&](bool v){ v ? skyMap2.Show()        : skyMap2.Hide(); } },
+        { "goto",        [&](bool v){ v ? gotoPanel.Show()      : gotoPanel.Hide(); } },
+        { "mount",       [&](bool v){ v ? mountCtrl.Show()      : mountCtrl.Hide(); } },
+        { "help",        [&](bool v){ v ? helpWindow.Show()     : helpWindow.Hide(); } },
+        { "aichat",      [&](bool v){ v ? aiChat.Show()         : aiChat.Hide(); } },
+        { "histogram",   [&](bool v){ v ? histWindow.Show()     : histWindow.Hide(); } },
+        { "sharpness",   [&](bool v){ v ? sharpWindow.Show()    : sharpWindow.Hide(); } },
+        { "temperature", [&](bool v){ v ? tempWindow.Show()     : tempWindow.Hide(); } },
+        { "status",      [&](bool v){ v ? statusWindow.Show()   : statusWindow.Hide(); } },
+        { "adcalign",    [&](bool v){ v ? adcAlignWindow.Show() : adcAlignWindow.Hide(); } },
+        { "share",       [&](bool v){ v ? shareView.Show()      : shareView.Hide(); } },
+        { "objectpanel", [&](bool v){ v ? objectPanel.Show()    : objectPanel.Hide(); } },
+    };
+    {
+        int opened = 0, closed = 0, unknown = 0;
+        for (const auto& [role, apply] : kPanelVisibility) {
+            const auto st = workspace.StateFor(role);
+            if (st == raduk::gui::WorkspaceLayout::SavedState::Unknown) {
+                ++unknown;
+                continue;      // no line on disk: leave the app's default
+            }
+            const bool open =
+                (st == raduk::gui::WorkspaceLayout::SavedState::Open);
+            apply(open);
+            if (open) ++opened; else ++closed;
+            Log("[LAYOUT] %s: restored %s\n", role, open ? "open" : "closed");
+        }
+        Log("[LAYOUT] panel state: %d open, %d closed, %d with no saved state\n",
+            opened, closed, unknown);
+
+        s_restoredAnyPanel = (opened > 0);
+    }
+
     for (const auto& [role, hwnd] : kPlacedWindows)
         workspace.Place(role, hwnd);
+
+    // Some panels take the foreground when shown, and restoring
+    // several in a row leaves whichever came last holding focus. After
+    // Place, not before: placing a window can raise it too. The
+    // control window is where the keyboard belongs.
+    if (s_restoredAnyPanel) SetForegroundWindow(window.Handle());
+
     if (!workspaceHadConfig && workspace.Save(kWorkspacePath))
         Log("[LAYOUT] wrote a starting %s\n", kWorkspacePath.c_str());
 

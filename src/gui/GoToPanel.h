@@ -107,7 +107,7 @@ public:
         wc.lpfnWndProc  = WndProc;
         wc.hInstance    = GetModuleHandle(nullptr);
         wc.hCursor      = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(10, 21, 32)));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::PANEL));
         wc.lpszClassName = L"RadukGoToPanel";
         RegisterClassExW(&wc);
 
@@ -1475,9 +1475,9 @@ private:
             case WM_CTLCOLORBTN:
             case WM_CTLCOLORSTATIC: {
                 HDC hdc = (HDC)wp;
-                SetBkColor(hdc, Theme::NV(RGB(10, 18, 30)));
-                SetTextColor(hdc, Theme::NV(RGB(200, 230, 245)));
-                HBRUSH bg = Theme::Brush(RGB(10, 18, 30));
+                SetBkColor(hdc, Theme::NV(Theme::Rgb::PANEL));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+                HBRUSH bg = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)bg;
             }
         }
@@ -1495,7 +1495,7 @@ private:
             wc.lpfnWndProc   = ActionPopupProc;
             wc.hInstance     = GetModuleHandle(nullptr);
             wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-            wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(10, 18, 30)));
+            wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::PANEL));
             wc.lpszClassName = L"RadukActionPopup";
             RegisterClassExW(&wc);
             registered = true;
@@ -1533,7 +1533,7 @@ private:
         state->hwnd = popup;
 
         // Fonts
-        HFONT fnt = CreateFontW(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT fnt = CreateFontW(-Theme::Type::MICRO, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
 
@@ -2141,15 +2141,15 @@ private:
             case WM_CTLCOLOREDIT: {
                 HDC hdc = (HDC)wParam;
                 SetBkMode(hdc, OPAQUE);
-                SetBkColor(hdc, Theme::NV(RGB(10, 21, 32)));
-                SetTextColor(hdc, Theme::NV(RGB(0, 229, 255)));
-                HBRUSH hBg = Theme::Brush(RGB(10, 21, 32));
+                SetBkColor(hdc, Theme::NV(Theme::Rgb::PANEL));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT));
+                HBRUSH hBg = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)hBg;
             }
             case WM_ERASEBKGND: {
                 HDC hdc = (HDC)wParam;
                 RECT r; GetClientRect(hwnd, &r);
-                HBRUSH hBg = Theme::Brush(RGB(10, 21, 32));
+                HBRUSH hBg = Theme::Brush(Theme::Rgb::PANEL);
                 FillRect(hdc, &r, hBg);
                 return 1;
             }

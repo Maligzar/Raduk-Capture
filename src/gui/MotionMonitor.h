@@ -144,7 +144,7 @@ public:
         const int w = rc.right - rc.left, h = rc.bottom - rc.top;
         if (w < 40 || h < 30) return;
 
-        HBRUSH bg = CreateSolidBrush(Theme::NV(RGB(10, 16, 26)));
+        HBRUSH bg = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
         FillRect(hdc, &rc, bg);
         DeleteObject(bg);
         HPEN border = CreatePen(PS_SOLID, 1, Theme::NV(RGB(40, 54, 74)));
@@ -187,7 +187,7 @@ public:
         // so the line a reader would trust described a plot that had not
         // existed for two phases. What it marks now is the centre of
         // whatever range is on screen.
-        HPEN axis = CreatePen(PS_SOLID, 1, Theme::NV(RGB(34, 46, 64)));
+        HPEN axis = CreatePen(PS_SOLID, 1, Theme::NV(Theme::Rgb::BORDER));
         oldPen = SelectObject(hdc, axis);
         MoveToEx(hdc, rc.left + 2, (int)cy, nullptr);
         LineTo(hdc, rc.right - 2, (int)cy);
@@ -227,7 +227,7 @@ public:
         swprintf(line, 96, L"%s  %.1f\"/s   ±%.0f\"",
                  m_src == MotionSource::Camera ? L"CAMERA" : L"MOUNT",
                  sp, span * 0.5f);
-        SetTextColor(hdc, sp > 0.3f ? Theme::NV(RGB(120, 230, 170)) : Theme::NV(RGB(120, 136, 156)));
+        SetTextColor(hdc, sp > 0.3f ? Theme::NV(RGB(120, 230, 170)) : Theme::NV(Theme::Rgb::TEXT_DIM));
         RECT tr = { rc.left + 3, rc.top + plotH, rc.right - 3, rc.bottom };
         DrawTextW(hdc, line, -1, &tr, DT_LEFT | DT_SINGLELINE);
     }

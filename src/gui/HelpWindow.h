@@ -220,7 +220,7 @@ private:
         wc.lpfnWndProc   = HelpWndProc;
         wc.hInstance     = GetModuleHandle(nullptr);
         wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
         wc.lpszClassName = L"RadukHelpWindow";
         RegisterClassExW(&wc); // ignore already-registered
 
@@ -469,17 +469,17 @@ private:
             case WM_CTLCOLORSTATIC:
             case WM_CTLCOLOREDIT: {
                 HDC hdc = (HDC)wp;
-                SetTextColor(hdc, Theme::NV(RGB(200, 232, 240)));
-                SetBkColor(hdc,   Theme::NV(RGB(10,  21,  32)));
-                HBRUSH bg = Theme::Brush(RGB(10, 21, 32));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+                SetBkColor(hdc,   Theme::NV(Theme::Rgb::PANEL));
+                HBRUSH bg = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)bg;
             }
 
             case WM_CTLCOLORBTN: {
                 HDC hdc = (HDC)wp;
-                SetTextColor(hdc, Theme::NV(RGB(200, 232, 240)));
-                SetBkColor(hdc,   Theme::NV(RGB(10,  21,  32)));
-                HBRUSH bg = Theme::Brush(RGB(10, 21, 32));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+                SetBkColor(hdc,   Theme::NV(Theme::Rgb::PANEL));
+                HBRUSH bg = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)bg;
             }
         }

@@ -161,7 +161,7 @@ private:
     // prism angle, and one no single number can distinguish.
     void DrawDial(HDC hdc, int cx, int cy, int radius) const {
         const COLORREF dim  = Theme::NV(RGB(50, 64, 82));
-        const COLORREF axis = Theme::NV(RGB(90, 110, 134));
+        const COLORREF axis = Theme::NV(Theme::Rgb::TEXT_DIM);
 
         HPEN   pen   = CreatePen(PS_SOLID, 1, dim);
         HGDIOBJ oldP = SelectObject(hdc, pen);
@@ -201,11 +201,11 @@ private:
         // residual is below the seeing, and a placeholder painted green
         // says the corrector is dialled in when nothing has been
         // measured at all.
-        if (!m_data.measured.valid) return Theme::NV(RGB(90, 110, 134));
+        if (!m_data.measured.valid) return Theme::NV(Theme::Rgb::TEXT_DIM);
         const float a = m_data.measured.magArcsec;
-        if (a <= ALIGNED_ARCSEC)  return Theme::NV(RGB(0, 200, 110));
-        if (a <= 0.40f)           return Theme::NV(RGB(255, 170, 0));
-        return Theme::NV(RGB(255, 60, 90));
+        if (a <= ALIGNED_ARCSEC)  return Theme::NV(Theme::Rgb::ACCENT3);
+        if (a <= 0.40f)           return Theme::NV(Theme::Rgb::ACCENT2);
+        return Theme::NV(Theme::Rgb::ACCENT4);
     }
 
     // Residual over the last few minutes. A corrector is dialled by
@@ -213,7 +213,7 @@ private:
     // about the trend, not about the current number -- seeing moves the
     // current number by more than a good nudge does.
     void DrawTrend(HDC hdc, int x, int y, int w, int h) const {
-        Fill(hdc, x, y, w, h, Theme::NV(RGB(4, 10, 18)));
+        Fill(hdc, x, y, w, h, Theme::NV(Theme::Rgb::BG_VOID));
         if (m_trend.size() < 2) return;
 
         float peak = 0.0f;
@@ -232,14 +232,14 @@ private:
             const int px = x + (int)((float)i / (n - 1) * (w - 1));
             const int py = y + h - 1 - (int)((m_trend[i] / peak) * (h - 2));
             if (i > 0) Line(hdc, prevX, prevY, px, py,
-                            Theme::NV(RGB(0, 229, 255)), 1);
+                            Theme::NV(Theme::Rgb::ACCENT), 1);
             prevX = px; prevY = py;
         }
 
         char lbl[32];
         snprintf(lbl, sizeof(lbl), "%.2f\"", peak);
         TextAt(hdc, x + 4, y + 2, 60, 14, lbl,
-               Theme::NV(RGB(90, 110, 134)), 11, false, "Space Mono", DT_LEFT);
+               Theme::NV(Theme::Rgb::TEXT_DIM), 11, false, "Space Mono", DT_LEFT);
     }
 
     // What to actually do with your hands.
@@ -292,12 +292,12 @@ private:
 
     void Draw(HDC hdc, const RECT& cr) {
         const int W = cr.right, H = cr.bottom;
-        Fill(hdc, 0, 0, W, H, RGB(4, 8, 15));
+        Fill(hdc, 0, 0, W, H, Theme::Rgb::BG_VOID);
         if (W < 200 || H < 160) return;
 
         const int pad = (std::max)(8, W / 50);
-        const COLORREF label = Theme::NV(RGB(120, 136, 156));
-        const COLORREF value = Theme::NV(RGB(200, 232, 240));
+        const COLORREF label = Theme::NV(Theme::Rgb::TEXT_DIM);
+        const COLORREF value = Theme::NV(Theme::Rgb::TEXT);
 
         // ── Left: the number being dialled to zero ──────────────
         // 62%, not 55%. The guidance line and the predicted line are
@@ -361,7 +361,7 @@ private:
         // ── What to do ──────────────────────────────────────────
         Guidance(buf, sizeof(buf));
         const int guideH = (std::max)(22, bigPx / 2);
-        Fill(hdc, pad, y, colW, guideH, Theme::NV(RGB(8, 16, 26)));
+        Fill(hdc, pad, y, colW, guideH, Theme::NV(Theme::Rgb::DEEP));
         TextAt(hdc, pad + 6, y, colW - 12, guideH, buf,
                m_data.measured.valid ? ResidualColour() : label,
                (std::max)(11, bigPx / 4), true, "Barlow Condensed", DT_LEFT);

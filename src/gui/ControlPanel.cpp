@@ -161,37 +161,37 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
 
                 // Determine accent color by section
                 auto sit = self->m_ctrlSection.find(dis->hwndItem);
-                COLORREF accent = Theme::NV(RGB(0, 229, 255)); // default cyan
+                COLORREF accent = Theme::NV(Theme::Rgb::ACCENT); // default cyan
                 bool isCollapsible = false;
                 bool collapsed = false;
                 if (sit != self->m_ctrlSection.end()) {
                     switch (sit->second) {
                         case Section::Image:
-                            accent = Theme::NV(RGB(0, 229, 255)); isCollapsible = true;
+                            accent = Theme::NV(Theme::Rgb::ACCENT); isCollapsible = true;
                             collapsed = self->IsCollapsed(Section::Image); break;
                         case Section::Camera:
-                            accent = Theme::NV(RGB(0, 229, 255)); isCollapsible = true;
+                            accent = Theme::NV(Theme::Rgb::ACCENT); isCollapsible = true;
                             collapsed = self->IsCollapsed(Section::Camera); break;
                         case Section::EAF:
-                            accent = Theme::NV(RGB(255, 185, 0)); isCollapsible = true;
+                            accent = Theme::NV(Theme::Rgb::ACCENT2); isCollapsible = true;
                             collapsed = self->IsCollapsed(Section::EAF); break;
                         case Section::Mount:
-                            accent = Theme::NV(RGB(77, 255, 145)); isCollapsible = true;
+                            accent = Theme::NV(Theme::Rgb::ACCENT3); isCollapsible = true;
                             collapsed = self->IsCollapsed(Section::Mount); break;
                         case Section::Capture:
-                            accent = Theme::NV(RGB(255, 59, 92)); isCollapsible = true;
+                            accent = Theme::NV(Theme::Rgb::ACCENT4); isCollapsible = true;
                             collapsed = self->IsCollapsed(Section::Capture); break;
                         case Section::Notes:
-                            accent = Theme::NV(RGB(140, 175, 190)); isCollapsible = true;
+                            accent = Theme::NV(Theme::Rgb::TEXT_DIM); isCollapsible = true;
                             collapsed = self->IsCollapsed(Section::Notes); break;
                         default:
-                            accent = Theme::NV(RGB(0, 229, 255)); break;
+                            accent = Theme::NV(Theme::Rgb::ACCENT); break;
                     }
                 }
 
                 // Background
                 {
-                    HBRUSH bg = CreateSolidBrush(Theme::NV(RGB(10, 21, 32)));
+                    HBRUSH bg = CreateSolidBrush(Theme::NV(Theme::Rgb::PANEL));
                     FillRect(hdc, &r, bg);
                     DeleteObject(bg);
                 }
@@ -220,7 +220,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                         CLEARTYPE_QUALITY, DEFAULT_PITCH|FF_DONTCARE, "Barlow Condensed");
                     HFONT oldf = fi ? (HFONT)SelectObject(hdc, fi) : nullptr;
                     SetBkMode(hdc, TRANSPARENT);
-                    SetTextColor(hdc, Theme::NV(RGB(4, 8, 15)));
+                    SetTextColor(hdc, Theme::NV(Theme::Rgb::BG_VOID));
                     RECT lr = {cx-circ/2, cy-circ/2, cx+circ/2+1, cy+circ/2+1};
                     DrawTextA(hdc, letter, 1, &lr, DT_CENTER|DT_VCENTER|DT_SINGLELINE);
                     if (oldf) SelectObject(hdc, oldf);
@@ -241,7 +241,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 }
                 // Chevron if collapsible
                 if (isCollapsible) {
-                    HFONT fc = CreateFontW(-11, 0,0,0, FW_NORMAL, 0,0,0,
+                    HFONT fc = CreateFontW(-Theme::Type::MICRO, 0,0,0, FW_NORMAL, 0,0,0,
                         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                         CLEARTYPE_QUALITY, DEFAULT_PITCH|FF_DONTCARE, L"Barlow Condensed");
                     HFONT oldf = fc ? (HFONT)SelectObject(hdc, fc) : nullptr;
@@ -277,13 +277,13 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 // Elite Raduk: red glow when locked, deep navy otherwise
                 COLORREF bg = locked
                     ? (pressed ? Theme::NV(RGB(200, 30, 50))  : Theme::NV(RGB(160, 15, 35)))
-                    : (pressed ? Theme::NV(RGB(14, 30, 48))   : Theme::NV(RGB(10, 21, 32)));
+                    : (pressed ? Theme::NV(Theme::Rgb::BORDER)   : Theme::NV(Theme::Rgb::PANEL));
                 HBRUSH hbg = CreateSolidBrush(bg);
                 FillRect(hdc, &r, hbg);
                 DeleteObject(hbg);
 
                 HPEN pen = CreatePen(PS_SOLID, 1,
-                    locked ? Theme::NV(RGB(255, 59, 92)) : Theme::NV(RGB(0, 90, 110)));
+                    locked ? Theme::NV(Theme::Rgb::ACCENT4) : Theme::NV(RGB(0, 90, 110)));
                 HPEN oldPen = (HPEN)SelectObject(hdc, pen);
                 HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
                 Rectangle(hdc, r.left, r.top, r.right, r.bottom);
@@ -293,7 +293,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
 
                 const wchar_t* label = locked ? L"\u25CF TRACKING" : L"PLANET LOCK";
                 SetBkMode(hdc, TRANSPARENT);
-                SetTextColor(hdc, locked ? Theme::NV(RGB(255, 59, 92)) : Theme::NV(RGB(0, 150, 170)));
+                SetTextColor(hdc, locked ? Theme::NV(Theme::Rgb::ACCENT4) : Theme::NV(RGB(0, 150, 170)));
                 DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                 if (dis->itemState & ODS_FOCUS) DrawFocusRect(hdc, &r);
                 return TRUE;
@@ -314,7 +314,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 DeleteObject(hbg);
 
                 HPEN pen = CreatePen(PS_SOLID, 1,
-                    running ? Theme::NV(RGB(255, 185, 0)) : Theme::NV(RGB(0, 229, 255)));
+                    running ? Theme::NV(Theme::Rgb::ACCENT2) : Theme::NV(Theme::Rgb::ACCENT));
                 HPEN oldPen = (HPEN)SelectObject(hdc, pen);
                 HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
                 Rectangle(hdc, r.left, r.top, r.right, r.bottom);
@@ -322,10 +322,17 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 SelectObject(hdc, oldBrush);
                 DeleteObject(pen);
 
+                // Phase 96.4: depth, inside the rect the control
+                // already owns. See Theme::RaiseInRect for why a cast
+                // shadow is not available on this surface.
+                Theme::RaiseInRect(hdc, r, Theme::Rgb::PANEL,
+                                   Theme::Elev::RAISED);
+
                 const wchar_t* label = running ? L"\u25A0  ABORT AF" : L"\u2605  AUTO FOCUS";
                 SetBkMode(hdc, TRANSPARENT);
-                SetTextColor(hdc, running ? Theme::NV(RGB(255, 185, 0)) : Theme::NV(RGB(0, 229, 255)));
-                HFONT f = CreateFontW(-13, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                SetTextColor(hdc, running ? Theme::NV(Theme::Rgb::ACCENT2) : Theme::NV(Theme::Rgb::ACCENT));
+                HFONT f = CreateFontW(-Theme::Type::BODY, 0, 0, 0, FW_BOLD,
+                    FALSE, FALSE, FALSE,
                     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
                 HFONT old = f ? (HFONT)SelectObject(hdc, f) : nullptr;
@@ -345,9 +352,9 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
 
                 COLORREF bg = (state == 2) ? (pressed ? Theme::NV(RGB(0, 100, 30)) : Theme::NV(RGB(0, 70, 20)))
                             : (state == 1) ? (pressed ? Theme::NV(RGB(0, 60, 80))  : Theme::NV(RGB(0, 40, 60)))
-                            :               (pressed ? Theme::NV(RGB(25, 30, 40))  : Theme::NV(RGB(15, 20, 30)));
-                COLORREF fg = (state == 2) ? Theme::NV(RGB(77, 255, 145))
-                            : (state == 1) ? Theme::NV(RGB(0, 229, 255))
+                            :               (pressed ? Theme::NV(Theme::Rgb::BORDER)  : Theme::NV(Theme::Rgb::PANEL));
+                COLORREF fg = (state == 2) ? Theme::NV(Theme::Rgb::ACCENT3)
+                            : (state == 1) ? Theme::NV(Theme::Rgb::ACCENT)
                             :               Theme::NV(RGB(80, 100, 110));
                 HBRUSH hbg = CreateSolidBrush(bg);
                 FillRect(hdc, &r, hbg);
@@ -362,6 +369,10 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                                    : (state == 1) ? L"AE ADV" : L"AE OFF";
                 SetBkMode(hdc, TRANSPARENT);
                 SetTextColor(hdc, fg);
+                // 96.4b: off the ramp. Wants Theme::Type::BODY (13);
+                // left at 12 because growing a label inside a button
+                // whose width is a literal can clip it, and nobody
+                // here can look at the result. See clear-night 17.
                 HFONT f = CreateFontW(-12, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
@@ -390,8 +401,8 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
 
                 // Border
                 COLORREF borderCol = paused ? Theme::NV(RGB(255, 160, 0))
-                                   : rec    ? Theme::NV(RGB(255,  59, 92))
-                                   :          Theme::NV(RGB(0,   229, 255));
+                                   : rec    ? Theme::NV(Theme::Rgb::ACCENT4)
+                                   :          Theme::NV(Theme::Rgb::ACCENT);
                 HPEN pen = CreatePen(PS_SOLID, 2, borderCol);
                 HPEN oldPen = (HPEN)SelectObject(hdc, pen);
                 HBRUSH oldBr = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
@@ -400,8 +411,16 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 SelectObject(hdc, oldBr);
                 DeleteObject(pen);
 
+                // Phase 96.4. OVERLAY rather than RAISED: this is the
+                // one control on the panel whose state a tired person
+                // must read without looking for it, and depth is the
+                // axis that says so without borrowing a colour.
+                Theme::RaiseInRect(hdc, r, Theme::Rgb::PANEL,
+                                   Theme::Elev::OVERLAY);
+
                 // Label
-                HFONT f = CreateFontW(-16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                HFONT f = CreateFontW(-Theme::Type::STRONG, 0, 0, 0, FW_BOLD,
+                    FALSE, FALSE, FALSE,
                     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
                 HFONT oldf = f ? (HFONT)SelectObject(hdc, f) : nullptr;
@@ -430,14 +449,14 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
             if (isHeader) {
                 // Elite Raduk section header: deep navy + cyan text
                 SetBkMode(hdc, OPAQUE);
-                SetBkColor(hdc, Theme::NV(RGB(10, 21, 32)));
-                SetTextColor(hdc, Theme::NV(RGB(0, 229, 255)));
-                HBRUSH hHdrBg = Theme::Brush(RGB(10, 21, 32));
+                SetBkColor(hdc, Theme::NV(Theme::Rgb::PANEL));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT));
+                HBRUSH hHdrBg = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)hHdrBg;
             }
 
             SetBkMode(hdc, OPAQUE);
-            SetBkColor(hdc, Theme::NV(RGB(7, 13, 22)));  // --bg-deep
+            SetBkColor(hdc, Theme::NV(Theme::Rgb::DEEP));  // --bg-deep
 
             // Focuser position — big Space Mono amber
             if (ctrl == self->m_lblFocusPos) {
@@ -446,55 +465,55 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                     CLEARTYPE_QUALITY, FIXED_PITCH | FF_MODERN, L"Space Mono");
                 if (hBigFont) SelectObject(hdc, hBigFont);
-                SetBkColor(hdc, Theme::NV(RGB(7, 13, 22)));
+                SetBkColor(hdc, Theme::NV(Theme::Rgb::DEEP));
                 SetBkMode(hdc, OPAQUE);
-                SetTextColor(hdc, Theme::NV(RGB(255, 185, 0)));  // --amber
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT2));  // --amber
                 HWND hw = self->m_lblFocusPos;
                 RECT r; GetClientRect(hw, &r);
                 SetWindowLongPtr(hw, GWL_STYLE,
                     GetWindowLongPtr(hw, GWL_STYLE) & ~SS_RIGHT | SS_CENTER);
-                HBRUSH hFocBg = Theme::Brush(RGB(7, 13, 22));
+                HBRUSH hFocBg = Theme::Brush(Theme::Rgb::DEEP);
                 return (LRESULT)hFocBg;
             }
 
             if (ctrl == self->m_lblMountConnected) {
                 // Green when connected, dim otherwise
                 bool connected = self->m_mount && self->m_mount->IsConnected();
-                SetTextColor(hdc, connected ? Theme::NV(RGB(77, 255, 145)) : Theme::NV(RGB(140, 175, 190)));
-                HBRUSH hConBg = Theme::Brush(RGB(7, 13, 22));
+                SetTextColor(hdc, connected ? Theme::NV(Theme::Rgb::ACCENT3) : Theme::NV(Theme::Rgb::TEXT_DIM));
+                HBRUSH hConBg = Theme::Brush(Theme::Rgb::DEEP);
                 return (LRESULT)hConBg;
             }
             if (ctrl == self->m_lblMountControl && self->m_planetLock) {
-                SetTextColor(hdc, Theme::NV(RGB(255, 59, 92)));  // --red
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT4));  // --red
             } else if (ctrl == self->m_lblSkyMapLock) {
                 // Bright green when locked, dim when empty
                 SetTextColor(hdc, self->m_skyMapLocked
-                    ? Theme::NV(RGB(77, 255, 145))    // --green
-                    : Theme::NV(RGB(140, 175, 190))); // --dim
-                HBRUSH hLockBg = Theme::Brush(RGB(7, 13, 22));
+                    ? Theme::NV(Theme::Rgb::ACCENT3)    // --green
+                    : Theme::NV(Theme::Rgb::TEXT_DIM)); // --dim
+                HBRUSH hLockBg = Theme::Brush(Theme::Rgb::DEEP);
                 return (LRESULT)hLockBg;
             } else if (ctrl == self->m_lblSkyMapTarget) {
                 // Target name in cyan beneath PLANET LOCK
                 SetTextColor(hdc, self->m_skyMapLocked
-                    ? Theme::NV(RGB(0, 229, 255))     // --cyan
-                    : Theme::NV(RGB(140, 175, 190))); // --dim
-                HBRUSH hTgtBg = Theme::Brush(RGB(7, 13, 22));
+                    ? Theme::NV(Theme::Rgb::ACCENT)     // --cyan
+                    : Theme::NV(Theme::Rgb::TEXT_DIM)); // --dim
+                HBRUSH hTgtBg = Theme::Brush(Theme::Rgb::DEEP);
                 return (LRESULT)hTgtBg;
             } else if (it != self->m_ctrlSection.end()) {
                 switch (it->second) {
                     case Section::Camera:
-                        SetTextColor(hdc, Theme::NV(RGB(0,   229, 255))); break;  // --cyan
+                        SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT)); break;  // --cyan
                     case Section::EAF:
-                        SetTextColor(hdc, Theme::NV(RGB(255, 185,   0))); break;  // --amber
+                        SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT2)); break;  // --amber
                     case Section::Mount:
-                        SetTextColor(hdc, Theme::NV(RGB( 77, 255, 145))); break;  // --green
+                        SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT3)); break;  // --green
                     default:
-                        SetTextColor(hdc, Theme::NV(RGB(140, 175, 190))); break;  // --dim
+                        SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM)); break;  // --dim
                 }
             } else {
-                SetTextColor(hdc, Theme::NV(RGB(140, 175, 190)));  // --dim
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM));  // --dim
             }
-            HBRUSH hPanelBg = Theme::Brush(RGB(7, 13, 22));
+            HBRUSH hPanelBg = Theme::Brush(Theme::Rgb::DEEP);
             return (LRESULT)hPanelBg;
         }
         // ── Elite Raduk buttons ────────────────────────────────
@@ -508,41 +527,41 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                             style == BS_AUTORADIOBUTTON || style == BS_RADIOBUTTON);
             if (isCheck) {
                 SetBkMode(hdc, TRANSPARENT);
-                SetTextColor(hdc, Theme::NV(RGB(140, 175, 190)));  // --dim
-                HBRUSH hCheckBg = Theme::Brush(RGB(7, 13, 22));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM));  // --dim
+                HBRUSH hCheckBg = Theme::Brush(Theme::Rgb::DEEP);
                 return (LRESULT)hCheckBg;
             }
             // Plain push buttons
             SetBkMode(hdc, OPAQUE);
-            SetBkColor(hdc,   Theme::NV(RGB(10, 21, 32)));
-            SetTextColor(hdc, Theme::NV(RGB(140, 175, 190)));
-            HBRUSH hBtnBg = Theme::Brush(RGB(10, 21, 32));
+            SetBkColor(hdc,   Theme::NV(Theme::Rgb::PANEL));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM));
+            HBRUSH hBtnBg = Theme::Brush(Theme::Rgb::PANEL);
             return (LRESULT)hBtnBg;
         }
         // ── Edit boxes ─────────────────────────────────────────
         case WM_CTLCOLOREDIT: {
             HDC hdc = (HDC)wParam;
             SetBkMode(hdc, OPAQUE);
-            SetBkColor(hdc,   Theme::NV(RGB(4, 8, 15)));
-            SetTextColor(hdc, Theme::NV(RGB(200, 232, 240)));
-            HBRUSH hEditBg = Theme::Brush(RGB(4, 8, 15));
+            SetBkColor(hdc,   Theme::NV(Theme::Rgb::BG_VOID));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+            HBRUSH hEditBg = Theme::Brush(Theme::Rgb::BG_VOID);
             return (LRESULT)hEditBg;
         }
         // ── Combo dropdown ─────────────────────────────────────
         case WM_CTLCOLORLISTBOX: {
             HDC hdc = (HDC)wParam;
             SetBkMode(hdc, OPAQUE);
-            SetBkColor(hdc,   Theme::NV(RGB(10, 21, 32)));
-            SetTextColor(hdc, Theme::NV(RGB(200, 232, 240)));
-            HBRUSH hListBg = Theme::Brush(RGB(10, 21, 32));
+            SetBkColor(hdc,   Theme::NV(Theme::Rgb::PANEL));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+            HBRUSH hListBg = Theme::Brush(Theme::Rgb::PANEL);
             return (LRESULT)hListBg;
         }
         // ── Scrollbar / slider track ───────────────────────────
         case WM_CTLCOLORSCROLLBAR: {
             // Trackbar (slider) background — deep navy-black track
             HDC hdc = (HDC)wParam;
-            SetBkColor(hdc, Theme::NV(RGB(4, 8, 15)));
-            HBRUSH hScrBg = Theme::Brush(RGB(14, 29, 46));
+            SetBkColor(hdc, Theme::NV(Theme::Rgb::BG_VOID));
+            HBRUSH hScrBg = Theme::Brush(Theme::Rgb::BORDER);
             return (LRESULT)hScrBg;
         }
         case WM_PAINT: {
@@ -561,7 +580,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 const int top = self->m_contentBottom - self->m_scrollY;
                 if (top < cr.bottom) {
                     RECT below = { 0, (top > 0 ? top : 0), cr.right, cr.bottom };
-                    HBRUSH bg = Theme::Brush(RGB(4, 8, 15));
+                    HBRUSH bg = Theme::Brush(Theme::Rgb::BG_VOID);
                     FillRect(hdc, &below, bg);
                 }
             }
@@ -595,7 +614,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
         case WM_ERASEBKGND: {
             HDC hdc = (HDC)wParam;
             RECT cr; GetClientRect(hwnd, &cr);
-            HBRUSH hBg = Theme::Brush(RGB(7, 13, 22));  // --bg-deep
+            HBRUSH hBg = Theme::Brush(Theme::Rgb::DEEP);  // --bg-deep
             // WS_CLIPCHILDREN on the panel excludes child control rects from
             // this fill, so FillRect over the whole client is safe and won't
             // flash controls. Previously we only filled below m_contentBottom
@@ -630,7 +649,7 @@ bool ControlPanel::Create(HWND mainHwnd,
     wc.lpfnWndProc   = PanelWndProc;
     wc.hInstance     = GetModuleHandle(nullptr);
     wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-    wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
+    wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
     wc.lpszClassName = PANEL_CLASS_NAME;
     if (!RegisterClassExW(&wc)) {
         DWORD err = GetLastError();
@@ -1602,7 +1621,7 @@ void ControlPanel::UpdateAnalysis(const raduk::core::AnalysisResult& analysis) {
 // ── Elite Raduk colour palette ────────────────────────────
 namespace {
     // Phase 26: FUNCTIONS, not constants. These were
-    //     const COLORREF kBg = Theme::NV(RGB(4, 8, 15));
+    //     const COLORREF kBg = Theme::NV(Theme::Rgb::BG_VOID);
     // at file scope, which initialises once at startup -- wrapping
     // those in NV() would have frozen the palette to whatever the
     // mode was before the window existed, the same trap as the
@@ -1615,18 +1634,18 @@ namespace {
     // cannot slip through silently and show up as one wrong colour
     // in a dialog nobody opened while testing.
     // Base surfaces
-    inline COLORREF kBg      () { return Theme::NV(RGB(4,   8,  15)); }
-    inline COLORREF kPanel   () { return Theme::NV(RGB(7,  13,  22)); }
-    inline COLORREF kRaised  () { return Theme::NV(RGB(10, 21,  32)); }
+    inline COLORREF kBg      () { return Theme::NV(Theme::Rgb::BG_VOID); }
+    inline COLORREF kPanel   () { return Theme::NV(Theme::Rgb::DEEP); }
+    inline COLORREF kRaised  () { return Theme::NV(Theme::Rgb::PANEL); }
     inline COLORREF kSep     () { return Theme::NV(RGB(0,  45,  60)); }
-    inline COLORREF kDim     () { return Theme::NV(RGB(140, 175, 190)); }
-    inline COLORREF kText    () { return Theme::NV(RGB(200, 232, 240)); }
+    inline COLORREF kDim     () { return Theme::NV(Theme::Rgb::TEXT_DIM); }
+    inline COLORREF kText    () { return Theme::NV(Theme::Rgb::TEXT); }
     // Accents
-    inline COLORREF kCyan    () { return Theme::NV(RGB(0,   229, 255)); }
-    inline COLORREF kGreen   () { return Theme::NV(RGB( 77, 255, 145)); }
-    inline COLORREF kAmber   () { return Theme::NV(RGB(255, 185,   0)); }
-    inline COLORREF kRed     () { return Theme::NV(RGB(255,  59,  92)); }
-    inline COLORREF kHistBg  () { return Theme::NV(RGB(4,   10,  18)); }
+    inline COLORREF kCyan    () { return Theme::NV(Theme::Rgb::ACCENT); }
+    inline COLORREF kGreen   () { return Theme::NV(Theme::Rgb::ACCENT3); }
+    inline COLORREF kAmber   () { return Theme::NV(Theme::Rgb::ACCENT2); }
+    inline COLORREF kRed     () { return Theme::NV(Theme::Rgb::ACCENT4); }
+    inline COLORREF kHistBg  () { return Theme::NV(Theme::Rgb::BG_VOID); }
     // Per-channel histogram tints
     inline COLORREF kHistR   () { return Theme::NV(RGB(255,  80,  80)); }
     inline COLORREF kHistG   () { return Theme::NV(RGB( 80, 220,  80)); }
@@ -1642,11 +1661,26 @@ namespace {
     // ── Elite Raduk section header ─────────────────────────────
     // Deep navy background, 3px left accent stripe, Barlow Condensed bold.
     // A thin 1px separator line is drawn above by the caller's data rows.
+    //
+    // ── DEAD CODE, as of phase 96.4's measurement ───────────
+    //
+    // Nothing calls this. StatusWindow.h's own notes say why: its
+    // header "was drawn by DrawSectionHeader in GDI while every other
+    // header is a child control, so collapsed it did not line up with
+    // the rest and its font was different", and the fix was to move
+    // that readout to its own window. Every section header on the
+    // panel is a child control now.
+    //
+    // Left in place rather than deleted because that is a judgement
+    // for the owner and not a side effect of a palette pass -- but
+    // flagged, because 96.4 looked here first to adopt depth and
+    // would have adopted it nowhere. It is the second dead thing this
+    // stage found: Theme::DEEP was the first.
     void DrawSectionHeader(HDC hdc, int x, int y, int w, int h,
                             const char* title, COLORREF accent,
                             bool collapsed = false) {
         // Background
-        HBRUSH hdrBrush = CreateSolidBrush(Theme::NV(RGB(10, 21, 32)));
+        HBRUSH hdrBrush = CreateSolidBrush(Theme::NV(Theme::Rgb::PANEL));
         RECT hr = {x, y, x+w, y+h};
         FillRect(hdc, &hr, hdrBrush);
         DeleteObject(hdrBrush);
@@ -1674,7 +1708,7 @@ namespace {
             HFONT fi = MakeFont(9, true, "Barlow Condensed");
             HFONT oldf = (HFONT)SelectObject(hdc, fi);
             SetBkMode(hdc, TRANSPARENT);
-            SetTextColor(hdc, Theme::NV(RGB(4, 8, 15)));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::BG_VOID));
             RECT lr = { cx-circ/2, cy-circ/2, cx+circ/2, cy+circ/2 };
             DrawTextA(hdc, letter, 1, &lr, DT_CENTER|DT_VCENTER|DT_SINGLELINE);
             SelectObject(hdc, oldf);
@@ -2370,6 +2404,18 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     UpdatePlanetLockUI();
 
     // Apply fonts to all newly created controls
+    // ── 96.4b: the two fonts that are NOT safe to move from here ──
+    //
+    // These go to child controls by WM_SETFONT, and every child's
+    // position on this panel is a literal pixel offset. Growing the
+    // text inside a static whose rect was sized to fit clips it, and
+    // growing a header shifts nothing but can overlap the row above.
+    // Both want Theme::Type::BODY (13).
+    //
+    // Measured, which is why this is a statement and not a worry:
+    // ControlPanel.cpp has SIX measured-text calls in 2424 lines. It
+    // lays out by hard offsets, not by measurement. 96.2 said that
+    // work belongs where the result can be looked at, and this is it.
     HFONT hPanelFont = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
         DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
@@ -2380,7 +2426,8 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
             return TRUE;
         }, (LPARAM)hPanelFont);
     }
-    HFONT hHdrFont = CreateFontW(-12, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+    HFONT hHdrFont = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12,
+                                 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
         ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
         DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
     if (hHdrFont) {

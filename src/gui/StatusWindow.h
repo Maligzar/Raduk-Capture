@@ -277,7 +277,7 @@ private:
 
     void Draw(HDC hdc, const RECT& cr) {
         const int W = cr.right, H = cr.bottom;
-        Fill(hdc, 0, 0, W, H, RGB(4, 8, 15));
+        Fill(hdc, 0, 0, W, H, Theme::Rgb::BG_VOID);
         if (W < 120 || H < 50) return;
 
         // ── What the preview's LIVE line says ───────────────────
@@ -309,8 +309,8 @@ private:
             HFONT hfont = MakeFont(hf, true, "Barlow Condensed");
             HGDIOBJ old = SelectObject(hdc, hfont);
             SetBkMode(hdc, TRANSPARENT);
-            SetTextColor(hdc, m_data.recording ? Theme::NV(RGB(255, 60, 90))
-                                               : Theme::NV(RGB(0, 229, 255)));
+            SetTextColor(hdc, m_data.recording ? Theme::NV(Theme::Rgb::ACCENT4)
+                                               : Theme::NV(Theme::Rgb::ACCENT));
             RECT hr = { hp, 0, W / 2, hdrH };
             DrawTextA(hdc, hdr, -1, &hr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
@@ -320,7 +320,7 @@ private:
             if (m_data.recording || m_data.frames > 0) {
                 snprintf(hdr, sizeof(hdr), "FRAMES  %llu",
                          (unsigned long long)m_data.frames);
-                SetTextColor(hdc, Theme::NV(RGB(200, 232, 240)));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
                 RECT fr = { W / 2, 0, W - hp, hdrH };
                 DrawTextA(hdc, hdr, -1, &fr, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
             }
@@ -367,9 +367,9 @@ private:
             r.pct = (m_data.recording && headroom > 0.0)
                   ? (float)(writtenB / headroom * 100.0) : 0.0f;
 
-            r.fill = (r.pct > 90.0f) ? Theme::NV(RGB(255, 60, 90))
-                   : (r.pct > 75.0f) ? Theme::NV(RGB(255, 170, 0))
-                                     : Theme::NV(RGB(0, 200, 110));
+            r.fill = (r.pct > 90.0f) ? Theme::NV(Theme::Rgb::ACCENT4)
+                   : (r.pct > 75.0f) ? Theme::NV(Theme::Rgb::ACCENT2)
+                                     : Theme::NV(Theme::Rgb::ACCENT3);
             if (captureFree > 0)
                 sprintf_s(r.barText, "%.3f GB written to %c:",
                           m_data.diskUsedGB, m_data.captureDrive);
@@ -377,23 +377,23 @@ private:
                 sprintf_s(r.barText, "%.3f GB written", m_data.diskUsedGB);
             strcpy_s(r.rightLabel, "FPS");
             sprintf_s(r.rightValue, "%.1f", m_data.fps);
-            r.rightClr = Theme::NV(RGB(0, 229, 255));
+            r.rightClr = Theme::NV(Theme::Rgb::ACCENT);
             rows.push_back(r);
         }
         {
             Row r;
             strcpy_s(r.label, "BUF");
             r.pct  = m_data.bufferPct;
-            r.fill = (m_data.bufferPct > 80.0f) ? Theme::NV(RGB(255, 60, 90))
-                   : (m_data.bufferPct > 50.0f) ? Theme::NV(RGB(255, 170, 0))
-                                                : Theme::NV(RGB(0, 200, 110));
+            r.fill = (m_data.bufferPct > 80.0f) ? Theme::NV(Theme::Rgb::ACCENT4)
+                   : (m_data.bufferPct > 50.0f) ? Theme::NV(Theme::Rgb::ACCENT2)
+                                                : Theme::NV(Theme::Rgb::ACCENT3);
             sprintf_s(r.barText, "%d / %d slots",
                       m_data.bufferFrames,
                       m_data.bufferTotal > 0 ? m_data.bufferTotal : 512);
             strcpy_s(r.rightLabel, "LOST");
             sprintf_s(r.rightValue, "%d", m_data.framesLost);
-            r.rightClr = m_data.framesLost > 0 ? Theme::NV(RGB(255, 60, 90))
-                                               : Theme::NV(RGB(120, 136, 156));
+            r.rightClr = m_data.framesLost > 0 ? Theme::NV(Theme::Rgb::ACCENT4)
+                                               : Theme::NV(Theme::Rgb::TEXT_DIM);
             rows.push_back(r);
         }
 
@@ -418,10 +418,10 @@ private:
             float pct = (float)((sk.altitudeDeg - 20.0) / 70.0 * 100.0);
             r.pct = pct < 0.0f ? 0.0f : pct > 100.0f ? 100.0f : pct;
 
-            r.fill = (sk.window == SkyWindow::Prime)    ? Theme::NV(RGB(0, 200, 110))
+            r.fill = (sk.window == SkyWindow::Prime)    ? Theme::NV(Theme::Rgb::ACCENT3)
                    : (sk.window == SkyWindow::Good)     ? Theme::NV(RGB(120, 200, 80))
-                   : (sk.window == SkyWindow::Marginal) ? Theme::NV(RGB(255, 170, 0))
-                                                        : Theme::NV(RGB(255, 60, 90));
+                   : (sk.window == SkyWindow::Marginal) ? Theme::NV(Theme::Rgb::ACCENT2)
+                                                        : Theme::NV(Theme::Rgb::ACCENT4);
 
             // Airmass next to the altitude, because the altitude alone
             // does not say that 30 degrees is twice the air of overhead.
@@ -449,18 +449,18 @@ private:
                 r.pct = w.score < 0 ? 0.0f : (float)w.score;
                 const bool go = strcmp(w.verdict, "GO") == 0;
                 const bool caution = strcmp(w.verdict, "CAUTION") == 0;
-                r.fill = go ? Theme::NV(RGB(0, 200, 110))
-                       : caution ? Theme::NV(RGB(255, 170, 0))
-                                 : Theme::NV(RGB(255, 60, 90));
+                r.fill = go ? Theme::NV(Theme::Rgb::ACCENT3)
+                       : caution ? Theme::NV(Theme::Rgb::ACCENT2)
+                                 : Theme::NV(Theme::Rgb::ACCENT4);
                 snprintf(r.barText, sizeof(r.barText),
                          "%s  cloud %.0f%%  wind %.0f mph  dew %s  %d min",
                          w.verdict[0] ? w.verdict : "--", w.cloudPct, w.windMph,
                          w.dewRisk[0] ? w.dewRisk : "?", w.ageMin);
                 strcpy_s(r.rightLabel, "AIR");
                 snprintf(r.rightValue, sizeof(r.rightValue), "%.0fF", w.tempF);
-                r.rightClr = strcmp(w.dewRisk, "warning") == 0 ? Theme::NV(RGB(255, 60, 90))
-                           : strcmp(w.dewRisk, "elevated") == 0 ? Theme::NV(RGB(255, 170, 0))
-                                                                : Theme::NV(RGB(0, 229, 255));
+                r.rightClr = strcmp(w.dewRisk, "warning") == 0 ? Theme::NV(Theme::Rgb::ACCENT4)
+                           : strcmp(w.dewRisk, "elevated") == 0 ? Theme::NV(Theme::Rgb::ACCENT2)
+                                                                : Theme::NV(Theme::Rgb::ACCENT);
             } else {
                 r.pct = 0.0f;
                 r.fill = Theme::NV(RGB(60, 70, 85));
@@ -468,7 +468,7 @@ private:
                          w.state[0] ? w.state : "no reading");
                 strcpy_s(r.rightLabel, "AIR");
                 strcpy_s(r.rightValue, "--");
-                r.rightClr = Theme::NV(RGB(120, 136, 156));
+                r.rightClr = Theme::NV(Theme::Rgb::TEXT_DIM);
             }
             rows.push_back(r);
         }
@@ -500,9 +500,9 @@ private:
             // ample on a 4 TB drive and nothing at all on a 256 GB one,
             // and what matters is whether a night's SER files fit --
             // those are tens of GB regardless of how big the drive is.
-            r.fill = (freeGB < 20.0)  ? Theme::NV(RGB(255, 60, 90))
-                   : (freeGB < 100.0) ? Theme::NV(RGB(255, 170, 0))
-                                      : Theme::NV(RGB(0, 200, 110));
+            r.fill = (freeGB < 20.0)  ? Theme::NV(Theme::Rgb::ACCENT4)
+                   : (freeGB < 100.0) ? Theme::NV(Theme::Rgb::ACCENT2)
+                                      : Theme::NV(Theme::Rgb::ACCENT3);
 
             // Both figures in the same unit. "1448 GB free of 2.00 TB"
             // is two units in one sentence and needs arithmetic to read;
@@ -539,17 +539,17 @@ private:
         int y = hdrH + pad;
         for (const Row& r : rows) {
             HGDIOBJ old = SelectObject(hdc, lf);
-            SetTextColor(hdc, Theme::NV(RGB(120, 136, 156)));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM));
             RECT lr = { pad, y, pad + lblW, y + rowH };
             DrawTextA(hdc, r.label, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
             SelectObject(hdc, old);
 
             const int bx = pad + lblW;
-            Bar(hdc, bx, y, barW, rowH, r.pct, r.fill, Theme::NV(RGB(4, 10, 18)),
-                r.barText, Theme::NV(RGB(200, 232, 240)), fontPx);
+            Bar(hdc, bx, y, barW, rowH, r.pct, r.fill, Theme::NV(Theme::Rgb::BG_VOID),
+                r.barText, Theme::NV(Theme::Rgb::TEXT), fontPx);
 
             old = SelectObject(hdc, lf);
-            SetTextColor(hdc, Theme::NV(RGB(120, 136, 156)));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM));
             RECT rl = { bx + barW + 6, y, bx + barW + 6 + rightW / 2, y + rowH };
             DrawTextA(hdc, r.rightLabel, -1, &rl, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
             SelectObject(hdc, old);

@@ -3611,13 +3611,32 @@ static int RunApp(bool useEmulator) {
             });
     };
 
+    // ── Phase 98: one place a recording ends ───────────────────
+    //
+    // From the owner's report that the RECORD button stays depressed
+    // after a frame-limited run. The button is fixed in ControlPanel
+    // (nothing invalidated it), but investigating turned up the same
+    // root cause doing a second kind of damage: the limit-triggered
+    // stop was a bare `capturer.StopRecording()` and skipped the
+    // bookkeeping the manual stop does. So after a frame-limited run
+    // USB STAYED IN CAPTURE MODE, with the EAF and the mount still
+    // throttled, until something else happened to stop a recording.
+    //
+    // Two call sites doing the same thing differently is how that
+    // happens, so now there is one.
+    auto endRecording = [&](bool normal, const char* why) {
+        if (!capturer.IsRecording()) return;
+        capturer.StopRecording(normal);
+        usbMgr.SetCapturing(false);
+        slog.System("USB polling restored — %s", usbMgr.StatusString());
+        Log("[REC] stopped (%s); USB polling restored: %s\n",
+            why ? why : "manual", usbMgr.StatusString());
+    };
+
     // ── Record toggle — also notifies USB manager ──────────────
     auto doRecord = [&]() {
         if (capturer.IsRecording()) {
-            capturer.StopRecording();
-            usbMgr.SetCapturing(false);
-            slog.System("USB polling restored — %s", usbMgr.StatusString());
-            Log("[USB] Polling restored: %s\n", usbMgr.StatusString());
+            endRecording(true, "operator");
         } else {
             CaptureConfig cfg = capturer.Config();
             cfg.filePrefix    = controls.GetFilePrefix();
@@ -5020,7 +5039,12 @@ static int RunApp(bool useEmulator) {
             // StopRecording() joins the writer thread and a buffer sized
             // to a whole run can take seconds to drain -- far too long
             // to stall frame acquisition for.
-            if (capturer.LimitReached()) capturer.StopRecording();
+            //
+            // Phase 98: through endRecording, so the limit path restores
+            // USB polling like every other stop. It did not, and the EAF
+            // and mount stayed throttled afterwards.
+            if (capturer.LimitReached())
+                endRecording(true, "frame/time limit reached");
         }
 
         // Submit to frame analyzer (non-blocking, always)
@@ -5836,6 +5860,56 @@ static int RunApp(bool useEmulator) {
                 sd.bitDepth     = roiBits;
                 sd.frames       = capturer.FramesRecorded();
                 sd.streaming    = cam.IsCapturing();
+
+                // ── Phase 98: the recording clock ──────────────
+                //
+                // Elapsed is the capturer's own. Remaining is -1 when
+                // no limit is set, exact on a time limit, and
+                // estimated from the rate ACHIEVED SO FAR on a frame
+                // limit -- the nominal frame rate is not what a run
+                // with drops is delivering, and a figure derived from
+                // it would quietly lie by however many frames were
+                // lost. Withheld for the first second, because a
+                // prediction off half a second of run is noise with a
+                // decimal point.
+                {
+                    const auto& ccfg = capturer.Config();
+                    sd.elapsedSec        = capturer.ElapsedSec();
+                    sd.remainingSec      = -1.0;
+                    sd.remainingEstimated = false;
+                    if (capturer.IsRecording()) {
+                        if (ccfg.limitType == LimitType::Time &&
+                            ccfg.limitTimeSec > 0.0) {
+                            double left = ccfg.limitTimeSec - sd.elapsedSec;
+                            sd.remainingSec = (left > 0.0) ? left : 0.0;
+                        } else if (ccfg.limitType == LimitType::Frames &&
+                                   ccfg.limitFrames > 0 &&
+                                   sd.elapsedSec > 1.0 && sd.frames > 0) {
+                            const double rate = sd.frames / sd.elapsedSec;
+                            const double togo = (ccfg.limitFrames > sd.frames)
+                                ? (double)(ccfg.limitFrames - sd.frames) : 0.0;
+                            sd.remainingSec = (rate > 0.0) ? togo / rate : 0.0;
+                            sd.remainingEstimated = true;
+                        }
+                    }
+                }
+
+                // Phase 98: and the panel's own copy. This call had NO
+                // CALLERS AT ALL -- the function that formats the
+                // "REC mm:ss" line and the frames-against-limit line
+                // was written and never wired, and its first statement
+                // bails on a label that was never created. That one
+                // dead function is why there was no timer and why the
+                // RECORD button stayed depressed after a run stopped
+                // on its own limit.
+                controls.UpdateCaptureStatus(
+                    capturer.IsRecording(), capturer.FramesRecorded(),
+                    capturer.FramesDropped(), capturer.ElapsedSec(),
+                    capturer.BufferPending(), capturer.BufferTotal(),
+                    capturer.Config().limitFrames,
+                    capturer.Config().limitTimeSec,
+                    capturer.Config().limitType == LimitType::Frames,
+                    capturer.Config().outputDir);
                 sd.sky          = skyTracker.Evaluate();
 
                 // Leoben's weather: into the status window, and -- when

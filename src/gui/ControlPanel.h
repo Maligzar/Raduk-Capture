@@ -62,6 +62,11 @@ public:
     // Programmatically update a slider position and its value label.
     // isExposure=true updates the exposure slider, false updates gain.
     void UpdateSlider(bool isExposure, int val);
+    // Phase 98: one exposure formatter, shared. See the .cpp.
+    static void FormatExposure(wchar_t* buf, size_t n, double ms);
+    void CommitTypedExposure();
+    static LRESULT CALLBACK ExposureEditProc(HWND, UINT, WPARAM, LPARAM,
+                                            UINT_PTR, DWORD_PTR);
 
     // Called each render tick with latest frame analysis.
     // Point the TELESCOPE card's GoTo box at an object.
@@ -92,7 +97,30 @@ public:
         // Cached only. The panel no longer draws this -- StatusWindow
         // does. Kept because the readout loop still calls here and the
         // values are wanted by whatever displays them.
+        const bool was = m_status.recording;
         m_status = {fps, lost, bufPct, bufFrames, bufTotal, diskGB, recording};
+
+        // ── Phase 98: repaint the button when the state changes ──
+        //
+        // From the owner's report: after a run that stops on its own
+        // frame limit, the RECORD button stays showing STOP RECORDING,
+        // so it looks like capture is still going.
+        //
+        // The state was never wrong. m_status.recording does go false
+        // here, on this ~500 ms timer, from the capturer's own
+        // IsRecording(). What was missing is that NOTHING INVALIDATED
+        // THE BUTTON, and it is owner-drawn: it repaints when Windows
+        // decides to, which after a click is immediately and after a
+        // limit-triggered stop is never.
+        //
+        // Invalidating on the EDGE rather than patching the frame-limit
+        // call site fixes every stop path at once -- the frame limit,
+        // the time limit, the disk-full abort, the emergency stop and
+        // the mosaic runner's per-panel stops -- instead of the one
+        // that happened to be reported. Only on a change, so this is
+        // not a repaint twice a second forever.
+        if (was != recording && m_btnRecord)
+            InvalidateRect(m_btnRecord, nullptr, FALSE);
     }
 
     // ── Quality gate accessors (Phase 10) ─────────────────────
@@ -645,6 +673,16 @@ private:
 
     // ── Camera controls ────────────────────────────────────────
     HWND m_sliderGain = nullptr, m_sliderExposure = nullptr;
+    // Phase 98: the exposure readout IS an edit box now, so an exact
+    // value can be typed. m_lblExpVal is left declared and null -- the
+    // callers that wrote to it are guarded rather than deleted, since
+    // a label and a box showing the same number is two things to
+    // disagree.
+    HWND m_editExposure = nullptr;
+    // Set while the operator is dragging a slider, so auto-exposure
+    // does not write to the thumb under their hand.
+    HWND m_draggingSlider = nullptr;
+    double m_lastLiveApplyMs = 0.0;
     HWND m_sliderGamma = nullptr, m_sliderWBR = nullptr;
     HWND m_sliderWBB = nullptr, m_sliderUSB = nullptr;
     HWND m_btnAEAuto = nullptr;   // Phase 12: AE mode toggle
@@ -765,6 +803,8 @@ private:
         ID_SLIDER_GAIN = 1001, ID_SLIDER_EXP, ID_SLIDER_GAMMA,
         ID_SLIDER_WBR, ID_SLIDER_WBB, ID_SLIDER_USB,
         ID_BTN_AE_AUTO, ID_LBL_AE_STATUS,
+        // Phase 98: the camera section had no numeric entry at all.
+        ID_EDIT_EXPOSURE,
         ID_LBL_GAIN_VAL = 1100, ID_LBL_EXP_VAL, ID_LBL_GAMMA_VAL,
         ID_LBL_WBR_VAL, ID_LBL_WBB_VAL, ID_LBL_USB_VAL,
         ID_LBL_FOCUS_POS = 1200, ID_LBL_FOCUS_TEMP, ID_EDIT_FOCUS_GOTO,

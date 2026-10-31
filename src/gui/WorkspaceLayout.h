@@ -107,6 +107,23 @@ struct Placement {
     // built by hand, exactly as they built it.
     RECT  abs     = {};
     bool  hasAbs  = false;
+
+    // ── Phase 98: whether the window was OPEN ──────────────
+    //
+    // From the owner's report: "screen panel locations are being
+    // saved but their state is not."
+    //
+    // Exactly so, and it was a missing field rather than a broken
+    // one. This struct recorded the monitor, the mode and the
+    // geometry, and PlaceMode is Normal | Maximized | Fullscreen --
+    // all three of which are VISIBLE states. There was no way to
+    // write down "this one was closed", so saving a layout recorded
+    // where every window was and restoring it showed them all.
+    //
+    // Default true, because every layout file written before this
+    // existed describes windows that were open when it was saved.
+    // Reading one must not close everything.
+    bool  visible = true;
 };
 
 class WorkspaceLayout {
@@ -400,14 +417,43 @@ public:
                      target.right - target.left, target.bottom - target.top,
                      SWP_NOZORDER | SWP_NOACTIVATE);
 
-        if (p.mode == PlaceMode::Maximized)
+        // ── Phase 98: position always, SHOW never ──────────
+        //
+        // The owner's report was "locations are being saved but their
+        // state is not", and the chosen behaviour is that a window
+        // closed when the layout was saved stays closed on restore but
+        // keeps its position -- so opening it later lands it where it
+        // belongs instead of at a default.
+        //
+        // SetWindowPos above does that for free: it moves a hidden
+        // window perfectly well and SWP_NOACTIVATE means it stays
+        // hidden. The only thing that could reveal one is the maximise
+        // below, which is now gated on the window having been open.
+        //
+        // That gate also retires a hand-made workaround. The generated
+        // default for the "share" role carries a comment saying it is
+        // "deliberately not marked Maximized -- the window is hidden
+        // until Shift+V, and Place() calls ShowWindow(SW_MAXIMIZE) on
+        // a maximised role, which would put an empty black screen up
+        // at launch." That was the right fix for one role with no way
+        // to express the general rule. The rule is expressible now, so
+        // no role has to dodge it.
+        //
+        // IsWindowVisible rather than p.visible alone: a window the
+        // app has already shown for its own reasons before Place runs
+        // must not be maximised on the strength of a stale file, and
+        // one the file says was closed must not be revealed because
+        // the app happens to have opened it early.
+        const bool openNow = IsWindowVisible(hwnd) != FALSE;
+        if (p.mode == PlaceMode::Maximized && p.visible && openNow)
             ShowWindow(hwnd, SW_MAXIMIZE);
 
-        char buf[200];
-        snprintf(buf, sizeof(buf), "[LAYOUT] %s -> %ls (%ld,%ld) %ldx%ld%s",
+        char buf[220];
+        snprintf(buf, sizeof(buf), "[LAYOUT] %s -> %ls (%ld,%ld) %ldx%ld%s%s",
                  role, mon->device.c_str(), target.left, target.top,
                  target.right - target.left, target.bottom - target.top,
-                 p.mode == PlaceMode::Maximized ? " maximised" : "");
+                 p.mode == PlaceMode::Maximized ? " maximised" : "",
+                 p.visible ? "" : " (was closed; positioned, not shown)");
         Say(buf);
     }
 
@@ -538,6 +584,17 @@ public:
             p.abs    = r;
             if (IsZoomed(hwnd)) p.mode = PlaceMode::Maximized;
 
+            // Phase 98: the field that was missing. This app HIDES its
+            // auxiliary windows rather than destroying them -- the note
+            // at the top of this file says as much -- so
+            // IsWindowVisible is the question, not IsWindow.
+            //
+            // Note the geometry is captured either way. A closed
+            // window still has a position worth remembering, which is
+            // the whole point of the behaviour the owner chose: it
+            // stays closed, and opening it later puts it back.
+            p.visible = IsWindowVisible(hwnd) != FALSE;
+
             // Name the monitor the window's CENTRE sits on, so the entry
             // still says something useful to a reader even though the
             // coordinates are what get used.
@@ -558,9 +615,10 @@ public:
 
             prof[role] = p;
             char buf[200];
-            snprintf(buf, sizeof(buf), "[LAYOUT] captured %s on %ls at (%ld,%ld) %ldx%ld%s",
+            snprintf(buf, sizeof(buf), "[LAYOUT] captured %s on %ls at (%ld,%ld) %ldx%ld%s%s",
                      role, p.device.c_str(), r.left, r.top,
                      r.right - r.left, r.bottom - r.top,
+                     p.visible ? "" : " (closed)",
                      p.mode == PlaceMode::Maximized ? " maximised" : "");
             Say(buf);
         }
@@ -630,12 +688,17 @@ public:
         fprintf(f, "# section, stepping down if there is no exact match.\n");
         fprintf(f, "#\n");
         fprintf(f, "#   role = <device> [id=<interface path>] "
-                   "[maximized|fullscreen] [placement]\n");
+                   "[maximized|fullscreen] [closed] [placement]\n");
         fprintf(f, "# The id is the monitor's device interface path and is\n");
         fprintf(f, "# what placement actually matches on; the device name\n");
         fprintf(f, "# before it is for reading, and this rig renumbers it.\n");
         fprintf(f, "# placement is either x,y,w,h as 0-1 fractions of that\n");
         fprintf(f, "# screen, or @x,y,w,h in exact screen coordinates.\n");
+        fprintf(f, "#\n");
+        fprintf(f, "# 'closed' means the window was not open when this was\n");
+        fprintf(f, "# saved. Restoring puts it back at the position below\n");
+        fprintf(f, "# WITHOUT showing it, so opening it later lands it where\n");
+        fprintf(f, "# it belongs. No token means open.\n");
         fprintf(f, "#\n");
         fprintf(f, "# Roles: main skymap goto aichat help motion\n\n");
         for (const auto& [count, prof] : m_profiles) {
@@ -647,6 +710,10 @@ public:
                 if (!p.id.empty()) fprintf(f, " id=%ls", p.id.c_str());
                 if (p.mode == PlaceMode::Maximized)  fprintf(f, " maximized");
                 if (p.mode == PlaceMode::Fullscreen) fprintf(f, " fullscreen");
+                // Only the closed case is written. An absent token
+                // means open, so every file predating phase 98 still
+                // means what it meant.
+                if (!p.visible) fprintf(f, " closed");
                 if (p.hasAbs)
                     fprintf(f, " @%ld,%ld,%ld,%ld", p.abs.left, p.abs.top,
                             p.abs.right - p.abs.left, p.abs.bottom - p.abs.top);
@@ -804,6 +871,10 @@ private:
         for (size_t k = 1; k < tok.size(); ++k) {
             if (tok[k] == "maximized")       p.mode = PlaceMode::Maximized;
             else if (tok[k] == "fullscreen") p.mode = PlaceMode::Fullscreen;
+            else if (tok[k] == "closed")     p.visible = false;
+            // "open" is accepted but never written, so a file edited
+            // by hand can say it either way round.
+            else if (tok[k] == "open")       p.visible = true;
             else if (tok[k].rfind("id=", 0) == 0) {
                 const std::string v = tok[k].substr(3);
                 p.id.assign(v.begin(), v.end());

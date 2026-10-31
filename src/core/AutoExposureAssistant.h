@@ -81,13 +81,46 @@ public:
         int gainMin = raduk::profiles::CameraRails::GAIN_HCG_THRESHOLD; // 182 - HCG floor
         int gainMax = 570;
 
-        // I-controller gain — fraction of error applied per tick
-        // Tuned conservatively: 10% correction per 2s tick
-        float iGain = 0.10f;
+        // Proportional gain -- the fraction of the normalised error
+        // applied per tick.
+        //
+        // Phase 98: this was 0.10f with a comment saying "10%
+        // correction per 2s tick", while the expression below
+        // multiplied it by a bare 5. The real figure has always been
+        // 50%. The constant now says what it does and the 5 is gone;
+        // the arithmetic is unchanged.
+        float iGain = 0.50f;
 
-        // Minimum change to bother applying (avoid micro-jitter)
-        double expMinStep  = 0.1;   // ms
-        int    gainMinStep = 3;     // DN
+        // ── Minimum change worth applying ───────────────────
+        //
+        // RELATIVE, not absolute, and this was a real defect.
+        //
+        // It was a flat 0.1 ms, which is a sensible floor at 50 ms and
+        // an impassable wall at 2. The correction is multiplicative --
+        // exposure times a factor -- so at short exposures the step it
+        // produces is small in absolute terms however large the error.
+        // Measured against the old constants, the smallest error that
+        // could move the exposure was:
+        //
+        //     3.5 ms ->  14.6 DN   (works: the deadband is +/-15)
+        //     2.0 ms ->  25.5 DN   (stalls)
+        //     1.0 ms ->  51.0 DN   (stalls)
+        //     0.5 ms -> 102.0 DN   (stalls, and barely reachable)
+        //
+        // So below 3.4 ms auto-exposure could not make its own
+        // smallest legal correction. Worse, the gain branch is gated
+        // on the exposure being AT a limit, which it was not -- so
+        // nothing happened and it fell through to a message reading
+        // "AE: limit". It did not fail; it reported a limit it was
+        // nowhere near. The Moon lives at 1 to 5 ms.
+        //
+        // One per cent of the current exposure, floored at the
+        // camera's own 1 us resolution. At 2 ms that is 0.02 ms, which
+        // a 25 DN error clears easily; at 50 ms it is 0.5 ms, which is
+        // MORE jitter rejection than the old flat figure gave.
+        double expMinStepFrac = 0.01;   // 1% of current exposure
+        double expMinStepMs   = 0.001;  // ASI resolution: 1 us
+        int    gainMinStep    = 3;      // DN
 
         // How many ticks to wait after a change before sampling again
         int    settleFrames = 5;
@@ -161,8 +194,15 @@ public:
             // we're still clipping, exposure alone can never recover — cut
             // gain too (below the HCG floor if that's what it takes; a
             // clipped image is worse than low conversion gain).
-            bool expStuck = (s.exposureMs <= m_cfg.expMinMs + m_cfg.expMinStep) &&
-                            (m_currentExpMs <= m_cfg.expMinMs + m_cfg.expMinStep);
+            // Phase 98: "at the floor" is a tolerance on the floor
+            // itself, not on the current exposure, so it uses the
+            // absolute resolution rather than the relative step. The
+            // relative one would scale with whatever the exposure
+            // happens to be and so would mean something different on
+            // each tick of a run that is actively cutting it.
+            const double floorTol = m_cfg.expMinStepMs;
+            bool expStuck = (s.exposureMs   <= m_cfg.expMinMs + floorTol) &&
+                            (m_currentExpMs <= m_cfg.expMinMs + floorTol);
             if (expStuck && m_currentGain > 0) {
                 int newGain = (int)(m_currentGain * 0.85f);
                 s.gain = std::max(0, newGain);
@@ -196,16 +236,22 @@ public:
             return s;
         }
 
-        // Correction factor: proportional to error
-        // error/255 gives fraction; apply iGain
-        float correctionFactor = 1.0f + (error / 255.0f) * m_cfg.iGain * 5.0f;
+        // Correction factor: proportional to error. error/255 gives
+        // the fraction; iGain is applied directly now that it says
+        // what it means (see the Config comment).
+        float correctionFactor = 1.0f + (error / 255.0f) * m_cfg.iGain;
 
         // ── Try exposure first ─────────────────────────────────
         double newExp = m_currentExpMs * correctionFactor;
         newExp = std::clamp(newExp, m_cfg.expMinMs, m_cfg.expMaxMs);
         newExp = snapExp(newExp);
 
-        bool expChanged = fabs(newExp - m_currentExpMs) >= m_cfg.expMinStep;
+        // The threshold scales with the exposure, so a short one is
+        // not held still by a figure chosen for a long one.
+        const double expMinStep =
+            (std::max)(m_cfg.expMinStepMs,
+                       m_currentExpMs * m_cfg.expMinStepFrac);
+        bool expChanged = fabs(newExp - m_currentExpMs) >= expMinStep;
 
         if (expChanged) {
             s.exposureMs = newExp;
@@ -229,8 +275,8 @@ public:
         }
 
         // Exposure already at limit — try gain
-        bool expAtMax = (m_currentExpMs >= m_cfg.expMaxMs - m_cfg.expMinStep);
-        bool expAtMin = (m_currentExpMs <= m_cfg.expMinMs + m_cfg.expMinStep);
+        bool expAtMax = (m_currentExpMs >= m_cfg.expMaxMs - expMinStep);
+        bool expAtMin = (m_currentExpMs <= m_cfg.expMinMs + expMinStep);
         bool needGain = (error > 0 && expAtMax) || (error < 0 && expAtMin);
 
         if (needGain) {
@@ -259,11 +305,35 @@ public:
             }
         }
 
-        // No change needed or possible
-        char buf[80];
-        snprintf(buf, sizeof(buf),
-                 "AE: limit  %.0f DN  exp=%.2fms g=%d",
-                 m_meanBrightness, m_currentExpMs, m_currentGain);
+        // ── Nothing applied, and WHY matters ────────────────
+        //
+        // This used to read "AE: limit" unconditionally and print
+        // m_meanBrightness -- a quantity the controller does not use
+        // for any decision; every one of them is made on
+        // m_highlightDN. So on the one occasion the operator most
+        // needs to know what is going on, the panel named a limit it
+        // might be nowhere near and showed the wrong number.
+        //
+        // Now it says which of the three it actually is.
+        char buf[96];
+        const bool atCeiling = expAtMax && m_currentGain >= m_cfg.gainMax;
+        const bool atFloor   = expAtMin && m_currentGain <= 0;
+        if (atCeiling || atFloor) {
+            snprintf(buf, sizeof(buf),
+                     "AE: at %s  hi %.0f DN  exp=%.2fms g=%d",
+                     atCeiling ? "maximum" : "minimum",
+                     m_highlightDN, m_currentExpMs, m_currentGain);
+        } else if (needGain) {
+            // Gain was the right lever and the step was too small to
+            // be worth a write.
+            snprintf(buf, sizeof(buf),
+                     "AE: holding  hi %.0f DN  gain step < %d",
+                     m_highlightDN, m_cfg.gainMinStep);
+        } else {
+            snprintf(buf, sizeof(buf),
+                     "AE: holding  hi %.0f DN  exp=%.2fms g=%d",
+                     m_highlightDN, m_currentExpMs, m_currentGain);
+        }
         s.text = buf;
         m_lastSuggestion = s;
         return s;

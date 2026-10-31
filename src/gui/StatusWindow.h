@@ -73,6 +73,14 @@ public:
         int      roiHeight = 0;
         int      bitDepth  = 8;
         uint64_t frames    = 0;      // recorded this run
+
+        // Phase 98: the owner asked for a timer on the recording, on
+        // the panel AND here. This is the "across the room" surface --
+        // the one glanced at rather than read -- so it gets the clock
+        // beside the REC, where the eye already goes.
+        double   elapsedSec   = 0.0;   // this run
+        double   remainingSec = -1.0;  // < 0 when there is no limit
+        bool     remainingEstimated = false;  // true on a frame limit
         bool     streaming = false;  // camera actually delivering
 
         // How much atmosphere the scope is looking through. Useful with
@@ -298,12 +306,37 @@ private:
             char hdr[128];
             const char* state = !m_data.streaming ? "IDLE"
                               : m_data.recording  ? "REC" : "LIVE";
+
+            // Phase 98: the clock, immediately after the state word.
+            // Only while recording -- a 00:00 sitting there between
+            // captures is the same noise the FRAMES row below already
+            // refuses to be.
+            //
+            // The remaining time carries a '~' on a frame limit,
+            // because there it is estimated from the rate achieved so
+            // far; on a time limit the clock IS the limit and the
+            // figure is exact. Saying which costs one character and
+            // stops a tired person trusting an estimate as a promise.
+            char clk[48] = "";
+            if (m_data.recording) {
+                const int el = (int)m_data.elapsedSec;
+                if (m_data.remainingSec >= 0.0) {
+                    const int rm = (int)m_data.remainingSec;
+                    snprintf(clk, sizeof(clk), "   %02d:%02d  %s%d:%02d left",
+                             el / 60, el % 60,
+                             m_data.remainingEstimated ? "~" : "",
+                             rm / 60, rm % 60);
+                } else {
+                    snprintf(clk, sizeof(clk), "   %02d:%02d", el / 60, el % 60);
+                }
+            }
+
             if (m_data.roiWidth > 0)
-                snprintf(hdr, sizeof(hdr), "%s   %dx%d   RAW%d",
-                         state, m_data.roiWidth, m_data.roiHeight,
+                snprintf(hdr, sizeof(hdr), "%s%s   %dx%d   RAW%d",
+                         state, clk, m_data.roiWidth, m_data.roiHeight,
                          m_data.bitDepth);
             else
-                snprintf(hdr, sizeof(hdr), "%s", state);
+                snprintf(hdr, sizeof(hdr), "%s%s", state, clk);
 
             const int hf = (std::max)(11, (std::min)(22, hdrH * 2 / 3));
             HFONT hfont = MakeFont(hf, true, "Barlow Condensed");

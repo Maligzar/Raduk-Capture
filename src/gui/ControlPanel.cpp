@@ -6,6 +6,7 @@
 // ============================================================
 
 #include "ControlPanel.h"
+#include "../core/ExposureScale.h"
 #include "Theme.h"
 #include "core/RigConfig.h"
 #include "core/Paths.h"
@@ -845,6 +846,24 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
     int notifyCode = HIWORD(wParam);
 
     if (id == ID_COMBO_PROFILE && notifyCode == CBN_SELCHANGE) return true;
+
+    // ── Phase 98: a typed exposure ─────────────────────────────
+    //
+    // This must come BEFORE the BN_CLICKED bail below, which is why
+    // the camera section never had a numeric entry: every edit box on
+    // this panel is read on demand by whatever needs it, and an
+    // exposure has no such moment -- nothing ever asks "what is in the
+    // box", so it had to announce itself.
+    //
+    // Committed when focus leaves, which covers clicking away and
+    // Tab. Enter is handled by the subclass in MakeExposureEdit,
+    // because typing a number and pressing Enter is the interaction
+    // this box exists for and Win32 does not deliver it here.
+    if (id == ID_EDIT_EXPOSURE && notifyCode == EN_KILLFOCUS) {
+        CommitTypedExposure();
+        return true;
+    }
+
     if (notifyCode != BN_CLICKED) return false;
 
     switch (id) {
@@ -1047,6 +1066,77 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
     return false;
 }
 
+// ── Exposure, written the same way everywhere ──────────────────
+//
+// Phase 98. Four places formatted this with their own ladder of
+// thresholds and they had already drifted apart once: the startup
+// label used hundredths of a millisecond while the move handler used
+// microseconds, so the same slider position read one way until it was
+// touched and ten times differently afterwards. One function now.
+void ControlPanel::FormatExposure(wchar_t* buf, size_t n, double ms) {
+    if (!buf || n == 0) return;
+    if      (ms < 1.0)    swprintf(buf, n, L"%.3f", ms);
+    else if (ms < 10.0)   swprintf(buf, n, L"%.2f", ms);
+    else if (ms < 1000.0) swprintf(buf, n, L"%.1f", ms);
+    else                  swprintf(buf, n, L"%.0f", ms);
+}
+
+// ── Phase 98: the typed exposure ───────────────────────────────
+//
+// Parsed in milliseconds, which is what the box shows. Clamped to
+// what the slider can represent rather than rejected: somebody typing
+// 500 into a box labelled ms has asked for half a second, and the
+// honest response is to give them the 60 ms ceiling and show it,
+// not to silently keep the old value.
+//
+// A value that does not parse at all restores the current one, so the
+// box can never be left showing something the camera is not doing.
+void ControlPanel::CommitTypedExposure() {
+    if (!m_editExposure) return;
+    wchar_t txt[48] = {};
+    GetWindowTextW(m_editExposure, txt, 48);
+
+    wchar_t* end = nullptr;
+    const double ms = wcstod(txt, &end);
+    const bool parsed = (end != txt) && (ms > 0.0);
+
+    double us = parsed ? ms * 1000.0
+                       : raduk::core::ExposureUsAt(
+                             (int)SendMessage(m_sliderExposure, TBM_GETPOS, 0, 0));
+    if (us < raduk::core::EXP_MIN_US) us = raduk::core::EXP_MIN_US;
+    if (us > raduk::core::EXP_MAX_US) us = raduk::core::EXP_MAX_US;
+
+    SendMessage(m_sliderExposure, TBM_SETPOS, TRUE,
+                (LPARAM)raduk::core::ExposurePosFor(us));
+    wchar_t buf[32];
+    FormatExposure(buf, 32, us / 1000.0);
+    SetWindowTextW(m_editExposure, buf);
+    if (m_camera) m_camera->SetExposure(us / 1000.0);
+}
+
+// Enter in a plain EDIT does not reach the parent as a notification,
+// so the box is subclassed for that one key. Escape puts the current
+// value back, which is the other half of what anyone expects from a
+// field they have just mistyped into.
+LRESULT CALLBACK ControlPanel::ExposureEditProc(HWND h, UINT msg, WPARAM wp,
+                                                LPARAM lp, UINT_PTR,
+                                                DWORD_PTR ref) {
+    auto* self = reinterpret_cast<ControlPanel*>(ref);
+    if (msg == WM_KEYDOWN && self) {
+        if (wp == VK_RETURN) { self->CommitTypedExposure(); return 0; }
+        if (wp == VK_ESCAPE) {
+            const int pos = (int)SendMessage(self->m_sliderExposure,
+                                             TBM_GETPOS, 0, 0);
+            wchar_t buf[32];
+            FormatExposure(buf, 32, raduk::core::ExposureUsAt(pos) / 1000.0);
+            SetWindowTextW(h, buf);
+            return 0;
+        }
+    }
+    if (msg == WM_NCDESTROY) RemoveWindowSubclass(h, ExposureEditProc, 1);
+    return DefSubclassProc(h, msg, wp, lp);
+}
+
 // ── WM_HSCROLL ─────────────────────────────────────────────────
 
 bool ControlPanel::HandleScroll(WPARAM wParam, LPARAM lParam) {
@@ -1054,8 +1144,38 @@ bool ControlPanel::HandleScroll(WPARAM wParam, LPARAM lParam) {
     HWND slider = (HWND)lParam;
     int action  = LOWORD(wParam);
     int pos     = (int)SendMessage(slider, TBM_GETPOS, 0, 0);
-    bool commit = (action == TB_ENDTRACK || action == TB_THUMBPOSITION);
     wchar_t buf[32];
+
+    // ── Phase 98: see it while you drag ────────────────────────
+    //
+    // commit was TB_ENDTRACK || TB_THUMBPOSITION, so during a drag the
+    // label moved and the camera was never written. On the old 141 us
+    // per pixel exposure slider that forced guess, release, look,
+    // re-grab -- the preview could not be judged until the thumb was
+    // let go, which is the single most useful moment to judge it.
+    //
+    // Committing on every TB_THUMBTRACK instead would be fifty to a
+    // hundred USB control transfers a second competing with the frame
+    // stream, which on this rig is the bandwidth USBManager exists to
+    // protect. So a drag applies at most eight times a second, and
+    // always once more on release so the final value is never the
+    // throttle's casualty.
+    const bool dragging = (action == TB_THUMBTRACK);
+    const bool released = (action == TB_ENDTRACK);
+    if (dragging)      m_draggingSlider = slider;
+    else if (released) m_draggingSlider = nullptr;
+
+    bool commit = released || action == TB_THUMBPOSITION ||
+                  action == TB_LINEUP   || action == TB_LINEDOWN ||
+                  action == TB_PAGEUP   || action == TB_PAGEDOWN ||
+                  action == TB_TOP      || action == TB_BOTTOM;
+    if (dragging) {
+        const double now = (double)GetTickCount64();
+        if (now - m_lastLiveApplyMs >= raduk::core::EXP_LIVE_APPLY_MS) {
+            m_lastLiveApplyMs = now;
+            commit = true;
+        }
+    }
 
     if (slider == m_sliderGain) {
         swprintf(buf, 32, L"%d", pos); SetWindowTextW(m_lblGainVal, buf);
@@ -1063,12 +1183,13 @@ bool ControlPanel::HandleScroll(WPARAM wParam, LPARAM lParam) {
         return true;
     }
     if (slider == m_sliderExposure) {
-        // Slider range 1-60000 µs; SetExposure takes milliseconds
-        double ms = pos / 1000.0;
-        if (ms < 1.0)       swprintf(buf, 32, L"%.3fms", ms);
-        else if (ms < 10.0) swprintf(buf, 32, L"%.2fms", ms);
-        else                swprintf(buf, 32, L"%.1fms", ms);
-        SetWindowTextW(m_lblExpVal, buf);
+        // Phase 98: the position is a LOG step now, not microseconds.
+        // ExposureScale.h owns the mapping so the panel, the profile
+        // loader and the auto-exposure writeback cannot disagree about
+        // where a given exposure sits.
+        const double ms = raduk::core::ExposureUsAt(pos) / 1000.0;
+        FormatExposure(buf, 32, ms);
+        if (m_editExposure) SetWindowTextW(m_editExposure, buf);
         if (commit && m_camera) m_camera->SetExposure(ms);
         return true;
     }
@@ -1148,7 +1269,39 @@ void ControlPanel::UpdateSlider(bool isExposure, int val) {
     HWND slider = isExposure ? m_sliderExposure : m_sliderGain;
     HWND lbl    = isExposure ? m_lblExpVal      : m_lblGainVal;
 
-    if (slider) SendMessage(slider, TBM_SETPOS, TRUE, (LPARAM)val);
+    // ── Phase 98: do not fight the operator's hand ─────────────
+    //
+    // This is the auto-exposure writeback, and it was a bare
+    // TBM_SETPOS with no check for whether the slider was being
+    // dragged. With AE in AUTO every tick -- about every two seconds
+    // -- could yank the thumb out from under the cursor mid-drag.
+    //
+    // Skipping the write is the right answer rather than deferring it:
+    // AE recomputes from the camera's own values on the next tick, so
+    // the only thing lost is one stale correction, and the operator
+    // moving the slider by hand is a better statement of intent than
+    // a two-second-old suggestion.
+    if (slider && slider == m_draggingSlider) return;
+
+    if (slider) {
+        // Exposure positions are LOG steps now; val arrives in
+        // microseconds, as it always has.
+        const int pos = isExposure
+            ? raduk::core::ExposurePosFor((double)val) : val;
+        SendMessage(slider, TBM_SETPOS, TRUE, (LPARAM)pos);
+    }
+
+    // The exposure readout is an edit box now. Do not write to it
+    // while it has the caret, for the same reason as the slider: the
+    // operator is mid-way through typing a number.
+    if (isExposure && m_editExposure) {
+        if (GetFocus() != m_editExposure) {
+            wchar_t eb[32];
+            FormatExposure(eb, 32, val / 1000.0);
+            SetWindowTextW(m_editExposure, eb);
+        }
+        return;
+    }
 
     if (lbl) {
         wchar_t buf[32];
@@ -1313,32 +1466,72 @@ void ControlPanel::UpdateCaptureStatus(bool recording, uint32_t framesRecorded,
         SetWindowTextW(m_lblDiskSpace, buf);
     }
 
-    // Recording status
+    // ── Recording status, with the time remaining ──────────────
+    //
+    // Phase 98. Elapsed was already formatted here; what the owner
+    // asked for and this did not give is how much LONGER it has to
+    // run, which on a frame-limited capture is the number that
+    // actually matters -- "1400 / 2000 frames" does not tell a tired
+    // person whether to stand there or go and do something else.
+    //
+    // On a frame limit it is estimated from the rate achieved so far,
+    // which is the only honest source: the nominal frame rate is not
+    // what a run with drops is delivering. Marked with a '~' because
+    // it is an estimate, and withheld entirely until there is enough
+    // of a run to estimate from -- a prediction off the first half
+    // second is noise with a decimal point.
     if (recording) {
-        int mins = (int)(elapsedSec / 60), secs = (int)(elapsedSec) % 60;
-        swprintf(buf, 128, L"REC  %02d:%02d", mins, secs);
+        const int mins = (int)(elapsedSec / 60), secs = (int)(elapsedSec) % 60;
+        wchar_t rem[48] = L"";
+        if (limitByFrames && limitFrames > 0) {
+            if (elapsedSec > 1.0 && framesRecorded > 0) {
+                const double rate = framesRecorded / elapsedSec;
+                const double left = (limitFrames > framesRecorded)
+                    ? (limitFrames - framesRecorded) / (rate > 0.0 ? rate : 1.0)
+                    : 0.0;
+                swprintf(rem, 48, L"   ~%01d:%02d left",
+                         (int)(left / 60), (int)left % 60);
+            }
+        } else if (limitTimeSec > 0.0) {
+            // A time limit needs no estimate: the clock is the limit.
+            double left = limitTimeSec - elapsedSec;
+            if (left < 0.0) left = 0.0;
+            swprintf(rem, 48, L"   %01d:%02d left",
+                     (int)(left / 60), (int)left % 60);
+        }
+        swprintf(buf, 128, L"REC  %02d:%02d%ls", mins, secs, rem);
         SetWindowTextW(m_lblRecStatus, buf);
 
         if (limitByFrames)
             swprintf(buf, 128, L"%u / %u frames  %u drops", framesRecorded, limitFrames, framesDropped);
         else {
-            double rem = limitTimeSec - elapsedSec;
-            if (rem < 0) rem = 0;
-            swprintf(buf, 128, L"%u frames  %.0fs left  %u drops", framesRecorded, rem, framesDropped);
+            double rem2 = limitTimeSec - elapsedSec;
+            if (rem2 < 0) rem2 = 0;
+            swprintf(buf, 128, L"%u frames  %.0fs left  %u drops", framesRecorded, rem2, framesDropped);
         }
         SetWindowTextW(m_lblRecFrames, buf);
-        // RECORD button is owner-drawn — repaint to show STOP RECORDING (red)
-        if (m_btnRecord) InvalidateRect(m_btnRecord, nullptr, TRUE);
+        // Phase 98: the button's repaint is UpdateStatus's job now, on
+        // the state EDGE. These two sites invalidated it on every tick,
+        // which once this function is actually called is a repaint
+        // twice a second for as long as the app is open.
     } else {
-        SetWindowTextW(m_lblRecStatus, L"IDLE");
+        // Phase 98: and say how long it ran. The elapsed time was
+        // already in hand and discarded the moment it mattered most --
+        // right after a run, when the operator is deciding whether to
+        // do another.
+        if (framesRecorded > 0 && m_paintElapsed > 0.0) {
+            swprintf(buf, 128, L"DONE  %02d:%02d",
+                     (int)(m_paintElapsed / 60), (int)(m_paintElapsed) % 60);
+            SetWindowTextW(m_lblRecStatus, buf);
+        } else {
+            SetWindowTextW(m_lblRecStatus, L"IDLE");
+        }
         if (framesRecorded > 0) {
             swprintf(buf, 128, L"Last: %u frames  %u drops", framesRecorded, framesDropped);
             SetWindowTextW(m_lblRecFrames, buf);
         } else {
             SetWindowTextW(m_lblRecFrames, L"");
         }
-        // RECORD button is owner-drawn — repaint to show RECORD (cyan)
-        if (m_btnRecord) InvalidateRect(m_btnRecord, nullptr, TRUE);
     }
 }
 
@@ -1416,7 +1609,21 @@ void ControlPanel::SetCameraSliders(int gain, int exposureUs, int gamma,
     put(m_sliderUSB,   m_lblUSBVal,   usbBandwidth, L"%d%%");
 
     if (m_sliderExposure) {
-        SendMessage(m_sliderExposure, TBM_SETPOS, TRUE, exposureUs);
+        // Phase 98: log steps. The '+' marking below still works and
+        // is still needed -- the DSO profile asks for 30 SECONDS and
+        // the slider stops at 60 ms -- but it is now decided by
+        // ExposureOutOfRange rather than by comparing against what
+        // TBM_SETPOS silently clamped to, which is the same question
+        // asked where the answer actually lives.
+        SendMessage(m_sliderExposure, TBM_SETPOS, TRUE,
+                    (LPARAM)raduk::core::ExposurePosFor((double)exposureUs));
+        if (m_editExposure && GetFocus() != m_editExposure) {
+            wchar_t eb[40];
+            FormatExposure(eb, 40, (double)exposureUs / 1000.0);
+            if (raduk::core::ExposureOutOfRange((double)exposureUs))
+                wcscat_s(eb, 40, L"+");
+            SetWindowTextW(m_editExposure, eb);
+        }
         if (m_lblExpVal) {
             // The slider tops out at 60 ms, by design -- longer exposures
             // are set in the profile editor. But the DSO profile asks for
@@ -1536,6 +1743,24 @@ HWND ControlPanel::MakeSlider(int x, int y, int w, int h,
     SendMessage(s, TBM_SETRANGEMIN, FALSE, (LPARAM)lo);
     SendMessage(s, TBM_SETRANGEMAX, TRUE,  (LPARAM)hi);
     SendMessage(s, TBM_SETPOS,      TRUE,  (LPARAM)val);
+
+    // ── Phase 98: the keyboard was unusable ────────────────────
+    //
+    // Neither of these was ever set, so the defaults applied: line
+    // size 1 and page size range/5. On the exposure slider, which ran
+    // 1 to 60000 microseconds, that meant an arrow key moved ONE
+    // MICROSECOND -- sixty thousand presses to cross -- and a page key
+    // jumped twelve milliseconds, with nothing whatsoever in between.
+    // The keyboard was useless in both directions at once.
+    //
+    // A hundredth of the range per arrow and a tenth per page gives
+    // both a fine nudge and a coarse jump on every slider here,
+    // whatever its units.
+    const int span = (hi > lo) ? (hi - lo) : 1;
+    const int line = (span / 100 > 0) ? span / 100 : 1;
+    const int page = (span / 10  > 0) ? span / 10  : 1;
+    SendMessage(s, TBM_SETLINESIZE, 0, (LPARAM)line);
+    SendMessage(s, TBM_SETPAGESIZE, 0, (LPARAM)page);
     // Strip UxTheme so WM_CTLCOLORSCROLLBAR takes effect for Elite Raduk colors
     SetWindowTheme(s, L"", L"");
     return s;
@@ -1903,7 +2128,13 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     const int w2 = (w - 4) / 2;
     const int SH = 13;
     const int BH = 20;
-    const int SL = 14;
+    // Phase 98: 14 was shorter than a trackbar's own thumb wants, and
+    // the rows sat on a 17 px pitch -- three pixels of clear space
+    // between one slider and the next, six of them stacked. A
+    // near-miss grabbed the neighbour. 20 px on a 24 px pitch is a
+    // real target; the panel scrolls, so the extra height costs
+    // nothing but scroll.
+    const int SL = 20;
 
     int y = 4;
     wchar_t secBuf[64];
@@ -2026,7 +2257,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         slider = MakeSlider(x+LBLW+2, y, w-LBLW-2-VALW-2, SL, lo, hi, val, id);
         valLbl = MakeValueLabel(initTxt, x+w-VALW, y, VALW, SH, lblId);
         TagControl(valLbl, Section::Camera);
-        y += SL + 3;
+        y += SL + 4;
     };
 
     // Use default initial values — ASICamera has no getters for current settings
@@ -2044,13 +2275,59 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     swprintf(usbBuf,   16, L"%d%%",  initUSB);
 
     makeSliderRow(L"Gain",     0, 570,   initGain,  ID_SLIDER_GAIN,  ID_LBL_GAIN_VAL,  m_sliderGain,     m_lblGainVal,  gainBuf);
-    // Range in microseconds. Was 1-10000, i.e. a 10 ms ceiling -- below
-    // the 20-30 ms the help recommends for Saturn and the 50 ms the
-    // auto-exposure assistant is allowed to reach, so neither could be
-    // dialled in by hand and touching the slider would drag a correct
-    // exposure back down. 60000 us = 60 ms covers both. Longer
-    // exposures are set through the profile editor.
-    makeSliderRow(L"Exposure", 1, 60000, initExp,   ID_SLIDER_EXP,   ID_LBL_EXP_VAL,   m_sliderExposure, m_lblExpVal,   expBuf);
+
+    // ── Exposure: LOG scale, and a box to type in ─────────────
+    //
+    // Phase 98, from the owner's report that the sliders are hard to
+    // interact with. The slider was linear over 1 to 60,000 us on 425
+    // pixels of travel -- 141 us per pixel -- and measured, that put
+    //
+    //     the Moon, 1-5 ms      28 px of 425,  6.7% of the travel
+    //     Jupiter,  5-20 ms    106 px,        25%
+    //     Saturn,  20-60 ms    283 px,        67%
+    //
+    // Two thirds of the control went to the longest exposures and
+    // 3.00 ms could not be set at all: the reachable neighbours were
+    // 2.966 and 3.107. Exposure is judged in stops -- 2 to 4 ms
+    // matters exactly as much as 20 to 40 -- so a linear scale gives
+    // the first a tenth of the room it gives the second.
+    //
+    // On the log scale the three bands get 25%, 21% and 17%, and every
+    // step is 2.53% whatever the value. See src/core/ExposureScale.h.
+    //
+    // And an EDIT BOX, because a slider is the wrong instrument for an
+    // exact number however it is scaled. Gain, exposure, gamma, WB and
+    // USB were all read-only labels; the file prefix, frame limit,
+    // time limit and gate threshold all had edit boxes. The camera
+    // section was the one place with no numeric entry, and dragging
+    // was the only input method it had.
+    {
+        using namespace raduk::core;
+        TagControl(MakeLabel(L"Exposure", x, y, LBLW, SH), Section::Camera);
+        const int EDW = 54;   // wide enough for "60.000" plus a caret
+        m_sliderExposure = MakeSlider(x+LBLW+2, y, w-LBLW-2-EDW-2, SL,
+                                      0, EXP_SLIDER_STEPS,
+                                      ExposurePosFor((double)initExp),
+                                      ID_SLIDER_EXP);
+        // The arrow and page sizes MakeSlider derives from the range
+        // are right here by construction: a step is a step.
+        SendMessage(m_sliderExposure, TBM_SETLINESIZE, 0,
+                    (LPARAM)EXP_LINE_STEPS);
+        SendMessage(m_sliderExposure, TBM_SETPAGESIZE, 0,
+                    (LPARAM)EXP_PAGE_STEPS);
+        m_editExposure = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", expBuf,
+            WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL,
+            x+w-EDW, y, EDW, SL, m_panelHwnd,
+            (HMENU)(INT_PTR)ID_EDIT_EXPOSURE, GetModuleHandle(nullptr), nullptr);
+        SetWindowTheme(m_editExposure, L"", L"");
+        SetWindowSubclass(m_editExposure, ExposureEditProc, 1,
+                          reinterpret_cast<DWORD_PTR>(this));
+        TagControl(m_editExposure, Section::Camera);
+        // The old read-only label is gone; the edit box IS the
+        // readout. Keeping both would be two things to disagree.
+        m_lblExpVal = nullptr;
+        y += SL + 4;
+    }
     makeSliderRow(L"Gamma",    1, 100,   initGamma, ID_SLIDER_GAMMA, ID_LBL_GAMMA_VAL, m_sliderGamma,    m_lblGammaVal, gammaBuf);
 
     // WB row — two half-width sliders, tighter geometry
@@ -2349,6 +2626,31 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         GetWindowLongW(m_btnRecord, GWL_STYLE) & ~BS_PUSHBUTTON | BS_OWNERDRAW);
     SetWindowTheme(m_btnRecord, L"", L"");
     y += BH + 10;
+
+    // ── Phase 98: the recording timer ──────────────────────────
+    //
+    // The owner asked for a timer on the recording. One had been
+    // WRITTEN -- UpdateCaptureStatus formats "REC mm:ss" and the
+    // frames-against-limit line -- and it was dead twice over: it had
+    // no callers at all, AND its first statement is
+    // `if (!m_lblRecStatus) return;` while these two labels were
+    // declared and never created. So it would have aborted on its
+    // first line even if something had called it.
+    //
+    // That same dead function is also why the RECORD button stuck:
+    // it is the only thing that invalidated the owner-drawn button on
+    // a state change, so a run that stopped on its own frame limit
+    // left the button showing STOP RECORDING forever. One dead
+    // function, two reported symptoms.
+    //
+    // Both labels now exist, directly under the button they describe.
+    m_lblRecStatus = MakeValueLabel(L"IDLE", x, y, w, SH + 4,
+                                    ID_LBL_REC_STATUS);
+    TagControl(m_lblRecStatus, Section::Capture);
+    y += SH + 5;
+    m_lblRecFrames = MakeValueLabel(L"", x, y, w, SH, ID_LBL_REC_FRAMES);
+    TagControl(m_lblRecFrames, Section::Capture);
+    y += SH + 3;
     } // end Capture
 
     // ── NOTES ────────────────────────────────────────────────────

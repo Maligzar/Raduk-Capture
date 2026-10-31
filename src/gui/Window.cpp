@@ -454,7 +454,22 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             // screen, so the first can stay maximised on a screen other
             // people are looking at. Same letter rather than a new one,
             // like every other Shift+<letter> window on this desk.
+            //
+            // Ctrl+Shift+M starts or stops a MOSAIC (phase 97.5), on
+            // the same letter for the same reason. Deliberately a
+            // three-key chord and not a plain letter: it begins an
+            // unattended sequence that moves the telescope for eight
+            // minutes, and that is not something to reach by a stray
+            // keypress while reaching for something else.
+            //
+            // The same chord stops it, so whoever started it does not
+            // have to find a different key under pressure.
             if (shift) {
+                const bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+                if (ctrl) {
+                    if (firstPress && m_onMosaicToggle) m_onMosaicToggle();
+                    return true;
+                }
                 if (firstPress && m_onSkyMap2Toggle) m_onSkyMap2Toggle();
                 return true;
             }

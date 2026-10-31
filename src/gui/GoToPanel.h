@@ -36,6 +36,8 @@
 #include "../sky/ASTAPSolver.h"
 #include "../sky/PushTo.h"
 #include "../sky/MosaicPlan.h"
+#include "../sky/MosaicRunner.h"
+#include <chrono>
 #include "../sky/PointingModel.h"
 #include "../core/IMount.h"
 #include "../core/FrameSlot.h"
@@ -82,6 +84,18 @@ public:
     // the tracker and the window are, without GoToPanel knowing
     // anything about cables.
     void SetPreSlewCheck(std::function<bool(double,double)> cb) { m_preSlew = cb; }
+
+    // ── Phase 97.5: mosaic execution ───────────────────────────
+    //
+    // The panel drives the mount; main.cpp owns the recorder, so the
+    // two capture edges come back out as callbacks. Supplying them is
+    // what ENABLES mosaics: without them StartMosaic refuses rather
+    // than slewing eighteen times and recording nothing.
+    void SetMosaicCapture(std::function<bool(int ordinal, int total)> begin,
+                          std::function<void()> end) {
+        m_mosaicBegin = begin;
+        m_mosaicEnd   = end;
+    }
 
     void SetSyncCallback(std::function<void(double,double)> cb)
         { m_onSync = cb; }
@@ -456,7 +470,166 @@ public:
 
         PushToTick();
         WcsTick();
+        MosaicTick();
     }
+
+    // ── Phase 97.5: the mosaic loop ────────────────────────────
+    //
+    // Driven from Tick() like everything else on this panel, so it
+    // runs on the UI thread and needs no synchronisation with the
+    // slew status it reads.
+    //
+    // The runner itself is a pure state machine in
+    // src/sky/MosaicRunner.h and is fully tested there. This is only
+    // the plumbing: a clock, the target's live position, the mount's
+    // own slewing answer, and the two capture edges.
+    void MosaicTick() {
+        if (!m_mosaic.Running()) {
+            // Report the ending once, then stop talking about it.
+            if (m_mosaicWasRunning) {
+                m_mosaicWasRunning = false;
+                if (m_onLog) {
+                    char b[200];
+                    const char* how =
+                        m_mosaic.State() == raduk::sky::MosaicRunner::Phase::Complete
+                            ? "complete"
+                        : m_mosaic.State() == raduk::sky::MosaicRunner::Phase::Aborted
+                            ? "stopped" : "FAILED";
+                    snprintf(b, sizeof(b), "Mosaic %s: %d of %d panels%s%s",
+                             how, m_mosaic.Captured(), m_mosaic.Total(),
+                             m_mosaic.Reason().empty() ? "" : " - ",
+                             m_mosaic.Reason().c_str());
+                    m_onLog(b);
+                }
+                SetStatus(L"Mosaic finished");
+            }
+            return;
+        }
+        if (!m_mount) { m_mosaic.Abort("mount went away"); return; }
+
+        // The target's position NOW, not where it was when the mosaic
+        // started. This is the whole design of the runner: with it the
+        // last panel is aimed at where the Moon is, and the 272 arcsec
+        // of cumulative drift phase 97 measured simply does not
+        // accumulate.
+        double ra = m_mosaicRa, dec = m_mosaicDec;
+        const auto live = raduk::sky::PlanetApparentSizeAt(
+                              m_mosaicTarget, raduk::sky::CurrentJD());
+        if (live.valid) LiveTargetRaDec(m_mosaicTarget, ra, dec);
+
+        const double now = NowSeconds();
+        const auto a = m_mosaic.Tick(now, ra, dec, m_mount->IsSlewing());
+
+        using A = raduk::sky::MosaicRunner::Action;
+        switch (a.kind) {
+        case A::Slew:
+            // The cord-wrap veto applies to every slew a mosaic makes,
+            // not only the first. Eighteen unattended slews is exactly
+            // the situation phase 67's guard was written for, and a
+            // mosaic that ignored it would be the one caller allowed
+            // to wrap the cord.
+            if (m_preSlew && !m_preSlew(a.raHours, a.decDeg)) {
+                m_mosaic.Abort("cord wrap");
+                break;
+            }
+            m_mount->GoToRADec(a.raHours, a.decDeg);
+            break;
+        case A::BeginCapture: {
+            if (!m_mosaicBegin || !m_mosaicBegin(a.ordinal, m_mosaic.Total())) {
+                m_mosaic.Abort("could not start recording");
+                break;
+            }
+            wchar_t w[96];
+            swprintf(w, 96, L"Mosaic panel %d of %d",
+                     a.ordinal, m_mosaic.Total());
+            SetStatus(w);
+            break;
+        }
+        case A::EndCapture:
+            if (m_mosaicEnd) m_mosaicEnd();
+            break;
+        default: break;
+        }
+    }
+
+    // Start a mosaic of the named target. Refuses rather than
+    // half-starting: every reason it can decline is reported, because
+    // a mosaic that silently does not begin looks exactly like one
+    // that is about to.
+    bool StartMosaic(const std::string& name) {
+        auto decline = [&](const char* why) {
+            if (m_onLog) {
+                char b[200];
+                snprintf(b, sizeof(b), "Mosaic not started: %s", why);
+                m_onLog(b);
+            }
+            return false;
+        };
+        if (m_mosaic.Running())        return decline("one is already running");
+        if (!m_mount || !m_mount->IsConnected()) return decline("no mount");
+        if (!m_mosaicBegin || !m_mosaicEnd)
+            return decline("no recorder wired up");
+        if (m_lastFrameW == 0 || m_lastFrameH == 0)
+            return decline("no frame yet, so no field of view");
+
+        const auto sz = raduk::sky::PlanetApparentSizeAt(
+                            name, raduk::sky::CurrentJD());
+        if (!sz.valid) return decline("target has no measurable disc");
+
+        raduk::sky::MosaicRunner::Config c;
+        c.fov = raduk::sky::FrameFov((int)m_lastFrameW, (int)m_lastFrameH,
+                    raduk::core::RigConfig::Get().plateScaleArcsecPx);
+        c.targetArcmin = sz.framingArcsec / 60.0;
+        c.plan = raduk::sky::PlanMosaic(c.targetArcmin, c.fov, MOSAIC_OVERLAP);
+        c.captureSec = MOSAIC_CAPTURE_SEC;
+        c.settleSec  = MOSAIC_SETTLE_SEC;
+        m_mosaic.Configure(c);
+        if (m_mosaic.Total() <= 0) return decline("nothing to capture");
+
+        m_mosaicTarget = name;
+        LiveTargetRaDec(name, m_mosaicRa, m_mosaicDec);
+        m_mosaic.Start(NowSeconds());
+        if (m_mosaic.State() == raduk::sky::MosaicRunner::Phase::Failed)
+            return decline(m_mosaic.Reason().c_str());
+
+        m_mosaicWasRunning = true;
+        // The framing report, so the operator sees what they are
+        // committing to at the moment they commit to it.
+        ReportFraming(name);
+        if (m_onLog) {
+            char b[160];
+            snprintf(b, sizeof(b), "Mosaic started: %d panels, at least"
+                     " %.1f minutes.", m_mosaic.Total(),
+                     m_mosaic.SecondsRemaining(NowSeconds()) / 60.0);
+            m_onLog(b);
+        }
+        return true;
+    }
+
+    void AbortMosaic() {
+        if (m_mosaic.Running()) m_mosaic.Abort("stopped by the operator");
+    }
+    bool MosaicRunning() const { return m_mosaic.Running(); }
+
+private:
+    // A monotonic second count. steady_clock, not the wall clock: a
+    // mosaic is a stopwatch and an NTP correction mid-run must not
+    // make a settle last an hour or end instantly.
+    static double NowSeconds() {
+        using namespace std::chrono;
+        return duration<double>(
+            steady_clock::now().time_since_epoch()).count();
+    }
+
+    // Where the target is now. The catalogue is updated every Tick by
+    // UpdatePlanets, so this reads the same position everything else
+    // on the panel does.
+    void LiveTargetRaDec(const std::string& name, double& ra, double& dec) {
+        for (const auto& o : m_catalog.Objects())
+            if (o.name == name) { ra = o.ra; dec = o.dec; return; }
+    }
+
+public:
 
     // Phase 47b: hand the last solve to whoever draws the cursor.
     void WcsTick() {
@@ -2521,6 +2694,15 @@ private:
 
     // Callbacks
     std::function<void(const std::string&)> m_onGoToComplete;
+
+    // Phase 97.5: mosaic execution. The runner is a pure state
+    // machine; these are the handles the panel holds for it.
+    raduk::sky::MosaicRunner m_mosaic;
+    std::string m_mosaicTarget;
+    double m_mosaicRa = 0.0, m_mosaicDec = 0.0;
+    bool   m_mosaicWasRunning = false;
+    std::function<bool(int,int)> m_mosaicBegin;
+    std::function<void()>        m_mosaicEnd;
     std::function<void(const std::string&)> m_onProfileAutoLoad;
     std::function<void(const std::string&)> m_onLog;
     std::function<bool(double,double)>  m_preSlew;   // cord-wrap guard

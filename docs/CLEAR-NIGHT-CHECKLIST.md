@@ -744,6 +744,33 @@ not the same as having done it.
    that, the fix would drift Jupiter out at 0.55″/s — a bug introduced
    by the repair.
 
+### Running one (97.5)
+
+`Ctrl+Shift+M` starts a mosaic of the current target; the same chord
+stops it. It will refuse, and say why, if there is no mount, no frame
+yet, or the target has no measurable disc.
+
+**Do the first one on a short target.** Pick something that needs three
+or four panels rather than eighteen, so a problem costs a minute
+instead of eight.
+
+1. **Watch panel 1 finish, then panel 2 begin.** The log says
+   `[MOSAIC] panel N of M recording`. Each panel is its own file.
+2. **The thing to look for: do the panels actually MOVE?** The one
+   failure that does not announce itself is a runner that believes a
+   slew finished before it started and captures the same patch every
+   time, producing a complete-looking mosaic of one panel repeated.
+   There is a guard with a 1.5 s minimum and a test for it, but the
+   only proof is eighteen files that differ.
+3. **Press `Ctrl+Shift+M` mid-capture.** It should stop, and the file
+   in progress should still be closed properly rather than left half
+   written.
+4. **Check the last panel against the first.** Over eight minutes the
+   Moon moves 4.6 arcmin, and the runner recomputes every panel
+   against where it is *now* — so the last panel should be correctly
+   placed on the Moon, not 4.6 arcmin off it. If it is off, the live
+   position is not reaching `Tick`.
+
 ### The real unknown: settle time
 
 The 8.3-minute figure assumes **20 s of capture and 8 s of settle per

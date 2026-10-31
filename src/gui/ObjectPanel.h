@@ -167,6 +167,78 @@ inline std::string TypeName(const std::string& t, const std::string& sub) {
     return t.empty() ? std::string() : t;
 }
 
+
+// ── Fitting body text to a box ─────────────────────────────────
+//
+// Phase 103. The object panel had an EstimateHeight member that was
+// never called from anywhere, and whose comment ended "the text is
+// clipped to the rect either way". That claim is false, and it is why
+// Jupiter's narrative ran off the bottom of the window: a layout rect
+// passed to ID2D1RenderTarget::DrawText governs wrapping and
+// alignment, not clipping. Glyphs past the rect's height are still
+// drawn unless D2D1_DRAW_TEXT_OPTIONS_CLIP is passed, and nothing
+// passed it.
+//
+// So the panel had the function that would have prevented the overflow
+// and the comment asserting the safety it did not have, and neither
+// did anything. These are the arithmetic, pulled out where a test can
+// reach them.
+//
+// An estimate, not a measurement: the body face is proportional, so
+// this works from an average advance. That is the right trade for
+// choosing a size -- a measured layout per candidate size would mean
+// building and discarding a DWrite layout several times per frame to
+// decide something a reader cannot perceive to the pixel. It errs on
+// the side of predicting MORE height than the text takes, because
+// being wrong that way shrinks the text slightly and being wrong the
+// other way puts it through the bottom of the window.
+
+// Average glyph advance as a fraction of the em, and line height as a
+// multiple of it. Measured for the panel's body face at the sizes it
+// uses; see tests/object_panel_fit.cpp.
+inline constexpr float BODY_ADVANCE_EM = 0.47f;
+inline constexpr float BODY_LINE_EM    = 1.30f;
+
+// Never go below this for narrative text. The panel is read from
+// across a room, and text too small to read from there is no better
+// than text that is not on screen.
+inline constexpr float BODY_FLOOR_PX = 11.0f;
+
+inline float EstimatedLines(size_t chars, float width, float bodyPx) {
+    const float charW = bodyPx * BODY_ADVANCE_EM;
+    if (charW <= 0.0f || width <= 0.0f) return 1.0f;
+    // A column narrower than eight characters is not a column; the
+    // floor keeps a pathological width from predicting thousands of
+    // lines and collapsing the font to the minimum.
+    const float perLine = (std::max)(8.0f, width / charW);
+    const float lines = std::ceil((float)chars / perLine);
+    return (std::max)(1.0f, lines);
+}
+
+inline float EstimatedHeight(size_t chars, float width, float bodyPx) {
+    return bodyPx * BODY_LINE_EM * EstimatedLines(chars, width, bodyPx);
+}
+
+// The largest body size at or below want whose text is estimated to
+// fit boxH, never below floorPx.
+//
+// Returns floorPx when even that does not fit, rather than something
+// smaller: at that point the text genuinely cannot fit and the honest
+// outcome is readable text that is clipped, not unreadable text that
+// is complete. Clipping is now real, so the caller's rect holds.
+inline float FitBodyPx(size_t chars, float width, float boxH,
+                       float want, float floorPx = BODY_FLOOR_PX) {
+    if (chars == 0 || width <= 0.0f || boxH <= 0.0f) return want;
+    if (want <= floorPx) return floorPx;
+    if (EstimatedHeight(chars, width, want) <= boxH) return want;
+    // Walk down in whole pixels. The range is at most a few dozen
+    // steps and this runs once per draw of one panel, so there is
+    // nothing to gain from bisecting and a readable loop to lose.
+    for (float px = std::floor(want); px >= floorPx; px -= 1.0f)
+        if (EstimatedHeight(chars, width, px) <= boxH) return px;
+    return floorPx;
+}
+
 } // namespace objectpanel
 
 class ObjectPanel {
@@ -402,6 +474,8 @@ private:
         if (m_fLabel) { m_fLabel->Release(); m_fLabel = nullptr; }
         if (m_fValue) { m_fValue->Release(); m_fValue = nullptr; }
         if (m_fBody)  { m_fBody->Release();  m_fBody  = nullptr; }
+        if (m_fBodyFit) { m_fBodyFit->Release(); m_fBodyFit = nullptr; }
+        m_fBodyFitPx = 0.0f;
         if (m_rt)     { m_rt->Release();     m_rt     = nullptr; }
         // Last: MakeFonts creates the formats through it, and the sky
         // map crashed on every launch once for getting this order wrong.
@@ -440,6 +514,8 @@ private:
         if (m_fLabel) { m_fLabel->Release(); m_fLabel = nullptr; }
         if (m_fValue) { m_fValue->Release(); m_fValue = nullptr; }
         if (m_fBody)  { m_fBody->Release();  m_fBody  = nullptr; }
+        if (m_fBodyFit) { m_fBodyFit->Release(); m_fBodyFit = nullptr; }
+        m_fBodyFitPx = 0.0f;
 
         auto mk = [&](const wchar_t* face, DWRITE_FONT_WEIGHT w, float size,
                       IDWriteTextFormat** out) {
@@ -471,21 +547,47 @@ private:
               DWRITE_TEXT_ALIGNMENT al = DWRITE_TEXT_ALIGNMENT_LEADING) {
         if (!f || s.empty()) return;
         f->SetTextAlignment(al);
+        // Phase 103: D2D1_DRAW_TEXT_OPTIONS_CLIP. Without it the
+        // layout rect sets wrapping and alignment only, and anything
+        // taller than the rect is still drawn -- which is how the
+        // narrative got out of the panel entirely.
         m_rt->DrawText(s.c_str(), (UINT32)s.size(), f,
-                       D2D1::RectF(x, y, x + w, y + h), Brush(c, alpha));
+                       D2D1::RectF(x, y, x + w, y + h), Brush(c, alpha),
+                       D2D1_DRAW_TEXT_OPTIONS_CLIP);
     }
 
-    // Enough to decide where the next block starts. The body font is
+    // Enough to decide where the next block starts. The body face is
     // proportional, so this estimates from an average advance rather
-    // than measuring -- good enough to lay two paragraphs out, and the
-    // text is clipped to the rect either way.
+    // than measuring.
+    //
+    // Phase 103: this had no callers at all, and its comment used to
+    // end "the text is clipped to the rect either way", which was
+    // false and was the whole reason Jupiter's narrative left the
+    // window. Text() passes D2D1_DRAW_TEXT_OPTIONS_CLIP now, so the
+    // claim is true -- and the narrative is sized to fit before it
+    // gets there, so clipping is the backstop rather than the plan.
+    //
+    // The arithmetic moved to namespace objectpanel where a test can
+    // reach it. m_bodyPx is the size the body text is actually drawn
+    // at; the old m_fontPx * 0.80f was that same number before
+    // m_bodyPx existed to hold it, and kept its own copy of the 0.80.
     float EstimateHeight(const std::string& text, float width) const {
-        const float charW = m_fontPx * 0.80f * 0.47f;
-        const float lineH = m_fontPx * 0.80f * 1.30f;
-        if (charW <= 0.0f || width <= 0.0f) return lineH;
-        const float perLine = width / charW;
-        const float lines = std::ceil((float)text.size() / (std::max)(8.0f, perLine));
-        return lineH * (std::max)(1.0f, lines);
+        return objectpanel::EstimatedHeight(text.size(), width, m_bodyPx);
+    }
+
+    // A body format at a size chosen to fit, cached so a steady target
+    // does not rebuild it every frame.
+    IDWriteTextFormat* BodyAt(float px) {
+        if (px >= m_bodyPx - 0.5f) return m_fBody;      // the normal size
+        if (m_fBodyFit && std::fabs(px - m_fBodyFitPx) < 0.5f)
+            return m_fBodyFit;
+        if (m_fBodyFit) { m_fBodyFit->Release(); m_fBodyFit = nullptr; }
+        if (!m_dwrite) return m_fBody;
+        m_dwrite->CreateTextFormat(Theme::FONT_LABEL, nullptr,
+            DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL, px, L"en-us", &m_fBodyFit);
+        m_fBodyFitPx = px;
+        return m_fBodyFit ? m_fBodyFit : m_fBody;
     }
 
     static std::wstring W(const std::string& s) {
@@ -512,6 +614,16 @@ private:
 
         m_rt->BeginDraw();
         DrawBackdrop();
+
+        // Phase 103: the backstop. Every text block is sized to fit
+        // and clipped to its own rect now, but this is the one surface
+        // an audience looks at, and a glyph outside the window is the
+        // kind of thing nobody notices until it is on a screen in
+        // front of people. One clip over the whole panel means no
+        // future block can get out, whatever it forgets to pass.
+        m_rt->PushAxisAlignedClip(
+            D2D1::RectF(0.0f, 0.0f, (float)m_w, (float)m_h),
+            D2D1_ANTIALIAS_MODE_ALIASED);
 
         const auto& r = m_content.rec;
         // Tokens, so 96.1's night ladder reaches this surface. It did
@@ -729,12 +841,33 @@ private:
                 const float gut = m_fontPx * 1.4f;
                 const float cw2 = aside.empty() ? colW
                                                 : (colW - gut) * 0.5f;
+                const float rightH = (float)m_h - yRight - pad;
 
-                Text(m_fBody, W(r.summary), pad, yLeft, cw2, left,
+                // Phase 103. This is what ran off the bottom of the
+                // window. Both columns were drawn at the full body
+                // size into whatever height happened to be left, and
+                // nothing clipped, so a long narrative carried on past
+                // the edge. Jupiter has the longest summary and a
+                // mythology beside it, so it had the most to spill.
+                //
+                // Both columns take the SAME fitted size, the smaller
+                // of the two each needs. Sizing them independently
+                // would put two different body sizes side by side,
+                // which reads as a mistake even when both fit.
+                const float fit =
+                    (std::min)(objectpanel::FitBodyPx(r.summary.size(),
+                                                      cw2, left, m_bodyPx),
+                               aside.empty()
+                                   ? m_bodyPx
+                                   : objectpanel::FitBodyPx(aside.size(),
+                                                 cw2, rightH, m_bodyPx));
+                IDWriteTextFormat* bf = BodyAt(fit);
+
+                Text(bf, W(r.summary), pad, yLeft, cw2, left,
                      fg, alpha * 0.92f);
                 if (!aside.empty())
-                    Text(m_fBody, W(aside), pad + cw2 + gut, yRight, cw2,
-                         (float)m_h - yRight - pad, ac, alpha * 0.85f);
+                    Text(bf, W(aside), pad + cw2 + gut, yRight, cw2,
+                         rightH, ac, alpha * 0.85f);
             }
         } else if (derived.empty() && !r.found) {
             // Nothing at all is known. Say that plainly rather than
@@ -743,6 +876,7 @@ private:
                  m_fontPx * 2.0f, dim, alpha);
         }
 
+        m_rt->PopAxisAlignedClip();
         HRESULT hr = m_rt->EndDraw();
         if (hr == D2DERR_RECREATE_TARGET) { ReleaseD2D(); InitD2D(); }
     }
@@ -972,6 +1106,8 @@ private:
     bool  m_full = false;
     bool  m_wantFull = true;
     bool  m_fading = false;
+    IDWriteTextFormat*     m_fBodyFit   = nullptr;  // narrative, fitted
+    float                  m_fBodyFitPx = 0.0f;
     std::chrono::steady_clock::time_point m_fadeStart{};
     WINDOWPLACEMENT m_savedPlacement = { sizeof(WINDOWPLACEMENT) };
     Content m_content;

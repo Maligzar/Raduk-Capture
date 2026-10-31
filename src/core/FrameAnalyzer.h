@@ -25,6 +25,7 @@
 #include <chrono>
 #include <windows.h>
 #include "Sharpness.h"
+#include "StarMetrics.h"
 
 namespace raduk::core {
 
@@ -127,6 +128,24 @@ struct AnalysisResult {
     // ── Sharpness / seeing ─────────────────────────────────────
     float sharpnessPct = 0.0f;   // Laplacian variance 0-100%
     float sharpRaw     = 0.0f;   // diagnostic: variance before noise subtraction
+
+    // ── Star focus metrics (phase 95) ─────────────────────────
+    //
+    // The Laplacian variance above is a planetary metric: blur a disc
+    // and only its limb moves. On a star it barely responds, because a
+    // point source has no edge. These are the star answers.
+    //
+    // starValid is false unless star mode is ON and a star was
+    // actually measured. It is not "no star found" by default -- it is
+    // "this question was not asked", and the two must not look alike:
+    // a planetary session reporting an HFD of 90 px would be reporting
+    // the planet's diameter as a focus error.
+    bool  starValid = false;
+    float hfdPx     = 0.0f;      // half flux diameter, raw sensor px
+    float fwhmPx    = 0.0f;      // 0 unless fwhmValid
+    bool  fwhmValid = false;     // false on a defocused annulus, by design
+    float starSnr   = 0.0f;
+    int   starSaturated = 0;
     float sharpNoise   = 0.0f;   // diagnostic: the subtracted noise term
     float seeingScore  = 0.0f;   // rolling 1-10
 
@@ -258,6 +277,21 @@ inline std::string BalanceAdvice(const AnalysisResult& a) {
 
 class FrameAnalyzer {
 public:
+
+    // ── Phase 95: ask the star question, or do not ────────────
+    //
+    // Off by default, and that default is the honest one. A star
+    // metric computed on a planetary disc returns a number -- the
+    // disc's own diameter -- and nothing about it looks wrong. On this
+    // rig Jupiter is about 160 px across and a focused star about 3,
+    // so an HFD of 160 reported as a focus figure reads as
+    // catastrophic defocus.
+    //
+    // So the caller has to say. main.cpp knows what the scope is
+    // pointed at, from the profile name against the bright-star
+    // catalogue; this class never will.
+    void SetStarMode(bool on) { m_starMode.store(on); }
+    bool StarMode() const     { return m_starMode.load(); }
     FrameAnalyzer() = default;
     ~FrameAnalyzer() { Stop(); }
 
@@ -314,6 +348,8 @@ private:
     float                m_lastCentroidY     = -1.0f;
     bool                 m_lastCentroidValid = false;
 
+    // Phase 95: off by default. See SetStarMode.
+    std::atomic<bool>    m_starMode{false};
     std::deque<float>    m_sharpHistory; // deque: O(1) pop_front vs O(N) vector erase
 };
 

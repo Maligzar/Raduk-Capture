@@ -281,6 +281,41 @@ void FrameAnalyzer::Run() {
             r.sharpNoise = (float)dbgNoise;
             if (variance > 0.0)
                 r.sharpnessPct = SharpnessPercent(variance);
+
+            // ── Phase 95: the star answer, when asked for ───────
+            //
+            // Only when star mode is on. A star metric on a planetary
+            // disc returns the disc's diameter and looks entirely
+            // healthy doing it: on this rig Jupiter is about 160 px
+            // across and a focused star about 3, so an HFD of 160
+            // reported as a focus figure reads as catastrophic
+            // defocus. The caller says which question to ask.
+            //
+            // The aperture is the same 128 px half-crop the variance
+            // uses, so the two metrics are measuring the same region
+            // and the sky annulus sits just outside it. Wide enough to
+            // hold the wings a long way off focus: at the derived
+            // 0.0228 px/step, 128 px covers about 5600 steps, well
+            // past autofocus's +/-3000 sweep.
+            if (m_starMode.load()) {
+                const float apPx = 128.0f;
+                const raduk::core::SkyEstimate sky =
+                    raduk::core::EstimateSky(buf.data(), w, h, bd,
+                                             (float)cx, (float)cy,
+                                             apPx + 16.0f, apPx + 64.0f);
+                const raduk::core::StarMeasurement sm =
+                    raduk::core::MeasureStar(buf.data(), w, h, bd,
+                                             (float)cx, (float)cy,
+                                             apPx, sky);
+                if (sm.valid) {
+                    r.starValid     = true;
+                    r.hfdPx         = sm.hfdPx;
+                    r.fwhmPx        = sm.fwhmPx;
+                    r.fwhmValid     = sm.fwhmValid;
+                    r.starSnr       = sm.snr;
+                    r.starSaturated = sm.saturated;
+                }
+            }
         }
 
         // ── Rolling seeing score ────────────────────────────────

@@ -907,3 +907,31 @@ For contrast, so this list is not read as "nothing works":
     stop. Before this the stop cleared the button and told the tracker
     nothing, so the thing issuing corrections carried on while the UI
     read off.
+
+25. **The GoTo, help and AI chat windows keep a closed state** (phase
+    101b). These three were the ones the restore never held, because a
+    loop in the startup wiring force-showed them unconditionally long
+    after the restore pass had run. Close all three, press
+    Ctrl+Shift+End, restart: all three should stay closed. Then delete
+    the layout file and restart: all three should come back open, which
+    is the first-run default and is deliberate.
+
+    The log now says which pass did what. Look for two
+    `[LAYOUT] panel state` lines, one `(startup)` and one `(final)`.
+    The `(final)` pass should be a no-op; if it reports a panel
+    changing state, something added during startup is still fighting
+    the restore and the log now names it.
+
+26. **Jupiter's info panel stays inside the window** (phase 103). Put
+    Jupiter on the object panel. Its narrative used to run off the
+    bottom of the screen; it should now sit wholly inside the panel, at
+    a slightly smaller body size than a short target like a star gets.
+    Check a couple of others for comparison -- Saturn and M42 have long
+    narratives too, and a star has almost none, which should still be
+    drawn at the full size.
+
+    Two separate things are being checked. The text should FIT, which
+    is the sizing; and nothing should be drawn outside the panel even
+    if it does not fit, which is the clip. To see the clip on its own,
+    make the window very short: the text should be cut off cleanly at
+    the edge rather than spilling over it.

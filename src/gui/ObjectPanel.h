@@ -46,6 +46,7 @@
 #include <chrono>
 #include <algorithm>
 #include "Theme.h"
+#include "AudienceLayout.h"
 #include "../core/ObjectKnowledgeDB.h"
 #include "../sky/SkyObject.h"
 
@@ -324,8 +325,45 @@ private:
     // a screen and believes, so they are gated like the histogram's
     // numbers and the sky conditions. Call sites qualify them.
 
-    // One accent colour per kind of thing, so the screen's colour
-    // means something too.
+    // ── The accent, and what it is allowed to mean ──────────
+    //
+    // One hue per kind of thing, in DAY mode, where it is a pleasant
+    // redundancy: the kind is also written out in words directly
+    // under the title, so nobody depends on the colour.
+    //
+    // In night vision it cannot mean anything, and worse, it was
+    // breaking the ladder. These hues are not palette tokens, so
+    // NightLuminance falls through to the derived value. Measured,
+    // all six:
+    //
+    //     Satellite  217      Star     201      default  203
+    //     Planet     192      Galaxy   192      Nebula   165
+    //
+    // TEXT -- primary readouts, the brightest thing on here that is
+    // not a warning -- is designed at 200. So three of the six
+    // accents come out brighter than the headline they sit under,
+    // the Moon's by seventeen units. None reaches the 240 that 96.1
+    // reserved for danger, so this is a smaller inversion than the
+    // one that phase fixed, but it is the same kind: a content
+    // accent reading louder than primary text because nobody
+    // decided it should.
+    //
+    // So in night vision the accent IS a token. The hue is already
+    // redundant and the mode collapses all six to within 52 units
+    // of each other regardless; taking ACCENT puts it back inside
+    // the ladder at 140, between the live-mount green above and the
+    // secondary amber below, which is the right band for a content
+    // accent.
+    //
+    // Returns UNTINTED channels: every call site here goes through
+    // Brush(), which applies NVf itself, and tinting twice is not a
+    // no-op (see Theme::Raw).
+    D2D1_COLOR_F AccentPainted() const {
+        if (Theme::NightVisionOn()) return Theme::Raw(Theme::ACCENT);
+        return Accent();
+    }
+
+    // The day hue, for the backdrop gradient's channels.
     D2D1_COLOR_F Accent() const {
         const std::string& t = m_content.rec.type;
         if (t == "Planet")    return D2D1::ColorF(1.00f, 0.72f, 0.35f);
@@ -369,13 +407,34 @@ private:
         // map crashed on every launch once for getting this order wrong.
         if (m_dwrite) { m_dwrite->Release(); m_dwrite = nullptr; }
         m_fontPx = 0.0f;
+        m_bodyPx = 0.0f;
     }
 
+    // ── Phase 96.3: five invented ratios become five steps ──
+    //
+    // This surface had its own set -- 2.9, 0.95, 0.52, 1.05, 0.80 --
+    // and the share view, same room and same audience, had invented
+    // 1.0 and 0.42 for the same jobs. Neither knew about the other,
+    // so the two screens pointed at the same crowd agreed on not one
+    // single size.
+    //
+    // The body size is the anchor, because the narrative columns and
+    // EstimateHeight are laid out against it and that layout is
+    // right. Everything else is derived from it through Theme::Type.
+    //
+    // What that changes: the labels grow (0.52 em of all-caps mono,
+    // read from three metres back, was below the ramp's smallest
+    // step for a reason), the figures grow, and the title does not
+    // move -- Type::DISPLAY exists precisely so it would not.
     void MakeFonts() {
         if (!m_dwrite) return;
         const float px = (std::max)(14.0f, (std::min)(44.0f, (float)m_h / 26.0f));
         if (m_fTitle && px == m_fontPx) return;
         m_fontPx = px;
+        // The tuned body size, kept -- floored at the ramp's anchor,
+        // below which the scaled steps compress back under MIN_STEP
+        // and the ramp stops being one.
+        m_bodyPx = (std::max)((float)Theme::Type::BODY, px * 0.80f);
         if (m_fTitle) { m_fTitle->Release(); m_fTitle = nullptr; }
         if (m_fKind)  { m_fKind->Release();  m_fKind  = nullptr; }
         if (m_fLabel) { m_fLabel->Release(); m_fLabel = nullptr; }
@@ -387,11 +446,17 @@ private:
             m_dwrite->CreateTextFormat(face, nullptr, w, DWRITE_FONT_STYLE_NORMAL,
                 DWRITE_FONT_STRETCH_NORMAL, size, L"en-us", out);
         };
-        mk(L"Barlow Condensed", DWRITE_FONT_WEIGHT_BOLD,   px * 2.9f, &m_fTitle);
-        mk(L"Barlow Condensed", DWRITE_FONT_WEIGHT_NORMAL, px * 0.95f, &m_fKind);
-        mk(L"Space Mono",       DWRITE_FONT_WEIGHT_NORMAL, px * 0.52f, &m_fLabel);
-        mk(L"Barlow Condensed", DWRITE_FONT_WEIGHT_BOLD,   px * 1.05f, &m_fValue);
-        mk(L"Barlow Condensed", DWRITE_FONT_WEIGHT_NORMAL, px * 0.80f, &m_fBody);
+        namespace T = Theme::Type;
+        mk(Theme::FONT_LABEL, DWRITE_FONT_WEIGHT_BOLD,
+           T::Scaled(m_bodyPx, T::S_DISPLAY), &m_fTitle);
+        mk(Theme::FONT_LABEL, DWRITE_FONT_WEIGHT_NORMAL,
+           T::Scaled(m_bodyPx, T::S_STRONG),  &m_fKind);
+        mk(Theme::FONT_DATA,  DWRITE_FONT_WEIGHT_NORMAL,
+           T::Scaled(m_bodyPx, T::S_MICRO),   &m_fLabel);
+        mk(Theme::FONT_LABEL, DWRITE_FONT_WEIGHT_BOLD,
+           T::Scaled(m_bodyPx, T::S_TITLE),   &m_fValue);
+        mk(Theme::FONT_LABEL, DWRITE_FONT_WEIGHT_NORMAL,
+           T::Scaled(m_bodyPx, T::S_BODY),    &m_fBody);
     }
 
     ID2D1SolidColorBrush* Brush(D2D1_COLOR_F c, float alpha) {
@@ -449,9 +514,15 @@ private:
         DrawBackdrop();
 
         const auto& r = m_content.rec;
-        const D2D1_COLOR_F ac = Accent();
-        const D2D1_COLOR_F fg = D2D1::ColorF(0.92f, 0.95f, 0.98f);
-        const D2D1_COLOR_F dim = D2D1::ColorF(0.55f, 0.65f, 0.75f);
+        // Tokens, so 96.1's night ladder reaches this surface. It did
+        // not before: every colour on here was a literal, which falls
+        // through NightLuminance to the DERIVED value and so sits
+        // wherever the arithmetic puts it rather than where the
+        // design says. The old dim literal (0.55, 0.65, 0.75)
+        // derived to 164; TEXT_DIM's designed value is 80.
+        const D2D1_COLOR_F ac  = AccentPainted();
+        const D2D1_COLOR_F fg  = Theme::Raw(Theme::TEXT);
+        const D2D1_COLOR_F dim = Theme::Raw(Theme::TEXT_DIM);
 
         const float pad = (std::max)(28.0f, (float)m_w / 22.0f);
         const float colW = (float)m_w - pad * 2.0f;
@@ -480,8 +551,10 @@ private:
             if (!r.name.empty() && r.name != title &&
                 m_content.target.find(r.name) == std::string::npos)
                 kind += kind.empty() ? r.name : "  ·  " + r.name;
-            Text(m_fKind, W(kind), pad, y, colW, m_fontPx * 1.4f, ac, alpha);
-            y += m_fontPx * 1.5f;
+            Text(m_fKind, W(kind), pad, y, colW,
+                 Theme::Type::Scaled(m_bodyPx, Theme::Type::S_STRONG) * 1.5f,
+                 ac, alpha);
+            y += Theme::Type::Scaled(m_bodyPx, Theme::Type::S_STRONG) * 1.6f;
         }
 
         // Accent rule under the headline.
@@ -526,16 +599,46 @@ private:
             char b[32]; snprintf(b, sizeof(b), "%.2f", m_content.airmass);
             figs.push_back({ "AIR MASSES", b });
         }
+        // ── The figures, as cards ──────────────────────────
+        //
+        // These were four bare label-and-value pairs laid out by
+        // dividing the column and subtracting eight pixels, with
+        // nothing between them. Which value belongs to which label
+        // was left to the reader's eye, and the reader is a stranger
+        // at three metres in the dark.
+        //
+        // Giving each figure a surface fixes that by making it an
+        // object, and it is the place on either audience surface
+        // where depth does the most work -- the single biggest thing
+        // the reference clients have that this did not. The gutter is
+        // the shared rhythm rather than a literal, and the geometry
+        // is audience::CardInRow so a test can check that one card
+        // and five both come out right.
         if (!figs.empty()) {
-            const float cw = colW / (float)figs.size();
-            for (size_t i = 0; i < figs.size(); i++) {
-                const float fx = pad + cw * (float)i;
-                Text(m_fLabel, W(figs[i].label), fx, y, cw - 8.0f,
-                     m_fontPx * 0.8f, dim, alpha);
-                Text(m_fValue, W(figs[i].value), fx, y + m_fontPx * 0.72f,
-                     cw - 8.0f, m_fontPx * 1.5f, fg, alpha);
+            namespace T = Theme::Type;
+            const float labelH = T::Scaled(m_bodyPx, T::S_MICRO) * 1.35f;
+            const float valueH = T::Scaled(m_bodyPx, T::S_TITLE)  * 1.30f;
+            const float inset  = Theme::Space::Scaled(m_bodyPx,
+                                                      Theme::Space::P_MD);
+            const float cardH  = inset * 2.0f + labelH + valueH;
+            const float rad    = audience::CardRadius(m_bodyPx);
+            const audience::LRect row{ pad, y, pad + colW, y + cardH };
+            const int n = (int)figs.size();
+
+            for (int i = 0; i < n; i++) {
+                const audience::LRect c =
+                    audience::CardInRow(row, n, i, m_bodyPx);
+                const float tw = audience::Width(c) - inset * 2.0f;
+                if (tw <= 0.0f) continue;
+                DrawCard(c, rad, ac, alpha);
+                Text(m_fLabel, W(figs[(size_t)i].label),
+                     c.l + inset, c.t + inset, tw, labelH, dim, alpha);
+                Text(m_fValue, W(figs[(size_t)i].value),
+                     c.l + inset, c.t + inset + labelH, tw, valueH,
+                     fg, alpha);
             }
-            y += m_fontPx * 2.4f;
+            y += cardH + Theme::Space::Scaled(m_bodyPx,
+                                              Theme::Space::P_LG);
         }
 
         // ── Derived ──
@@ -644,11 +747,79 @@ private:
         if (hr == D2DERR_RECREATE_TARGET) { ReleaseD2D(); InitD2D(); }
     }
 
+    // ── A figure card ───────────────────────────────────────
+    //
+    // A raised surface, a hairline, and one accent tick at the top
+    // left. The tick is the smallest bit of the reference clients'
+    // frame language that does work here: it points at where the
+    // label starts, which is what tells a reader that this value and
+    // this label are one thing.
+    void DrawCard(const audience::LRect& c, float rad,
+                  const D2D1_COLOR_F& ac, float alpha) {
+        DrawElevation(c, rad, Theme::Elev::RAISED, alpha);
+        m_rt->FillRoundedRectangle(
+            D2D1::RoundedRect(R(c), rad, rad),
+            Brush(Theme::Raw(Theme::PANEL), alpha * 0.90f));
+        m_rt->DrawRoundedRectangle(
+            D2D1::RoundedRect(R(c), rad, rad),
+            Brush(Theme::Raw(Theme::BORDER), alpha), 1.0f);
+
+        const float inset = Theme::Space::Scaled(m_bodyPx,
+                                                 Theme::Space::P_MD);
+        const float tick  = (std::max)(2.0f, m_bodyPx * 0.10f);
+        m_rt->FillRectangle(
+            D2D1::RectF(c.l + inset, c.t + inset * 0.45f,
+                        c.l + inset + m_bodyPx * 1.1f,
+                        c.t + inset * 0.45f + tick),
+            Brush(ac, alpha * 0.85f));
+    }
+
+    // ── Depth, without a blur to do it with ─────────────────
+    //
+    // A plain hwnd render target has no Gaussian blur; that lives on
+    // ID2D1DeviceContext, and rebuilding this window onto the Direct2D
+    // 1.1 pipeline to soften a card edge would be a disproportionate
+    // change to a window that works. Nested rings of flat fill
+    // instead, weighted by audience::ShadowRingAt to sum to the
+    // level's stated alpha so Theme's ordering survives the
+    // approximation rather than being renegotiated here.
+    void DrawElevation(const audience::LRect& card, float radius,
+                       int level, float alpha) {
+        const Theme::Shadow sh = Theme::ShadowFor(level);
+        if (!audience::ShadowVisible(sh)) return;
+        // Black at an alpha, and NOT through Brush(): a shadow is the
+        // absence of light, and NVf would make it a red glow. One
+        // brush recoloured per ring rather than three created and
+        // released -- the cross-fade repaints this surface and a
+        // four-card row would otherwise churn a dozen COM objects a
+        // frame for no reason.
+        ID2D1SolidColorBrush* b = nullptr;
+        if (FAILED(m_rt->CreateSolidColorBrush(
+                D2D1::ColorF(0, 0, 0, 1.0f), &b)) || !b) return;
+        for (int i = 0; i < audience::SHADOW_RINGS; ++i) {
+            const audience::Ring g = audience::ShadowRingAt(card, sh, i);
+            b->SetColor(D2D1::ColorF(0, 0, 0, g.alpha * alpha));
+            // The ring is wider than the card by its spread, so its
+            // corner radius grows with it or the outer rings square
+            // off against a rounded card.
+            const float gr = radius + (card.l - g.rect.l);
+            m_rt->FillRoundedRectangle(
+                D2D1::RoundedRect(R(g.rect), gr, gr), b);
+        }
+        b->Release();
+    }
+
+    static D2D1_RECT_F R(const audience::LRect& k) {
+        return D2D1::RectF(k.l, k.t, k.r, k.b);
+    }
+
     // A dark field with a slow radial lift behind the headline, so the
     // type sits above the background rather than on it. Depth, not
     // decoration -- it carries no information and does not move.
     void DrawBackdrop() {
-        m_rt->Clear(Theme::NVf(D2D1::ColorF(0.012f, 0.022f, 0.038f)));
+        m_rt->Clear(Theme::Color(Theme::BG_VOID));
+        // The raw day hue here on purpose: the gradient needs real
+        // channels to lift, and NVf is applied to each stop below.
         const D2D1_COLOR_F ac = Accent();
         ID2D1RadialGradientBrush* rg = nullptr;
         ID2D1GradientStopCollection* stops = nullptr;
@@ -694,8 +865,8 @@ private:
         const double frameH = m_content.roiHeight * scale / 60.0;
         if (frameW <= 0.0 || frameH <= 0.0) return;
 
-        const D2D1_COLOR_F ac  = Accent();
-        const D2D1_COLOR_F dim = D2D1::ColorF(0.55f, 0.65f, 0.75f);
+        const D2D1_COLOR_F ac  = AccentPainted();
+        const D2D1_COLOR_F dim = Theme::Raw(Theme::TEXT_DIM);
 
         // How much sky the drawing covers. Normally the frame fills
         // it; when the object is larger than the frame the view pulls
@@ -797,6 +968,7 @@ private:
 
     int   m_w = 0, m_h = 0;
     float m_fontPx = 0.0f;
+    float m_bodyPx = 0.0f;      // the ramp's anchor on this surface
     bool  m_full = false;
     bool  m_wantFull = true;
     bool  m_fading = false;

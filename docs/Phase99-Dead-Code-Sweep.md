@@ -89,6 +89,10 @@ These are not litter. Each is a feature someone started, and deleting
 one is as defensible as finishing it — which makes it the owner's call,
 not a side effect of a sweep.
 
+> **Resolved 2026-10-31, phase 100.** The owner's call: docking
+> **deleted**, the exposure rails **enforced**. The `CentroidTracker`
+> five and the three half-wired callbacks stand as written below.
+
 ### 3.1 Docking is a stub wired to nothing
 
 - `m_btnDock` is assigned `nullptr` twice in `RebuildControls` and
@@ -142,6 +146,66 @@ these four are the advisory ones, and enforcing them is a behaviour
 change rather than a repair.
 
 ---
+
+## 3b. What acting on it found (phase 100)
+
+### Docking was retired on purpose, and the corpse said so
+
+`ToggleDock()` turned out to be an **empty body** with a comment
+reading *"a no-op kept for API compatibility. The UNDOCK PANEL button
+is hidden in the new layout."*
+
+So this was not an accident: docking was deliberately retired when the
+panel became a child window, and the scaffolding was kept on purpose —
+for an API that nothing ever called. What survived was a button never
+created, a `WM_COMMAND` case that could not fire, a label setter writing
+to a null handle, an `IsDocked()` with no callers, and a callback wired
+to an empty lambda.
+
+**Compatibility with no caller is not compatibility.** All of it is
+gone.
+
+### Enforcing the rails found a fourth copy of the ceiling
+
+The sweep reported four unread constants. Wiring them up revealed that
+the planet ceiling existed in **four places with two different
+values**:
+
+| where | value |
+|---|---|
+| `EXP_PLANET_MAX_MS` | 50 |
+| `AutoExposureAssistant::Config` default | 50 |
+| **`main.cpp`'s `aeCfg.expMaxMs`** | **40** ← the only one that ran |
+| a comment in `ControlPanel.cpp` | 50 |
+
+So the documented figure was contradicted by the running code, and the
+exposure slider's own range comment cited the wrong number while
+explaining why the range had been widened to reach it.
+
+`CameraRails::RailsFor()` is the single source now. The assistant
+derives its clamp from it **per target type and re-derives on every
+profile change** — without which a deep-sky profile would hand it a
+50 ms ceiling and it could never expose a sub at all.
+
+### And it put a fifth dead thing to work
+
+`targetType` — `"planet"`, `"moon"`, `"dso"`, `"star"` — is set by every
+stock profile and was read by **nothing**. It is what choosing a rail
+needs, so it now decides one.
+
+### Advisory for a human, hard for the controller
+
+These are practical limits with physical reasons, not hardware bounds:
+`EXP_MIN_MS` and `EXP_MAX_MS` are those and are separately enforced. A
+500 ms planetary exposure is almost certainly a mistake and just
+possibly deliberate on a very dim target, so a person is **told**, with
+the figure, the rail and the reason, and the profile is applied as
+asked. The assistant has no judgement to respect, so for it the same
+rail is a clamp.
+
+All eight shipped profiles sit inside their rails — measured before any
+of this was built, and now a regression assertion, because a rail that
+the project's own defaults trip is a rail nobody will believe.
 
 ## 4. What the sweep says about the codebase
 

@@ -61,6 +61,7 @@ $Tests = @(
     @{ Name = "lunar_framing";   Sources = @() }
     @{ Name = "mosaic_run";      Sources = @() }
     @{ Name = "camera_panel";    Sources = @() }
+    @{ Name = "exposure_rails"; Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

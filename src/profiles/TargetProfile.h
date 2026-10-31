@@ -27,6 +27,7 @@
 // ============================================================
 
 #include <string>
+#include <cstdio>
 #ifdef RADUK_EMULATOR
 #  include "ASICamera2Stub.h"
 #else
@@ -53,6 +54,72 @@ struct CameraRails {
     // DSO practical limits
     static constexpr double EXP_DSO_MIN_MS    = 1000.0;   // 1 second minimum sub
     static constexpr double EXP_DSO_MAX_MS    = 300000.0; // 5 minute maximum sub
+
+    // ── Phase 100: the rails finally do something ──────────────
+    //
+    // Phase 99's sweep found all four of the practical limits above
+    // read by nothing, so a planetary profile could be saved at 500 ms
+    // and the application would not say a word. The owner's call was
+    // to enforce them.
+    //
+    // Enforcing them turned up how many copies of the planet ceiling
+    // there were. FOUR values for one concept:
+    //
+    //     EXP_PLANET_MAX_MS                       50   (this file)
+    //     AutoExposureAssistant::Config default   50
+    //     main.cpp's aeCfg.expMaxMs               40   <-- the live one
+    //     a comment in ControlPanel.cpp            50
+    //
+    // So the documented figure was contradicted by the running code,
+    // and the slider's own range comment cited the wrong one. This
+    // function is now the single source: the assistant derives its
+    // bounds from it per target type, and nothing else states them.
+    //
+    // ── Why the rails are ADVISORY for a human and HARD for the
+    //    controller ───────────────────────────────────────────
+    //
+    // They are practical limits with physical reasons, not hardware
+    // bounds -- EXP_MIN_MS and EXP_MAX_MS are those, and they are
+    // separately enforced. A 500 ms planetary exposure is almost
+    // certainly a mistake and just possibly a deliberate one on a very
+    // dim target, so the honest response to a human is to say so, not
+    // to overrule them.
+    //
+    // The auto-exposure assistant is a different matter. It has no
+    // judgement to respect, so for it the rails are a clamp.
+    struct ExposureRail {
+        double      minMs = EXP_MIN_MS;
+        double      maxMs = EXP_MAX_MS;
+        const char* why   = "";
+        bool        advisory = false;   // false = hardware bounds only
+    };
+
+    // targetType is one of "planet", "moon", "dso", "star" -- a field
+    // every stock profile sets and which, until this phase, NOTHING
+    // read. It was the fifth dead thing the sweep turned up and it is
+    // exactly what choosing a rail needs.
+    static ExposureRail RailsFor(const std::string& targetType) {
+        ExposureRail r;
+        if (targetType == "dso") {
+            r.minMs = EXP_DSO_MIN_MS; r.maxMs = EXP_DSO_MAX_MS;
+            r.why = "deep sky: under a second is not a sub, over five "
+                    "minutes is tracking luck";
+            r.advisory = true;
+        } else if (targetType == "planet" || targetType == "moon" ||
+                   targetType == "star") {
+            // A star profile is a focusing or metrics profile and lives
+            // at the same short exposures as a planet, which is why it
+            // shares the rail rather than having a third one.
+            r.minMs = EXP_PLANET_MIN_MS; r.maxMs = EXP_PLANET_MAX_MS;
+            r.why = "lucky imaging: under a millisecond oversamples the "
+                    "seeing, over fifty blurs the rotation";
+            r.advisory = true;
+        }
+        // Anything else gets the hardware bounds and no opinion: an
+        // unrecognised type is not licence to invent a limit for it.
+        return r;
+    }
+
 
     // Other controls
     static constexpr int GAMMA_MIN    = 1;
@@ -82,6 +149,30 @@ struct TargetProfile {
     std::string name;
     std::string filename;
     std::string targetType;  // "planet", "moon", "dso", "star"
+
+    // ── Phase 100: the rail this profile is held to ────────────
+    //
+    // Empty when the exposure is inside its rail. A sentence naming
+    // the figure, the rail and the reason otherwise -- said once,
+    // where the profile is applied, rather than as a dialog to
+    // dismiss.
+    //
+    // ADVISORY for a human, and that is deliberate: see
+    // CameraRails::RailsFor. The auto-exposure assistant gets the same
+    // rail as a hard clamp, because it has no judgement to respect.
+    std::string ExposureWarning() const {
+        const CameraRails::ExposureRail r =
+            CameraRails::RailsFor(targetType);
+        if (!r.advisory) return "";
+        if (exposureMs >= r.minMs && exposureMs <= r.maxMs) return "";
+        char b[320];
+        snprintf(b, sizeof(b),
+                 "%s: %.3g ms is outside the %.3g-%.3g ms range for a "
+                 "'%s' target (%s). Applied as asked.",
+                 name.c_str(), exposureMs, r.minMs, r.maxMs,
+                 targetType.c_str(), r.why);
+        return b;
+    }
 
     // ── Camera ─────────────────────────────────────────────────
     int         gain         = 200;   // >= 182 for HCG mode (0.8e read noise)

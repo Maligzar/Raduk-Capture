@@ -48,8 +48,6 @@ public:
     void SnapToMainWindow();  // public — called from main.cpp after Create()
 
     // Dock/undock toggle — kept for API compat; panel is always docked as WS_CHILD.
-    void ToggleDock();
-    bool IsDocked()   const { return m_docked; }
     HWND PanelHwnd()  const { return m_panelHwnd; }
 
     // Message routing — called from PanelWndProc
@@ -155,7 +153,6 @@ public:
     void SetProfileEditCallback(std::function<void(int)> cb)        { m_onProfileEdit      = cb; }
     void SetZoomCycleCallback(std::function<void()> cb)             { m_onZoomCycle        = cb; }
     void SetFullscreenToggleCallback(std::function<void()> cb)      { m_onFullscreenToggle = cb; }
-    void SetDockToggleCallback(std::function<void()> cb)            { m_onDockToggle       = cb; }
     void SetPlanetLockCallback(std::function<void(bool)> cb)        { m_onPlanetLock       = cb; }
     void SetGoToCallback(std::function<void(const std::string&)> cb){ m_onGoTo             = cb; }
     void SetSolveSyncCallback(std::function<void()> cb)             { m_onSolveSync        = cb; }
@@ -385,7 +382,6 @@ public:
 
     // ── Label updates ─────────────────────────────────────────
     void SetZoomLabel(const wchar_t* label);
-    void SetDockLabel(bool docked);
     void SetProfileNames(const std::vector<std::string>& names);
     void SetActiveProfile(int index);
 
@@ -661,7 +657,6 @@ private:
     // ── Window handles ─────────────────────────────────────────
     HWND m_panelHwnd = nullptr;
     HWND m_mainHwnd  = nullptr;
-    bool m_docked    = true;
     int  m_scrollY   = 0;
 
     raduk::core::ASICamera*    m_camera  = nullptr;
@@ -763,7 +758,6 @@ private:
     // ── View controls ──────────────────────────────────────────
     HWND m_btnZoom       = nullptr;
     HWND m_btnFullscreen = nullptr;
-    HWND m_btnDock       = nullptr;
 
     // ── Capture controls (Phase 2) ─────────────────────────────
     HWND m_btnRecord       = nullptr;
@@ -844,7 +838,7 @@ private:
         ID_LBL_GOTO_STATUS,
         ID_BTN_ZOOM = 1700,
         ID_BTN_FULLSCREEN,
-        ID_BTN_DOCK,
+        
         ID_BTN_RECORD = 1800,
         ID_COMBO_FRAME_TYPE,
         ID_BTN_RGB_ALIGN,       // Phase 23: toggle RGB align
@@ -874,7 +868,6 @@ private:
     std::function<void(int)>  m_onProfileEdit;   // ← new EDIT callback
     std::function<void()>     m_onZoomCycle;
     std::function<void()>     m_onFullscreenToggle;
-    std::function<void()>     m_onDockToggle;
     std::function<void()>     m_onRecordStart;
     std::function<void()>     m_onRecordStop;
     std::function<void(bool)> m_onPlanetLock;

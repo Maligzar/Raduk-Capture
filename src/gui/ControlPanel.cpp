@@ -608,8 +608,9 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
             if (self->HandleScroll(wParam, lParam)) return 0;
             break;
         case WM_CLOSE:
-            self->m_docked = false;
-            if (self->m_btnDock) SetWindowTextW(self->m_btnDock, L"DOCK");
+            // Phase 100: the two docking writes here are gone with the
+            // rest of it. The panel is a child window and cannot be
+            // undocked; closing it has always just meant re-showing it.
             ShowWindow(hwnd, SW_SHOW);
             return 0;
         case WM_ERASEBKGND: {
@@ -637,7 +638,6 @@ bool ControlPanel::Create(HWND mainHwnd,
     m_camera   = camera;
     m_focuser  = focuser;
     m_mount    = mount;
-    m_docked   = true;  // always docked as a child window
 
     // Every collapsible section starts collapsed, so the panel opens
     // as a short list of headers rather than a long scroll. Must run
@@ -770,10 +770,22 @@ void ControlPanel::SnapToMainWindow() {
 
 void ControlPanel::OnMainWindowMoved() { SnapToMainWindow(); }
 
-void ControlPanel::ToggleDock() {
-    // Child window is always docked — this is a no-op kept for API compatibility.
-    // The UNDOCK PANEL button is hidden in the new layout.
-}
+// ── Phase 100: docking is gone ─────────────────────────────────
+//
+// The owner's call, after phase 99's sweep found the whole feature
+// unreachable. It was not an accident and the code said so:
+// ToggleDock() was an empty body commented "a no-op kept for API
+// compatibility. The UNDOCK PANEL button is hidden in the new layout."
+//
+// So docking was deliberately retired when the panel became a child
+// window, and the scaffolding was kept on purpose -- for an API that
+// nothing ever called. What survived was a button never created, a
+// WM_COMMAND case that could not fire, a label setter writing to a
+// null handle, an IsDocked() with no callers, and a callback wired in
+// main.cpp to an empty lambda.
+//
+// Compatibility with no caller is not compatibility. All of it is
+// removed rather than left looking like a feature.
 
 // ── Label updates ──────────────────────────────────────────────
 
@@ -784,9 +796,6 @@ void ControlPanel::SetZoomLabel(const wchar_t* label) {
     }
 }
 
-void ControlPanel::SetDockLabel(bool docked) {
-    if (m_btnDock) SetWindowTextW(m_btnDock, docked ? L"UNDOCK" : L"DOCK");
-}
 
 void ControlPanel::SetProfileNames(const std::vector<std::string>& names) {
     m_cachedProfileNames = names;   // cache for rebuild
@@ -876,7 +885,6 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
         case ID_BTN_CAL_FLAT:    if (m_onCalFlat)       m_onCalFlat();       return true;
         case ID_BTN_CAL_CLEAR:   if (m_onCalClear)      m_onCalClear();      return true;
         case ID_BTN_CHANNEL:     if (m_onChannelCycle)  m_onChannelCycle();  return true;
-        case ID_BTN_DOCK:        ToggleDock(); if (m_onDockToggle) m_onDockToggle(); return true;
 
         case ID_BTN_RECORD:
             if (m_onRecordStart) m_onRecordStart();
@@ -2116,7 +2124,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_btnRecord  = nullptr;
     m_lblRecStatus = m_lblRecFrames = nullptr;
     m_lblDiskSpace = nullptr;
-    m_btnDock = m_btnZoom = m_btnFullscreen = nullptr;
+    m_btnZoom = m_btnFullscreen = nullptr;
     m_comboProfile = nullptr;
     m_btnProfileLoad = m_btnProfileSave = m_btnProfileEdit = nullptr;
 
@@ -2242,7 +2250,6 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         (void)VW;
     }
     } // end Image
-    m_btnDock = nullptr;
 
     // ── PROFILE ───────────────────────────────────────────────────
     // ── CAMERA ────────────────────────────────────────────────────

@@ -138,6 +138,10 @@ public:
     }
 
     void SetConfig(const Config& c) { m_cfg = c; }
+    // Phase 100: readable, so a caller can adjust one field without
+    // restating the rest -- the profile hook changes only the two
+    // exposure bounds and must not reset the gain rails doing it.
+    const Config& Config_() const { return m_cfg; }
 
     // ── Mode control ──────────────────────────────────────────
     void SetAuto(bool enabled) {

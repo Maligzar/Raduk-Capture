@@ -457,6 +457,46 @@ public:
         Say(buf);
     }
 
+    // ── The saved open/closed state ───────────────────────────
+    //
+    // Phase 101. Place() positions a window and deliberately never
+    // shows one, for a reason that is still good: it also runs on
+    // every display change, and unplugging a monitor must not reopen
+    // panels you closed during the session.
+    //
+    // What phase 98 got wrong was stopping there. The owner's answer
+    // then was "stay closed, but remember where", and that is exactly
+    // what was built -- in one direction only. A window that was
+    // CLOSED when the layout was saved stayed closed, correctly. A
+    // window that was OPEN also stayed closed, because nothing ever
+    // showed it. So the file recorded the state faithfully and the
+    // state was never applied, which is why locations persisted and
+    // nothing else did.
+    //
+    // This reports the saved state and leaves applying it to the
+    // caller, rather than calling ShowWindow from in here. Several of
+    // these panels do real work in their own Show() -- the share view
+    // restores whether it was filling the screen and arms its hint,
+    // the object panel re-renders -- and a ShowWindow behind their
+    // backs would make the window visible while skipping all of it.
+    //
+    // Unknown is not a third opinion, it is the absence of one: only a
+    // real line in the layout file counts. A generated fallback has
+    // visible defaulting to true, and honouring that would throw the
+    // share view up as a black full-screen rectangle on first run --
+    // the exact failure the old "deliberately not marked Maximized"
+    // workaround existed to dodge.
+    enum class SavedState { Unknown, Open, Closed };
+
+    SavedState StateFor(const char* role) const {
+        if (m_active < 0) return SavedState::Unknown;
+        auto pit = m_profiles.find(m_active);
+        if (pit == m_profiles.end()) return SavedState::Unknown;
+        auto it = pit->second.find(role);
+        if (it == pit->second.end()) return SavedState::Unknown;
+        return it->second.visible ? SavedState::Open : SavedState::Closed;
+    }
+
     // ── Rescue ────────────────────────────────────────────────
     // Everything back onto the primary at a visible size. Bound to a
     // key, because the whole point is that it works when the window you

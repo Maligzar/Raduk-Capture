@@ -879,6 +879,15 @@ For contrast, so this list is not read as "nothing works":
   round trip and the session restore, all by unit test or by driving the
   real controls from outside the process.
 
+20. **Panel open/closed state across a restart** (phase 101). Close two
+    panels, leave two open with one of them maximised, press
+    Ctrl+Shift+End, quit, relaunch. All four should come back exactly as
+    they were, the maximised one still maximised, and the keyboard should
+    be on the control window rather than on whichever panel restored
+    last. The restore itself is not unit-testable -- it needs real
+    windows -- which is precisely the gap that let phase 98 ship a
+    one-directional fix.
+
 21. **The object panel cross-fade, now that it has frames** (phase
     96.5). Slew between two targets with the object panel up and watch
     the transition. Before this it blanked and snapped back; it should

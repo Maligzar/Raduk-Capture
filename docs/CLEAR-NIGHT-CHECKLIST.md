@@ -802,6 +802,68 @@ sufficient, because the heat is concentrated before it reaches one.
 
 ---
 
+## 19. The camera panel, under a cold hand at 2am
+
+Added 2026-10-31 with phase 98, from your own reports. The arithmetic
+behind all of it is checked by `tests/camera_panel.cpp`; what a test
+cannot know is how any of it feels.
+
+1. **The exposure slider is logarithmic now.** The Moon's 1-5 ms went
+   from 6.7% of the travel to 25%, and every step is 2.53% whatever the
+   value. Drag it and see whether the short end is now reachable
+   without care. If the long end feels too compressed, the range is
+   `EXP_MIN_US` / `EXP_MAX_US` in `src/core/ExposureScale.h` and the
+   resolution is `EXP_SLIDER_STEPS`.
+2. **Type an exposure.** There is an edit box beside the slider -- the
+   camera section had no numeric entry at all before. Enter commits,
+   Escape puts the old value back, clicking away commits. Type 500 and
+   it should clamp to 60 and SHOW 60, not silently keep what it had.
+3. **The preview now follows the drag**, applying about eight times a
+   second instead of only on release. Watch for whether the frame rate
+   dips while you drag -- that throttle is a guess at what the USB bus
+   will take, and `EXP_LIVE_APPLY_MS` is the dial.
+4. **The sliders are 20 px tall on a 24 px pitch**, up from 14 on 17.
+   Six of them stacked three pixels apart was the geometry you were
+   fighting. If the CAMERA section now feels too tall, `SL` in
+   `RebuildControls` is one number.
+5. **Arrow and Page keys work on every slider.** They moved 1 us and
+   12 ms before, with nothing in between.
+
+### Auto exposure
+
+6. **Point at the Moon at about 2 ms and turn AE to AUTO.** Before
+   this it would sit there reporting `AE: limit` and doing nothing --
+   below 3.4 ms it could not make its own smallest legal correction.
+   It should now converge. If it hunts instead, `expMinStepFrac` (1%)
+   and `iGain` (0.50) are the two dials, and the status line will say
+   `holding` rather than `limit` when it is genuinely waiting.
+7. **Check what the status line says when it stops moving.** It should
+   read `at maximum`, `at minimum` or `holding` -- never `limit` while
+   nothing is at one.
+
+### Recording
+
+8. **Record a fixed number of frames and let it finish by itself.**
+   The RECORD button must go back to RECORD. It did not before: the
+   only thing that repainted it was a function with no callers.
+9. **Watch the timer while it runs.** `REC mm:ss` with the time left
+   beside it, exact on a time limit and marked `~` on a frame limit
+   because there it is estimated from the rate actually achieved.
+   After it ends the line should read `DONE mm:ss` rather than going
+   blank.
+10. **Then check the EAF and mount respond normally.** After a
+    frame-limited run USB stayed throttled, because that stop path
+    skipped the bookkeeping the manual one does.
+
+### Layout
+
+11. **Close a couple of panels, save the layout, restart.** They
+    should stay closed -- and opening one afterwards should put it
+    where you left it rather than at a default. Positions were saved
+    before and state was not; `Placement` had no field for it.
+
+---
+
 ## What is already verified against hardware
 
 For contrast, so this list is not read as "nothing works":

@@ -178,7 +178,8 @@ venue that counts.
 | ~~**96.1**~~ | ~~Fix the hierarchy inversion~~ **DONE 2026-10-31.** Each token declares its own night luminance as a semantic ladder; danger is now the brightest thing the UI can paint | S | A correctness bug, found by measurement. Independent of everything else and worth doing even if the rest is dropped |
 | ~~**96.2**~~ | ~~Extend `Theme.h` into the surviving column~~ **DONE 2026-10-31.** Type ramp, spacing scale, elevation with one shadow per level, plus the invariant tests. Measuring first found the same defect in a second axis: the type sizes were one pixel apart, and the two painting stacks disagreed about the ramp | M | Nothing else can be consistent until this exists. No visible change on its own, which makes it the easiest stage to skip and the most expensive one to skip |
 | ~~**96.3**~~ | ~~Audience surfaces: share view and object panel get the full treatment~~ **DONE 2026-10-31.** Scaled type ramp, depth under the caption, corner marks on the sensor frame, figures as raised cards. Measuring first found something larger than a style gap: the two audience surfaces painted **eighteen literal colours and zero palette tokens**, so 96.1's night ladder had never reached either of them. The recording light on the screen pointed at the audience derived to 86 where the ladder puts danger at 240 — dimmer than the caption beneath it | M | Where the references genuinely apply, and where a win is most visible to other people |
-| **96.4** | Operator surfaces: the same system at low volume. Depth and spacing on the control panel, toolbar and GoTo panel; chrome recedes, the image gains | L | The biggest surface area and the most restraint required. Benefits most from 96.2 existing first |
+| ~~**96.4**~~ | ~~Operator surfaces: the same system at low volume~~ **DONE 2026-10-31**, except the type and spacing retrofit, which is **96.4b** and needs a screen to look at. Measuring found the stage was not about taste at all: **53% of the operator chrome's 156 painting sites were off the ladder**, and the misses included the whole three-tier warning system. In night vision the status window read critical 103, caution 175, good 150, labels 134 — **critical was the dimmest of the four**, and 103 is the exact figure 96.1's plan named as the defect it existed to fix. Coverage is now 78%, depth has GDI primitives that composite on the right side of the night transform, and `Theme::DEEP` turned out to be painted by nothing at all | L | The biggest surface area and the most restraint required. Benefits most from 96.2 existing first |
+| **96.4b** | The type and spacing retrofit on the operator surfaces: six near-identical font sizes onto three ramp steps, and the local spacing literals onto `Space::` | M | Deliberately deferred. `ControlPanel.cpp` has **six measured-text calls in 2424 lines** — it lays out by hard pixel offsets, so growing a label inside a static sized to fit clips it, and no one in a container can see that happen. Every off-ramp site is marked in the source with the step it wants, so this is mechanical for whoever has the screen |
 | **96.5** | Motion: transitions and easing on panel reveals, mode changes, state transitions | S | Disproportionate effect on perceived quality for the code it costs, but worthless on top of an inconsistent system, so it goes last |
 
 ### What 96.3 changed about the plan itself
@@ -207,6 +208,56 @@ per cent. `Type::DISPLAY` was added rather than the measurement
 discarded, sized so the tuned title is reproduced to within a third of
 a pixel at 1080p. The lesson generalises to 96.4: a ramp derived from
 one half of the application does not automatically fit the other.
+
+### What 96.4 changed about the plan again
+
+The pattern from 96.3 repeated, and it is now the most reliable finding
+of this whole phase: **the fix lands on the token and the code does not
+use the token.**
+
+**96.1's headline fix had reached six painting sites.** `ACCENT4` is
+`RGB(255, 59, 92)`. Eleven recording and fault indicators across four
+files spelled `RGB(255, 60, 90)` — one green unit and two blue units
+away — which `NightLuminance` does not recognise, so it fell through to
+the derived value of **103**. That is the number 96.1's own plan cites
+as the defect. The recording indicator, the dropped-frame warning, the
+disk-space critical, the write-buffer warning, the dew-risk warning,
+the mount's fault light, the destructive-action toast and the ADC
+alignment warning were all still painting it.
+
+**The whole warning system was off the ladder, not just the top tier.**
+Critical, caution and good were three literals in the same ternary, and
+in night vision they read 103, 175 and 150 against secondary labels at
+134. Every tier was wrong and the order was almost exactly reversed.
+
+**And a token can be dead.** `Theme::DEEP` was `(7, 8, 14)` and nothing
+in the application ever painted it; eighteen sites spelled
+`RGB(7, 13, 22)` and commented it `--bg-deep`. 96.1 gave DEEP a
+designed luminance of 14 that no pixel has ever been. `DrawSectionHeader`
+in `ControlPanel.cpp` is dead the same way — 96.4 went there first to
+adopt depth and would have adopted it nowhere.
+
+So section 5's test, "no painting site uses a literal colour where a
+token exists," was the most valuable line in this plan and it took
+three stages for anyone to run it. The lesson for 96.5 and after:
+**a palette fix is not done when the token changes, it is done when
+the painting sites are counted.** `Theme::Rgb::*` exists so the count
+stays at 100 for the sites it covers, because a typo is now a compile
+error rather than a colour 137 luminance units wrong in the dark.
+
+### One decision left to the owner
+
+Using the device-role accents as warning tiers borrows semantics they
+were not designed for, and it shows: `ACCENT3` (mount, live) is 170 and
+`ACCENT2` (EAF, secondary) is 110, so **"good" now outranks "caution"**.
+For a warning tier that is backwards.
+
+Fixing it properly means the ladder gains a caution rung, and the
+ladder is full: 240 down to 80 at the 24-unit minimum separation holds
+seven rungs and six are spoken for, so inserting one re-spaces all six
+signals and changes the whole operator look in the dark. That is not a
+decision a palette pass should make on its own, so it is not made. The
+test prints the two numbers and says so.
 
 ### Recommendation
 

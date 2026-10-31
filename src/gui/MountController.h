@@ -75,7 +75,7 @@ public:
         wc.lpfnWndProc   = WndProc;
         wc.hInstance     = GetModuleHandle(nullptr);
         wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
         wc.lpszClassName = L"RadukMountController";
         wc.hIcon         = LoadIcon(nullptr, IDI_APPLICATION);
 
@@ -424,7 +424,7 @@ private:
             wc.lpfnWndProc   = AlignPopupProc;
             wc.hInstance     = GetModuleHandle(nullptr);
             wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-            wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
+            wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
             wc.lpszClassName = L"RadukAlignPopup";
             RegisterClassExW(&wc);
             registered = true;
@@ -506,7 +506,7 @@ private:
             popup, (HMENU)(INT_PTR)ID_ALIGN_LIST,
             GetModuleHandle(nullptr), nullptr);
 
-        HFONT fnt = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT fnt = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, FIXED_PITCH | FF_MODERN, L"Consolas");
         if (fnt) SendMessageW(list, WM_SETFONT, (WPARAM)fnt, TRUE);
@@ -522,7 +522,7 @@ private:
         }
         SendMessageW(list, LB_SETCURSEL, 0, 0);
 
-        HFONT ufnt = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT ufnt = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
         HWND ok = CreateWindowExW(0, L"BUTTON", L"\u2713  Align Here",
@@ -586,9 +586,9 @@ private:
         case WM_CTLCOLORBTN:
         case WM_CTLCOLORSTATIC: {
             HDC hdc = (HDC)wp;
-            SetBkColor(hdc,   Theme::NV(RGB(10, 18, 30)));
-            SetTextColor(hdc, Theme::NV(RGB(180, 220, 240)));
-            HBRUSH bg = Theme::Brush(RGB(10, 18, 30));
+            SetBkColor(hdc,   Theme::NV(Theme::Rgb::PANEL));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+            HBRUSH bg = Theme::Brush(Theme::Rgb::PANEL);
             return (LRESULT)bg;
         }
         }
@@ -716,7 +716,7 @@ private:
             HBITMAP bmp = CreateCompatibleBitmap(dc, rc.right, rc.bottom);
             HGDIOBJ old = SelectObject(mem, bmp);
 
-            HBRUSH bg = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
+            HBRUSH bg = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
             FillRect(mem, &rc, bg);
             DeleteObject(bg);
 
@@ -739,27 +739,35 @@ private:
         const int cx = 6 + d / 2;
         const int cy = rc.bottom / 2;
 
-        COLORREF lit;
+        // Phase 96.4 keeps the DAY colour alongside the tinted one.
+        // Theme::ShadowOver and Theme::HighlightOver tint internally
+        // so that a call site cannot get the order of the blend and
+        // the transform backwards -- which means handing either of
+        // them an already-tinted value transforms it twice, and NV()
+        // of an NV() is 0.284 of the original. Looks plausible, is a
+        // quarter as bright.
+        COLORREF litRaw;
         const char* name;
         if (!m_sky.valid) {
-            lit  = Theme::NV(RGB(60, 72, 88));
-            name = "NO ALT";
+            litRaw = RGB(60, 72, 88);
+            name   = "NO ALT";
         } else {
             switch (m_sky.window) {
-                case SkyWindow::Prime:    lit = Theme::NV(RGB(0, 220, 120)); break;
-                case SkyWindow::Good:     lit = Theme::NV(RGB(140, 210, 70)); break;
-                case SkyWindow::Marginal: lit = Theme::NV(RGB(255, 170, 0));  break;
-                case SkyWindow::Poor:     lit = Theme::NV(RGB(255, 110, 40)); break;
-                default:                  lit = Theme::NV(RGB(255, 60, 90));  break;
+                case SkyWindow::Prime:    litRaw = Theme::Rgb::ACCENT3; break;
+                case SkyWindow::Good:     litRaw = RGB(140, 210, 70);   break;
+                case SkyWindow::Marginal: litRaw = Theme::Rgb::ACCENT2; break;
+                case SkyWindow::Poor:     litRaw = RGB(255, 110, 40);   break;
+                default:                  litRaw = Theme::Rgb::ACCENT4; break;
             }
             name = WindowName(m_sky.window);
         }
+        const COLORREF lit = Theme::NV(litRaw);
 
         // A dim halo first, so the lit colour reads as a lamp rather
         // than a flat sticker, and so a green lamp is unmistakable at
         // the edge of vision.
         {
-            HBRUSH halo = CreateSolidBrush(Blend(lit, Theme::NV(RGB(7, 13, 22)), 0.22f));
+            HBRUSH halo = CreateSolidBrush(Blend(lit, Theme::NV(Theme::Rgb::DEEP), 0.22f));
             HGDIOBJ ob = SelectObject(dc, halo);
             HGDIOBJ op = SelectObject(dc, GetStockObject(NULL_PEN));
             Ellipse(dc, cx - d/2 - 5, cy - d/2 - 5, cx + d/2 + 5, cy + d/2 + 5);
@@ -768,7 +776,19 @@ private:
         }
         {
             HBRUSH b = CreateSolidBrush(lit);
-            HPEN   p = CreatePen(PS_SOLID, 1, Blend(lit, RGB(255,255,255), 0.35f));
+            // Phase 96.4. This was Blend(lit, RGB(255,255,255), 0.35f),
+            // which in night vision put 89 units of BLUE into the rim
+            // of the lamp -- `lit` has already been collapsed to
+            // (lum, lum/10, 0) by NV(), and a third of the way to
+            // white is a third of the way back to the short
+            // wavelengths phase 26 exists to remove. On the one
+            // surface read from the eyepiece.
+            //
+            // Theme::HighlightOver scales each channel toward full
+            // instead, so it brightens whatever hue the active space
+            // has and adds no blue at all.
+            HPEN   p = CreatePen(PS_SOLID, 1,
+                                 Theme::HighlightOver(litRaw, 0.35f));
             HGDIOBJ ob = SelectObject(dc, b);
             HGDIOBJ op = SelectObject(dc, p);
             Ellipse(dc, cx - d/2, cy - d/2, cx + d/2, cy + d/2);
@@ -779,7 +799,7 @@ private:
         // Text beside the lamp.
         SetBkMode(dc, TRANSPARENT);
         const int tx = cx + d/2 + 10;
-        HFONT big = CreateFontW(-15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        HFONT big = CreateFontW(/*96.4b: off-ramp, wants STRONG (16)*/-15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                 DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                                 CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                                 DEFAULT_PITCH, L"Barlow Condensed");
@@ -790,12 +810,12 @@ private:
         SelectObject(dc, of);
         DeleteObject(big);
 
-        HFONT sm = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT sm = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                                CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                                DEFAULT_PITCH, L"Space Mono");
         of = SelectObject(dc, sm);
-        SetTextColor(dc, Theme::NV(RGB(160, 182, 200)));
+        SetTextColor(dc, Theme::NV(Theme::Rgb::TEXT_DIM));
         char line[96];
         if (m_sky.valid)
             snprintf(line, sizeof(line), "%.0f deg   %.2f air",
@@ -814,11 +834,13 @@ private:
         DeleteObject(sm);
     }
 
+    // Phase 96.4: forwards to Theme::Mix, which is the same
+    // arithmetic with rounding and with the clamped endpoints. Kept
+    // as a name because the call sites read better for it, and
+    // because a second copy of a blend is how the two surfaces
+    // ended up disagreeing about where the night transform goes.
     static COLORREF Blend(COLORREF a, COLORREF b, float t) {
-        auto mix = [&](int x, int y) { return (int)(x + (y - x) * t); };
-        return RGB(mix(GetRValue(a), GetRValue(b)),
-                   mix(GetGValue(a), GetGValue(b)),
-                   mix(GetBValue(a), GetBValue(b)));
+        return Theme::Mix(a, b, t);
     }
 
 public:
@@ -990,9 +1012,9 @@ private:
         case WM_CTLCOLORSTATIC: {
             HDC hdc = (HDC)wParam;
             SetBkMode(hdc, OPAQUE);
-            SetBkColor(hdc,   Theme::NV(RGB(7, 13, 22)));
-            SetTextColor(hdc, Theme::NV(RGB(0, 229, 255)));
-            HBRUSH hBg = Theme::Brush(RGB(7, 13, 22));
+            SetBkColor(hdc,   Theme::NV(Theme::Rgb::DEEP));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT));
+            HBRUSH hBg = Theme::Brush(Theme::Rgb::DEEP);
             return (LRESULT)hBg;
         }
 
@@ -1007,9 +1029,9 @@ private:
                 return (LRESULT)hRed;
             }
             if (id==ID_BTN_N || id==ID_BTN_S || id==ID_BTN_E || id==ID_BTN_W) {
-                SetBkColor(hdc,   Theme::NV(RGB(14, 29, 46)));
-                SetTextColor(hdc, Theme::NV(RGB(200, 232, 240)));
-                HBRUSH hJog = Theme::Brush(RGB(14, 29, 46));
+                SetBkColor(hdc,   Theme::NV(Theme::Rgb::BORDER));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+                HBRUSH hJog = Theme::Brush(Theme::Rgb::BORDER);
                 return (LRESULT)hJog;
             }
             if (id == ID_BTN_ALIGN) {
@@ -1023,20 +1045,20 @@ private:
                        (id==ID_BTN_RATE7)?7:(id==ID_BTN_RATE5)?5:-1;
             if (rate > 0) {
                 bool active = (rate == self->m_jogRate);
-                SetBkColor(hdc,   active ? Theme::NV(RGB(0,60,80))    : Theme::NV(RGB(14,29,46)));
-                SetTextColor(hdc, active ? Theme::NV(RGB(0,229,255))  : Theme::NV(RGB(140,175,190)));
+                SetBkColor(hdc,   active ? Theme::NV(RGB(0,60,80))    : Theme::NV(Theme::Rgb::BORDER));
+                SetTextColor(hdc, active ? Theme::NV(Theme::Rgb::ACCENT)  : Theme::NV(Theme::Rgb::TEXT_DIM));
                 HBRUSH hAct = Theme::Brush(RGB(0,60,80));
-                HBRUSH hDim = Theme::Brush(RGB(14,29,46));
+                HBRUSH hDim = Theme::Brush(Theme::Rgb::BORDER);
                 return (LRESULT)(active ? hAct : hDim);
             }
-            HBRUSH hDef = Theme::Brush(RGB(14,29,46));
+            HBRUSH hDef = Theme::Brush(Theme::Rgb::BORDER);
             return (LRESULT)hDef;
         }
 
         case WM_ERASEBKGND: {
             HDC hdc = (HDC)wParam;
             RECT r; GetClientRect(hwnd, &r);
-            HBRUSH hBg = Theme::Brush(RGB(7,13,22));
+            HBRUSH hBg = Theme::Brush(Theme::Rgb::DEEP);
             FillRect(hdc, &r, hBg);
             return 1;
         }

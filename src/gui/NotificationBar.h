@@ -198,12 +198,12 @@ private:
                 break;
             case NotifLevel::Warn:
                 bg = Theme::NV(RGB(60, 42, 0));    // dark amber
-                fg = Theme::NV(RGB(255, 185, 0));  // amber text
+                fg = Theme::NV(Theme::Rgb::ACCENT2);  // amber text
                 break;
             case NotifLevel::Error:
             default:
                 bg = Theme::NV(RGB(60, 8, 8));     // dark red
-                fg = Theme::NV(RGB(255, 80, 80));  // red text
+                fg = Theme::NV(Theme::Rgb::ACCENT4);  // red text
                 break;
         }
 

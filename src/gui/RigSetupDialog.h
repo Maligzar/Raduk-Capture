@@ -67,7 +67,7 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
         wc.lpfnWndProc   = DefWindowProcW;
         wc.hInstance     = GetModuleHandleW(nullptr);
         wc.hCursor       = LoadCursorW(nullptr, (LPCWSTR)IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
         wc.lpszClassName = kClass;
         RegisterClassExW(&wc);
 
@@ -78,7 +78,7 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
             PAINTSTRUCT ps;
             HDC dc = BeginPaint(h, &ps);
             RECT rc; GetClientRect(h, &rc);
-            HBRUSH bg = CreateSolidBrush(Theme::NV(RGB(10, 16, 26)));
+            HBRUSH bg = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
             FillRect(dc, &rc, bg); DeleteObject(bg);
 
             int cx = (rc.right - rc.left) / 2;
@@ -115,7 +115,7 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
             Ellipse(dc, cx - R, cy - R, cx + R, cy + R);
             SelectObject(dc, oldPen); DeleteObject(grid);
 
-            SetTextColor(dc, Theme::NV(RGB(150, 180, 210)));
+            SetTextColor(dc, Theme::NV(Theme::Rgb::TEXT_DIM));
             const wchar_t* lbl[] = {L"N", L"E", L"S", L"W"};
             for (int i = 0; i < 4; i++) {
                 int x, y; pt(i * 90.0, R + 12, x, y);
@@ -146,7 +146,7 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
             }
 
             // The mount itself.
-            HBRUSH mb = CreateSolidBrush(Theme::NV(RGB(200, 220, 240)));
+            HBRUSH mb = CreateSolidBrush(Theme::NV(Theme::Rgb::TEXT));
             HGDIOBJ om = SelectObject(dc, mb);
             Ellipse(dc, cx - 5, cy - 5, cx + 5, cy + 5);
             SelectObject(dc, om); DeleteObject(mb);
@@ -323,15 +323,15 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
             if (m == WM_CTLCOLORSTATIC || m == WM_CTLCOLOREDIT) {
                 // Without this the controls paint on the system default,
                 // which is white against this dialog's dark background.
-                HBRUSH bg = Theme::Brush(RGB(7, 13, 22));
+                HBRUSH bg = Theme::Brush(Theme::Rgb::DEEP);
                 HDC dc = (HDC)wp;
                 SetBkMode(dc, TRANSPARENT);
                 SetTextColor(dc, m == WM_CTLCOLOREDIT ? Theme::NV(RGB(230, 240, 250))
-                                                      : Theme::NV(RGB(190, 210, 230)));
+                                                      : Theme::NV(Theme::Rgb::TEXT));
                 if (m == WM_CTLCOLOREDIT) {
-                    HBRUSH eb = Theme::Brush(RGB(20, 30, 44));
+                    HBRUSH eb = Theme::Brush(Theme::Rgb::BORDER);
                     SetBkMode(dc, OPAQUE);
-                    SetBkColor(dc, Theme::NV(RGB(20, 30, 44)));
+                    SetBkColor(dc, Theme::NV(Theme::Rgb::BORDER));
                     return (LRESULT)eb;
                 }
                 return (LRESULT)bg;

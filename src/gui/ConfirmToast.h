@@ -120,10 +120,10 @@ private:
     }
 
     static void Paint(HDC dc, const RECT& rc, const State& st) {
-        const COLORREF accent = st.ok ? Theme::NV(RGB(0, 220, 120))
-                                      : Theme::NV(RGB(255, 60, 90));
+        const COLORREF accent = st.ok ? Theme::NV(Theme::Rgb::ACCENT3)
+                                      : Theme::NV(Theme::Rgb::ACCENT4);
 
-        HBRUSH bg = CreateSolidBrush(Theme::NV(RGB(6, 11, 19)));
+        HBRUSH bg = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
         FillRect(dc, &rc, bg);
         DeleteObject(bg);
 
@@ -166,7 +166,7 @@ private:
                                CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                                DEFAULT_PITCH, L"Space Mono");
         of = SelectObject(dc, bf);
-        SetTextColor(dc, Theme::NV(RGB(190, 214, 230)));
+        SetTextColor(dc, Theme::NV(Theme::Rgb::TEXT));
         for (const std::wstring& l : st.lines) {
             if (y + bodyPx > (int)rc.bottom - pad / 2) break;
             RECT lr = { pad, y, (LONG)rc.right - pad, (LONG)(y + bodyPx + 6) };

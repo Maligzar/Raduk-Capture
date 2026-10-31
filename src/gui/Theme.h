@@ -23,7 +23,26 @@ namespace Theme {
     //   0xFFRRGGBB (alpha always FF — fully opaque)
 
     constexpr uint32_t BG_VOID   = 0xFF04080F;  // --bg-void  (preview bg, deepest surface)
-    constexpr uint32_t DEEP      = 0xFF07080E;  // --bg-deep  (panel background)
+    // ── Phase 96.4 moved this ───────────────────────────────
+    //
+    // DEEP was 0xFF07080E, which is (7, 8, 14), and NOTHING IN THE
+    // APPLICATION EVER PAINTED IT. Eighteen painting sites across the
+    // operator chrome -- the most-painted colour there after nothing
+    // -- spell `RGB(7, 13, 22)` and comment it `// --bg-deep`. That
+    // is a different colour: more blue, and lighter.
+    //
+    // So the token was dead and a near-miss literal was doing its
+    // job, which meant 96.1 gave DEEP a designed night luminance of
+    // 14 that no pixel has ever been. Those eighteen sites fell
+    // through to the derived value of 12 instead.
+    //
+    // The token moves to the code rather than the code to the token.
+    // The code is what has shipped and what the owner has looked at;
+    // repainting eighteen surfaces a different colour to vindicate a
+    // constant nobody used would be changing the application to
+    // match its documentation. Moving the token changes no pixel --
+    // nothing painted it -- and puts eighteen sites on the ladder.
+    constexpr uint32_t DEEP      = 0xFF070D16;  // --bg-deep  (panel background)
     constexpr uint32_t PANEL     = 0xFF0A1520;  // --bg-panel (section headers, raised)
     constexpr uint32_t BORDER    = 0xFF0E1D2E;  // --bg-raised (subtle separators)
     constexpr uint32_t ACCENT    = 0xFF00E5FF;  // --cyan     (primary — camera, active)
@@ -40,6 +59,49 @@ namespace Theme {
     //   FONT_BANNER : Space Mono — large readouts, title bar, HUD
     //   FONT_LABEL  : Barlow Condensed — all labels, section headers
     //   FONT_DATA   : Space Mono — numeric values, coordinates
+
+    // ── Phase 96.4: the tokens, as COLORREF ─────────────────
+    //
+    // Why this exists. The operator chrome paints with GDI, which
+    // wants a COLORREF -- 0x00BBGGRR, the reverse byte order of the
+    // 0xAARRGGBB constants above -- so not one of those tokens can be
+    // handed to `Theme::Brush` directly. Every site therefore spelled
+    // its colour as an `RGB(...)` literal, and measured across the
+    // nine operator surfaces: 156 painting sites, 82 of them matching
+    // a ladder entry by coincidence of spelling and 74 of them in 46
+    // distinct colours that do not. **Fifty-three per cent.**
+    //
+    // A near-miss is invisible in review and silent at run time,
+    // because `NightLuminance` keys on the RGB bytes and quietly
+    // falls through to the derived value for anything it does not
+    // recognise. That is how `RGB(255, 60, 90)` -- one green unit and
+    // two blue units from ACCENT4 -- came to paint eleven recording
+    // and fault indicators at a night luminance of 103, which is the
+    // exact figure phase 96.1 was written to fix.
+    //
+    // Named, that cannot happen: a typo is a compile error instead of
+    // a colour that is 137 luminance units wrong in the dark.
+    // tests/operator_palette.cpp asserts these agree with the
+    // 0xAARRGGBB tokens byte for byte, so the two spellings cannot
+    // drift.
+    namespace Rgb {
+        inline constexpr COLORREF FromArgb(uint32_t argb) {
+            return RGB((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF);
+        }
+        inline constexpr COLORREF BG_VOID  = FromArgb(0xFF04080F);
+        inline constexpr COLORREF DEEP     = FromArgb(0xFF070D16);
+        inline constexpr COLORREF PANEL    = FromArgb(0xFF0A1520);
+        inline constexpr COLORREF BORDER   = FromArgb(0xFF0E1D2E);
+        inline constexpr COLORREF ACCENT   = FromArgb(0xFF00E5FF);
+        inline constexpr COLORREF ACCENT2  = FromArgb(0xFFFFB900);
+        inline constexpr COLORREF ACCENT3  = FromArgb(0xFF4DFF91);
+        inline constexpr COLORREF ACCENT4  = FromArgb(0xFFFF3B5C);
+        inline constexpr COLORREF TEXT     = FromArgb(0xFFC8E8F0);
+        inline constexpr COLORREF TEXT_DIM = FromArgb(0xFF8CAFBE);
+        inline constexpr COLORREF RED      = ACCENT4;
+        inline constexpr COLORREF AMBER    = ACCENT2;
+        inline constexpr COLORREF GREEN    = ACCENT3;
+    }
 
     constexpr const wchar_t* FONT_BANNER = L"Space Mono";
     constexpr const wchar_t* FONT_LABEL  = L"Barlow Condensed";
@@ -372,7 +434,7 @@ namespace Theme {
             { 0x8C, 0xAF, 0xBE,       80 },  // TEXT_DIM       skimmed labels
             { 0x0E, 0x1D, 0x2E,       34 },  // BORDER         separators
             { 0x0A, 0x15, 0x20,       24 },  // PANEL          raised surface
-            { 0x07, 0x08, 0x0E,       14 },  // DEEP           panel background
+            { 0x07, 0x0D, 0x16,       14 },  // DEEP           panel background
             { 0x04, 0x08, 0x0F,        8 },  // BG_VOID        deepest surface
         };
 
@@ -432,6 +494,167 @@ namespace Theme {
         const int b = (int)(c.b * 255.0f + 0.5f);
         const float lum = (float)NightLuminance(r, g, b) / 255.0f;
         return D2D1::ColorF(lum, lum * 0.1f, 0.0f, c.a);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  Phase 96.4: depth on a surface with no alpha
+    // ════════════════════════════════════════════════════════
+    //
+    // 96.2 defined four elevation levels, each an offset, a blur and a
+    // weight. 96.3 spent them on the two Direct2D surfaces, where a
+    // weight is an alpha and a shadow is simply painted over whatever
+    // is beneath it.
+    //
+    // The operator chrome paints with GDI, where `FillRect` is opaque
+    // and there is no compositing without `AlphaBlend` and a source
+    // DC. But it does not need one: the thing a shadow falls on here
+    // is always a palette token, so the composite is known in advance
+    // and can be emitted as a solid colour.
+    //
+    // ── The part that is easy to get wrong ──────────────────
+    //
+    // The order of the blend and the night transform is not
+    // interchangeable, and getting it backwards compiles and looks
+    // plausible.
+    //
+    // `NV()` is a TABLE for the tokens and linear only for everything
+    // else. A blended colour is in no table, so blending first and
+    // tinting after gives (1 - alpha) times the token's DERIVED
+    // luminance -- while the surface the shadow sits on is painted at
+    // the token's DESIGNED one. For PANEL those are 19 and 24, so a
+    // 35% shadow would come out at 12 against a surface at 24: a
+    // ratio of 0.50 where 0.65 was asked for.
+    //
+    // So the blend happens on the far side of the transform, in
+    // whichever space is currently active. Then the ratio a level
+    // states is the ratio that appears, in both modes.
+    // tests/operator_palette.cpp pins exactly that.
+
+    // Linear mix of two colours ALREADY in the active space. Both
+    // arguments must have been through NV(), or the result mixes a
+    // day colour into a night one.
+    inline COLORREF Mix(COLORREF a, COLORREF b, float t) {
+        if (t <= 0.0f) return a;
+        if (t >= 1.0f) return b;
+        auto m = [&](int x, int y) {
+            return (int)((float)x + ((float)y - (float)x) * t + 0.5f);
+        };
+        return RGB(m(GetRValue(a), GetRValue(b)),
+                   m(GetGValue(a), GetGValue(b)),
+                   m(GetBValue(a), GetBValue(b)));
+    }
+
+    // A shadow of the given weight falling on `parent`. Takes the DAY
+    // token and does the tinting itself, so a call site cannot get
+    // the order wrong.
+    //
+    // Black is luminance zero in both spaces, which is why this one
+    // needs no special case for night vision: darkening is darkening.
+    inline COLORREF ShadowOver(COLORREF dayParent, float alpha) {
+        return Mix(NV(dayParent), RGB(0, 0, 0), alpha);
+    }
+
+    // The lit top edge of a raised surface, the other half of how the
+    // reference clients read as layered.
+    //
+    // NOT a blend toward white. In night vision `dayParent` has
+    // already been collapsed to (lum, lum/10, 0), and mixing that
+    // toward RGB(255,255,255) at even a third puts 89 of blue back
+    // into a display whose entire purpose is to have none -- which is
+    // what the mount controller's state-light highlight was doing,
+    // found when this function was written to replace it.
+    //
+    // The first draft of the replacement scaled each channel TOWARD
+    // 255, which is the same mistake with a different arithmetic: a
+    // blue channel at 0 came out at 45, and tests/operator_palette.cpp
+    // caught it. Pulling toward a bound you share with white IS
+    // blending toward white, at half weight.
+    //
+    // Multiplying is the operation that actually preserves hue,
+    // because it preserves the RATIOS between the channels -- and
+    // zero times anything is zero, so a channel night vision has
+    // emptied stays empty.
+    //
+    // Half weight, because a highlight matching its shadow in
+    // strength reads as a bevel rather than as depth, and a bevel is
+    // a different decade's design language.
+    //
+    // The argument is the DAY colour, like ShadowOver's: both tint
+    // internally so a call site cannot get the order wrong, which
+    // means neither may be handed an already-tinted value.
+    inline COLORREF HighlightOver(COLORREF dayParent, float alpha) {
+        const COLORREF p = NV(dayParent);
+        if (alpha <= 0.0f) return p;
+        const float a = (alpha >= 1.0f) ? 1.0f : alpha;
+        const float k = 1.0f + a * 0.5f;
+        auto up = [&](int x) {
+            const int v = (int)((float)x * k + 0.5f);
+            return v > 255 ? 255 : v;
+        };
+        return RGB(up(GetRValue(p)), up(GetGValue(p)), up(GetBValue(p)));
+    }
+
+    // The shadow colour for an elevation level, on a known parent.
+    // One lookup, so a surface asks for RAISED rather than guessing a
+    // weight, and the four levels keep the order 96.2 gave them.
+    inline COLORREF ShadowForLevel(COLORREF dayParent, int level) {
+        return ShadowOver(dayParent, ShadowFor(level).alpha);
+    }
+
+    // ── Elevation inside your own rect ──────────────────────
+    //
+    // The operator chrome cannot cast a shadow, and the reason is
+    // structural rather than a matter of effort.
+    //
+    // The control panel is built from child controls under
+    // WS_CLIPCHILDREN, so the parent's paint never touches a child's
+    // pixels; and every collapse toggle runs RebuildControls, which
+    // destroys and recreates all of them. A cast shadow would mean the
+    // parent tracking every child's rect and repainting the bands
+    // between them on each scroll and each rebuild.
+    //
+    // What an owner-drawn child CAN do is raise itself inside the rect
+    // it already owns: one lit line along its top edge and a short
+    // shade along its bottom. That reads as a raised plate, it needs
+    // no knowledge of anything outside the control, and it survives a
+    // rebuild because it is part of the control's own drawing.
+    //
+    // Both edges are drawn INSIDE the rect, so nothing moves and no
+    // caller has to leave room.
+    inline void RaiseInRect(HDC hdc, const RECT& r, COLORREF dayFace,
+                            int level = 1) {
+        if (!hdc || r.right <= r.left || r.bottom <= r.top) return;
+        const Shadow sh = ShadowFor(level);
+        if (sh.alpha <= 0.0f) return;
+
+        // The lit top edge, one pixel, weaker than the shade below it:
+        // matched strengths read as a bevel, which is a different
+        // decade's design language.
+        HBRUSH top = CreateSolidBrush(HighlightOver(dayFace, sh.alpha));
+        RECT tr = { r.left, r.top, r.right, r.top + 1 };
+        FillRect(hdc, &tr, top);
+        DeleteObject(top);
+
+        // The shade, as rows fading toward the face. Bounded to a
+        // third of the control's height, so this is still depth on a
+        // short button rather than a gradient filling it.
+        int rows = sh.blur / 2;
+        if (rows < 1) rows = 1;
+        const int maxRows = (r.bottom - r.top) / 3;
+        if (rows > maxRows) rows = maxRows;
+        for (int i = 0; i < rows; ++i) {
+            // Darkest at the very bottom edge, fading UP into the
+            // face. The first draft had (rows - i), which put the
+            // darkest row at the top of the band and the lightest on
+            // the edge itself -- a plate lit from above, shaded as if
+            // the light came from below.
+            const float w = sh.alpha * (float)(i + 1) / (float)rows;
+            HBRUSH b = CreateSolidBrush(ShadowOver(dayFace, w));
+            RECT br = { r.left, r.bottom - rows + i,
+                        r.right, r.bottom - rows + i + 1 };
+            FillRect(hdc, &br, b);
+            DeleteObject(b);
+        }
     }
 
     // ── Mode-aware GDI object cache ───────────────────────────

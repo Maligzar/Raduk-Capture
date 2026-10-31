@@ -104,7 +104,7 @@ public:
             wc.lpfnWndProc   = WndProc;
             wc.hInstance     = GetModuleHandle(nullptr);
             wc.hCursor       = LoadCursor(nullptr, IDC_CROSS);
-            wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(4, 8, 16)));
+            wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::BG_VOID));
             wc.lpszClassName = L"RadukSkyMap";
             RegisterClassExW(&wc);
             s_registered = true;

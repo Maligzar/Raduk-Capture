@@ -48,7 +48,7 @@ public:
         wc.lpfnWndProc   = WndProc;
         wc.hInstance     = GetModuleHandle(nullptr);
         wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(4, 8, 15)));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::BG_VOID));
         wc.lpszClassName = L"RadukHistogram";
         RegisterClassExW(&wc);
 

@@ -39,7 +39,7 @@ inline bool ShowQuickAlignHelper(HWND owner, HWND panel) {
         wc.lpfnWndProc   = DefWindowProcW;
         wc.hInstance     = GetModuleHandleW(nullptr);
         wc.hCursor       = LoadCursorW(nullptr, (LPCWSTR)IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
         wc.lpszClassName = kClass;
         RegisterClassExW(&wc);
         registered = true;

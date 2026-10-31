@@ -625,6 +625,76 @@ in `AudienceLayout.h`, which is the whole reason they are tokens.
 
 ---
 
+## 17. The warning tiers, which were inverted in the dark until phase 96.4
+
+Added 2026-10-31. Unlike item 16 this one is **not** a matter of taste.
+It is a measured defect that was live in every build until now, and the
+first thing to do with night vision on is confirm it is gone.
+
+**What was wrong.** `ACCENT4`, the capture and danger token, is
+`RGB(255, 59, 92)`. Eleven indicators across four files spelled
+`RGB(255, 60, 90)` instead — one green unit and two blue units away.
+`NightLuminance` keys on the RGB bytes, so a near-miss falls silently
+through to the derived value, and those eleven painted at **103** where
+the token is designed at **240**.
+
+Worse, the status window's three warning tiers were *all* literals in
+the same ternary. In night vision they read:
+
+| Tier | was | now |
+|---|---|---|
+| critical | **103** | 240 |
+| caution | 175 | 110 |
+| good | 150 | 170 |
+| secondary labels | 134 | 80 |
+
+**Critical was the dimmest of the four.** The order was close to
+reversed.
+
+**What to check, with `N` pressed:**
+
+1. **Start a recording.** The REC indicator on the status window should
+   now be the brightest thing on the screen. It was previously dimmer
+   than the labels beside it.
+2. **Fill a disk or a write buffer** (or just read the thresholds in
+   `StatusWindow.h`): below 20 GB free and above 80% buffer should both
+   shout. Between 20 and 100 GB, and 50 to 80% buffer, is the caution
+   tier.
+3. **The mount's state lamp.** Its rim used to be a 35% blend toward
+   white, which put **89 units of blue** into a night-vision display on
+   the one surface read from the eyepiece. There should now be none at
+   all. If the lamp looks flat rather than lit, `Theme::HighlightOver`'s
+   half weight is the dial.
+4. **The AUTO FOCUS and RECORD buttons.** Both are raised inside their
+   own rects now, RECORD a level higher than the rest because its state
+   has to be readable without looking for it. If either reads as a
+   1990s bevel rather than as depth, the highlight is too strong
+   relative to the shade.
+
+### The decision this leaves you
+
+`ACCENT3` (mount, live) is designed at 170 and `ACCENT2` (EAF,
+secondary) at 110, so **"good" is now brighter than "caution"**. For a
+warning tier that is backwards, and it is backwards because the ladder
+was designed around device roles and the warning system borrowed it.
+
+Fixing it means a caution rung between danger and primary text, and the
+ladder is full: 240 down to 80 at the 24-unit minimum holds seven rungs
+and six are taken, so inserting one re-spaces every signal and changes
+the whole operator look in the dark. That is your call, not a side
+effect of a palette pass, so 96.4 did not make it.
+
+**What is still outstanding (96.4b).** Six near-identical font sizes
+(11 through 16) still want collapsing onto the three ramp steps, and
+the spacing literals onto `Space::`. Not done here because
+`ControlPanel.cpp` has six measured-text calls in 2424 lines — it lays
+out by hard pixel offsets, so growing a label inside a static sized to
+fit clips it, and nobody in a container can watch that happen. Every
+off-ramp site is marked in the source with `96.4b` and the step it
+wants, so it is mechanical once you have the screen in front of you.
+
+---
+
 ## What is already verified against hardware
 
 For contrast, so this list is not read as "nothing works":

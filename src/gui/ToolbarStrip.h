@@ -104,7 +104,7 @@ public:
         wc.lpfnWndProc   = ToolbarWndProc;
         wc.hInstance     = GetModuleHandle(nullptr);
         wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(10, 21, 32))); // --bg-panel
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::PANEL)); // --bg-panel
         wc.lpszClassName = L"RadukToolbarStrip";
         RegisterClassExW(&wc); // ignore already-registered error
 
@@ -124,14 +124,14 @@ public:
         }
 
         // Font: Space Mono 9pt for inactive, bold for active
-        m_font = CreateFontW(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        m_font = CreateFontW(-Theme::Type::MICRO, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                               DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                               CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
                               L"Space Mono");
         if (!m_font)
             m_font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
 
-        m_fontActive = CreateFontW(-11, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        m_fontActive = CreateFontW(-Theme::Type::MICRO, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                     DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
                                     L"Space Mono");
@@ -527,17 +527,17 @@ private:
             case WM_CTLCOLORBTN: {
                 // Paint button background to match toolbar dark theme
                 HDC hdc = (HDC)wParam;
-                SetBkColor(hdc, Theme::NV(RGB(10, 21, 32)));
-                SetTextColor(hdc, Theme::NV(RGB(200, 232, 240))); // --text
-                HBRUSH hBg = Theme::Brush(RGB(10, 21, 32));
+                SetBkColor(hdc, Theme::NV(Theme::Rgb::PANEL));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT)); // --text
+                HBRUSH hBg = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)hBg;
             }
             case WM_ERASEBKGND: {
                 HDC hdc = (HDC)wParam;
                 RECT cr; GetClientRect(hwnd, &cr);
-                HBRUSH hBg = Theme::Brush(RGB(10, 21, 32));
+                HBRUSH hBg = Theme::Brush(Theme::Rgb::PANEL);
                 FillRect(hdc, &cr, hBg);
-                HPEN hBorder = Theme::Pen(RGB(14, 29, 46), 1);
+                HPEN hBorder = Theme::Pen(Theme::Rgb::BORDER, 1);
                 HPEN old = (HPEN)SelectObject(hdc, hBorder);
                 MoveToEx(hdc, 0, cr.bottom - 1, nullptr);
                 LineTo(hdc, cr.right, cr.bottom - 1);

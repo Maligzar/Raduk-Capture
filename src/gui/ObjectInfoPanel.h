@@ -62,7 +62,7 @@ public:
         wc.lpfnWndProc   = PanelWndProc;
         wc.hInstance     = GetModuleHandle(nullptr);
         wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(Theme::NV(RGB(7, 13, 22)));
+        wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
         wc.lpszClassName = L"RadukObjectInfo";
         RegisterClassExW(&wc);
 
@@ -171,17 +171,17 @@ private:
             GetModuleHandle(nullptr), nullptr);
 
         // Fonts
-        HFONT hdrFont = CreateFontW(-14, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        HFONT hdrFont = CreateFontW(/*96.4b: off-ramp, wants STRONG (16)*/-14, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
         if (!hdrFont) hdrFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
 
-        HFONT bodyFont = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT bodyFont = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, FIXED_PITCH | FF_MODERN, L"Courier New");
         if (!bodyFont) bodyFont = (HFONT)GetStockObject(SYSTEM_FIXED_FONT);
 
-        HFONT uiFont = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT uiFont = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
         if (!uiFont) uiFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
@@ -304,16 +304,16 @@ private:
             case WM_CTLCOLORSTATIC:
             case WM_CTLCOLOREDIT: {
                 HDC hdc = (HDC)wp;
-                SetTextColor(hdc, Theme::NV(RGB(180, 220, 240)));
-                SetBkColor(hdc,   Theme::NV(RGB(10,  21,  32)));
-                HBRUSH bg = Theme::Brush(RGB(10, 21, 32));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+                SetBkColor(hdc,   Theme::NV(Theme::Rgb::PANEL));
+                HBRUSH bg = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)bg;
             }
             case WM_CTLCOLORBTN: {
                 HDC hdc = (HDC)wp;
-                SetTextColor(hdc, Theme::NV(RGB(200, 232, 240)));
-                SetBkColor(hdc,   Theme::NV(RGB(10,  21,  32)));
-                HBRUSH bg = Theme::Brush(RGB(10, 21, 32));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+                SetBkColor(hdc,   Theme::NV(Theme::Rgb::PANEL));
+                HBRUSH bg = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)bg;
             }
         }

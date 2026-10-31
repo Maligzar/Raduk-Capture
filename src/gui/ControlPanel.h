@@ -31,7 +31,6 @@
 namespace raduk::gui {
 
 static constexpr int PANEL_WIDTH  = 560;   // panel client width (wider for SharpCap-style layout)
-static constexpr int PANEL_HEIGHT = 900;   // reference height (panel is scrollable)
 
 class ControlPanel {
 public:
@@ -542,7 +541,6 @@ private:
 
     // ── Control creation helpers ───────────────────────────────
     HWND MakeLabel(const wchar_t* text, int x, int y, int w, int h, int id = 0);
-    void MakeSectionLabel(const char* ascii, int x, int y, int w, int h);
     HWND MakeSlider(int x, int y, int w, int h, int lo, int hi, int val, int id);
     HWND MakeButton(const wchar_t* text, int x, int y, int w, int h, int id);
     HWND MakeValueLabel(const wchar_t* text, int x, int y, int w, int h, int id);
@@ -658,7 +656,6 @@ private:
                                               LPARAM lParam, UINT_PTR id, DWORD_PTR data);
 
     // Control IDs for collapse headers
-    enum { ID_HDR_CAMERA = 2100, ID_HDR_EAF, ID_HDR_MOUNT };
 
 
     // ── Window handles ─────────────────────────────────────────
@@ -805,7 +802,7 @@ private:
         ID_BTN_AE_AUTO, ID_LBL_AE_STATUS,
         // Phase 98: the camera section had no numeric entry at all.
         ID_EDIT_EXPOSURE,
-        ID_LBL_GAIN_VAL = 1100, ID_LBL_EXP_VAL, ID_LBL_GAMMA_VAL,
+        ID_LBL_GAIN_VAL = 1100, ID_LBL_GAMMA_VAL,
         ID_LBL_WBR_VAL, ID_LBL_WBB_VAL, ID_LBL_USB_VAL,
         ID_LBL_FOCUS_POS = 1200, ID_LBL_FOCUS_TEMP, ID_EDIT_FOCUS_GOTO,
         ID_BTN_FOCUS_IN5000 = 1300, ID_BTN_FOCUS_IN1000,

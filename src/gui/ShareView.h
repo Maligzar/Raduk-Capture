@@ -39,6 +39,7 @@
 #include <chrono>
 #include <algorithm>
 #include "Theme.h"
+#include "AudienceLayout.h"
 
 namespace raduk::gui {
 
@@ -262,6 +263,7 @@ private:
     void ReleaseD2D() {
         if (m_bigFormat)   { m_bigFormat->Release();   m_bigFormat   = nullptr; }
         if (m_smallFormat) { m_smallFormat->Release(); m_smallFormat = nullptr; }
+        if (m_microFormat) { m_microFormat->Release(); m_microFormat = nullptr; }
         if (m_bitmap)      { m_bitmap->Release();      m_bitmap      = nullptr; }
         if (m_rt)          { m_rt->Release();          m_rt          = nullptr; }
         // Last: MakeFonts() creates the formats through it and must
@@ -271,26 +273,61 @@ private:
         m_haveFrame = false;
         m_bmpW = m_bmpH = 0;
         m_fontPx = 0.0f;
+        m_bodyPx = 0.0f;
     }
 
     // Caption text sized from the window, because this one is read from
     // across a room rather than from a chair. Off height, and generous:
     // the target name is the single thing a bystander wants.
+    //
+    // ── Phase 96.3: the ramp, anchored on the tuned size ────
+    //
+    // The target name at h/18 was arrived at by eye and it reads
+    // correctly across a lawn, so it is kept and everything else is
+    // derived BACK from it through Theme::Type. Starting from a body
+    // size instead would have thrown away a real measurement to make
+    // the arithmetic tidier.
+    //
+    // What that replaces is the 0.42 below it, which was this
+    // window's own invented ratio. The object panel -- same room,
+    // same audience, same night -- had invented 0.52 for the same
+    // job, and neither knew about the other.
     void MakeFonts() {
         if (!m_dwrite) return;
-        const float px = (std::max)(18.0f, (std::min)(72.0f, (float)m_h / 18.0f));
+        const float px = (std::max)(28.0f, (std::min)(72.0f, (float)m_h / 18.0f));
         if (m_bigFormat && px == m_fontPx) return;
         m_fontPx = px;
+        // Floored at the ramp's anchor. Below a body size of
+        // Type::BODY the scaled steps compress until adjacent ones
+        // are under MIN_STEP apart, which is the one-pixel-apart
+        // defect 96.2 fixed reappearing by arithmetic rather than by
+        // choice. Dragged that small the big type will clip, and
+        // clipped type in a window nobody is using at 300 pixels
+        // tall beats seven-pixel type on one that is.
+        m_bodyPx = (std::max)((float)Theme::Type::BODY,
+                   Theme::Type::BodyForStep(px, Theme::Type::S_HERO));
 
         if (m_bigFormat)   { m_bigFormat->Release();   m_bigFormat   = nullptr; }
         if (m_smallFormat) { m_smallFormat->Release(); m_smallFormat = nullptr; }
+        if (m_microFormat) { m_microFormat->Release(); m_microFormat = nullptr; }
 
-        m_dwrite->CreateTextFormat(L"Barlow Condensed", nullptr,
+        m_dwrite->CreateTextFormat(Theme::FONT_LABEL, nullptr,
             DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px, L"en-us", &m_bigFormat);
-        m_dwrite->CreateTextFormat(L"Space Mono", nullptr,
+        m_dwrite->CreateTextFormat(Theme::FONT_DATA, nullptr,
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
-            DWRITE_FONT_STRETCH_NORMAL, px * 0.42f, L"en-us", &m_smallFormat);
+            DWRITE_FONT_STRETCH_NORMAL,
+            Theme::Type::Scaled(m_bodyPx, Theme::Type::S_BODY),
+            L"en-us", &m_smallFormat);
+        // The hint and the REC label are the two things on here that
+        // are NOT for the audience -- one is instructions for the
+        // owner, the other is a state light. They take the smallest
+        // step so they stay out of the photograph.
+        m_dwrite->CreateTextFormat(Theme::FONT_DATA, nullptr,
+            DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL,
+            Theme::Type::Scaled(m_bodyPx, Theme::Type::S_MICRO),
+            L"en-us", &m_microFormat);
     }
 
     bool EnsureBitmap(int w, int h) {
@@ -313,15 +350,19 @@ private:
     // Letterboxed, never stretched. A planet with the wrong aspect
     // ratio is not a planet, and nobody in the audience knows to
     // discount it.
-    D2D1_RECT_F FitRect() const {
-        const float vw = (float)m_w, vh = (float)m_h;
-        const float iw = (float)m_bmpW, ih = (float)m_bmpH;
-        if (iw <= 0.0f || ih <= 0.0f) return D2D1::RectF(0, 0, vw, vh);
-        const float s = (std::min)(vw / iw, vh / ih);
-        const float dw = iw * s, dh = ih * s;
-        const float ox = (vw - dw) * 0.5f, oy = (vh - dh) * 0.5f;
-        return D2D1::RectF(ox, oy, ox + dw, oy + dh);
+    //
+    // The arithmetic moved to audience::LetterboxFit so a test can
+    // reach it: everything the brackets and the scrim do is
+    // positioned against this rectangle, and a test that cannot see
+    // it is checking its own guess at where the image is.
+    audience::LRect FitLRect() const {
+        return audience::LetterboxFit((float)m_w, (float)m_h,
+                                      (float)m_bmpW, (float)m_bmpH);
     }
+    static D2D1_RECT_F R(const audience::LRect& k) {
+        return D2D1::RectF(k.l, k.t, k.r, k.b);
+    }
+    D2D1_RECT_F FitRect() const { return R(FitLRect()); }
 
     void Draw() {
         if (!m_rt) return;
@@ -333,8 +374,10 @@ private:
             // vision tints the chrome; tinting the sensor data would be
             // showing people a false colour of the planet, and the main
             // preview does not do it either.
-            m_rt->DrawBitmap(m_bitmap, FitRect(), 1.0f,
+            const audience::LRect fit = FitLRect();
+            m_rt->DrawBitmap(m_bitmap, R(fit), 1.0f,
                              D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
+            DrawBrackets(fit);
         } else {
             DrawCentredNotice(L"waiting for the camera");
         }
@@ -346,13 +389,102 @@ private:
         if (hr == D2DERR_RECREATE_TARGET) { ReleaseD2D(); InitD2D(); }
     }
 
+    // ── Where the sensor frame actually ends ─────────────────
+    //
+    // Four corner marks on the image rectangle. The one bit of the
+    // reference clients' framing that both survives night vision --
+    // it is a shape, and a shape has no hue to lose -- and does real
+    // work here.
+    //
+    // The work: a letterboxed planetary frame is a dark image
+    // centred in a black field, so from three metres back there is
+    // no visible edge and a bystander cannot tell the whole frame
+    // from a crop of it. These say where it stops. On a frame that
+    // already fills the window they land on the window edge and cost
+    // nothing.
+    void DrawBrackets(const audience::LRect& fit) {
+        const float arm = audience::BracketArm(fit, m_bodyPx);
+        if (arm <= 0.0f) return;              // too small to frame
+
+        // The accent TOKEN, not a literal cyan. Every colour on this
+        // window was a literal before 96.3, which meant 96.1's night
+        // ladder -- the whole point of which was that danger must be
+        // the brightest thing the UI paints -- did not apply to the
+        // one surface other people look at.
+        D2D1_COLOR_F c = Theme::Color(Theme::ACCENT);
+        c.a = 0.55f;
+        ID2D1SolidColorBrush* b = nullptr;
+        if (FAILED(m_rt->CreateSolidColorBrush(c, &b)) || !b) return;
+
+        const float wgt = (std::max)(1.5f, m_bodyPx * 0.09f);
+        // Half a stroke in from the image edge, so the mark sits ON
+        // the boundary rather than outside it.
+        const audience::LRect k = audience::Inset(fit, wgt * 0.5f);
+
+        struct Corner { float x, y, dx, dy; };
+        const Corner corners[4] = {
+            { k.l, k.t,  1.0f,  1.0f },   // top-left
+            { k.r, k.t, -1.0f,  1.0f },   // top-right
+            { k.l, k.b,  1.0f, -1.0f },   // bottom-left
+            { k.r, k.b, -1.0f, -1.0f },   // bottom-right
+        };
+        for (const Corner& q : corners) {
+            m_rt->DrawLine(D2D1::Point2F(q.x, q.y),
+                           D2D1::Point2F(q.x + q.dx * arm, q.y), b, wgt);
+            m_rt->DrawLine(D2D1::Point2F(q.x, q.y),
+                           D2D1::Point2F(q.x, q.y + q.dy * arm), b, wgt);
+        }
+        b->Release();
+    }
+
+    // ── The caption sits on something ────────────────────────
+    //
+    // White at 92% over a letterboxed Jupiter is white on black and
+    // reads perfectly. Over a full-frame Moon, or any target whose
+    // bright limb reaches the bottom of the sensor, it is white on
+    // white. A gradient scrim fixes that, and it is the clearest
+    // example of why depth was the axis to build this look from: a
+    // scrim is alpha over whatever is beneath it, and NV() does not
+    // touch alpha, so it reads identically in both modes where a
+    // colour treatment would read in neither.
+    void DrawScrim(float captionTop) {
+        const audience::LRect band =
+            audience::CaptionScrim((float)m_w, (float)m_h,
+                                   captionTop, m_bodyPx);
+        if (audience::Height(band) <= 0.0f) return;
+
+        ID2D1GradientStopCollection* stops = nullptr;
+        D2D1_GRADIENT_STOP gs[2];
+        gs[0].position = 0.0f;                 // top: gone
+        gs[0].color    = D2D1::ColorF(0, 0, 0, 0.0f);
+        gs[1].position = 1.0f;                 // bottom: carrying text
+        gs[1].color    = D2D1::ColorF(0, 0, 0, audience::SCRIM_PEAK_ALPHA);
+        // Black at varying alpha, deliberately NOT through NVf. The
+        // transform maps every colour to a red of the same luminance,
+        // and black is luminance zero either way -- but routing it
+        // through would put a red cast on a scrim whose entire job is
+        // to be the absence of one.
+        if (FAILED(m_rt->CreateGradientStopCollection(gs, 2, &stops)) || !stops)
+            return;
+        ID2D1LinearGradientBrush* lg = nullptr;
+        if (SUCCEEDED(m_rt->CreateLinearGradientBrush(
+                D2D1::LinearGradientBrushProperties(
+                    D2D1::Point2F(0.0f, band.t),
+                    D2D1::Point2F(0.0f, band.b)),
+                stops, &lg)) && lg) {
+            m_rt->FillRectangle(R(band), lg);
+            lg->Release();
+        }
+        stops->Release();
+    }
+
     // Top-left, dim, and only for the first few seconds after the view
     // is shown or its fullscreen state changes. A borderless window
     // with no caption and no focus gives no clue how to leave it, and
     // the answer has to be on the window itself -- the owner reading
     // it is standing at a different screen from the help file.
     void DrawHint() {
-        if (!m_full || !m_smallFormat) return;
+        if (!m_full || !m_microFormat) return;
         const auto now = std::chrono::steady_clock::now();
         if (now >= m_hintUntil) return;
 
@@ -360,16 +492,17 @@ private:
                                 m_hintUntil - now).count();
         const float a = (float)((left < 1.5) ? left / 1.5 : 1.0) * 0.6f;
 
+        D2D1_COLOR_F c = Theme::Color(Theme::TEXT_DIM);
+        c.a = a;
         ID2D1SolidColorBrush* b = nullptr;
-        m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.60f, 0.75f, 0.90f, a)), &b);
+        m_rt->CreateSolidColorBrush(c, &b);
         if (!b) return;
         const wchar_t* t = L"Ctrl+Shift+V on the control screen for a window"
                            L"  ·  Shift+V closes it"
                            L"  ·  or click here, then F11 / C";
-        const float pad = (std::max)(24.0f, (float)m_w / 60.0f);
-        m_smallFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-        m_rt->DrawText(t, (UINT32)wcslen(t), m_smallFormat,
+        const float pad = Pad();
+        m_microFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+        m_rt->DrawText(t, (UINT32)wcslen(t), m_microFormat,
                        D2D1::RectF(pad, pad, (float)m_w - pad,
                                    pad + m_fontPx), b);
         b->Release();
@@ -377,9 +510,10 @@ private:
 
     void DrawCentredNotice(const wchar_t* text) {
         if (!m_smallFormat) return;
+        D2D1_COLOR_F c = Theme::Color(Theme::TEXT_DIM);
+        c.a = 0.75f;
         ID2D1SolidColorBrush* b = nullptr;
-        m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.35f, 0.45f, 0.55f, 0.9f)), &b);
+        m_rt->CreateSolidColorBrush(c, &b);
         if (!b) return;
         m_smallFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
         m_rt->DrawText(text, (UINT32)wcslen(text), m_smallFormat,
@@ -419,16 +553,23 @@ private:
             len += swprintf(line + len, 256 - len, L"%s%.0f° up",
                             len ? L"   ·   " : L"", m_cap.altitudeDeg);
 
-        const float pad   = (std::max)(24.0f, (float)m_w / 60.0f);
+        const float pad   = Pad();
         const float bigH  = m_fontPx * 1.25f;
-        const float smlH  = m_fontPx * 0.42f * 1.6f;
-        float y = (float)m_h - pad - smlH - bigH;
+        const float smlH  = Theme::Type::Scaled(m_bodyPx, Theme::Type::S_BODY)
+                          * 1.6f;
+        const float top = (float)m_h - pad - smlH - bigH;
+        float y = top;
+
+        // Depth before text, so the caption is on a surface rather
+        // than on the planet.
+        DrawScrim(top);
 
         ID2D1SolidColorBrush* b = nullptr;
 
         if (target[0]) {
-            m_rt->CreateSolidColorBrush(
-                Theme::NVf(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.92f)), &b);
+            D2D1_COLOR_F c = Theme::Color(Theme::TEXT);
+            c.a = 0.95f;
+            m_rt->CreateSolidColorBrush(c, &b);
             if (b) {
                 m_bigFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
                 m_rt->DrawText(target, (UINT32)wcslen(target), m_bigFormat,
@@ -439,8 +580,16 @@ private:
         y += bigH;
 
         if (line[0]) {
-            m_rt->CreateSolidColorBrush(
-                Theme::NVf(D2D1::ColorF(0.55f, 0.70f, 0.85f, 0.85f)), &b);
+            // TEXT_DIM, and this is the measurement that made 96.3
+            // more than a tidy-up. As a literal (0.55, 0.70, 0.85)
+            // this line derived to a night luminance of 172. The
+            // ladder puts TEXT_DIM -- labels you are MEANT to skim --
+            // at 80. It was painting at better than twice the
+            // brightness its own role allows, on the surface aimed
+            // at people who are not reading it.
+            D2D1_COLOR_F c = Theme::Color(Theme::TEXT_DIM);
+            c.a = 0.90f;
+            m_rt->CreateSolidColorBrush(c, &b);
             if (b) {
                 m_smallFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
                 m_rt->DrawText(line, (UINT32)wcslen(line), m_smallFormat,
@@ -449,24 +598,97 @@ private:
             }
         }
 
-        // A recording light, top-right. Not a diagnostic -- it is there
-        // so nobody has to ask whether this one is being kept.
-        if (m_cap.recording) {
-            const float r = (std::max)(8.0f, m_fontPx * 0.22f);
-            const float cxp = (float)m_w - pad - r;
-            const float cyp = pad + r;
-            m_rt->CreateSolidColorBrush(
-                Theme::NVf(D2D1::ColorF(1.0f, 0.15f, 0.25f, 0.95f)), &b);
-            if (b) {
-                m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cxp, cyp), r, r), b);
-                m_smallFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
-                m_rt->DrawText(L"REC", 3, m_smallFormat,
-                               D2D1::RectF(pad, cyp - smlH * 0.5f,
-                                           cxp - r - 10.0f, cyp + smlH * 0.5f), b);
-                m_smallFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-                b->Release();
-            }
+        // ── The recording light ─────────────────────────────
+        //
+        // Not a diagnostic. It is there so nobody has to ask whether
+        // this one is being kept.
+        //
+        // It is also the sharpest case of what 96.3 is fixing. The
+        // literal (1.0, 0.15, 0.25) derives to a night luminance of
+        // 86. ACCENT4 -- the same red, as a token -- is 240, because
+        // 96.1 put danger at the top of the ladder on the grounds
+        // that the thing which must shout cannot be the quietest
+        // thing on screen. That fix landed on every operator surface
+        // and reached none of this one, because this one painted
+        // literals. In night vision the recording light was dimmer
+        // than the caption beneath it.
+        //
+        // A capsule rather than a bare dot and some text, at OVERLAY
+        // elevation: over a bright limb the old dot had nothing
+        // behind it either.
+        if (m_cap.recording) DrawRecPill(pad);
+    }
+
+    void DrawRecPill(float pad) {
+        if (!m_microFormat) return;
+
+        const float r    = (std::max)(6.0f, m_bodyPx * 0.26f);
+        const float padX = Theme::Space::Scaled(m_bodyPx, Theme::Space::P_SM);
+        const float h    = r * 2.0f + padX;
+        const float w    = padX * 2.0f + r * 2.0f +
+                           Theme::Space::Scaled(m_bodyPx, Theme::Space::P_SM) +
+                           m_bodyPx * 2.4f;          // room for "REC"
+        const audience::LRect pill{ (float)m_w - pad - w, pad,
+                                    (float)m_w - pad,     pad + h };
+        const float rad = h * 0.5f;
+
+        DrawElevation(pill, rad, Theme::Elev::OVERLAY);
+
+        ID2D1SolidColorBrush* b = nullptr;
+        D2D1_COLOR_F face = Theme::Color(Theme::PANEL);
+        face.a = 0.82f;
+        if (SUCCEEDED(m_rt->CreateSolidColorBrush(face, &b)) && b) {
+            m_rt->FillRoundedRectangle(
+                D2D1::RoundedRect(R(pill), rad, rad), b);
+            b->Release(); b = nullptr;
         }
+
+        D2D1_COLOR_F hot = Theme::Color(Theme::ACCENT4);
+        if (FAILED(m_rt->CreateSolidColorBrush(hot, &b)) || !b) return;
+        const float cx = pill.l + padX + r;
+        const float cy = (pill.t + pill.b) * 0.5f;
+        m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), r, r), b);
+        m_microFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+        m_rt->DrawText(L"REC", 3, m_microFormat,
+                       D2D1::RectF(cx + r + padX * 0.75f, cy - m_bodyPx * 0.72f,
+                                   pill.r - padX * 0.5f, cy + m_bodyPx * 0.72f), b);
+        b->Release();
+    }
+
+    // ── Depth, without a blur to do it with ─────────────────
+    //
+    // A plain hwnd render target has no Gaussian blur -- that lives
+    // on ID2D1DeviceContext, and rebuilding this window onto the
+    // Direct2D 1.1 pipeline to soften one card edge would be a
+    // disproportionate change to a window that works. So the shadow
+    // is nested rings of flat fill, weighted to sum to the level's
+    // stated alpha so Theme's ordering survives the approximation.
+    void DrawElevation(const audience::LRect& card, float radius, int level) {
+        const Theme::Shadow sh = Theme::ShadowFor(level);
+        if (!audience::ShadowVisible(sh)) return;
+        ID2D1SolidColorBrush* b = nullptr;
+        if (FAILED(m_rt->CreateSolidColorBrush(
+                D2D1::ColorF(0, 0, 0, 1.0f), &b)) || !b) return;
+        for (int i = 0; i < audience::SHADOW_RINGS; ++i) {
+            const audience::Ring g = audience::ShadowRingAt(card, sh, i);
+            // Black at an alpha, like the scrim: not through NVf,
+            // because a shadow is the absence of light and tinting it
+            // red would make it a glow.
+            b->SetColor(D2D1::ColorF(0, 0, 0, g.alpha));
+            // The ring is wider than the card by its spread, so its
+            // corner radius grows by the same amount or the outer
+            // rings square off against a rounded card.
+            const float gr = radius + (card.l - g.rect.l);
+            m_rt->FillRoundedRectangle(
+                D2D1::RoundedRect(R(g.rect), gr, gr), b);
+        }
+        b->Release();
+    }
+
+    // The window inset, on the shared rhythm rather than w/60.
+    float Pad() const {
+        return (std::max)(24.0f,
+            Theme::Space::Scaled(m_bodyPx, Theme::Space::P_LG));
     }
 
     void OnResize(int w, int h) {
@@ -565,6 +787,7 @@ private:
     IDWriteFactory*        m_dwrite = nullptr;
     IDWriteTextFormat*     m_bigFormat   = nullptr;
     IDWriteTextFormat*     m_smallFormat = nullptr;
+    IDWriteTextFormat*     m_microFormat = nullptr;
     ID2D1Bitmap*           m_bitmap = nullptr;
 
     int   m_w = 0, m_h = 0;
@@ -573,7 +796,8 @@ private:
     bool  m_showCaption = true;
     bool  m_full        = false;   // what the window is
     bool  m_wantFull    = true;    // what the owner last asked for
-    float m_fontPx      = 0.0f;
+    float m_fontPx      = 0.0f;   // the HERO step, tuned by eye
+    float m_bodyPx      = 0.0f;   // derived back through Theme::Type
     double m_maxFps     = 30.0;
 
     Caption          m_cap;

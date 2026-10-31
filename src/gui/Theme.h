@@ -94,9 +94,90 @@ namespace Theme {
         inline constexpr int TITLE  = 20;  // panel and window titles
         inline constexpr int HERO   = 28;  // audience surfaces only
 
+        // ── Phase 96.3 added this step ──────────────────────
+        //
+        // 96.2 derived the ramp from the sizes the code was already
+        // using, and every one of those was on an OPERATOR surface,
+        // where nothing is a hero -- the largest thing a control
+        // panel has is a section header. So the ramp it produced
+        // spans 2.15:1 from body to top, which is a document ramp.
+        //
+        // The object panel has an actual display headline: the
+        // object's name across the top of a screen a stranger is
+        // reading from three metres back. Its own ratio, arrived at
+        // by eye and working, is 3.63:1. Put on the 96.2 ramp
+        // unchanged, that name would have shrunk by forty per cent.
+        //
+        // One of the two numbers had to be wrong and it was the
+        // ramp's. A display surface wants a wider span than a
+        // document; 2.15:1 is timid for a name meant to be read
+        // across a room, and the surface that does that job had
+        // already measured the answer. So the step is added and the
+        // measurement is kept, rather than the measurement being
+        // discarded to keep the ramp tidy.
+        //
+        // 47 rather than 48 because 47/BODY reproduces the object
+        // panel's tuned title to within a third of a pixel at 1080p,
+        // which is the whole reason for the number.
+        //
+        // Audience surfaces only, and more strictly than HERO: a
+        // 47-pixel fixed size has no business anywhere in the
+        // operator chrome.
+        inline constexpr int DISPLAY = 47;
+
         // The smallest gap the ramp guarantees. Asserted by
         // tests/visual_tokens.cpp.
         inline constexpr int MIN_STEP = 2;
+
+        // ── Phase 96.3: the same ramp, scaled ───────────────
+        //
+        // The audience surfaces cannot use the fixed sizes. A share
+        // view is read from three metres back on whatever monitor is
+        // pointed at the lawn, so its type has to scale with the
+        // window -- 11 pixels on a 4K display across a garden is not
+        // small type, it is absent type.
+        //
+        // They were already doing that, and that was the problem:
+        // each one had invented its own multipliers (2.9, 0.95, 0.52,
+        // 1.05, 0.80 in the object panel; 1.0 and 0.42 in the share
+        // view), so the two surfaces built for the same room and the
+        // same audience did not agree with each other on a single
+        // size. Scaling the ramp rather than replacing it is what
+        // makes them one system.
+        //
+        // Indexed, because a scaled step is computed rather than
+        // named.
+        inline constexpr int STEPS = 6;
+        inline constexpr int kRamp[STEPS] = { MICRO, BODY, STRONG,
+                                              TITLE, HERO, DISPLAY };
+        enum : int { S_MICRO = 0, S_BODY, S_STRONG, S_TITLE, S_HERO,
+                     S_DISPLAY };
+
+        inline constexpr int Clamp(int step) {
+            return step < 0 ? 0 : (step >= STEPS ? STEPS - 1 : step);
+        }
+
+        // A step as a multiple of BODY, which is the anchor because it
+        // is the size most text is.
+        inline constexpr float Ratio(int step) {
+            return (float)kRamp[Clamp(step)] / (float)BODY;
+        }
+
+        // The ramp at an arbitrary body size.
+        inline constexpr float Scaled(float bodyPx, int step) {
+            return bodyPx * Ratio(step);
+        }
+
+        // The inverse, for a surface whose tuned size is NOT the body
+        // one. The share view's large caption was sized by eye at
+        // h/18 and reads correctly across a lawn, so that figure is
+        // kept and the rest of the ramp is derived back from it
+        // rather than the other way round -- the tuning was real and
+        // throwing it away to start from a body size would be
+        // replacing a measurement with a guess.
+        inline constexpr float BodyForStep(float px, int step) {
+            return px / Ratio(step);
+        }
     }
 
     // ── Spacing ─────────────────────────────────────────────
@@ -112,6 +193,38 @@ namespace Theme {
         inline constexpr int LG   = 16;  // panel inset
         inline constexpr int XL   = 24;  // between sections
         inline constexpr int XXL  = 32;  // around a focal element
+
+        // ── Phase 96.3: the same rhythm, scaled ─────────────
+        //
+        // Fixed pixels are right for the operator chrome, which is a
+        // known size on a known monitor at a known arm's length. They
+        // are wrong for a surface whose type scales, because spacing
+        // that does not scale with the type it separates stops being
+        // rhythm and becomes a collision at one end and a gap at the
+        // other.
+        //
+        // So the audience surfaces take the same steps expressed
+        // against Type::BODY. At a body size of 13 these give back
+        // exactly the fixed pixels, which is the point: one rhythm,
+        // two expressions of it, and tests/audience_layout.cpp pins
+        // the identity so they cannot drift apart.
+        inline constexpr int STEPS = 6;
+        inline constexpr int kSteps[STEPS] = { XS, SM, MD, LG, XL, XXL };
+        enum : int { P_XS = 0, P_SM, P_MD, P_LG, P_XL, P_XXL };
+
+        inline constexpr int Clamp(int step) {
+            return step < 0 ? 0 : (step >= STEPS ? STEPS - 1 : step);
+        }
+
+        // The step as a multiple of body text, so a surface that
+        // scales its type scales its rhythm with it.
+        inline constexpr float Ems(int step) {
+            return (float)kSteps[Clamp(step)] / (float)Type::BODY;
+        }
+
+        inline constexpr float Scaled(float bodyPx, int step) {
+            return bodyPx * Ems(step);
+        }
     }
 
     // ── Elevation ───────────────────────────────────────────
@@ -156,14 +269,28 @@ namespace Theme {
 
     inline D2D1_COLOR_F NVf(D2D1_COLOR_F c);   // defined below
 
+    // The token's day channels, UNTINTED.
+    //
+    // For the surfaces that pass colours through their own brush
+    // helper, which already applies NVf. Handing one of those a value
+    // from Color() below would transform it twice, and NVf is not
+    // idempotent -- a second pass takes the luminance of (lum,
+    // lum/10, 0), which is 0.284 of the first, so the colour comes
+    // out at roughly a quarter brightness and still looks plausible.
+    // Exactly the kind of thing that ships.
+    inline D2D1_COLOR_F Raw(uint32_t argb) {
+        return D2D1::ColorF(((argb >> 16) & 0xFF) / 255.0f,
+                            ((argb >> 8)  & 0xFF) / 255.0f,
+                            ((argb)       & 0xFF) / 255.0f,
+                            ((argb >> 24) & 0xFF) / 255.0f);
+    }
+
+    // The token, tinted for the current mode. For a call site that
+    // paints with the result directly.
     inline D2D1_COLOR_F Color(uint32_t argb) {
-        float a = ((argb >> 24) & 0xFF) / 255.0f;
-        float r = ((argb >> 16) & 0xFF) / 255.0f;
-        float g = ((argb >> 8)  & 0xFF) / 255.0f;
-        float b = ((argb)       & 0xFF) / 255.0f;
         // Tinted here so every caller of the central D2D helper is
         // covered without touching the call site.
-        return NVf(D2D1::ColorF(r, g, b, a));
+        return NVf(Raw(argb));
     }
 
 

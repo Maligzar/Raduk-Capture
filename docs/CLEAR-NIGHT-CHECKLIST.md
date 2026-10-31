@@ -570,6 +570,61 @@ be deliberate, since `[ROI]` crops to exactly that.
 
 ---
 
+## 16. The visual system, in a dark room, which is the only venue that counts
+
+Added 2026-10-31 with phase 96.3. Nothing on this item is a defect to
+hunt. Phase 96 made three rounds of changes that a bench can prove
+correct and cannot prove *right*, and this is the look taken outside.
+
+**What a test already settled**, so there is no point re-checking it by
+eye: the night palette's ordering, the type ramp's separation, the
+elevation ordering, the letterbox geometry, and that a shadow's alpha is
+identical in both modes. All gated.
+
+**What only your eyes can settle.** Press `N` for night vision and look
+at each of these:
+
+1. **Is danger now the loudest thing on screen?** 96.1 moved `ACCENT4`
+   to the top of the ladder at 240, up from a derived 103. In the old
+   build the capture and danger colour was *sixty per cent dimmer* than
+   the labels you are meant to skim. If it now shouts too much, the
+   ladder's top is a number in `Theme::detail::kNightLadder` and it is
+   one edit.
+
+2. **Open the share view (`Shift+V`) on a bright target.** The caption
+   now sits on a gradient scrim rather than straight on the image. On a
+   full-frame Moon the old white-on-white was the case that justified
+   it; check it has not become a black bar on a dark planetary frame
+   instead. `audience::SCRIM_PEAK_ALPHA` is the dial.
+
+3. **Letterbox something.** Select a small ROI so the image does not
+   fill the screen, and check the corner marks read as a frame edge
+   rather than as decoration. They exist because a dark frame centred
+   in a black field has no visible boundary from three metres back; if
+   that is not a problem you actually have, say so and they come out.
+
+4. **Start recording and look at the REC capsule.** This is the one with
+   a measured defect behind it: as a literal colour it derived to 86,
+   where the ladder puts danger at 240, so in night vision the recording
+   light was *dimmer than the caption beneath it*. It should now be
+   unmissable.
+
+5. **Open the object panel (`Shift+O`) on a planet, then on a deep-sky
+   target.** The figures are raised cards now. Check the labels did not
+   grow too far — they moved from 0.52 em to the ramp's smallest step,
+   which is a thirty per cent jump, and `APPARENT SIZE` in a four-card
+   row is the string most likely to crowd.
+
+6. **The object's name.** `Type::DISPLAY` exists so this did not shrink.
+   Confirm it is the same size it was, because if it is not, the ratio
+   that was supposed to preserve it is wrong.
+
+The honest position: the arithmetic is right and the taste is untested.
+Anything on this list you dislike is a token in `Theme.h` or a constant
+in `AudienceLayout.h`, which is the whole reason they are tokens.
+
+---
+
 ## What is already verified against hardware
 
 For contrast, so this list is not read as "nothing works":

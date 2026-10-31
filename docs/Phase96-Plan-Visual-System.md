@@ -177,9 +177,36 @@ venue that counts.
 |---|---|---|---|
 | ~~**96.1**~~ | ~~Fix the hierarchy inversion~~ **DONE 2026-10-31.** Each token declares its own night luminance as a semantic ladder; danger is now the brightest thing the UI can paint | S | A correctness bug, found by measurement. Independent of everything else and worth doing even if the rest is dropped |
 | ~~**96.2**~~ | ~~Extend `Theme.h` into the surviving column~~ **DONE 2026-10-31.** Type ramp, spacing scale, elevation with one shadow per level, plus the invariant tests. Measuring first found the same defect in a second axis: the type sizes were one pixel apart, and the two painting stacks disagreed about the ramp | M | Nothing else can be consistent until this exists. No visible change on its own, which makes it the easiest stage to skip and the most expensive one to skip |
-| **96.3** | Audience surfaces: share view and object panel get the full treatment. Hero framing, ornament, depth, the richness the screenshots are actually showing | M | Where the references genuinely apply, and where a win is most visible to other people |
+| ~~**96.3**~~ | ~~Audience surfaces: share view and object panel get the full treatment~~ **DONE 2026-10-31.** Scaled type ramp, depth under the caption, corner marks on the sensor frame, figures as raised cards. Measuring first found something larger than a style gap: the two audience surfaces painted **eighteen literal colours and zero palette tokens**, so 96.1's night ladder had never reached either of them. The recording light on the screen pointed at the audience derived to 86 where the ladder puts danger at 240 — dimmer than the caption beneath it | M | Where the references genuinely apply, and where a win is most visible to other people |
 | **96.4** | Operator surfaces: the same system at low volume. Depth and spacing on the control panel, toolbar and GoTo panel; chrome recedes, the image gains | L | The biggest surface area and the most restraint required. Benefits most from 96.2 existing first |
 | **96.5** | Motion: transitions and easing on panel reveals, mode changes, state transitions | S | Disproportionate effect on perceived quality for the code it costs, but worthless on top of an inconsistent system, so it goes last |
+
+### What 96.3 changed about the plan itself
+
+Two things in the sections above turned out to be wrong, and both were
+found by retrofitting rather than by reading.
+
+**Section 5's "no painting site uses a literal colour where a token
+exists" was greppable and nobody had grepped it.** The answer on the
+two audience surfaces was eighteen literals and no tokens, which meant
+96.1 — a correctness fix to a safety-adjacent colour — had landed on
+every operator surface and reached neither screen that other people
+look at. The REC light derived to 86 against the ladder's 240 for
+danger; the caption line beside it derived to 173 against TEXT_DIM's
+80. In night vision the recording indicator was the dimmer of the two.
+That is the same inversion 96.1 was written to kill, surviving in the
+one place a bystander would see it.
+
+**96.2's ramp was a document ramp, not a display one.** It was derived
+from the sizes the code already used, and every one of those was on an
+operator surface, where the largest thing is a section header. It spans
+2.15:1 from body to top. The object panel has a real display headline
+and had measured its own answer by eye at 3.63:1. Putting its title on
+the 96.2 ramp unchanged would have shrunk the object's name by forty
+per cent. `Type::DISPLAY` was added rather than the measurement
+discarded, sized so the tuned title is reproduced to within a third of
+a pixel at 1080p. The lesson generalises to 96.4: a ramp derived from
+one half of the application does not automatically fit the other.
 
 ### Recommendation
 

@@ -1610,7 +1610,8 @@ void PreviewRenderer::DrawQualityGraph(float px, float pw, float ph) {
     // No gridlines: across a 48px strip they would be noise.
     sharpness::Draw(m_renderTarget, m_hudFont, br, flat, n,
                     gx, gy, GRAPH_W + LABEL_W, GRAPH_H,
-                    LABEL_W, BAR_W, GAP, /*gridlines*/ false);
+                    LABEL_W, BAR_W, GAP, /*gridlines*/ false,
+                    m_starFigure);
 }
 
 void PreviewRenderer::SetDisplayFX(DisplayFX fx) {

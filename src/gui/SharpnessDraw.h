@@ -53,12 +53,33 @@ inline ID2D1SolidColorBrush* BandBrush(float pct, const Brushes& br) {
 // floor(plotW / (barW + gap)) samples and drops the rest off the left,
 // so a wide window with thin bars shows a much longer run than the
 // overlay without either of them needing to know that.
+// ── Phase 95: the star focus figure, when there is one ──────
+//
+// HFD rather than FWHM as the headline, for the reason in
+// StarMetrics.h: FWHM stops meaning anything on a defocused
+// annulus and HFD keeps growing. FWHM is shown only when it is
+// valid, so its absence is the signal that the star is well out
+// of focus rather than a gap in the display.
+//
+// Arcseconds first. Pixels are a property of this sensor and this
+// focal length; arcseconds are the only figure comparable with
+// anybody else's, or with the seeing.
+struct StarFigure {
+    bool  valid        = false;
+    float hfdPx        = 0.0f;
+    float fwhmPx       = 0.0f;
+    bool  fwhmValid    = false;
+    float arcsecPerPx  = 0.0f;
+    int   saturated    = 0;
+};
+
 inline void Draw(ID2D1RenderTarget* rt, IDWriteTextFormat* font,
                  const Brushes& br,
                  const float* samples, int count,
                  float x, float y, float w, float h,
                  float labelW, float barW, float gap,
-                 bool drawGridlines) {
+                 bool drawGridlines,
+                 const StarFigure& star = {}) {
     if (!rt) return;
 
     const float plotW = w - labelW;
@@ -122,6 +143,33 @@ inline void Draw(ID2D1RenderTarget* rt, IDWriteTextFormat* font,
     rt->DrawText(buf, (UINT32)wcslen(buf), font,
                  D2D1::RectF(lx, y + lh * 2.0f, x + w, y + lh * 3.0f),
                  br.dim ? br.dim : labelBrush);
+
+    // Phase 95. Only on a star: see FrameAnalyzer::SetStarMode. A
+    // planetary session shows nothing here rather than showing the
+    // planet's diameter as a focus error.
+    if (star.valid) {
+        ID2D1SolidColorBrush* sb = (star.saturated > 0 && br.red)
+                                 ? br.red
+                                 : (br.green ? br.green : labelBrush);
+        if (star.arcsecPerPx > 0.0f)
+            swprintf(buf, 24, L"HFD %.2f\"", star.hfdPx * star.arcsecPerPx);
+        else
+            swprintf(buf, 24, L"HFD %.1fpx", star.hfdPx);
+        rt->DrawText(buf, (UINT32)wcslen(buf), font,
+                     D2D1::RectF(lx, y + lh * 3.0f, x + w, y + lh * 4.0f), sb);
+
+        // FWHM's absence is information, so say which it is rather
+        // than leaving the line blank.
+        if (star.fwhmValid && star.arcsecPerPx > 0.0f)
+            swprintf(buf, 24, L"FW %.2f\"", star.fwhmPx * star.arcsecPerPx);
+        else if (star.fwhmValid)
+            swprintf(buf, 24, L"FW %.1fpx", star.fwhmPx);
+        else
+            swprintf(buf, 24, L"FW --");
+        rt->DrawText(buf, (UINT32)wcslen(buf), font,
+                     D2D1::RectF(lx, y + lh * 4.0f, x + w, y + lh * 5.0f),
+                     br.dim ? br.dim : sb);
+    }
 }
 
 } // namespace raduk::gui::sharpness

@@ -495,7 +495,33 @@ struct ProfileApplyHooks {
     std::function<void(int w, int h, int bits)> setFormat;
     // Null leaves the panel showing whatever it showed before.
     std::function<void(const TargetProfile&)>   syncUi;
+    // Phase 95. Null leaves star mode as it was. Told on every profile
+    // apply, because whether the star metrics mean anything depends
+    // entirely on what the scope is pointed at.
+    std::function<void(bool)>                   setStarMode;
 };
+
+// ── Phase 95: is this target a star? ─────────────────────────
+//
+// Decided from the name against the bright-star catalogue the app
+// already ships, rather than a new field on TargetProfile. That keeps
+// it out of rig.ini and the saved profiles, works identically in the
+// emulator and the hardware build, and needs no migration -- and the
+// catalogue is exactly the list of things anyone would name a profile
+// after when they mean a star.
+//
+// Leading-substring and case-insensitive, matching how the emulator
+// resolves its own targets, so "Vega focus test" is Vega.
+static bool TargetIsStar(const std::string& name) {
+    if (name.empty()) return false;
+    for (int i = 0; i < raduk::sky::kBrightStarCount; ++i) {
+        const char* n = raduk::sky::kBrightStars[i].name;
+        const size_t len = strlen(n);
+        if (name.size() >= len && _strnicmp(name.c_str(), n, len) == 0)
+            return true;
+    }
+    return false;
+}
 
 #ifdef RADUK_EMULATOR
 // ── Phase 94.2: tell the emulator how big the target really is ──
@@ -551,6 +577,12 @@ static void ApplyProfile(const TargetProfile& p,
                           const ProfileApplyHooks& hooks = {}) {
     Log("[PROFILE] Applying: %s\n", p.name.c_str());
     slog.Profile("Applied: %s", p.name.c_str());
+    // Phase 95: the star metrics are only meaningful on a star.
+    if (hooks.setStarMode) {
+        const bool isStar = TargetIsStar(p.name);
+        hooks.setStarMode(isStar);
+        Log("[PROFILE] Star focus metrics %s\n", isStar ? "ON" : "off");
+    }
 #ifdef RADUK_EMULATOR
     // Render what the profile actually names. Every profile change
     // funnels through here, so this covers the startup load and every
@@ -3109,6 +3141,8 @@ static int RunApp(bool useEmulator) {
                     roiStartX + roiWidth / 2, roiStartY + roiHeight / 2,
                     "profile");
     };
+    // Phase 95: the analyser only answers the star question when told.
+    profileHooks.setStarMode = [&](bool on) { analyzer.SetStarMode(on); };
     profileHooks.syncUi = [&](const TargetProfile& p) {
         // The slider is in microseconds; the profile stores milliseconds.
         controls.SetCameraSliders(p.gain, (int)(p.exposureMs * 1000.0),
@@ -4935,6 +4969,20 @@ static int RunApp(bool useEmulator) {
         bool freshAnalysis = false;
         if (analyzer.HasResult()) {
             lastAnalysis = analyzer.GetResult();
+            // Phase 95: the star focus figure to the HUD. Pushed every
+            // result, including the invalid ones, so a switch from a
+            // star to a planet CLEARS it rather than leaving the last
+            // star's HFD on screen reading as defocus.
+            {
+                raduk::gui::sharpness::StarFigure sf;
+                sf.valid       = lastAnalysis.starValid;
+                sf.hfdPx       = lastAnalysis.hfdPx;
+                sf.fwhmPx      = lastAnalysis.fwhmPx;
+                sf.fwhmValid   = lastAnalysis.fwhmValid;
+                sf.saturated   = lastAnalysis.starSaturated;
+                sf.arcsecPerPx = raduk::core::RigConfig::Get().plateScaleArcsecPx;
+                preview.SetStarFigure(sf);
+            }
             freshAnalysis = true;
         }
 

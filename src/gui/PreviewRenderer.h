@@ -18,6 +18,7 @@
 #include <deque>
 #include <functional>
 #include "../sky/PixelWCS.h"
+#include "SharpnessDraw.h"
 #include "../core/FrameSlot.h"
 #include "core/CalibrationFrames.h"
 #include "../core/FrameAnalyzer.h"
@@ -458,6 +459,16 @@ public:
     // mount or a wedge.
     void SetFieldRotationRate(double degPerHour) { m_fieldRotRate = degPerHour; }
 
+    // ── Phase 95: the star focus figure for the HUD ──────────
+    //
+    // Pushed from where the analysis result lives, rather than this
+    // class reaching for it, matching how every other HUD figure
+    // arrives. Cleared by passing an invalid figure, which is what a
+    // planetary target must do: a stale HFD from the last star would
+    // sit on screen reading as defocus.
+    void SetStarFigure(const sharpness::StarFigure& f) { m_starFigure = f; }
+    const sharpness::StarFigure& StarFigure() const { return m_starFigure; }
+
     void SetRoseEnabled(bool e) { m_roseOn = e; }
     bool RoseEnabled()    const { return m_roseOn; }
     void ToggleRose()           { m_roseOn = !m_roseOn; }
@@ -659,6 +670,7 @@ private:
     unsigned long long      m_plateAtMs     = 0;
     double                  m_fieldRotRate  =
         raduk::sky::DefaultFieldRotationDegPerHour();
+    sharpness::StarFigure   m_starFigure{};   // phase 95
     bool                    m_roseOn        = true;
     bool                    m_hasJog        = false;
     float                   m_jogEx = 0.0f, m_jogEy = 0.0f;

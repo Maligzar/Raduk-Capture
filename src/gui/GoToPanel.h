@@ -885,6 +885,16 @@ public:
 
     // Callback: fires on auto-solve completion (from worker thread — no Win32 UI)
     // Args: success, objectName, errorArcsec, statusMessage
+    // Phase 102. The control panel's POINT SOLVE -> SYNC button was
+    // wired to a callback nobody ever set, so pressing it did nothing
+    // at all -- not even the "Plate solving..." status, because that
+    // sits inside the null check. This is the same solve the SOLVE TO
+    // ALIGN button here runs; DoPlateSolveAndSync guards its own
+    // preconditions (no frame yet, ASTAP missing, solve already
+    // running) and reports each one through SetStatus, so a second
+    // entry point needs no checks of its own.
+    void PlateSolveAndSync() { DoPlateSolveAndSync(); }
+
     void SetAutoSolveCallback(
         std::function<void(bool, const std::string&, double, const std::string&)> cb) {
         m_onAutoSolveComplete = cb;

@@ -157,7 +157,6 @@ public:
     void SetGoToCallback(std::function<void(const std::string&)> cb){ m_onGoTo             = cb; }
     void SetSolveSyncCallback(std::function<void()> cb)             { m_onSolveSync        = cb; }
     void SetRecordStartCallback(std::function<void()> cb)           { m_onRecordStart      = cb; }
-    void SetRecordStopCallback(std::function<void()> cb)            { m_onRecordStop       = cb; }
 
     // Phase 9 — autofocus
     // cb(true) = start autofocus; cb(false) = abort
@@ -479,6 +478,17 @@ public:
     }
     bool IsRCInControl()  const { return m_rcInControl; }
     bool IsPlanetLocked() const { return m_planetLock; }
+
+    // Phase 102. The PLANET LOCK button used to flip this itself and
+    // repaint, so it showed ACTIVE whether or not anything had locked.
+    // Now the press only ASKS; whoever owns the tracker calls this with
+    // what actually happened. Deliberately does not fire
+    // m_onPlanetLock: this is the answer coming back, not a new request.
+    void SetPlanetLockState(bool locked) {
+        if (m_planetLock == locked) return;
+        m_planetLock = locked;
+        UpdatePlanetLockUI();
+    }
 
 private:
     // ── State ─────────────────────────────────────────────────
@@ -869,7 +879,6 @@ private:
     std::function<void()>     m_onZoomCycle;
     std::function<void()>     m_onFullscreenToggle;
     std::function<void()>     m_onRecordStart;
-    std::function<void()>     m_onRecordStop;
     std::function<void(bool)> m_onPlanetLock;
     std::function<void(const std::string&)> m_onGoTo;
     std::function<void()>                   m_onSolveSync;

@@ -4083,6 +4083,9 @@ static int RunApp(bool useEmulator) {
         slog.Mount("Acquisition: Centroid lost — reset");
         tracker.Reset();
         controls.SetSkyMapLocked(false);
+        // Phase 102: and the PLANET LOCK button, which would otherwise
+        // stay lit over a tracker that has gone back to Off.
+        controls.SetPlanetLockState(false);
         // Note: ROI is NOT automatically restored here — keeps last crop.
     });
 
@@ -4638,7 +4641,14 @@ static int RunApp(bool useEmulator) {
     SetForegroundWindow(window.Handle());
 
     // ── Toolbar button callbacks (Win32 native buttons) ────────
-    toolbar.SetCentroidCallback([&]() {
+    // doAcquireToggle -- named lambda for the same reason doROILock is
+    // one: more than one control runs it. The toolbar's CENTROID button
+    // and the control panel's PLANET LOCK button are the same action,
+    // and before phase 102 the second was wired to nothing.
+    //
+    // It reports the stage it ended in, so the caller can show what
+    // actually happened rather than what was asked for.
+    auto doAcquireToggle = [&]() -> bool {
         if (tracker.Stage() == raduk::core::AcquisitionStage::Off) {
             // Phase 65: one press now runs the whole sequence -- find the
             // planet, calibrate, centre, lock -- instead of requiring
@@ -4651,17 +4661,39 @@ static int RunApp(bool useEmulator) {
                 slog.Mount("Acquisition refused: %s", whyNot.c_str());
                 std::wstring w(whyNot.begin(), whyNot.end());
                 notifBar.NotifyWarn(L"Cannot acquire: " + w);
-                return;
+                return false;
             }
             Log("[ACQ] Auto-acquire started: searching\n");
             slog.Mount("Acquisition: auto (search -> calibrate -> centre -> lock)");
             notifBar.NotifyInfo(L"Acquiring planet - searching...");
-        } else {
-            Log("[ACQ] Cancelled — reset to Off\n");
-            slog.Mount("Acquisition: Cancelled");
-            tracker.Reset();
-            controls.SetSkyMapLocked(false);
+            return true;
         }
+        Log("[ACQ] Cancelled — reset to Off\n");
+        slog.Mount("Acquisition: Cancelled");
+        tracker.Reset();
+        controls.SetSkyMapLocked(false);
+        return false;
+    };
+
+    // Both controls run it, and both are told the outcome. A refused
+    // acquire now leaves PLANET LOCK unlit instead of lit over nothing.
+    toolbar.SetCentroidCallback([&]() {
+        controls.SetPlanetLockState(doAcquireToggle());
+    });
+    controls.SetPlanetLockCallback([&](bool want) {
+        // want is what the press asked for. Pressing PLANET LOCK while
+        // acquisition is already running means stop, which is what the
+        // toggle does from any stage other than Off -- so the request
+        // and the toggle agree and the bool is only a sanity check.
+        const bool runningNow =
+            tracker.Stage() != raduk::core::AcquisitionStage::Off;
+        if (want == runningNow) {
+            // Already in the asked-for state: nothing to toggle, just
+            // make the button agree with the tracker.
+            controls.SetPlanetLockState(runningNow);
+            return;
+        }
+        controls.SetPlanetLockState(doAcquireToggle());
     });
     toolbar.SetLockCallback([&]() {
         // Phase 61: refuse out loud. This silently did nothing when the
@@ -4695,6 +4727,14 @@ static int RunApp(bool useEmulator) {
         }
     });
     toolbar.SetROICallback([&]()   { doROILock(); });
+
+    // Phase 102: POINT SOLVE -> SYNC on the control panel. Same solve
+    // the GoTo panel's SOLVE TO ALIGN runs, and it guards and reports
+    // its own preconditions, so there is nothing to check here.
+    controls.SetSolveSyncCallback([&]() {
+        Log("[SOLVE] Point solve -> sync requested from the control panel\n");
+        gotoPanel.PlateSolveAndSync();
+    });
     // Phase 84: resolution and bit depth. FULL is the way back from a
     // crop -- before this there was none, and a bad [ROI] or a dragged
     // box meant restarting the app to recover the field.

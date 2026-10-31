@@ -1008,18 +1008,39 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
                 m_mount->StopSlew(0); m_mount->StopSlew(1);
                 m_jogHeld = false; m_activeJogAxis = -1; ReleaseCapture();
             }
-            // Also disengage planet lock on emergency stop
+            // Also disengage planet lock on emergency stop.
+            //
+            // Phase 102: this cleared the UI flag and told nobody, so
+            // the tracker kept guiding after an emergency stop while
+            // the button read off -- the stop stopped the slew and left
+            // the thing that was issuing corrections running. Ask for
+            // the disengage; the owner confirms it through
+            // SetPlanetLockState like any other transition.
             if (m_planetLock) {
+                // Clear locally AND ask, in that order. An emergency
+                // stop must disengage whether or not anyone is
+                // listening, so the local clear is not conditional on
+                // the callback being set.
                 m_planetLock = false;
                 UpdatePlanetLockUI();
+                if (m_onPlanetLock) m_onPlanetLock(false);
             }
             return true;
 
         case ID_BTN_SYNC: {
-            m_planetLock = !m_planetLock;
-            printf("[ControlPanel] Planet lock: %s\n", m_planetLock ? "ON" : "OFF");
-            UpdatePlanetLockUI();
-            if (m_onPlanetLock) m_onPlanetLock(m_planetLock);
+            // Phase 102. This used to flip m_planetLock and repaint
+            // before telling anyone, and nothing was listening: the
+            // callback was never set. So the button showed PLANET LOCK
+            // ACTIVE with nothing locked, which is worse than a button
+            // that does nothing -- it reports a state the app is not in.
+            //
+            // The press is a request now. The owner of the tracker
+            // answers with SetPlanetLockState, so the button can only
+            // say ACTIVE once something actually acquired.
+            const bool want = !m_planetLock;
+            printf("[ControlPanel] Planet lock requested: %s\n",
+                   want ? "ON" : "OFF");
+            if (m_onPlanetLock) m_onPlanetLock(want);
             return true;
         }
 

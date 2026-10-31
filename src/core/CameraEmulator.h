@@ -34,6 +34,7 @@
 #include <chrono>
 #include <functional>
 #include "ASITypeMap.h"
+#include "LunarSurface.h"
 
 namespace raduk::core {
 
@@ -68,26 +69,72 @@ struct JupMoon { float dist, period_d, radiusArcsec, r, g, b; };
 // renderer divides by the plate scale, so the number of pixels the
 // planet covers now follows from the sensor format exactly as it does
 // on the real rig.
+// ── Phase 94.1: not everything in the sky is a disc ──────────
+//
+// Until now every target was an extended disc, so the emulator could
+// not produce a point source at all -- and a point source is a
+// different problem, not a smaller one. Blur a disc and only its limb
+// moves, a one-dimensional edge on a two-dimensional object, so the
+// sharpness metric changes slowly. Blur a point and all of its energy
+// spreads, so the peak falls as the square of the blur. That is why
+// focus is judged on a star, and it is why autofocus, FWHM, the
+// sharpness graph and the centroid tracker's lock have never been
+// exercised against the thing they are actually for.
+//
+// The background hash sprinkle does not count: single pixels one pixel
+// wide, positionally meaningless, with no profile to measure.
+enum class EmuKind { Disc, Star, Lunar };
+
 struct EmuTargetDef {
     const char* name;
-    float radiusArcsec;    // apparent disc RADIUS on the sky
+    float radiusArcsec;    // Disc: apparent RADIUS. Star: Airy radius.
     float oblate;          // polar flattening
     float r, g, b;         // base tint
     bool  belts;           // Jupiter-style banding and Red Spot
     bool  moons;           // Galilean moons
     float ringInner;       // in disc radii; 0 = no rings
     float ringOuter;
+    EmuKind kind;          // Disc unless stated
+    const char* spectral;  // Star only: the class the colour came from
 };
 static const EmuTargetDef EMU_TARGETS[] = {
-    // name        rad"    oblate  r     g     b     belt  moon  rIn   rOut
-    { "Jupiter",  22.5f, 0.0649f, 0.93f,0.86f,0.68f, true,  true, 0.0f, 0.0f },
-    { "Saturn",    9.0f, 0.0980f, 0.94f,0.87f,0.66f, false, false,1.24f,2.33f },
-    { "Mars",      7.5f, 0.0059f, 0.86f,0.45f,0.28f, false, false,0.0f, 0.0f },
-    { "Venus",    12.5f, 0.0000f, 0.98f,0.96f,0.90f, false, false,0.0f, 0.0f },
+    // name        rad"    oblate  r     g     b     belt  moon  rIn   rOut  kind            spectral
+    { "Jupiter",  22.5f, 0.0649f, 0.93f,0.86f,0.68f, true,  true, 0.0f, 0.0f, EmuKind::Disc, nullptr },
+    { "Saturn",    9.0f, 0.0980f, 0.94f,0.87f,0.66f, false, false,1.24f,2.33f, EmuKind::Disc, nullptr },
+    { "Mars",      7.5f, 0.0059f, 0.86f,0.45f,0.28f, false, false,0.0f, 0.0f, EmuKind::Disc, nullptr },
+    { "Venus",    12.5f, 0.0000f, 0.98f,0.96f,0.90f, false, false,0.0f, 0.0f, EmuKind::Disc, nullptr },
     // Half a degree. It overflows every sensor this rig owns, which is
     // what the Moon actually does -- there is no limb in frame at prime
     // focus and there never was on the sky either.
-    { "Moon",    900.0f, 0.0000f, 0.80f,0.78f,0.74f, false, false,0.0f, 0.0f },
+    { "Moon",    900.0f, 0.0000f, 0.80f,0.78f,0.74f, false, false,0.0f, 0.0f, EmuKind::Lunar, nullptr },
+
+    // ── Stars ────────────────────────────────────────────────
+    //
+    // radiusArcsec here is the first Airy minimum, not a disc: every
+    // one of these is a point source far below the resolution of any
+    // telescope, so what the sensor records is the instrument's own
+    // diffraction pattern and nothing about the star's size. The value
+    // is filled from AiryRadiusArcsec() at render time; the number in
+    // the table is only a sensible fallback if that is ever bypassed.
+    //
+    // Colours are from spectral class, which is the whole of "star
+    // types" as far as a monochrome-ish Bayer frame can show it. These
+    // six span the range anyone would point at, and the last two are
+    // the ones worth having: a red M giant and a blue-white A dwarf
+    // look genuinely different through a colour sensor, so a white
+    // balance or a channel alignment error shows up on them and not on
+    // Vega alone.
+    //
+    // Chosen for being bright and well spread in colour, not for being
+    // a catalog. A real star field is phase 94.5 and needs a real
+    // catalog; see the plan for why 50 bright stars cannot populate a
+    // 13 x 7 arcmin frame.
+    { "Vega",      0.68f, 0.0000f, 0.82f,0.86f,1.00f, false, false,0.0f, 0.0f, EmuKind::Star, "A0V"    },
+    { "Sirius",    0.68f, 0.0000f, 0.88f,0.91f,1.00f, false, false,0.0f, 0.0f, EmuKind::Star, "A1V"    },
+    { "Polaris",   0.68f, 0.0000f, 1.00f,0.98f,0.94f, false, false,0.0f, 0.0f, EmuKind::Star, "F7Ib"   },
+    { "Capella",   0.68f, 0.0000f, 1.00f,0.95f,0.78f, false, false,0.0f, 0.0f, EmuKind::Star, "G3III"  },
+    { "Arcturus",  0.68f, 0.0000f, 1.00f,0.82f,0.58f, false, false,0.0f, 0.0f, EmuKind::Star, "K1.5III"},
+    { "Betelgeuse",0.68f, 0.0000f, 1.00f,0.68f,0.45f, false, false,0.0f, 0.0f, EmuKind::Star, "M1-2Ia" },
 };
 static const int NUM_EMU_TARGETS =
     (int)(sizeof(EMU_TARGETS)/sizeof(EMU_TARGETS[0]));
@@ -361,24 +408,116 @@ public:
     // is correct if it lands near this value, which makes the bench test
     // an assertion rather than an impression.
     void SetTrueFocusPosition(int steps) { m_trueFocus = steps; }
-    // Blur diameter in EMULATOR pixels per step away from true focus.
+    // ── Defocus blur per focuser step ─────────────────────────
     //
     // On the real rig: the EAF gives ~2000 steps/mm of focus travel (see
     // AutofocusParams), the 8SE is f/10 so a defocus of d mm spreads a
-    // point into a disk of d/10 mm at the sensor, and the ASI678MC pixel is
-    // 2.0 um — so 1 step = 0.0005 mm of travel = 0.00005 mm of blur
-    // = 0.025 real px, at the real plate scale of 0.203"/px.
+    // point into a disk of d/10 mm at the sensor, and the ASI678MC pixel
+    // is 2.0 um. So one step is 0.0005 mm of travel, 0.00005 mm of blur,
+    // 0.025 real px at the real plate scale of 0.203"/px -- which is an
+    // ANGULAR quantity once multiplied out: 0.005075 arcsec per step.
     //
-    // But this emulator renders at EMU_PLATE_SCALE_AS_PX = 0.61"/px, three
-    // times coarser, so the same ANGULAR blur covers three times fewer
-    // pixels here:  0.025 * (0.203 / 0.61) = 0.0083 px/step.
-    //
-    // Getting this wrong matters. At the un-scaled 0.025 the planet was
-    // already destroyed 600 steps off focus, so nearly every position in
+    // Getting this wrong matters, and it has been wrong twice in
+    // opposite directions. At the un-scaled 0.025 px/step the planet was
+    // destroyed 600 steps off focus, so nearly every position in
     // autofocus's +/-3000 sweep sat on the floor of the metric and the
-    // V-curve degenerated into a ramp — a parabola fitted to that puts its
-    // vertex at one end of the scan. At 0.0083 the falloff spans the sweep:
-    // ~5 px blur at 600 steps, ~25 px at 3000.
+    // V-curve degenerated into a ramp; a parabola fitted to that puts
+    // its vertex at one end of the scan. Then phase 91 moved
+    // EMU_PLATE_SCALE_AS_PX from 0.61 to 0.223 and this number did not
+    // follow, leaving the blur 2.7x too WEAK and the V-curve 2.7x too
+    // shallow -- the same failure from the other side.
+    //
+    // So it is derived rather than restated. A constant that has to be
+    // kept in step with another constant by hand will eventually not be.
+    //
+    // The quantity worth holding fixed is a RATIO, not a pixel count,
+    // which is why the old comment's "~5 px at 600 steps, ~25 px at
+    // 3000" went stale the moment the scale moved. Blur and disc are
+    // both angular, so they rescale together: at 3000 steps off focus
+    // the blur is 0.34 of Jupiter's disc diameter, and that is true at
+    // 0.61"/px, at 0.223, and at whatever this is set to next.
+    // ── Phase 94.1: the diffraction pattern this rig makes ────
+    //
+    // A star has no size a telescope can resolve, so the image is the
+    // instrument's point-spread function. For a circular aperture that
+    // is the Airy pattern, and its first dark ring sits at
+    // 1.22 * lambda / D.
+    //
+    // For this rig: 203 mm at 550 nm gives 0.682 arcsec, which at the
+    // emulator's 0.223"/px is 3.06 px. That matters, because it means
+    // the rings are SAMPLED -- three pixels to the first minimum is
+    // enough to draw them, so a well-focused star here should show
+    // structure and not a single bright pixel.
+    //
+    // Derived from the aperture rather than written as 0.68, for the
+    // same reason as the blur above: a number that has to be kept in
+    // step with another by hand eventually is not.
+    static constexpr float APERTURE_MM   = 203.0f;   // C8 / 8SE
+    static constexpr float WAVELENGTH_NM = 550.0f;   // visual peak
+    static constexpr float AiryRadiusArcsec() {
+        // 1.22 * lambda/D in radians, times 206265 arcsec/radian.
+        return 1.22f * (WAVELENGTH_NM * 1e-6f) / APERTURE_MM * 206265.0f;
+    }
+    static constexpr float AiryRadiusPx() {
+        return AiryRadiusArcsec() / EMU_PLATE_SCALE_AS_PX;
+    }
+
+    // ── Phase 94.1: the Airy profile, as a radial table ──────
+    //
+    // I(r) = (2*J1(x)/x)^2 with x = 3.8317 * r / rFirstMin. Tabulated
+    // once per frame for the same reason the latitude LUT is: a Bessel
+    // function per pixel would put this on the slow path, and the
+    // profile is radial so one dimension is all it needs.
+    //
+    // J1 by its power series. It is called a few hundred times to fill
+    // the table and never in the pixel loop, so there is no reason to
+    // reach for an approximation and carry its error budget.
+    static double BesselJ1(double x) {
+        const double h = x * 0.5;
+        const double q = h * h;          // (x/2)^2
+        double term = h;                 // k = 0
+        double sum  = term;
+        for (int k = 1; k < 40; ++k) {
+            // term_k = term_{k-1} * -(x^2/4) / (k*(k+1))
+            term *= -q / (double)(k * (k + 1));
+            sum  += term;
+            if (term < 1e-18 && term > -1e-18) break;
+        }
+        return sum;
+    }
+
+    // First zero of J1. The pattern's first dark ring.
+    static constexpr double AIRY_X1 = 3.8317059702075123;
+
+    // Six Airy radii covers the core and about four rings; past that
+    // the profile is under a thousandth of the peak and the background
+    // noise owns those pixels. 256 entries over that span is about
+    // one entry per eighth of a pixel at this plate scale.
+    static constexpr int   AIRY_N    = 256;
+    static constexpr float AIRY_SPAN = 6.0f;
+
+    // Fill lut[0..N-1] with the Airy intensity from r = 0 to
+    // r = spanAiryRadii * rFirstMin, normalised to 1.0 at the core.
+    static void BuildAiryLUT(float* lut, int n, double spanAiryRadii) {
+        for (int i = 0; i < n; ++i) {
+            const double rr = spanAiryRadii * (double)i / (double)(n - 1);
+            const double x  = AIRY_X1 * rr;
+            double v;
+            if (x < 1e-6) {
+                v = 1.0;                       // 2*J1(x)/x -> 1 as x -> 0
+            } else {
+                const double t = 2.0 * BesselJ1(x) / x;
+                v = t * t;
+            }
+            lut[i] = (float)v;
+        }
+    }
+
+    static constexpr float BLUR_ARCSEC_PER_STEP = 0.005075f;
+    static constexpr float DefaultBlurPxPerStep() {
+        return BLUR_ARCSEC_PER_STEP / EMU_PLATE_SCALE_AS_PX;
+    }
+
     void SetBlurPxPerStep(float v) { m_blurPxPerStep = v; }
 
     // Freeze the planet's surface, rotation and moons, so the ONLY thing
@@ -450,13 +589,72 @@ public:
             const char* n = EMU_TARGETS[i].name;
             if (_strnicmp(name.c_str(), n, strlen(n)) == 0) {
                 m_target = i;
+                // The override belongs to the OLD target. Cleared here
+                // rather than left for the caller, because a Jupiter
+                // radius still applied after switching to Mars is a
+                // disc three times too big and nothing says so.
+                m_radiusOverrideAs = 0.0f;
                 printf("[CameraEmulator] Target: %s\n", n);
                 return;
             }
         }
         m_target = 0;
+        m_radiusOverrideAs = 0.0f;
     }
     const char* TargetName() const { return EMU_TARGETS[m_target].name; }
+
+    // ── Phase 94.2: the apparent size the sky is offering tonight ──
+    //
+    // EMU_TARGETS carries a radius "at a representative opposition",
+    // which is a constant standing in for something that is not
+    // constant. Mars runs 3.5" to 25" across its synodic cycle, a
+    // factor of seven, so the table is wrong nearly always and most
+    // wrong exactly when it matters -- a Mars session near conjunction
+    // sees a disc seven times too big and an emulator that says the
+    // framing is fine when it is not.
+    //
+    // Pushed in rather than fetched. The ephemeris lives in
+    // src/sky/SkyObject.h, this file is src/core, and every other
+    // input here arrives through a setter or a provider; an emulator
+    // that reaches out for its own facts is a different design from
+    // the one this file already has. main.cpp computes it beside
+    // SetTargetName, which is already called at exactly the moments
+    // the answer can change.
+    //
+    // Zero or negative clears the override and the table takes over
+    // again, which is what a star or any target with no ephemeris
+    // needs.
+    void SetTargetAngularRadiusArcsec(float arcsec) {
+        m_radiusOverrideAs = (arcsec > 0.0f) ? arcsec : 0.0f;
+        if (m_radiusOverrideAs > 0.0f)
+            printf("[CameraEmulator] %s apparent radius %.2f\" "
+                   "(table says %.2f\")\n",
+                   EMU_TARGETS[m_target].name, m_radiusOverrideAs,
+                   EMU_TARGETS[m_target].radiusArcsec);
+    }
+
+    // ── Phase 94.3: which way the sunlight is coming from ────
+    //
+    // The lunar phase, 0 new, 0.25 first quarter, 0.5 full, which is
+    // MoonRADec's own convention. Pushed in for the same reason the
+    // apparent size is: the ephemeris lives in src/sky and this is
+    // src/core.
+    //
+    // Default 0.25 rather than 0.5. A full Moon is the WORST case for
+    // this feature -- the Sun is behind the observer, no shadow falls
+    // anywhere, and the surface goes back to being a flat bright
+    // field. A quarter puts the terminator through the middle of the
+    // frame, which is what the emulator exists to show.
+    void SetLunarPhase(float frac) { m_lunarPhase = frac; }
+    float LunarPhase() const { return m_lunarPhase; }
+
+    // What the renderer should actually use. One place, so the disc,
+    // the rings and the moons cannot disagree about how big the
+    // target is.
+    float EffectiveRadiusArcsec() const {
+        return m_radiusOverrideAs > 0.0f ? m_radiusOverrideAs
+                                         : EMU_TARGETS[m_target].radiusArcsec;
+    }
 
     // ── Video capture ──────────────────────────────────────────
 
@@ -778,7 +976,7 @@ private:
         // A floor of 2 px keeps a distant target from collapsing to
         // nothing if the scale is ever configured absurdly.
         const float JR  = (std::max)(2.0f,
-                              TG.radiusArcsec / EMU_PLATE_SCALE_AS_PX);
+                              EffectiveRadiusArcsec() / EMU_PLATE_SCALE_AS_PX);
         const float JRy = JR*(1.0f-TG.oblate);
         const float ROT = 9.9f*3600.0f, PI = 3.14159265f;
         const float iR = 1.0f/JR, iRy = 1.0f/JRy;
@@ -807,6 +1005,13 @@ private:
         const double periodMs = 1000.0 / m_targetFps;
         auto nextDue = std::chrono::steady_clock::now();
         auto startTime = std::chrono::steady_clock::now();
+
+        // Phase 94.1: the Airy profile depends on nothing that changes
+        // between frames, so it is tabulated once here rather than 256
+        // Bessel evaluations per frame. Same reasoning as phase 91
+        // hoisting the atomic frame counter out of the pixel loop.
+        std::vector<float> airyLUT((size_t)AIRY_N);
+        BuildAiryLUT(airyLUT.data(), AIRY_N, AIRY_SPAN);
 
         while (m_isCapturing) {
             auto frameStart = std::chrono::steady_clock::now();
@@ -916,15 +1121,30 @@ private:
             const uint32_t frameSalt = (uint32_t)m_frameCounter * 83492791u;
             const int      noiseAmp  = m_noiseAmp;
             const bool     hasRings  = (TG.ringOuter > 0.0f);
+            // Phase 94.1: a star has no disc, so every pixel takes the
+            // background branch and the point source is painted
+            // afterwards in its own bounding box, the way the moons
+            // are. One hoisted bool rather than a second copy of the
+            // background, hash sprinkle and noise code.
+            const bool     isStar    = (TG.kind == EmuKind::Star);
+            // Phase 94.3: the Moon is a patch of a sphere rather than
+            // a shape inside the frame, so it owns the whole pixel
+            // loop instead of being painted into it.
+            const bool     isLunar   = (TG.kind == EmuKind::Lunar);
 
             // Main loop — LUT lookup + sqrtf only, no asinf/sinf/fmod per pixel
-            for (int py = 0; py < H; py++) {
+            //
+            // Skipped entirely for the Moon, which writes every pixel
+            // itself below. Without this guard the frame was painted
+            // twice: 8.3 million background pixels at the full sensor,
+            // all of them immediately overwritten.
+            for (int py = 0; !isLunar && py < H; py++) {
                 float dy  = (py-PCY)*iRy, dy2 = dy*dy;
                 for (int px = 0; px < W; px++) {
                     float dx = (px-PCX)*iR;
                     float r2 = dx*dx + dy2;
                     uint8_t rv, gv, bv;
-                    if (r2 <= 1.0f) {
+                    if (!isStar && !isLunar && r2 <= 1.0f) {
                         float dxsq = dx*dx, denom = 1.0f-dxsq;
                         float sinLat = (denom>0.001f) ? dy/sqrtf(denom) : 0.f;
                         if (sinLat<-1.f) sinLat=-1.f;
@@ -974,6 +1194,205 @@ private:
                         mv = (uint8_t)(val < 0 ? 0 : (val > 255 ? 255 : val));
                     }
                     backBuf[py*W+px] = mv;
+                }
+            }
+
+            // ── The Moon, as a piece of a sphere ──────────────
+            //
+            // Every other target is a shape inside the frame. This one
+            // is bigger than the frame: at 0.223"/px the full sensor
+            // spans 0.476 of the lunar diameter and a 640x480 ROI only
+            // 0.079. So there is no limb to draw and no disc to fill;
+            // what the sensor sees is a patch, and each pixel has to
+            // be turned into a place on the sphere.
+            //
+            // Takes the whole pixel loop rather than painting over it,
+            // because unlike the star there is no background left to
+            // preserve: the Moon fills the frame.
+            if (isLunar) {
+                const SunDir sun = MoonSunDirection((double)m_lunarPhase);
+                // Pixels per lunar radius. EffectiveRadiusArcsec is the
+                // table's 900" until 94.2 learns the Moon's distance.
+                // Floored, as the disc radius and the Airy radius are.
+                // Nothing can reach zero today -- the Moon never takes
+                // the live-size override -- but a radius of a few
+                // pixels would push every u,v past the limb and render
+                // a black frame with nothing to say why.
+                const double Rpx = (std::max)(4.0,
+                                       (double)EffectiveRadiusArcsec()
+                                     / (double)EMU_PLATE_SCALE_AS_PX);
+                // Crater cell size in degrees. Chosen so a cell is a
+                // few tens of pixels at the full sensor: smaller and
+                // the craters are noise, larger and there are none in
+                // a planetary ROI.
+                const double cellDeg = 5.0;
+                const float  tint[3] = { TG.r, TG.g, TG.b };
+
+                // ── Expose to the patch, not to the whole Moon ───
+                //
+                // m_peakTargetDn means "put the brightest thing in the
+                // frame at this level", and the disc path honours that
+                // by normalising against its own surface LUT. Applied
+                // as a flat multiplier instead, it leaves a dim patch
+                // dim -- and the patch IS dim where it matters most:
+                // at a 640x480 ROI the frame spans 8 per cent of the
+                // lunar radius, so a first-quarter Moon centred on the
+                // disc puts the whole frame within a hair of the
+                // terminator, where grazing illumination is a few per
+                // cent of full. Physically right, and useless to focus
+                // on: the first frame measured 6 DN.
+                //
+                // A real imager answers that by exposing longer. So
+                // does this, by finding the frame's own maximum on a
+                // coarse grid and scaling to it. Every 16th pixel is
+                // enough: the illumination gradient across a patch
+                // this small is smooth, and the craters that are not
+                // only ever make the true peak brighter than the
+                // estimate, which clips rather than darkens.
+                double lumMax = 0.0;
+                if (m_peakTargetDn > 0) {
+                    for (int sy = 0; sy < H; sy += 16) {
+                        const double v = ((double)sy - PCY) / Rpx;
+                        for (int sx = 0; sx < W; sx += 16) {
+                            const double u = ((double)sx - PCX) / Rpx;
+                            const double il = LunarIllumination(u, v, sun);
+                            if (il <= 0.0) continue;
+                            double la = 0.0, lo = 0.0;
+                            LunarLatLon(u, v, la, lo);
+                            const double l = il * LunarAlbedo(la, lo);
+                            if (l > lumMax) lumMax = l;
+                        }
+                    }
+                    // A frame entirely on the night side has nothing to
+                    // expose to. Leave it dark rather than amplifying
+                    // the background by a huge factor.
+                    if (lumMax < 1e-4) lumMax = 0.0;
+                }
+
+                for (int py = 0; py < H; py++) {
+                    const double v = ((double)py - PCY) / Rpx;
+                    for (int px = 0; px < W; px++) {
+                        const double u = ((double)px - PCX) / Rpx;
+
+                        const double illum = LunarIllumination(u, v, sun);
+                        uint8_t mv;
+                        if (illum < 0.0) {
+                            // Past the limb. Sky, not Moon -- only
+                            // reachable at a very wide field or a
+                            // badly configured scale, but it must not
+                            // wrap into the far side of the sphere.
+                            mv = bgVal;
+                        } else {
+                            double lat = 0.0, lon = 0.0;
+                            LunarLatLon(u, v, lat, lon);
+                            const double alb = LunarAlbedo(lat, lon);
+                            const double shade =
+                                LunarCraterShade(lat, lon, sun, illum, cellDeg);
+
+                            // Lambertian, which is wrong for regolith
+                            // (the real Moon is far flatter across the
+                            // disc and surges at full) but right in the
+                            // one place this feature cares about: it
+                            // goes to zero at the terminator, and it is
+                            // the gradient there that focus is judged
+                            // on.
+                            double lum = illum * alb * shade;
+                            if (lum < 0.0) lum = 0.0;
+
+                            const bool eR = (py%2==0), eC = (px%2==0);
+                            const float chan = (eR&&eC) ? tint[0]
+                                             : (!eR&&!eC) ? tint[2] : tint[1];
+                            double dn = lum * chan * 255.0 * brightness;
+                            if (m_peakTargetDn > 0 && lumMax > 0.0)
+                                dn = (lum / lumMax) * chan
+                                   * (double)m_peakTargetDn;
+                            // The night side keeps the sky pedestal
+                            // rather than going to absolute zero: a
+                            // real frame has a bias offset and noise
+                            // there, and anything measuring a floor
+                            // needs to find one.
+                            if (dn < (double)bgVal) dn = (double)bgVal;
+                            mv = (uint8_t)(dn > 255.0 ? 255.0 : dn);
+                        }
+
+                        if (noiseAmp > 0) {
+                            uint32_t hh = (uint32_t)px * 73856093u
+                                        ^ (uint32_t)py * 19349663u
+                                        ^ frameSalt;
+                            hh ^= hh >> 13; hh *= 0x5bd1e995u; hh ^= hh >> 15;
+                            const int nz = (int)(hh & 1023u) - 512;
+                            int val = (int)mv + noiseAmp
+                                    + (nz * noiseAmp) / 512;
+                            mv = (uint8_t)(val < 0 ? 0 : (val > 255 ? 255 : val));
+                        }
+                        backBuf[py*W+px] = mv;
+                    }
+                }
+            }
+
+            // ── The star, if that is what this is ─────────────
+            //
+            // Painted sharp. Defocus and seeing are a later pass over
+            // the whole frame, so putting any blur in here would
+            // double-count them -- and composing this way is what
+            // gives the emulator the behaviour worth having: at low
+            // seeing and near focus the rings survive, and at 2 to 3
+            // arcsec they are gone, which is what a real night does to
+            // a 0.68 arcsec pattern.
+            //
+            // The core is allowed to clip. A bright star at a planetary
+            // exposure saturates, and the outer rings are what is left
+            // to look at, which is also true at the eyepiece.
+            if (isStar) {
+                // Six Airy radii covers the core and about four rings;
+                // beyond that the profile is under a thousandth of the
+                // peak and the background noise owns those pixels.
+                const float airyPx = (std::max)(1.0f, AiryRadiusPx());
+                const float reach  = airyPx * AIRY_SPAN;
+
+                // Peak to the requested exposure if one was asked for,
+                // otherwise follow gain and exposure like everything
+                // else in the frame, so changing them still does
+                // something to a star. Floored well clear of the 4 DN
+                // sky: a star that reads 5 DN would make every focus
+                // position measure the background and nothing else.
+                float peak = (m_peakTargetDn > 0)
+                           ? (float)m_peakTargetDn
+                           : 220.0f * brightness;
+                if (peak < 40.0f)  peak = 40.0f;
+                if (peak > 255.0f) peak = 255.0f;
+
+                int x0 = (int)floorf(PCX - reach), x1 = (int)ceilf(PCX + reach);
+                int y0 = (int)floorf(PCY - reach), y1 = (int)ceilf(PCY + reach);
+                if (!(x1 < 0 || y1 < 0 || x0 >= W || y0 >= H)) {
+                    if (x0 < 0) x0 = 0;  if (y0 < 0) y0 = 0;
+                    if (x1 > W-1) x1 = W-1;  if (y1 > H-1) y1 = H-1;
+                    const float invReach = (float)(AIRY_N - 1) / reach;
+                    for (int py = y0; py <= y1; py++) {
+                        const float sdy = py - PCY, sdy2 = sdy*sdy;
+                        for (int px = x0; px <= x1; px++) {
+                            const float sdx = px - PCX;
+                            const float rpx = sqrtf(sdx*sdx + sdy2);
+                            if (rpx > reach) continue;
+                            int li = (int)(rpx * invReach + 0.5f);
+                            if (li < 0) li = 0;
+                            if (li >= AIRY_N) li = AIRY_N - 1;
+                            const float inten = airyLUT[li] * peak;
+                            if (inten < 0.5f) continue;   // below one DN
+                            // Spectral colour, same Bayer parity the
+                            // disc and the moons use.
+                            const bool eR = (py%2==0), eC = (px%2==0);
+                            const float chan = (eR&&eC) ? TG.r
+                                             : (!eR&&!eC) ? TG.b : TG.g;
+                            int val = (int)(inten * chan);
+                            // Add to the background rather than
+                            // replacing it, so the sprinkle and the
+                            // noise pedestal underneath stay.
+                            val += (int)backBuf[py*W+px];
+                            if (val > 255) val = 255;
+                            backBuf[py*W+px] = (uint8_t)val;
+                        }
+                    }
                 }
             }
 
@@ -1178,7 +1597,7 @@ private:
     // comfortably inside autofocus's +/-3000 sweep and close to what a
     // real session starts from.
     int                         m_trueFocus     = 168000;
-    float                       m_blurPxPerStep = 0.0083f;
+    float                       m_blurPxPerStep = DefaultBlurPxPerStep();
     bool                        m_freezeSurface = false;
     int                         m_noiseAmp      = 0;
     float                       m_seeingBlurAs  = 0.0f;
@@ -1189,6 +1608,10 @@ private:
     std::chrono::steady_clock::time_point m_genLast{};    // generator only
     int                         m_peakTargetDn  = 0;
     int                         m_target        = 0;   // index into EMU_TARGETS
+    // Phase 94.2: live apparent radius, 0 = use the table.
+    float                       m_radiusOverrideAs = 0.0f;
+    // Phase 94.3: lunar phase fraction, 0.25 = first quarter.
+    float                       m_lunarPhase       = 0.25f;
     std::vector<int>            m_blurScratch;   // generator thread only
     std::vector<int>            m_blurRing;      // P4.4a column-tile window
     std::vector<int>            m_blurSum;       // P4.4a column-tile sums

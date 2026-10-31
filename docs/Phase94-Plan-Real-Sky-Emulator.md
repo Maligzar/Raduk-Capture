@@ -212,9 +212,13 @@ So, in order of value:
    can be skipped in the fully lit part.
 4. **Libration and phase angle** only if 1 to 3 prove worth extending.
 
-Note the scale this has to work at: 900 arcsec radius against a 7 arcmin
-frame means roughly **one eighth of the lunar diameter is in frame** at
-full sensor, and about a twentieth at a 640x480 ROI. So the renderer must
+Note the scale this has to work at. **Corrected 2026-10-31: the figure
+below was wrong when first written.** At the emulator's 0.223 arcsec/px
+the full sensor spans **0.476 of the lunar diameter** across and 0.268
+down, not one eighth; a 640x480 ROI spans 0.079 and 0.059. The error
+mattered in the direction that helps: at nearly half the diameter the
+terminator is often IN frame, which is the whole reason this is worth
+rendering. So the renderer must
 generate a *patch* of a sphere, not a disc with features on it, and the
 patch has to move with the pointing error and the seeing jitter like
 everything else. That is a different rendering path from every existing
@@ -231,9 +235,9 @@ small fraction of the work.
 
 | Stage | What | Size | Why here |
 |---|---|---|---|
-| **94.1** | A star as a target: point-source render path, Airy pattern, spectral-type colour column on the 50-star catalog | S | This is the actual request. Opens autofocus, FWHM, sharpness and centroid-lock to a point source for the first time |
-| **94.2** | Live planet apparent size, replacing the frozen table constants | XS | The ephemeris already computes it and `tests/planet_apparent_size.cpp` already gates it. Mars runs 3.5" to 25", so the constant is wrong nearly always |
-| **94.3** | The Moon: terminator, maria, terminator-local craters, spherical-patch path | M | Makes the Moon usable as a focus target. Self-contained |
+| ~~**94.1**~~ | ~~A star as a target~~ **DONE 2026-10-31.** `EmuKind::Star`, six stars A0 to M2, Airy pattern from the aperture. Spectral colour baked into the emulator table rather than added as a column on `kBrightStars`: the emulator renders by name from its own table and reaching into `src/sky` for 50 rows it cannot use as a field would be the wrong dependency | S | This is the actual request. Opens autofocus, FWHM, sharpness and centroid-lock to a point source for the first time |
+| ~~**94.2**~~ | ~~Live planet apparent size~~ **DONE 2026-10-31.** Pushed from `main.cpp` beside `SetTargetName`, as planned. Measured on the day: the table had Mars 2.3x too big and Venus 2.4x too small | XS | The ephemeris already computes it and `tests/planet_apparent_size.cpp` already gates it. Mars runs 3.5" to 25", so the constant is wrong nearly always |
+| ~~**94.3**~~ | ~~The Moon~~ **DONE 2026-10-31.** Terminator from the real phase, four procedural maria, craters whose shadows lengthen toward the terminator, all in `src/core/LunarSurface.h`. One thing the plan did not foresee: at a 640x480 ROI a first-quarter frame sits so near the terminator that it exposed at 6 DN, so `m_peakTargetDn` now normalises against the patch's own maximum the way the disc path always did | M |
 | **94.4** | Pointing-centric rendering: the mount's RA/Dec decides what is in frame, not a name | M | The architectural flip. Prerequisite for any field, and on its own it makes a GoTo in the emulator show the target arriving off-centre and being centred, which it cannot today |
 | **94.5** | A real star field from a real catalog | L, data-bound | Gated on section 4. Go or no-go with the numbers in hand, not a foregone conclusion |
 

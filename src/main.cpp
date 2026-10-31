@@ -1934,7 +1934,17 @@ static int RunApp(bool useEmulator) {
         { "share",       [&](bool v){ v ? shareView.Show()      : shareView.Hide(); } },
         { "objectpanel", [&](bool v){ v ? objectPanel.Show()    : objectPanel.Hide(); } },
     };
-    {
+    //
+    // A named lambda because it has to run twice. The first pass has to
+    // precede Place for the maximise ordering; but startup carries on
+    // for another two and a half thousand lines after that, and
+    // anything in them that shows a window silently wins. One did: a
+    // loop near the toolbar wiring force-showed the GoTo, help and AI
+    // chat windows unconditionally, so those three never kept a closed
+    // state no matter what the file said. That loop is fixed to respect
+    // the saved state, and this runs again at the end of startup so the
+    // next one cannot quietly undo the restore the same way.
+    auto applySavedPanelState = [&](const char* when) {
         int opened = 0, closed = 0, unknown = 0;
         for (const auto& [role, apply] : kPanelVisibility) {
             const auto st = workspace.StateFor(role);
@@ -1946,13 +1956,14 @@ static int RunApp(bool useEmulator) {
                 (st == raduk::gui::WorkspaceLayout::SavedState::Open);
             apply(open);
             if (open) ++opened; else ++closed;
-            Log("[LAYOUT] %s: restored %s\n", role, open ? "open" : "closed");
+            Log("[LAYOUT] %s: restored %s (%s)\n",
+                role, open ? "open" : "closed", when);
         }
-        Log("[LAYOUT] panel state: %d open, %d closed, %d with no saved state\n",
-            opened, closed, unknown);
-
-        s_restoredAnyPanel = (opened > 0);
-    }
+        Log("[LAYOUT] panel state (%s): %d open, %d closed, "
+            "%d with no saved state\n", when, opened, closed, unknown);
+        return opened > 0;
+    };
+    s_restoredAnyPanel = applySavedPanelState("startup");
 
     for (const auto& [role, hwnd] : kPlacedWindows)
         workspace.Place(role, hwnd);
@@ -4633,8 +4644,29 @@ static int RunApp(bool useEmulator) {
     // touch during a capture, so the mis-click it guarded against is a
     // great deal less likely. Press G to close it if you would rather
     // have it shut, and this is a one-line change back.
-    for (HWND h : { gotoPanel.Handle(), helpWindow.Handle(), aiChat.Handle() })
-        if (h) ShowWindow(h, SW_SHOWNOACTIVATE);
+    //
+    // Phase 102: only where the layout file has no opinion. This loop
+    // predates the saved open/closed state and overrode it: it runs
+    // long after the restore pass, so these three came back open
+    // however they were saved. The default below still stands for a
+    // first run, or for a layout written before these roles existed.
+    {
+        const std::pair<const char*, HWND> kDefaultVisible[] = {
+            { "goto",   gotoPanel.Handle()  },
+            { "help",   helpWindow.Handle() },
+            { "aichat", aiChat.Handle()     },
+        };
+        for (const auto& [role, h] : kDefaultVisible) {
+            if (!h) continue;
+            if (workspace.StateFor(role) !=
+                raduk::gui::WorkspaceLayout::SavedState::Unknown) {
+                Log("[LAYOUT] %s: startup default skipped, the layout "
+                    "file has a saved state for it\n", role);
+                continue;
+            }
+            ShowWindow(h, SW_SHOWNOACTIVATE);
+        }
+    }
     SetForegroundWindow(window.Handle());
 
     // ── Toolbar button callbacks (Win32 native buttons) ────────
@@ -5058,6 +5090,25 @@ static int RunApp(bool useEmulator) {
             }
         }
     });
+
+    // ── Phase 102: the saved panel state, re-asserted ─────────
+    //
+    // Second and final pass, after every piece of startup wiring has
+    // run and immediately before the render loop. The first pass has
+    // to precede Place for the maximise ordering, but startup carries
+    // on for thousands of lines afterwards and anything in there that
+    // shows a window beats it silently. Exactly that happened: a loop
+    // in the toolbar wiring force-showed the GoTo, help and AI chat
+    // windows, so those three came back open however they were saved,
+    // and the restore looked broken to the owner with no hint in the
+    // log as to why.
+    //
+    // That loop now defers to the saved state, so this pass should be
+    // a no-op -- and the log says so either way, which is the point.
+    // It costs one Show or Hide per panel on a state that already
+    // matches, and it means the next force-show somebody adds during
+    // startup cannot quietly undo the restore.
+    applySavedPanelState("final");
 
     Log("\n--- RADUKCAPTURE v0.9 READY  [Phase 4 Complete] ---\n");
     Log("  M7:  USB traffic manager active (EAF 10s / Mount 2s during capture)\n");

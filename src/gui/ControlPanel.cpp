@@ -1692,10 +1692,11 @@ HWND ControlPanel::MakeLabel(const wchar_t* text, int x, int y, int w, int h, in
         (HMENU)(INT_PTR)id, GetModuleHandle(nullptr), nullptr);
 }
 
-void ControlPanel::MakeSectionLabel(const char* text, int x, int y, int w, int h) {
-    wchar_t buf[64]; swprintf(buf, 64, L"--- %hs ---", text);
-    MakeLabel(buf, x, y, w, h);
-}
+// Phase 99: MakeSectionLabel was removed here. It had no callers --
+// every section header on this panel is a child control created by
+// secC() -- and it was the second superseded painter this sweep found,
+// after DrawSectionHeader. A painter with no callers is not a spare
+// part; it is a thing a later reader will wire up by mistake.
 
 void ControlPanel::RefreshFilterLabel() {
     if (!m_lblFilter) return;
@@ -2650,6 +2651,15 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     y += SH + 5;
     m_lblRecFrames = MakeValueLabel(L"", x, y, w, SH, ID_LBL_REC_FRAMES);
     TagControl(m_lblRecFrames, Section::Capture);
+    y += SH + 2;
+    // Phase 99: the THIRD label of that family, and my own loose end.
+    // Phase 98 wired UpdateCaptureStatus and created two of the three
+    // labels it writes to, so its RAM line stayed a silent no-op under
+    // a null guard. During a capture the slots in hand against the
+    // slots there are is the number that says whether the write buffer
+    // is keeping up.
+    m_lblRecBuffer = MakeValueLabel(L"", x, y, w, SH, ID_LBL_REC_BUFFER);
+    TagControl(m_lblRecBuffer, Section::Capture);
     y += SH + 3;
     } // end Capture
 

@@ -397,6 +397,21 @@ int main() {
         Near(ToArcsec(0.0f, 0.203f), 0.0, 1e-9, "and zero stays zero");
     }
 
+    // Phase 99: asserted at last. STAR_METRICS_PROVEN_ON_SKY is the
+    // honesty flag phase 95 declared and this file never read -- the
+    // dead-code sweep found it, and the three later flags
+    // (LUNAR_FRAMING_PROVEN_ON_SKY, MOSAIC_PROVEN_ON_SKY and
+    // MOSAIC_RUN_PROVEN_ON_SKY) are each asserted by their own test.
+    // A flag nothing checks is a comment with a type.
+    printf("\nThe honesty flag\n");
+    if (raduk::core::STAR_METRICS_PROVEN_ON_SKY) {
+        printf("  FAIL  STAR_METRICS_PROVEN_ON_SKY claims the sky has"
+               " confirmed this; no star has been measured yet\n");
+        ++g_fail;
+    } else {
+        printf("  ok    still unproven on the sky, which it is\n");
+    }
+
     if (g_fail == 0) printf("\nPASS\n"); else printf("\nFAIL: %d\n", g_fail);
     return g_fail == 0 ? 0 : 1;
 }

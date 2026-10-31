@@ -85,12 +85,28 @@ public:
 
     // Phase 57 (review S1) — hardening limits. The command set drives the
     // mount and focuser, so the attack surface matters:
-    //   MAX_WS_PAYLOAD  clamps the 64-bit wire length before any arithmetic
-    //                   (a hostile frame could integer-wrap totalLen or
-    //                   terminate the app via a huge resize).
+    //   MAX_WS_PAYLOAD  the per-frame ceiling, which ws::kMaxFramePayload
+    //                   enforces in the parser before any arithmetic with
+    //                   the length (a hostile frame could integer-wrap
+    //                   totalLen or terminate the app via a huge resize).
+    //                   Kept here as the server's published figure and
+    //                   DERIVED from the parser's, not restated.
     //   MAX_RECV_BUF    caps per-client receive-buffer growth (memory DoS
     //                   from a header that promises data that never comes).
-    static constexpr uint64_t MAX_WS_PAYLOAD = 1  * 1024 * 1024;
+    // Phase 99's dead-code sweep flagged this as unread, which it was,
+    // and the first read of that was alarming: a documented clamp on a
+    // 64-bit wire length that nothing enforced. It is not a hole. The
+    // parser moved into WsProtocol.h and took the check with it --
+    // ws::kMaxFramePayload, the same megabyte, clamped before the
+    // arithmetic at the one place that does the arithmetic.
+    //
+    // What WAS wrong is this being a SECOND COPY while the comment
+    // above claimed it "stays the server's own guard as well". Two
+    // copies of a security-relevant bound is how one gets tightened
+    // and the other does not, which is the Theme::DEEP failure in a
+    // place where it would matter more. It now derives from the one
+    // that is enforced, so they cannot disagree.
+    static constexpr uint64_t MAX_WS_PAYLOAD = ws::kMaxFramePayload;
     static constexpr size_t   MAX_RECV_BUF   = 2  * 1024 * 1024;
 
     // P5.6 -- more limits, for the same reason:

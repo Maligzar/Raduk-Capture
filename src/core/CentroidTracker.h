@@ -106,7 +106,18 @@ class CentroidTracker {
 public:
     // Nominal plate scale — display/seed only; corrections use the measured
     // Phase 51 calibration. Kept in sync with RigConfig at construction.
-    static constexpr float PLATE_SCALE_ARCSEC_PX = 0.203f;
+    // Phase 99: this was a THIRD hardcoded plate scale, read by
+    // nothing. The rig's real one is RigConfig::plateScaleArcsecPx,
+    // loaded from rig.ini, and the emulator deliberately runs 0.223 so
+    // phase 51's guide calibration has a real error to measure. A
+    // tracker that ever started using this constant would silently
+    // ignore both.
+    //
+    // This project has been bitten by a stale literal twice already --
+    // the emulator's blur per step, derived for a plate scale that
+    // then moved, and the plate scale itself. Left as a pointer to
+    // the real one rather than a fourth number to go stale.
+    //   plate scale: raduk::core::RigConfig::Get().plateScaleArcsecPx
 
     // Stage 2 — Centering
     // Deadband must stay below CENTRE_THRESHOLD_PX on the real rig

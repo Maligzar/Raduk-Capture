@@ -878,3 +878,14 @@ For contrast, so this list is not read as "nothing works":
 - The calibration arithmetic, the readiness logic, the capture-format
   round trip and the session restore, all by unit test or by driving the
   real controls from outside the process.
+
+21. **The object panel cross-fade, now that it has frames** (phase
+    96.5). Slew between two targets with the object panel up and watch
+    the transition. Before this it blanked and snapped back; it should
+    now be a 450 ms fade. Then do it again while capturing, where the
+    content poll drops to 2 s -- the fade should look identical, since
+    it no longer depends on that poll for its frames.
+
+22. **The confirmation toast's fade** (phase 96.5). Trigger any
+    confirmation. It should fade in over about 150 ms, hold for five
+    seconds, and fade out. Clicking it should still dismiss it at once.

@@ -290,3 +290,117 @@ a star party were imminent, which would promote 96.3.
   frame at up to 200 fps, and phase 91 and 93 both spent real effort
   getting work out of it. Chrome changes stop at the HUD.
 - **No judging it by screenshot.** The venue is a dark room at 2am.
+
+---
+
+## 96.5 as built: motion
+
+The stage was scoped as "transitions and easing on panel reveals, mode
+changes, state transitions". What measuring found first was that the
+app's one real transition had never run.
+
+### The inventory
+
+Four timed visual transitions existed before this stage:
+
+| Site | What | Duration | Curve | Stack |
+|---|---|---|---|---|
+| `ObjectPanel` | cross-fade on target change | 450 ms | linear | D2D |
+| `ShareView` | hint fade-out at end of dwell | 1500 ms ramp, 8 s dwell | linear | D2D |
+| `NotificationBar` | appear and vanish | hard cut, 8 s dwell | none | GDI |
+| `ConfirmToast` | appear and vanish | hard cut, 5 s dwell | none | GDI |
+
+### The defect
+
+`ObjectPanel`'s cross-fade has no frame source. It arms in
+`SetContent`, and the only thing that calls `Draw()` again is the
+500 ms readout poll that feeds `SetContent` -- 2 s while capturing.
+The file contains no `SetTimer` at all.
+
+So a 450 ms fade got one frame, at `t` near zero and therefore alpha
+near zero, and the next frame arrived 500 ms later with the fade
+already expired. It did not fade. It blanked the panel and snapped
+back a poll later, and while capturing it sat blank for up to two
+seconds on a target change.
+
+This is the same shape as the seven dead things phases 96 through 100
+turned up: the gap is between written and reachable, not between wrong
+and right. The fade is correct code. Nothing ever ran it.
+
+Fixed by arming a `FRAME_MS` timer on the edge that arms the fade and
+killing it on the frame the fade completes, so the timer exists only
+while a transition is running.
+
+### The curve, and a correction
+
+Both existing fades ramped alpha linearly. Alpha compositing is linear
+in luminance; perceived lightness is not. CIE L\* goes as the cube root
+of luminance, so a linear alpha ramp front-loads the apparent change.
+
+My first conclusion was that the corrective exponent is 3 -- alpha to
+luminance to L\* suggests a cube. That is wrong. `L* = 116·Y^(1/3) − 16`,
+and the −16 offset is not negligible when night-mode text only reaches
+L\* 42. Measured against the app's own tokens, in `tests/motion.cpp`:
+
+| Case | Half-lightness reached at | Exponent |
+|---|---|---|
+| night TEXT 200 over DEEP 14 | alpha 0.255 | 1.97 |
+| day TEXT over DEEP | alpha 0.186 | 2.42 |
+
+So the curve is a **square**. It is within 0.23 L\* of perceptually
+linear in the night case -- below the ~1.0 L\* just-noticeable
+difference, i.e. exact for the condition this app is built for -- and
+6.1 L\* off by day, where it errs bright, meaning a fade-in arrives a
+shade early rather than lurking.
+
+A plain power law is adequate at all only because both surfaces are
+near-black: the backdrop carries under 1% of the foreground's luminance
+in both cases, so no per-call backdrop luminance is needed. The test
+asserts that, so if a later phase lifts the panel background it fails
+first.
+
+### The ladder
+
+Half-decade (×√10) anchored at 150 ms, giving true rungs of
+150 / 474 / 1500. The anchor is not a preference: the two durations
+already in the app were 450 and 1500, and those are rungs 1 and 2 to
+within 5%. 450 is kept over 474 because it is the measured value and
+24 ms is under two frames at 60 Hz.
+
+Dwells are reading time, not motion, and were three numbers in three
+files with nothing saying why. Now two, and the difference is a
+decision: a confirmation tells you what you just did, so you already
+know it (5 s); a notice tells you something you did not know (8 s).
+
+### Deliberately not done
+
+Two things that look like motion opportunities and are not:
+
+**A pulsing REC indicator.** Phase 98 added a recording timer to the
+panel and the capture card. That is changing text, which is already
+motion carrying information. A pulse would be redundant with it, and
+would add a repaint where none existed.
+
+**A sliding `NotificationBar`.** The bar is a `WS_CHILD` whose height
+goes from 0, and showing it pushes the content below it down. That
+displacement *is* the motion that tells you something happened. A fade
+on top would add nothing, and animating the height would re-run the
+main window's layout on every frame.
+
+The one surface that got genuinely new motion is `ConfirmToast`, where
+the motion is the information -- something arrived, and it arrived just
+now -- and which was the one surface that cut. It is `WS_POPUP`, so
+`WS_EX_LAYERED` gives it a compositor-applied opacity and not one line
+of its drawing code knows it is fading.
+
+### Still open
+
+**96.4b**, the type and spacing retrofit on the operator surfaces,
+remains deferred. `ControlPanel.cpp` lays out by hard pixel offsets
+(six measured-text calls in 2,424 lines), every off-ramp font site is
+marked in the source with `96.4b` and the step it wants, and it needs
+someone watching the screen.
+
+**The caution rung.** `ACCENT3` at 170 outranks `ACCENT2` at 110, so
+"good" reads brighter than "caution". The ladder is full, so inserting
+a rung re-spaces all six signals. An owner decision, not a bug.

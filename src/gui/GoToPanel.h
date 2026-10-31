@@ -35,6 +35,7 @@
 #include "../sky/SkyObject.h"
 #include "../sky/ASTAPSolver.h"
 #include "../sky/PushTo.h"
+#include "../sky/MosaicPlan.h"
 #include "../sky/PointingModel.h"
 #include "../core/IMount.h"
 #include "../core/FrameSlot.h"
@@ -1925,7 +1926,83 @@ private:
                       m_pointingModel.NearbyCount(tAz, tAlt));
             if (m_onLog) m_onLog(cb);
         }
+        ReportFraming(name);
     }
+
+    // ── Phase 97.4: say whether it fits, before the slew lands ──
+    //
+    // Phase 97 worked out that the Moon is 2.4 frames wide and 4.3
+    // tall on this rig, that it needs eighteen panels, and that under
+    // sidereal tracking the drift over those eighteen exceeds the
+    // whole overlap -- so the mosaic does not close. None of that was
+    // on any screen.
+    //
+    // It goes down m_onLog rather than into the panel's layout, which
+    // is a deliberate choice and not laziness. The log already carries
+    // the plate-scale comparison after every solve and the pointing
+    // model's prediction after every corrected slew, so an operator
+    // reads it; and a framing report has nothing to add on the great
+    // majority of targets, which makes it exactly the wrong thing to
+    // reserve permanent pixels for. Jupiter gets one line saying it
+    // fits and the Moon gets four.
+    //
+    // Phrased for the moment it arrives: the slew has gone, and what
+    // the operator decides next is whether to commit the next eight
+    // minutes.
+    void ReportFraming(const std::string& name) {
+        if (!m_onLog) return;
+        const auto sz = raduk::sky::PlanetApparentSizeAt(
+                            name, raduk::sky::CurrentJD());
+        if (!sz.valid) return;          // a star has no disc to frame
+
+        // The LIVE frame, from SubmitFrame, not a nominal sensor size.
+        // The whole point of the report is how much of the target fits
+        // in the frame being captured right now, and a 640x480 crop
+        // needs 432 panels where the full sensor needs 18.
+        if (m_lastFrameW == 0 || m_lastFrameH == 0) return;
+        const raduk::sky::FieldOfView fov = raduk::sky::FrameFov(
+            (int)m_lastFrameW, (int)m_lastFrameH,
+            raduk::core::RigConfig::Get().plateScaleArcsecPx);
+
+        // The Sun drifts thirteen times slower than the Moon, which is
+        // why the rate is chosen per target rather than assumed: a
+        // solar mosaic closes under sidereal and a lunar one does not.
+        const auto rate = raduk::core::IMount::RateForTarget(name.c_str());
+        const double drift =
+            rate == raduk::core::IMount::RATE_LUNAR
+                ? raduk::sky::MOON_DRIFT_ARCSEC_PER_SEC
+            : rate == raduk::core::IMount::RATE_SOLAR
+                ? raduk::sky::SUN_DRIFT_ARCSEC_PER_SEC
+                : 0.0;        // a planet is fixed against the stars
+
+        // Whether the mount is ACTUALLY following the target, not
+        // whether we asked it to. A driver may refuse the rate, and a
+        // report that assumed success would tell the operator the
+        // mosaic closes when it will not.
+        const bool tracked =
+            rate != raduk::core::IMount::RATE_SIDEREAL &&
+            m_mount && m_mount->SupportsTrackingRate();
+
+        for (const auto& line : raduk::sky::DescribeFraming(
+                 name.c_str(), sz.framingArcsec / 60.0, fov,
+                 MOSAIC_OVERLAP, tracked ? drift * LUNAR_RATE_RESIDUAL : drift,
+                 MOSAIC_CAPTURE_SEC, MOSAIC_SETTLE_SEC, tracked)) {
+            m_onLog(line);
+        }
+    }
+
+    // The assumptions the report rests on, named rather than buried as
+    // literals, because the settle time is a GUESS -- nobody has timed
+    // an 8SE after a 10-arcmin slew, and it is the one input that
+    // decides whether the drift budget is reachable. Clear-night item
+    // 18 is about measuring it.
+    static constexpr double MOSAIC_OVERLAP     = 0.20;
+    static constexpr double MOSAIC_CAPTURE_SEC = 20.0;
+    static constexpr double MOSAIC_SETTLE_SEC  =  8.0;
+    // A mount at lunar rate still carries the error between a MEAN
+    // rate and the true one, which varies a few per cent over the
+    // month. Five per cent is the pessimistic end of that.
+    static constexpr double LUNAR_RATE_RESIDUAL = 0.05;
 
     void DoPlateSolve() {
         if (m_lastFrameData.empty()) {

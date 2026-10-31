@@ -147,17 +147,52 @@ int main() {
     }
 
     // -- 5. Absence stays absence ----------------------------
-    printf("\n5. Things that are not planets\n");
+    printf("\n5. Things that are not planets, and the two that joined\n");
     {
         const auto m = PlanetApparentSizeAt("M42", CalcJD(2026, 10, 17.0));
         Check(!m.valid && m.discArcsec == 0.0,
               "a deep-sky object is not given a planet's size", "");
         const auto e = PlanetApparentSizeAt("", CalcJD(2026, 10, 17.0));
         Check(!e.valid, "and nor is an empty name", "");
+        // ── Phase 97.4 changed this requirement ────────────
+        //
+        // This used to assert that the Moon comes back INVALID, on the
+        // grounds that "its distance comes from elsewhere". That was
+        // true and right when 94.2 was written: nothing anywhere
+        // computed a lunar distance, so pretending to have one would
+        // have been a fabrication.
+        //
+        // Phase 97 added the Meeus Ch.47 distance series and 97.4
+        // routed the Moon and the Sun through this same function,
+        // because it is the one path by which a size reaches the
+        // object panel's figure, its frame-fill sentence, its scale
+        // diagram and the emulator's rendered disc. The two LARGEST
+        // objects the rig can point at had none of those.
+        //
+        // So the old assertion is obsolete rather than violated, and
+        // the replacement pins the new contract: covered, and sourced
+        // from the lunar series rather than from the planet tables.
         const auto mo = PlanetApparentSizeAt("Moon", CalcJD(2026, 10, 17.0));
-        Check(!mo.valid,
-              "the Moon is not in this ephemeris and does not pretend to be",
-              "its distance comes from elsewhere");
+        char mb[128];
+        snprintf(mb, sizeof(mb), "%.0f arcsec = %.2f arcmin",
+                 mo.discArcsec, mo.discArcsec / 60.0);
+        Check(mo.valid, "the Moon IS covered now, as of 97.4", mb);
+        Check(mo.discArcsec > 1700.0 && mo.discArcsec < 2050.0,
+              "between its apogee and perigee extremes", mb);
+        Check(mo.framingArcsec == mo.discArcsec,
+              "and has no rings, so what must fit the frame is the disc",
+              "");
+
+        const auto su = PlanetApparentSizeAt("Sun", CalcJD(2026, 10, 17.0));
+        Check(su.valid && su.discArcsec > 1880.0 && su.discArcsec < 1960.0,
+              "the Sun likewise, near 32 arcmin", "");
+
+        // The point of section 5 still stands for everything that is
+        // genuinely not a body with a measurable disc.
+        const auto st = PlanetApparentSizeAt("Vega", CalcJD(2026, 10, 17.0));
+        Check(!st.valid,
+              "a star still is not, and falls back to the Airy pattern"
+              " 94.1 renders", "");
     }
 
     // -- 6. The existing callers are untouched ---------------

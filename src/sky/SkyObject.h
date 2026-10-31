@@ -13,6 +13,7 @@
 // ============================================================
 
 #include <string>
+#include "LunarSolarSize.h"
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -246,7 +247,19 @@ static const PlanetBody kPlanetBodies[] = {
 // no ring-opening angle to answer "will it fit".
 inline constexpr double SATURN_RING_OUTER_KM = 136775.0;
 
-inline constexpr double AU_KM = 149597870.7;
+// AU_KM, MOON_RADIUS_KM, SUN_RADIUS_KM and the apparent-diameter
+// geometry live in LunarSolarSize.h, which is the lower layer: it
+// depends on nothing but <cmath>, while this file is the catalogue
+// above it.
+//
+// Phase 97.4 found out the hard way that they must live in exactly one
+// of the two. Phase 97 added LunarSolarSize.h with its own
+// `inline constexpr double AU_KM`, in this same namespace, and NOTHING
+// INCLUDED BOTH HEADERS, so the redefinition sat on master compiling
+// perfectly until the first translation unit needed them together --
+// which is this one, and which is what 97.4 is for. A new header in an
+// established namespace has to be compiled ALONGSIDE its siblings, not
+// only on its own.
 
 struct PlanetApparentSize {
     double discArcsec    = 0.0;  // the globe, equatorial
@@ -262,9 +275,44 @@ inline double AngularDiameterArcsec(double radiusKm, double distAU) {
     return 2.0 * atan(radiusKm / d) * 180.0 / M_PI * 3600.0;
 }
 
+// ── Phase 97.4: the Moon and the Sun go through here too ────
+//
+// This function is the one path by which an apparent size reaches
+// anything: the object panel's APPARENT SIZE figure, its "fills N% of
+// the frame" sentence, its scale diagram, and the emulator's rendered
+// disc all come through it. Phase 94.2 built it because size_arcmin is
+// NULL for every planet in the knowledge database.
+//
+// It is NULL for the Moon and the Sun as well, and they were not
+// covered -- the lookup is against kPlanetBodies, which holds the
+// seven planets. So the two LARGEST objects this rig can point at had
+// no apparent size anywhere in the application: no figure, no
+// frame-fill sentence, and a scale diagram that drew the sensor
+// outline with nothing in it. The Moon is the one the owner asked
+// about by name.
+//
+// Phase 97 computed both diameters and nothing consumed them. This is
+// what consumes them, and it is deliberately the SAME function rather
+// than a parallel one, so every existing caller is fixed at once
+// instead of each needing to learn about a second path.
 inline PlanetApparentSize PlanetApparentSizeAt(const std::string& name,
                                                double jd) {
     PlanetApparentSize out;
+
+    // The Moon and the Sun first: they are not in the planet tables
+    // and their distances come from their own series.
+    if (name == "Moon" || name == "Sun") {
+        const bool moon = (name == "Moon");
+        const double km = moon ? MoonDistanceKm(jd) : SunDistanceKm(jd);
+        out.distanceAU = km / AU_KM;
+        out.discArcsec = moon ? MoonApparentDiameterArcsec(jd)
+                              : SunApparentDiameterArcsec(jd);
+        // No rings and no ring equivalent: what has to fit the frame
+        // is the disc itself.
+        out.framingArcsec = out.discArcsec;
+        out.valid = out.discArcsec > 0.0;
+        return out;
+    }
 
     const PlanetBody* body = nullptr;
     for (const auto& b : kPlanetBodies)

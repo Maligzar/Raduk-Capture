@@ -55,6 +55,7 @@ $Tests = @(
     @{ Name = "lunar_surface";    Sources = @() }
     @{ Name = "star_metrics";     Sources = @() }
     @{ Name = "night_hierarchy";  Sources = @() }
+    @{ Name = "visual_tokens";    Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

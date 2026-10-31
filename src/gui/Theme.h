@@ -45,6 +45,113 @@ namespace Theme {
     constexpr const wchar_t* FONT_LABEL  = L"Barlow Condensed";
     constexpr const wchar_t* FONT_DATA   = L"Space Mono";
 
+    // ════════════════════════════════════════════════════════
+    //  Phase 96.2: the axes that survive the dark
+    // ════════════════════════════════════════════════════════
+    //
+    // Night vision collapses colour to luminance, so hue can carry no
+    // meaning (see the ladder below). What survives the transform is
+    // everything geometric: size, spacing, depth. Those were the only
+    // axes left to design, and until this phase none of them was
+    // designed at all -- the palette was the whole system.
+    //
+    // ── What was there, measured ────────────────────────────
+    //
+    // SIZE. Sixteen font creations across six sizes: 11, 12, 13, 14,
+    // 15, 16. Adjacent steps one pixel apart. A one-pixel difference
+    // is not a hierarchy -- it is the same defect as cyan and amber
+    // landing four luminance units apart, in a different axis. Worse,
+    // the two painting stacks disagreed: Direct2D used 11, 13, 15
+    // while GDI used all six.
+    //
+    // SPACING. Literals of 4, 6, 8, 10, 12 and 14 scattered across the
+    // panels, each chosen locally. No rhythm, so nothing lines up
+    // between surfaces that were written at different times.
+    //
+    // DEPTH. Nothing. No elevation, no shadow, no layering, which is
+    // the single biggest thing the reference clients have and this
+    // does not.
+    //
+    // ── These are definitions only ──────────────────────────
+    //
+    // Nothing here changes a pixel today, on purpose. Retrofitting the
+    // call sites moves layout, and layout in this project is hard
+    // pixel offsets that will need adjusting alongside. That is 96.3
+    // and 96.4's work, surface by surface, where the result can be
+    // looked at. Defining the system first is what stops those stages
+    // being a series of local opinions.
+
+    // ── Type ramp ───────────────────────────────────────────
+    //
+    // Five steps, each at least two pixels from its neighbour, which
+    // is the minimum that reads as a different size at these sizes.
+    // Growing increments, so the ramp separates more as it climbs and
+    // a title cannot be mistaken for a heading.
+    namespace Type {
+        inline constexpr int MICRO  = 11;  // dense readouts, HUD corners
+        inline constexpr int BODY   = 13;  // default label and value text
+        inline constexpr int STRONG = 16;  // section headers, emphasis
+        inline constexpr int TITLE  = 20;  // panel and window titles
+        inline constexpr int HERO   = 28;  // audience surfaces only
+
+        // The smallest gap the ramp guarantees. Asserted by
+        // tests/visual_tokens.cpp.
+        inline constexpr int MIN_STEP = 2;
+    }
+
+    // ── Spacing ─────────────────────────────────────────────
+    //
+    // A 4-pixel base with a doubling-ish scale. Everything that pads,
+    // insets or separates picks a step rather than a number, so
+    // surfaces written months apart still line up.
+    namespace Space {
+        inline constexpr int BASE = 4;
+        inline constexpr int XS   = 4;   // inside a control
+        inline constexpr int SM   = 8;   // between related controls
+        inline constexpr int MD   = 12;  // between groups
+        inline constexpr int LG   = 16;  // panel inset
+        inline constexpr int XL   = 24;  // between sections
+        inline constexpr int XXL  = 32;  // around a focal element
+    }
+
+    // ── Elevation ───────────────────────────────────────────
+    //
+    // Depth is the axis the reference clients lean on hardest and the
+    // one this project had none of. It is also the axis night vision
+    // cannot touch, because a shadow is alpha over whatever is beneath
+    // it and NV() does not alter alpha.
+    //
+    // One definition per level, in one place. The alternative is what
+    // happens otherwise: every surface guessing its own offset and
+    // blur, and nothing looking like it belongs to the same object.
+    struct Shadow {
+        int   dy;       // vertical offset, pixels
+        int   blur;     // blur radius, pixels
+        float alpha;    // black, composited
+    };
+
+    namespace Elev {
+        inline constexpr int FLAT    = 0;  // flush with its parent
+        inline constexpr int RAISED  = 1;  // panels, cards
+        inline constexpr int OVERLAY = 2;  // toasts, popups, tooltips
+        inline constexpr int MODAL   = 3;  // dialogs over everything
+        inline constexpr int LEVELS  = 4;
+    }
+
+    // Total and unique: every level has exactly one shadow, and an
+    // out-of-range level clamps rather than reading past the array.
+    inline constexpr Shadow ShadowFor(int level) {
+        const Shadow table[Elev::LEVELS] = {
+            { 0,  0, 0.00f },   // FLAT
+            { 1,  3, 0.35f },   // RAISED
+            { 3,  8, 0.45f },   // OVERLAY
+            { 6, 18, 0.55f },   // MODAL
+        };
+        if (level < 0) level = 0;
+        if (level >= Elev::LEVELS) level = Elev::LEVELS - 1;
+        return table[level];
+    }
+
     // ── Helper: Convert 0xAARRGGBB to D2D1::ColorF ────────────
 
     inline D2D1_COLOR_F NVf(D2D1_COLOR_F c);   // defined below

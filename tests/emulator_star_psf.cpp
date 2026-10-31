@@ -54,7 +54,8 @@ static void Check(bool ok, const char* what) {
 // One frame of the named target, at a given focuser position.
 // -1 means "no focus provider", which the emulator treats as in focus.
 static bool Grab(const char* target, int focusPos,
-                 std::vector<uint8_t>& out, int& W, int& H) {
+                 std::vector<uint8_t>& out, int& W, int& H,
+                 float lunarPhase = 0.25f) {
     ASICamera cam;
     if (!cam.Open(0)) return false;
     W = 640; H = 480;
@@ -62,6 +63,7 @@ static bool Grab(const char* target, int focusPos,
     int aB = 1; ASI_IMG_TYPE aT = ASI_IMG_RAW8;
     cam.GetROI(W, H, aB, aT);
     cam.SetTargetName(target);
+    cam.SetLunarPhase(lunarPhase);
     cam.SetExposure(5.0);
     cam.SetPeakTargetDn(200);          // a known peak, so DN is comparable
     cam.SetNoiseAmplitude(0);          // profile, not noise
@@ -247,6 +249,69 @@ int main() {
         Check(bete > vega * 1.3,
               "Betelgeuse is markedly redder than Vega, as its class says");
         Check(vega < 1.0, "and Vega is blue-biased, as an A0 should be");
+    }
+
+    // ---- the Moon: is there anything to focus on --------------
+    printf("\n5. The Moon has a terminator in the frame (94.3)\n");
+    {
+        // The complaint this fixes: a flat tinted disc overflowing the
+        // sensor is a uniform bright rectangle, and a uniform
+        // rectangle has no detail at ANY focus position. So the check
+        // is not "is it bright" but "does it VARY", and most of all
+        // "does it vary from fully lit to dark across the frame".
+        std::vector<uint8_t> quarter, full;
+        int w1=0,h1=0,w2=0,h2=0;
+        const bool oq = Grab("Moon", -1, quarter, w1, h1, 0.25f);
+        const bool of = Grab("Moon", -1, full,    w2, h2, 0.50f);
+        Check(oq && of, "both lunar frames were delivered");
+
+        if (oq && of) {
+            // At first quarter the terminator passes through the disc
+            // centre, which is the frame centre, so the left and right
+            // halves must differ enormously.
+            auto halfMean = [](const std::vector<uint8_t>& f, int w, int h,
+                               bool leftHalf) {
+                double sum = 0.0; long n = 0;
+                for (int y = 0; y < h; y++)
+                    for (int x = 0; x < w; x++) {
+                        const bool isLeft = (x < w/2);
+                        if (isLeft != leftHalf) continue;
+                        sum += f[(size_t)y*w + x]; ++n;
+                    }
+                return n ? sum / n : 0.0;
+            };
+            const double qL = halfMean(quarter, w1, h1, true);
+            const double qR = halfMean(quarter, w1, h1, false);
+            const double fL = halfMean(full,    w2, h2, true);
+            const double fR = halfMean(full,    w2, h2, false);
+            printf("  --    quarter: left %.1f DN, right %.1f DN\n", qL, qR);
+            printf("  --    full:    left %.1f DN, right %.1f DN\n", fL, fR);
+
+            const double qSplit = (qL > qR) ? qL/(qR+1.0) : qR/(qL+1.0);
+            const double fSplit = (fL > fR) ? fL/(fR+1.0) : fR/(fL+1.0);
+            Check(qSplit > 5.0,
+                  "at first quarter one half of the frame is many times "
+                  "brighter: the terminator is in shot");
+            Check(fSplit < 1.5,
+                  "at full the two halves match, because the Sun is behind "
+                  "the observer and nothing is shadowed");
+            Check(qSplit > fSplit * 3.0,
+                  "so phase genuinely changes what is in the frame");
+
+            // And the surface is not flat even on the lit side, which
+            // is what the maria and craters are for.
+            double lo = 255.0, hi = 0.0;
+            const int cx = w2/2, cy = h2/2;
+            for (int y = cy-60; y < cy+60; y++)
+                for (int x = cx-60; x < cx+60; x++) {
+                    if (x<0||y<0||x>=w2||y>=h2) continue;
+                    const double v = full[(size_t)y*w2+x];
+                    if (v < lo) lo = v; if (v > hi) hi = v;
+                }
+            printf("  --    full Moon, central 120x120: %.0f to %.0f DN\n", lo, hi);
+            Check(hi - lo > 10.0,
+                  "even a full Moon has albedo structure, not a flat field");
+        }
     }
 
     if (g_fail == 0) printf("\nPASS\n"); else printf("\nFAIL: %d\n", g_fail);

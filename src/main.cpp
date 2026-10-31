@@ -521,11 +521,27 @@ struct ProfileApplyHooks {
 static void EmuApplyApparentSize(raduk::core::ASICamera* cam) {
     if (!cam) return;
     const std::string resolved = cam->TargetName();
-    const auto sz = raduk::sky::PlanetApparentSizeAt(resolved,
-                                                     raduk::sky::CurrentJD());
+    const double jd = raduk::sky::CurrentJD();
+    const auto sz = raduk::sky::PlanetApparentSizeAt(resolved, jd);
     // Not a planet (a star, the Moon) leaves the table in charge.
     cam->SetTargetAngularRadiusArcsec(
         sz.valid ? (float)(sz.discArcsec * 0.5) : 0.0f);
+
+    // Phase 94.3: the Moon needs which way the sunlight is coming
+    // from, which is the one thing that decides where the terminator
+    // falls -- and the terminator is the whole reason the Moon is
+    // worth rendering as something other than a bright rectangle.
+    //
+    // MoonRADec reports the phase in the field it reuses for
+    // magnitude, 0 new through 0.5 full. Only asked for when the
+    // target IS the Moon, because it is a Meeus series and the
+    // emulator switches targets on every profile load.
+    if (resolved == std::string("Moon")) {
+        double mra = 0.0, mdec = 0.0, phase = 0.0;
+        raduk::sky::MoonRADec(jd, mra, mdec, phase);
+        cam->SetLunarPhase((float)phase);
+        Log("[EMU] Moon phase %.3f (0 new, 0.5 full)\n", phase);
+    }
 }
 #endif
 

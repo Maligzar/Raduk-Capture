@@ -34,6 +34,7 @@
 #include <chrono>
 #include <functional>
 #include "ASITypeMap.h"
+#include "LunarSurface.h"
 
 namespace raduk::core {
 
@@ -82,7 +83,7 @@ struct JupMoon { float dist, period_d, radiusArcsec, r, g, b; };
 //
 // The background hash sprinkle does not count: single pixels one pixel
 // wide, positionally meaningless, with no profile to measure.
-enum class EmuKind { Disc, Star };
+enum class EmuKind { Disc, Star, Lunar };
 
 struct EmuTargetDef {
     const char* name;
@@ -105,7 +106,7 @@ static const EmuTargetDef EMU_TARGETS[] = {
     // Half a degree. It overflows every sensor this rig owns, which is
     // what the Moon actually does -- there is no limb in frame at prime
     // focus and there never was on the sky either.
-    { "Moon",    900.0f, 0.0000f, 0.80f,0.78f,0.74f, false, false,0.0f, 0.0f, EmuKind::Disc, nullptr },
+    { "Moon",    900.0f, 0.0000f, 0.80f,0.78f,0.74f, false, false,0.0f, 0.0f, EmuKind::Lunar, nullptr },
 
     // ── Stars ────────────────────────────────────────────────
     //
@@ -632,6 +633,21 @@ public:
                    EMU_TARGETS[m_target].radiusArcsec);
     }
 
+    // ── Phase 94.3: which way the sunlight is coming from ────
+    //
+    // The lunar phase, 0 new, 0.25 first quarter, 0.5 full, which is
+    // MoonRADec's own convention. Pushed in for the same reason the
+    // apparent size is: the ephemeris lives in src/sky and this is
+    // src/core.
+    //
+    // Default 0.25 rather than 0.5. A full Moon is the WORST case for
+    // this feature -- the Sun is behind the observer, no shadow falls
+    // anywhere, and the surface goes back to being a flat bright
+    // field. A quarter puts the terminator through the middle of the
+    // frame, which is what the emulator exists to show.
+    void SetLunarPhase(float frac) { m_lunarPhase = frac; }
+    float LunarPhase() const { return m_lunarPhase; }
+
     // What the renderer should actually use. One place, so the disc,
     // the rings and the moons cannot disagree about how big the
     // target is.
@@ -1111,15 +1127,24 @@ private:
             // are. One hoisted bool rather than a second copy of the
             // background, hash sprinkle and noise code.
             const bool     isStar    = (TG.kind == EmuKind::Star);
+            // Phase 94.3: the Moon is a patch of a sphere rather than
+            // a shape inside the frame, so it owns the whole pixel
+            // loop instead of being painted into it.
+            const bool     isLunar   = (TG.kind == EmuKind::Lunar);
 
             // Main loop — LUT lookup + sqrtf only, no asinf/sinf/fmod per pixel
-            for (int py = 0; py < H; py++) {
+            //
+            // Skipped entirely for the Moon, which writes every pixel
+            // itself below. Without this guard the frame was painted
+            // twice: 8.3 million background pixels at the full sensor,
+            // all of them immediately overwritten.
+            for (int py = 0; !isLunar && py < H; py++) {
                 float dy  = (py-PCY)*iRy, dy2 = dy*dy;
                 for (int px = 0; px < W; px++) {
                     float dx = (px-PCX)*iR;
                     float r2 = dx*dx + dy2;
                     uint8_t rv, gv, bv;
-                    if (!isStar && r2 <= 1.0f) {
+                    if (!isStar && !isLunar && r2 <= 1.0f) {
                         float dxsq = dx*dx, denom = 1.0f-dxsq;
                         float sinLat = (denom>0.001f) ? dy/sqrtf(denom) : 0.f;
                         if (sinLat<-1.f) sinLat=-1.f;
@@ -1169,6 +1194,139 @@ private:
                         mv = (uint8_t)(val < 0 ? 0 : (val > 255 ? 255 : val));
                     }
                     backBuf[py*W+px] = mv;
+                }
+            }
+
+            // ── The Moon, as a piece of a sphere ──────────────
+            //
+            // Every other target is a shape inside the frame. This one
+            // is bigger than the frame: at 0.223"/px the full sensor
+            // spans 0.476 of the lunar diameter and a 640x480 ROI only
+            // 0.079. So there is no limb to draw and no disc to fill;
+            // what the sensor sees is a patch, and each pixel has to
+            // be turned into a place on the sphere.
+            //
+            // Takes the whole pixel loop rather than painting over it,
+            // because unlike the star there is no background left to
+            // preserve: the Moon fills the frame.
+            if (isLunar) {
+                const SunDir sun = MoonSunDirection((double)m_lunarPhase);
+                // Pixels per lunar radius. EffectiveRadiusArcsec is the
+                // table's 900" until 94.2 learns the Moon's distance.
+                // Floored, as the disc radius and the Airy radius are.
+                // Nothing can reach zero today -- the Moon never takes
+                // the live-size override -- but a radius of a few
+                // pixels would push every u,v past the limb and render
+                // a black frame with nothing to say why.
+                const double Rpx = (std::max)(4.0,
+                                       (double)EffectiveRadiusArcsec()
+                                     / (double)EMU_PLATE_SCALE_AS_PX);
+                // Crater cell size in degrees. Chosen so a cell is a
+                // few tens of pixels at the full sensor: smaller and
+                // the craters are noise, larger and there are none in
+                // a planetary ROI.
+                const double cellDeg = 5.0;
+                const float  tint[3] = { TG.r, TG.g, TG.b };
+
+                // ── Expose to the patch, not to the whole Moon ───
+                //
+                // m_peakTargetDn means "put the brightest thing in the
+                // frame at this level", and the disc path honours that
+                // by normalising against its own surface LUT. Applied
+                // as a flat multiplier instead, it leaves a dim patch
+                // dim -- and the patch IS dim where it matters most:
+                // at a 640x480 ROI the frame spans 8 per cent of the
+                // lunar radius, so a first-quarter Moon centred on the
+                // disc puts the whole frame within a hair of the
+                // terminator, where grazing illumination is a few per
+                // cent of full. Physically right, and useless to focus
+                // on: the first frame measured 6 DN.
+                //
+                // A real imager answers that by exposing longer. So
+                // does this, by finding the frame's own maximum on a
+                // coarse grid and scaling to it. Every 16th pixel is
+                // enough: the illumination gradient across a patch
+                // this small is smooth, and the craters that are not
+                // only ever make the true peak brighter than the
+                // estimate, which clips rather than darkens.
+                double lumMax = 0.0;
+                if (m_peakTargetDn > 0) {
+                    for (int sy = 0; sy < H; sy += 16) {
+                        const double v = ((double)sy - PCY) / Rpx;
+                        for (int sx = 0; sx < W; sx += 16) {
+                            const double u = ((double)sx - PCX) / Rpx;
+                            const double il = LunarIllumination(u, v, sun);
+                            if (il <= 0.0) continue;
+                            double la = 0.0, lo = 0.0;
+                            LunarLatLon(u, v, la, lo);
+                            const double l = il * LunarAlbedo(la, lo);
+                            if (l > lumMax) lumMax = l;
+                        }
+                    }
+                    // A frame entirely on the night side has nothing to
+                    // expose to. Leave it dark rather than amplifying
+                    // the background by a huge factor.
+                    if (lumMax < 1e-4) lumMax = 0.0;
+                }
+
+                for (int py = 0; py < H; py++) {
+                    const double v = ((double)py - PCY) / Rpx;
+                    for (int px = 0; px < W; px++) {
+                        const double u = ((double)px - PCX) / Rpx;
+
+                        const double illum = LunarIllumination(u, v, sun);
+                        uint8_t mv;
+                        if (illum < 0.0) {
+                            // Past the limb. Sky, not Moon -- only
+                            // reachable at a very wide field or a
+                            // badly configured scale, but it must not
+                            // wrap into the far side of the sphere.
+                            mv = bgVal;
+                        } else {
+                            double lat = 0.0, lon = 0.0;
+                            LunarLatLon(u, v, lat, lon);
+                            const double alb = LunarAlbedo(lat, lon);
+                            const double shade =
+                                LunarCraterShade(lat, lon, sun, illum, cellDeg);
+
+                            // Lambertian, which is wrong for regolith
+                            // (the real Moon is far flatter across the
+                            // disc and surges at full) but right in the
+                            // one place this feature cares about: it
+                            // goes to zero at the terminator, and it is
+                            // the gradient there that focus is judged
+                            // on.
+                            double lum = illum * alb * shade;
+                            if (lum < 0.0) lum = 0.0;
+
+                            const bool eR = (py%2==0), eC = (px%2==0);
+                            const float chan = (eR&&eC) ? tint[0]
+                                             : (!eR&&!eC) ? tint[2] : tint[1];
+                            double dn = lum * chan * 255.0 * brightness;
+                            if (m_peakTargetDn > 0 && lumMax > 0.0)
+                                dn = (lum / lumMax) * chan
+                                   * (double)m_peakTargetDn;
+                            // The night side keeps the sky pedestal
+                            // rather than going to absolute zero: a
+                            // real frame has a bias offset and noise
+                            // there, and anything measuring a floor
+                            // needs to find one.
+                            if (dn < (double)bgVal) dn = (double)bgVal;
+                            mv = (uint8_t)(dn > 255.0 ? 255.0 : dn);
+                        }
+
+                        if (noiseAmp > 0) {
+                            uint32_t hh = (uint32_t)px * 73856093u
+                                        ^ (uint32_t)py * 19349663u
+                                        ^ frameSalt;
+                            hh ^= hh >> 13; hh *= 0x5bd1e995u; hh ^= hh >> 15;
+                            const int nz = (int)(hh & 1023u) - 512;
+                            int val = (int)mv + noiseAmp
+                                    + (nz * noiseAmp) / 512;
+                            mv = (uint8_t)(val < 0 ? 0 : (val > 255 ? 255 : val));
+                        }
+                        backBuf[py*W+px] = mv;
+                    }
                 }
             }
 
@@ -1452,6 +1610,8 @@ private:
     int                         m_target        = 0;   // index into EMU_TARGETS
     // Phase 94.2: live apparent radius, 0 = use the table.
     float                       m_radiusOverrideAs = 0.0f;
+    // Phase 94.3: lunar phase fraction, 0.25 = first quarter.
+    float                       m_lunarPhase       = 0.25f;
     std::vector<int>            m_blurScratch;   // generator thread only
     std::vector<int>            m_blurRing;      // P4.4a column-tile window
     std::vector<int>            m_blurSum;       // P4.4a column-tile sums

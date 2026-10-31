@@ -52,6 +52,7 @@ $Tests = @(
     @{ Name = "pixel_wcs";        Sources = @() }
     @{ Name = "emulator_target_size"; Sources = @() }
     @{ Name = "emulator_star_psf"; Sources = @() }
+    @{ Name = "lunar_surface";    Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

@@ -143,6 +143,19 @@ public:
         return b ? b->TrackingModeKnown() : false;
     }
 
+    // Phase 97. False with no backend, which is the right answer: the
+    // caller is about to plan a mosaic on the assumption that the
+    // target is being tracked at its own rate, and a silent true
+    // would let it.
+    bool SetTrackingRate(TrackingRate rate) override {
+        IMount* b = Backend();
+        return b ? b->SetTrackingRate(rate) : false;
+    }
+    bool SupportsTrackingRate() const override {
+        IMount* b = Backend();
+        return b ? b->SupportsTrackingRate() : false;
+    }
+
     bool SlewFixed(int axis, int direction, int rate) override {
         IMount* b = Backend();
         return b ? b->SlewFixed(axis, direction, rate) : false;

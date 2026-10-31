@@ -54,6 +54,7 @@ $Tests = @(
     @{ Name = "emulator_star_psf"; Sources = @() }
     @{ Name = "lunar_surface";    Sources = @() }
     @{ Name = "star_metrics";     Sources = @() }
+    @{ Name = "night_hierarchy";  Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

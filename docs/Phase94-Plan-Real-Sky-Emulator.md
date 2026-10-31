@@ -1,10 +1,19 @@
-# Phase 93 plan — a synthetic sky with real things in it
+# Phase 94 plan — a synthetic sky with real things in it
 
 > *"I want the emulator to show the actual stars and actual planets not
 > just the Jupiter or Saturn run everywhere. Even star types would be
 > fine. Just so it's varying the focus from star to planet. The moon
 > will be harder because the size of my sensor will make the moon very
 > large so will need to account for that."*
+
+---
+
+> **Numbered 94, not 93.** This was first written and merged as "phase
+> 93", which was already taken: phase 93 is the render-pass upload cache
+> in `PreviewRenderer` and the variable-rate slew command. The number was
+> checked against the highest row in `PHASE-STATUS.md` and the plan files
+> on disk, neither of which mentioned it, and not against the source
+> tree, which did. Renumbered on 2026-10-31.
 
 ---
 
@@ -98,11 +107,11 @@ all: it needs the target table to be able to hold a star.
 **It also unblocks something already on the list.** Roadmap row 31/32 is
 FWHM and Bahtinov focus, ranked H, and its own entry says *"autofocus is
 tuned for a planetary disc"* and that nothing in the tree implements
-either measure. Both measures are defined on a point source. So 93.1 is
+either measure. Both measures are defined on a point source. So 94.1 is
 not merely adjacent to 31/32, it is the prerequisite for 31/32 having
 any bench story at all: an FWHM implementation written today could only
 be tested against a hash sprinkle one pixel wide. Row 34, solar and
-lunar framing, overlaps 93.3 the same way.
+lunar framing, overlaps 94.3 the same way.
 
 Two numbers that make a rendered star worth the effort, both computed
 from this rig's own configuration rather than assumed:
@@ -222,23 +231,23 @@ small fraction of the work.
 
 | Stage | What | Size | Why here |
 |---|---|---|---|
-| **93.1** | A star as a target: point-source render path, Airy pattern, spectral-type colour column on the 50-star catalog | S | This is the actual request. Opens autofocus, FWHM, sharpness and centroid-lock to a point source for the first time |
-| **93.2** | Live planet apparent size, replacing the frozen table constants | XS | The ephemeris already computes it and `tests/planet_apparent_size.cpp` already gates it. Mars runs 3.5" to 25", so the constant is wrong nearly always |
-| **93.3** | The Moon: terminator, maria, terminator-local craters, spherical-patch path | M | Makes the Moon usable as a focus target. Self-contained |
-| **93.4** | Pointing-centric rendering: the mount's RA/Dec decides what is in frame, not a name | M | The architectural flip. Prerequisite for any field, and on its own it makes a GoTo in the emulator show the target arriving off-centre and being centred, which it cannot today |
-| **93.5** | A real star field from a real catalog | L, data-bound | Gated on section 4. Go or no-go with the numbers in hand, not a foregone conclusion |
+| **94.1** | A star as a target: point-source render path, Airy pattern, spectral-type colour column on the 50-star catalog | S | This is the actual request. Opens autofocus, FWHM, sharpness and centroid-lock to a point source for the first time |
+| **94.2** | Live planet apparent size, replacing the frozen table constants | XS | The ephemeris already computes it and `tests/planet_apparent_size.cpp` already gates it. Mars runs 3.5" to 25", so the constant is wrong nearly always |
+| **94.3** | The Moon: terminator, maria, terminator-local craters, spherical-patch path | M | Makes the Moon usable as a focus target. Self-contained |
+| **94.4** | Pointing-centric rendering: the mount's RA/Dec decides what is in frame, not a name | M | The architectural flip. Prerequisite for any field, and on its own it makes a GoTo in the emulator show the target arriving off-centre and being centred, which it cannot today |
+| **94.5** | A real star field from a real catalog | L, data-bound | Gated on section 4. Go or no-go with the numbers in hand, not a foregone conclusion |
 
 ### Recommendation
 
-**Do 93.1 and 93.2.** Together they are days, not weeks, they deliver
-the stated goal, and 93.2 is nearly free because the hard part already
+**Do 94.1 and 94.2.** Together they are days, not weeks, they deliver
+the stated goal, and 94.2 is nearly free because the hard part already
 exists and is already tested.
 
-**Then stop and look at 93.3 and 93.4 separately.** Both are worth
+**Then stop and look at 94.3 and 94.4 separately.** Both are worth
 doing; neither is urgent.
 
-**Treat 93.5 as a separate decision with its own go/no-go**, taken once
-93.4 exists, since without pointing-centric rendering a field has
+**Treat 94.5 as a separate decision with its own go/no-go**, taken once
+94.4 exists, since without pointing-centric rendering a field has
 nowhere to be. My own read is that the catalog cost is justified only by
 the plate-solve payoff and not by the appearance of the frame, so the
 question to answer first is whether solving indoors is worth a catalog
@@ -254,8 +263,8 @@ Keeping to the project's rule that a phase states its evidence.
 
 | Stage | Gateable on the bench | Needs the sky |
 |---|---|---|
-| 93.1 | PSF shape against the computed Airy radius; colour against spectral class; that defocus widens the blob monotonically | that a real star focuses where the emulator says it should |
-| 93.2 | apparent size against the ephemeris over a synodic cycle (the existing test already does this; extend it to the emulator's consumption of it) | nothing |
-| 93.3 | terminator position against the phase; that the patch tracks pointing error | the Moon, once, to judge whether the detail is plausible |
-| 93.4 | that a known RA/Dec and a known pointing put the target at the computed pixel | a GoTo on the real mount |
-| 93.5 | that ASTAP solves a rendered field, and that the solved centre matches the commanded pointing | see section 5: the row-order flag stays a sky item |
+| 94.1 | PSF shape against the computed Airy radius; colour against spectral class; that defocus widens the blob monotonically | that a real star focuses where the emulator says it should |
+| 94.2 | apparent size against the ephemeris over a synodic cycle (the existing test already does this; extend it to the emulator's consumption of it) | nothing |
+| 94.3 | terminator position against the phase; that the patch tracks pointing error | the Moon, once, to judge whether the detail is plausible |
+| 94.4 | that a known RA/Dec and a known pointing put the target at the computed pixel | a GoTo on the real mount |
+| 94.5 | that ASTAP solves a rendered field, and that the solved centre matches the commanded pointing | see section 5: the row-order flag stays a sky item |

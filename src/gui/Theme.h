@@ -67,13 +67,31 @@ namespace Theme {
     // red channel -- the same transform the preview already applies to
     // the image, so the panel and the picture look like one thing.
     //
-    // ACCENT HUES CONVERGE, and that is inherent rather than an
-    // oversight: cyan 0,229,255 and amber 255,185,0 have luminances of
-    // 182 and 186, so in a red-only palette they are the same red. Any
-    // transform that kept them apart would have to reintroduce the short
-    // wavelengths this exists to remove, or invent a hue-to-brightness
-    // mapping that means nothing. Section headers carry their names in
-    // text, which is what distinguishes them when the colour cannot.
+    // ── Phase 96.1: the hues converge, the LADDER does not ───
+    //
+    // This comment used to say the accents converging was inherent
+    // rather than an oversight, on the grounds that keeping them apart
+    // would mean reintroducing the short wavelengths night vision
+    // exists to remove, or inventing a hue-to-brightness mapping that
+    // means nothing.
+    //
+    // The first half is right and the second is wrong, and measuring
+    // it showed why. Derived from luminance, cyan lands at 182 and
+    // amber at 186: four units apart out of 255. Worse, the hierarchy
+    // INVERTED. TEXT_DIM, for labels you skim past, derived to 169.
+    // ACCENT4, for capture and danger, derived to 103. On a rig that
+    // spends its working life in this mode, the colour that must
+    // shout was sixty per cent dimmer than the one that must whisper.
+    //
+    // A hue-to-brightness mapping does mean nothing. But a
+    // SEMANTIC-to-brightness mapping means a great deal, and it is the
+    // only thing left to design once hue is gone. So each token
+    // declares the luminance it should have in the dark, ordered by
+    // how much it needs to be noticed, and the derived value is kept
+    // only as the fallback for colours not in the ladder.
+    //
+    // No day colour changes. The ladder is consulted only when night
+    // vision is on.
     //
     // The mode lives here, as process state, because 200-odd painting
     // calls across seventeen files need to see it and threading it
@@ -95,13 +113,71 @@ namespace Theme {
     }
     inline unsigned PaletteGeneration() { return detail::g_paletteGen; }
 
+    // ── The night ladder ────────────────────────────────────
+    //
+    // Keyed on the day colour's RGB bytes, so both painting stacks
+    // reach the same answer and NV() stays a pure function of its
+    // argument -- which it must, because the GDI object cache keys on
+    // the COLORREF and would otherwise hand back a brush in the wrong
+    // shade.
+    //
+    // Ordered by how loudly a thing needs to speak, with roughly 30
+    // units between neighbours, which is a separation the eye resolves
+    // at these levels. The order, not the exact numbers, is the
+    // design: danger above everything, then primary readouts, then the
+    // device accents, then the labels you are meant to skim.
+    namespace detail {
+        struct NightStep { uint8_t r, g, b; int lum; };
+        inline constexpr NightStep kNightLadder[] = {
+            // day colour            night   role
+            { 0xFF, 0x3B, 0x5C,      240 },  // RED / ACCENT4  capture, danger
+            { 0xC8, 0xE8, 0xF0,      200 },  // TEXT           primary readouts
+            { 0x4D, 0xFF, 0x91,      170 },  // GREEN/ACCENT3  mount, live
+            { 0x00, 0xE5, 0xFF,      140 },  // ACCENT cyan    camera, active
+            { 0xFF, 0xB9, 0x00,      110 },  // AMBER/ACCENT2  EAF, secondary
+            { 0x8C, 0xAF, 0xBE,       80 },  // TEXT_DIM       skimmed labels
+            { 0x0E, 0x1D, 0x2E,       34 },  // BORDER         separators
+            { 0x0A, 0x15, 0x20,       24 },  // PANEL          raised surface
+            { 0x07, 0x08, 0x0E,       14 },  // DEEP           panel background
+            { 0x04, 0x08, 0x0F,        8 },  // BG_VOID        deepest surface
+        };
+
+        // The ladder has two bands and they want opposite things.
+        //
+        // SEMANTIC tokens -- danger, text, the device accents, the
+        // skimmed labels -- exist to be told apart, so they need real
+        // separation. 24 units is the floor, asserted by
+        // tests/night_hierarchy.cpp so a later edit cannot quietly
+        // reintroduce the four-unit collision this phase fixed.
+        //
+        // SURFACE tokens -- borders and the three backgrounds -- exist
+        // to recede. They need ORDER, so a raised panel still reads as
+        // raised, but holding them 24 apart would turn the window into
+        // a staircase of greys. They are ordered and close, on purpose.
+        inline constexpr int kMinNightSeparation = 24;
+
+        // The first index in kNightLadder that is a surface rather
+        // than a signal. Everything from here down is exempt from the
+        // separation floor and subject only to ordering.
+        inline constexpr int kFirstSurfaceStep = 6;   // BORDER onward
+    }
+
+    // Designed luminance for a day colour, or the derived one when the
+    // colour is not a token. Unknown colours are rare and mostly
+    // decorative, and deriving is the right answer for them: there is
+    // no semantic to honour.
+    inline int NightLuminance(int r, int g, int b) {
+        for (const auto& s : detail::kNightLadder)
+            if (s.r == r && s.g == g && s.b == b) return s.lum;
+        return (int)(0.2126f * r + 0.7152f * g + 0.0722f * b);
+    }
+
     // The tint itself. Pass every colour through this at the point of
     // use, never at the point of definition -- a value tinted once and
     // stored would keep whatever the mode was when it was stored.
     inline COLORREF NV(COLORREF c) {
         if (!detail::g_nightVision) return c;
-        const int r = GetRValue(c), g = GetGValue(c), b = GetBValue(c);
-        const int lum = (int)(0.2126f * r + 0.7152f * g + 0.0722f * b);
+        const int lum = NightLuminance(GetRValue(c), GetGValue(c), GetBValue(c));
         // A tenth of the luminance in green keeps near-black greys from
         // reading as pure black, which is what the preview does.
         return RGB(lum, lum / 10, 0);
@@ -112,7 +188,15 @@ namespace Theme {
     // which takes floats rather than a packed COLORREF.
     inline D2D1_COLOR_F NVf(D2D1_COLOR_F c) {
         if (!detail::g_nightVision) return c;
-        const float lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+        // Rounded back to bytes so the ladder lookup matches. The
+        // token constants are exact eighths-of-a-bit values divided by
+        // 255, so this round-trips without drift; anything else falls
+        // through to the derived luminance, which is what it would
+        // have had anyway.
+        const int r = (int)(c.r * 255.0f + 0.5f);
+        const int g = (int)(c.g * 255.0f + 0.5f);
+        const int b = (int)(c.b * 255.0f + 0.5f);
+        const float lum = (float)NightLuminance(r, g, b) / 255.0f;
         return D2D1::ColorF(lum, lum * 0.1f, 0.0f, c.a);
     }
 

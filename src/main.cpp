@@ -1551,6 +1551,43 @@ static int RunApp(bool useEmulator) {
         Log("[GOTO] %s\n", m.c_str());
         slog.Mount("%s", m.c_str());
     });
+    // ── Phase 97.5: the two edges of a mosaic panel ───────────
+    //
+    // The panel drives the mount; the recorder lives here, so the two
+    // capture edges come back out as callbacks. Wiring them is what
+    // ENABLES mosaics at all -- StartMosaic refuses without them,
+    // rather than slewing eighteen times and recording nothing.
+    //
+    // Each panel is its own recording, which is what a stacker wants:
+    // eighteen files to register separately and then join, not one
+    // file containing eighteen different parts of the Moon.
+    gotoPanel.SetMosaicCapture(
+        [&](int ordinal, int total) -> bool {
+            if (capturer.IsRecording()) {
+                Log("[MOSAIC] already recording; refusing panel %d\n",
+                    ordinal);
+                return false;
+            }
+            // roiBits, not a literal: it tracks what the camera GAVE
+            // us rather than what was asked for, which is the whole
+            // reason it exists and the reason the RECORD button was
+            // wrong about it once already.
+            if (!capturer.StartRecording(roiWidth, roiHeight, roiBits)) {
+                Log("[MOSAIC] StartRecording failed on panel %d\n", ordinal);
+                return false;
+            }
+            usbMgr.SetCapturing(true);
+            Log("[MOSAIC] panel %d of %d recording\n", ordinal, total);
+            slog.Capture("Mosaic panel %d of %d", ordinal, total);
+            return true;
+        },
+        [&]() {
+            // A normal finish, so the usual post-capture handling runs
+            // for each panel exactly as it would for a manual run.
+            capturer.StopRecording();
+            usbMgr.SetCapturing(false);
+        });
+
     gotoPanel.SetProfileAutoLoadCallback([&](const std::string& targetName) {
         // Find best matching profile by name
         int bestIdx = -1;
@@ -4357,6 +4394,30 @@ static int RunApp(bool useEmulator) {
         if (!objectPanel.IsVisible()) objectPanel.Show();
         objectPanel.ToggleFullscreen();
     });
+    // ── Phase 97.5: Ctrl+Shift+M starts or stops a mosaic ─────
+    //
+    // The same chord does both, so whoever started an eight-minute
+    // unattended sequence does not have to find a different key under
+    // pressure. Escape remains the emergency stop for the mount
+    // itself and is untouched: this stops the SEQUENCE, that stops
+    // the motion.
+    window.SetMosaicToggleHandler([&]() {
+        if (gotoPanel.MosaicRunning()) {
+            gotoPanel.AbortMosaic();
+            Log("[MOSAIC] stopped by the operator\n");
+            return;
+        }
+        // Whatever the capture profile currently names, resolved the
+        // same way everything else resolves it, so "Moon - Copernicus"
+        // starts a lunar mosaic.
+        std::string target = gotoPanel.CurrentTarget();
+        if (target.empty()) {
+            Log("[MOSAIC] no target selected\n");
+            return;
+        }
+        gotoPanel.StartMosaic(target);
+    });
+
     window.SetShareViewToggleHandler([&]() {
         shareView.Toggle();
         Log("[SHARE] view %s\n", shareView.IsVisible() ? "on" : "off");

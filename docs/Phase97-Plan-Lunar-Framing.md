@@ -227,9 +227,86 @@ direction for the Sun and the unsafe one for the Moon.
 
 - **No panel layout.** The report goes to the log, by the reasoning
   above. If it earns permanent pixels the GoTo panel is where they go.
-- **The mosaic is still not executed.** The plan says where to point
-  and the report says whether it will work; nothing drives the mount
-  through the panels. That remains the larger half.
+- **Lunar feature targeting**, which needs a crater catalogue with
+  selenographic coordinates plus libration. 94.3's `LunarLatLon` is
+  the start of that, not the end.
+- **Nothing here has seen the Moon.** Clear-night item 18.
+
+## 8. 97.5: executing the mosaic, and what it does to §2's verdict
+
+Section 2 concluded that a lunar mosaic **does not close**: 272″ of
+drift over 8.3 minutes against an 88″ overlap. That was a statement
+about a mosaic laid out in **fixed offsets** from a position taken once
+at the start, which is all a plan on its own can be.
+
+**Execution is not obliged to work that way, and `MosaicRunner` does
+not.** `Tick()` takes the target's position *now*, every call, and the
+panel it aims at is computed against that. The eighteenth panel points
+where the Moon is when the eighteenth panel is captured. The cumulative
+drift stops existing, and what remains is the drift *within* one panel:
+
+| | |
+|---|---|
+| 20 s capture × 0.549″/s | 11″ = **54 px** |
+| against a 20% overlap of | **768 px** |
+| consumed | **7%** |
+
+The stacker removes that; it is the same intra-run drift any single
+lunar capture already has.
+
+**So per-panel recomputation is the fix and the tracking rate added in
+phase 97 is the refinement.** Taking the live position is not a
+parameter a caller might forget — it is the shape of `Tick()`.
+
+### Why the runner touches no hardware
+
+A mosaic is the first thing in this application that moves the mount
+repeatedly, for minutes, with nobody's hand on it. Its failure modes
+are timing ones, and none can be rehearsed against hardware from a
+container. So the runner is a pure state machine returning an `Action`
+the caller performs, and every state and transition is reachable from
+`tests/mosaic_run.cpp` with a fake clock and a fake mount.
+
+### The failure that would not have failed
+
+Issue a GoTo and ask the mount "still slewing?" immediately, and the
+honest answer is often **no** — it has not begun. A runner that
+believes that marches through all eighteen panels in settle-plus-capture
+time, captures the same patch of Moon every time, and reports
+*Complete*. **It does not fail; it lies**, and the output looks like a
+finished mosaic of one panel repeated. `slewMinSec` is the guard, and
+section 3 of the test is that scenario.
+
+### Two bugs the test found in the runner
+
+**The slew timeout never fired.** It was checked only on the
+not-slewing path, because the slewing path returned early. A mount that
+reports `Slewing` forever — which is what a stuck or disconnected one
+does — therefore hung the run silently. That is the single failure the
+timeout exists for and it was the one it could not catch.
+
+**A default configuration ran.** A default `MosaicPlan` is 1×1 and the
+empty-panel skip is disabled when `targetArcmin` is zero, so an
+unconfigured runner would begin slewing somewhere on behalf of a target
+with no size in a frame with no size. It now refuses at `Start`.
+
+### Wiring
+
+`Ctrl+Shift+M` starts a mosaic of the current target, and the same
+chord stops it — deliberately a three-key chord, because it begins an
+eight-minute unattended telescope sequence and that is not something to
+reach by a stray keypress. Escape is untouched and remains the
+emergency stop for the *motion*; this stops the *sequence*.
+
+Each panel is its own recording, which is what a stacker wants:
+eighteen files to register separately and then join, not one file
+holding eighteen different parts of the Moon. Phase 67's cord-wrap veto
+applies to every slew a mosaic makes, not only the first — eighteen
+unattended slews is precisely what that guard was written for.
+
+`StartMosaic` refuses rather than half-starting, and says why: no
+mount, no recorder wired, no frame yet so no field of view, a target
+with no measurable disc, or one already running.
 - **No lunar feature targeting.** Pointing at a named crater needs a
   crater catalogue with selenographic coordinates plus libration. 94.3
   has `LunarLatLon` and that is the start of it, not the end.

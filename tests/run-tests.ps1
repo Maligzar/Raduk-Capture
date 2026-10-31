@@ -59,6 +59,7 @@ $Tests = @(
     @{ Name = "audience_layout"; Sources = @() }
     @{ Name = "operator_palette"; Sources = @() }
     @{ Name = "lunar_framing";   Sources = @() }
+    @{ Name = "mosaic_run";      Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

@@ -499,6 +499,11 @@ struct ProfileApplyHooks {
     // apply, because whether the star metrics mean anything depends
     // entirely on what the scope is pointed at.
     std::function<void(bool)>                   setStarMode;
+    // Phase 100. Null leaves the assistant's clamp where it was. Told
+    // on every profile apply, because a DSO rail and a planetary rail
+    // differ by four orders of magnitude and an assistant capped at a
+    // planetary ceiling cannot expose a deep-sky sub at all.
+    std::function<void(const TargetProfile&)>   setAERails;
 };
 
 // ── Phase 95: is this target a star? ─────────────────────────
@@ -590,6 +595,27 @@ static void ApplyProfile(const TargetProfile& p,
                           const ProfileApplyHooks& hooks = {}) {
     Log("[PROFILE] Applying: %s\n", p.name.c_str());
     slog.Profile("Applied: %s", p.name.c_str());
+
+    // ── Phase 100: the exposure rails, enforced at last ────────
+    //
+    // Phase 99 found all four practical limits read by nothing, so a
+    // planetary profile could carry 500 ms and the application would
+    // not say a word. Said once, here, where every profile change
+    // already funnels -- and said rather than refused, because these
+    // are practical limits with physical reasons and not hardware
+    // bounds. A 500 ms planetary exposure is almost certainly a
+    // mistake and just possibly deliberate on a very dim target.
+    //
+    // The assistant gets the same rail as a hard clamp below. It has
+    // no judgement to respect.
+    {
+        const std::string warn = p.ExposureWarning();
+        if (!warn.empty()) {
+            Log("[PROFILE] %s\n", warn.c_str());
+            slog.Profile("%s", warn.c_str());
+        }
+    }
+    if (hooks.setAERails) hooks.setAERails(p);
     // Phase 95: the star metrics are only meaningful on a star.
     if (hooks.setStarMode) {
         const bool isStar = TargetIsStar(p.name);
@@ -3237,6 +3263,7 @@ static int RunApp(bool useEmulator) {
     };
     // Phase 95: the analyser only answers the star question when told.
     profileHooks.setStarMode = [&](bool on) { analyzer.SetStarMode(on); };
+
     profileHooks.syncUi = [&](const TargetProfile& p) {
         // The slider is in microseconds; the profile stores milliseconds.
         controls.SetCameraSliders(p.gain, (int)(p.exposureMs * 1000.0),
@@ -3765,7 +3792,6 @@ static int RunApp(bool useEmulator) {
             }
         }
     });
-    controls.SetDockToggleCallback([&]() {});
 
     // ── Phase 9: Autofocus ────────────────────────────────────
     // Completion callback — fires from scan thread, no Win32 UI calls here
@@ -3843,10 +3869,44 @@ static int RunApp(bool useEmulator) {
         // ASI678MC HCG floor — never go below 182 in auto mode
         aeCfg.gainMin   = raduk::profiles::CameraRails::GAIN_HCG_THRESHOLD;
         aeCfg.gainMax   = 570;
-        aeCfg.expMinMs  = 0.5;
-        aeCfg.expMaxMs  = 40.0;
+        // ── Phase 100: from the rail, not a fourth literal ─────
+        //
+        // These two lines said 0.5 and 40.0, and enforcing the rails
+        // turned up how many copies of the planet ceiling existed:
+        // EXP_PLANET_MAX_MS said 50, the assistant's Config default
+        // said 50, a comment in ControlPanel.cpp said 50, and THIS
+        // said 40 -- so the documented figure was contradicted by the
+        // only one that ran.
+        //
+        // Derived from CameraRails::RailsFor now, and re-derived on
+        // every profile change, so a DSO profile lets the assistant
+        // reach seconds instead of being capped at a planetary
+        // ceiling it has no business near.
+        const auto planetRail =
+            raduk::profiles::CameraRails::RailsFor("planet");
+        aeCfg.expMinMs  = planetRail.minMs;
+        aeCfg.expMaxMs  = planetRail.maxMs;
         ae.SetConfig(aeCfg);
     }
+    // ── Phase 100: the assistant's clamp follows the target ────
+    //
+    // Re-derived from CameraRails::RailsFor on every profile apply, so
+    // the rail and the clamp cannot drift -- which they had, four
+    // ways, before this phase. A planetary rail caps the assistant at
+    // 50 ms; a deep-sky one lets it reach five minutes, and without
+    // this a DSO profile would hand it a 50 ms ceiling and it could
+    // never expose a sub at all.
+    profileHooks.setAERails = [&](const TargetProfile& p) {
+        auto cfg = ae.Config_();
+        const auto rail = raduk::profiles::CameraRails::RailsFor(p.targetType);
+        if (cfg.expMinMs == rail.minMs && cfg.expMaxMs == rail.maxMs) return;
+        cfg.expMinMs = rail.minMs;
+        cfg.expMaxMs = rail.maxMs;
+        ae.SetConfig(cfg);
+        Log("[AE] exposure clamp now %.3g-%.3g ms for a '%s' target\n",
+            rail.minMs, rail.maxMs, p.targetType.c_str());
+    };
+
     controls.SetAECallback([&](bool enabled, bool autoApply) {
         ae.SetEnabled(enabled);
         if (enabled) ae.SetAuto(autoApply);

@@ -497,6 +497,38 @@ struct ProfileApplyHooks {
     std::function<void(const TargetProfile&)>   syncUi;
 };
 
+#ifdef RADUK_EMULATOR
+// ── Phase 94.2: tell the emulator how big the target really is ──
+//
+// EMU_TARGETS' radii are constants "at a representative opposition",
+// and apparent size is the one property of a planet that is never
+// constant: Mars runs 3.5" to 25" across its synodic cycle. The
+// ephemeris already computes it from the Earth-planet distance it was
+// working out anyway, and tests/planet_apparent_size.cpp already gates
+// that the number MOVES correctly over years rather than merely being
+// plausible. So there is nothing to build here, only to connect.
+//
+// Called AFTER SetTargetName, and it reads the name back from the
+// camera rather than using the profile's. SetTargetName matches on a
+// leading substring, so a profile called "Jupiter - GRS transit"
+// resolves to "Jupiter"; the ephemeris needs the exact name, and
+// re-implementing that matching here would be a second place for it to
+// drift.
+//
+// The disc radius, not the framing radius. Saturn's rings are drawn as
+// a multiple of the globe, so feeding the ring span in would inflate
+// the globe to the size of its own rings.
+static void EmuApplyApparentSize(raduk::core::ASICamera* cam) {
+    if (!cam) return;
+    const std::string resolved = cam->TargetName();
+    const auto sz = raduk::sky::PlanetApparentSizeAt(resolved,
+                                                     raduk::sky::CurrentJD());
+    // Not a planet (a star, the Moon) leaves the table in charge.
+    cam->SetTargetAngularRadiusArcsec(
+        sz.valid ? (float)(sz.discArcsec * 0.5) : 0.0f);
+}
+#endif
+
 static void ApplyProfile(const TargetProfile& p,
                           ASICamera* cam, EAFFocuser* focuser,
                           IMount* mount, SessionLog& slog,
@@ -507,7 +539,7 @@ static void ApplyProfile(const TargetProfile& p,
     // Render what the profile actually names. Every profile change
     // funnels through here, so this covers the startup load and every
     // later switch without a second wiring point to forget.
-    if (cam) cam->SetTargetName(p.name);
+    if (cam) { cam->SetTargetName(p.name); EmuApplyApparentSize(cam); }
 #endif
     if (cam && cam->IsOpen()) {
         cam->SetGain(p.gain); cam->SetExposure(p.exposureMs);
@@ -916,13 +948,18 @@ static int RunApp(bool useEmulator) {
     //                            measured ~168187; the EAF opens at
     //                            166500, so it starts 1500 steps out,
     //                            inside the +/-3000 sweep)
-    //   RADUK_EMU_BLUR_PX_STEP — blur px per step off focus (default 0.0083,
-    //                            2000 steps/mm at f/10 on 2.0um pixels,
-    //                            rescaled to the emulator's 0.61"/px — see
-    //                            CameraEmulator::SetBlurPxPerStep)
+    //   RADUK_EMU_BLUR_PX_STEP — blur px per step off focus. The default
+    //                            is NOT a literal here: it comes from
+    //                            CameraEmulator::DefaultBlurPxPerStep(),
+    //                            which divides the angular blur per step
+    //                            by the emulator's own plate scale. It
+    //                            was a literal 0.0083 and phase 91
+    //                            changed that scale without it
+    //                            following, so the blur ran 2.7x too
+    //                            weak. See SetBlurPxPerStep.
     {
         int   trueFocus   = 168000;
-        float blurPerStep = 0.0083f;
+        float blurPerStep = raduk::core::ASICamera::DefaultBlurPxPerStep();
         char  fb[32];
         if (GetEnvironmentVariableA("RADUK_EMU_TRUE_FOCUS", fb, 32))
             trueFocus = atoi(fb);
@@ -984,6 +1021,7 @@ static int RunApp(bool useEmulator) {
             cam.SetTargetName(fb);
         else if (const auto* ap = profiles.Active())
             cam.SetTargetName(ap->name);
+        EmuApplyApparentSize(&cam);
         cam.SetTrueFocusPosition(trueFocus);
         cam.SetBlurPxPerStep(blurPerStep);
         cam.SetFocusPositionProvider([&focuser](int& pos) {

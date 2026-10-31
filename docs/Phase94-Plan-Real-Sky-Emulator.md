@@ -231,8 +231,8 @@ small fraction of the work.
 
 | Stage | What | Size | Why here |
 |---|---|---|---|
-| **94.1** | A star as a target: point-source render path, Airy pattern, spectral-type colour column on the 50-star catalog | S | This is the actual request. Opens autofocus, FWHM, sharpness and centroid-lock to a point source for the first time |
-| **94.2** | Live planet apparent size, replacing the frozen table constants | XS | The ephemeris already computes it and `tests/planet_apparent_size.cpp` already gates it. Mars runs 3.5" to 25", so the constant is wrong nearly always |
+| ~~**94.1**~~ | ~~A star as a target~~ **DONE 2026-10-31.** `EmuKind::Star`, six stars A0 to M2, Airy pattern from the aperture. Spectral colour baked into the emulator table rather than added as a column on `kBrightStars`: the emulator renders by name from its own table and reaching into `src/sky` for 50 rows it cannot use as a field would be the wrong dependency | S | This is the actual request. Opens autofocus, FWHM, sharpness and centroid-lock to a point source for the first time |
+| ~~**94.2**~~ | ~~Live planet apparent size~~ **DONE 2026-10-31.** Pushed from `main.cpp` beside `SetTargetName`, as planned. Measured on the day: the table had Mars 2.3x too big and Venus 2.4x too small | XS | The ephemeris already computes it and `tests/planet_apparent_size.cpp` already gates it. Mars runs 3.5" to 25", so the constant is wrong nearly always |
 | **94.3** | The Moon: terminator, maria, terminator-local craters, spherical-patch path | M | Makes the Moon usable as a focus target. Self-contained |
 | **94.4** | Pointing-centric rendering: the mount's RA/Dec decides what is in frame, not a name | M | The architectural flip. Prerequisite for any field, and on its own it makes a GoTo in the emulator show the target arriving off-centre and being centred, which it cannot today |
 | **94.5** | A real star field from a real catalog | L, data-bound | Gated on section 4. Go or no-go with the numbers in hand, not a foregone conclusion |

@@ -549,7 +549,20 @@ static void EmuApplyApparentSize(raduk::core::ASICamera* cam) {
     const std::string resolved = cam->TargetName();
     const double jd = raduk::sky::CurrentJD();
     const auto sz = raduk::sky::PlanetApparentSizeAt(resolved, jd);
-    // Not a planet (a star, the Moon) leaves the table in charge.
+    // Phase 97.4: this comment used to say "not a planet (a star, the
+    // Moon) leaves the table in charge", and for the Moon that was the
+    // defect. PlanetApparentSizeAt now covers the Moon and the Sun as
+    // well, so the emulator renders them at TONIGHT'S size instead of
+    // the 900-arcsec mean radius in the target table -- a figure that
+    // cannot follow the 14% swing over an anomalistic month, which is
+    // exactly the swing that decides whether a mosaic needs fifteen
+    // panels or eighteen.
+    //
+    // Indoor practice at the wrong apparent size teaches the wrong
+    // framing, which is the whole reason the emulator exists.
+    //
+    // A star still falls through to the table, correctly: it has no
+    // disc, and 94.1 renders it as an Airy pattern instead.
     cam->SetTargetAngularRadiusArcsec(
         sz.valid ? (float)(sz.discArcsec * 0.5) : 0.0f);
 

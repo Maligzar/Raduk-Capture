@@ -43,6 +43,9 @@
 #include "LunarSolarSize.h"
 
 #include <cmath>
+#include <cstdio>
+#include <string>
+#include <vector>
 
 namespace raduk::sky {
 
@@ -267,6 +270,116 @@ inline double SecondsBeforeOverlapLost(const MosaicPlan& p,
                                        double driftArcsecPerSec) {
     if (driftArcsecPerSec <= 0.0) return 1.0e9;
     return DriftBudgetArcsec(p) / driftArcsecPerSec;
+}
+
+// ── Phase 97.4: saying it out loud ──────────────────────────
+//
+// The plan above is numbers. This turns them into the four sentences
+// an operator needs BEFORE committing eight minutes to a mosaic, and
+// it lives here rather than in the panel for the reason the object
+// panel's own formatters do: these are claims a person reads off a
+// screen and acts on, so a test checks them against figures worked out
+// by hand.
+//
+// Separate builders rather than one blob, so each sentence can be
+// wrong on its own and be caught on its own.
+
+// What it is and whether it fits.
+inline std::string DescribeFit(const char* target, double targetArcmin,
+                               const FieldOfView& fov) {
+    if (targetArcmin <= 0.0 || fov.widthArcmin <= 0.0) return "";
+    char b[200];
+    const double wide = targetArcmin / fov.widthArcmin;
+    const double tall = targetArcmin / fov.heightArcmin;
+    if (wide <= 1.0 && tall <= 1.0) {
+        snprintf(b, sizeof(b),
+                 "%s is %.1f' across and the frame is %.1f' x %.1f': "
+                 "it fits in one.",
+                 target, targetArcmin, fov.widthArcmin, fov.heightArcmin);
+    } else {
+        snprintf(b, sizeof(b),
+                 "%s is %.1f' across and the frame is %.1f' x %.1f': "
+                 "%.1f frames wide, %.1f tall.",
+                 target, targetArcmin, fov.widthArcmin, fov.heightArcmin,
+                 wide, tall);
+    }
+    return b;
+}
+
+// The grid, and how many panels actually hold any of the target.
+inline std::string DescribePanels(const MosaicPlan& p,
+                                  const FieldOfView& fov,
+                                  double targetArcmin) {
+    if (p.singleFrame) return "";
+    char b[200];
+    const int touching = PanelsTouchingDisc(p, fov, targetArcmin);
+    if (touching < p.panels)
+        snprintf(b, sizeof(b),
+                 "%d x %d grid; %d of its %d panels hold any of the disc.",
+                 p.cols, p.rows, touching, p.panels);
+    else
+        snprintf(b, sizeof(b), "%d x %d grid, %d panels, all of them"
+                 " on the disc.", p.cols, p.rows, p.panels);
+    return b;
+}
+
+inline std::string DescribeTime(const MosaicPlan& p, double captureSec,
+                                double settleSec) {
+    if (p.singleFrame) return "";
+    const double secs = MosaicSeconds(p.panels, captureSec, settleSec);
+    char b[200];
+    snprintf(b, sizeof(b),
+             "About %.1f minutes at %.0f s a panel plus %.0f s to settle.",
+             secs / 60.0, captureSec, settleSec);
+    return b;
+}
+
+// The one that matters, and the reason any of this is on screen.
+inline std::string DescribeDrift(const MosaicPlan& p,
+                                 double driftArcsecPerSec,
+                                 double captureSec, double settleSec,
+                                 bool rateIsTracked) {
+    if (p.singleFrame) return "";
+    const double secs   = MosaicSeconds(p.panels, captureSec, settleSec);
+    const double drift  = DriftArcsec(driftArcsecPerSec, secs);
+    const double budget = DriftBudgetArcsec(p);
+    char b[300];
+    if (drift <= budget) {
+        snprintf(b, sizeof(b),
+                 "Drift over that is %.0f\" against a %.0f\" budget: "
+                 "the mosaic closes%s.",
+                 drift, budget,
+                 rateIsTracked ? " at the target's own tracking rate" : "");
+    } else {
+        // Named plainly. The failure is not blur -- the frames are
+        // sharp either way -- it is the last panel pointing somewhere
+        // the plan does not think it is.
+        snprintf(b, sizeof(b),
+                 "Drift over that is %.0f\" against a %.0f\" budget: "
+                 "THE MOSAIC WILL NOT CLOSE. The frames stay sharp; the "
+                 "last panel just is not where the plan says. %.0f s is "
+                 "the deadline.%s",
+                 drift, budget,
+                 SecondsBeforeOverlapLost(p, driftArcsecPerSec),
+                 rateIsTracked ? "" : " Set the target's tracking rate.");
+    }
+    return b;
+}
+
+// All of it, in order, skipping whatever has nothing to say.
+inline std::vector<std::string> DescribeFraming(
+        const char* target, double targetArcmin, const FieldOfView& fov,
+        double overlapFrac, double driftArcsecPerSec,
+        double captureSec, double settleSec, bool rateIsTracked) {
+    std::vector<std::string> out;
+    const MosaicPlan p = PlanMosaic(targetArcmin, fov, overlapFrac);
+    auto add = [&](std::string s) { if (!s.empty()) out.push_back(s); };
+    add(DescribeFit(target, targetArcmin, fov));
+    add(DescribePanels(p, fov, targetArcmin));
+    add(DescribeTime(p, captureSec, settleSec));
+    add(DescribeDrift(p, driftArcsecPerSec, captureSec, settleSec,
+                      rateIsTracked));
+    return out;
 }
 
 // No mosaic has been attempted with this. The grid, the serpentine,

@@ -149,12 +149,87 @@ murmur — the same silent near-miss this phase spent its time hunting,
 reintroduced by the fix for it. Now a word match requiring a separator,
 so feature profiles get lunar rate and "Moonrise" does not.
 
+## 4b. 97.4, and the latent defect it uncovered
+
+**Phase 97 computed both diameters and nothing consumed them**, and
+finding out why turned up something larger.
+
+`PlanetApparentSizeAt` is the one path by which an apparent size
+reaches anything: the object panel's `APPARENT SIZE` figure, its "fills
+N% of the frame" sentence, its scale diagram, and the emulator's
+rendered disc all come through it. 94.2 built it because `size_arcmin`
+is NULL for every planet in the knowledge database.
+
+**It is NULL for the Moon and the Sun as well, and they were not
+covered** — the lookup is against `kPlanetBodies`, which holds the
+seven planets. So the two largest objects this rig can point at had no
+apparent size anywhere in the application: no figure, no frame-fill
+sentence, and a scale diagram that drew the sensor outline with nothing
+inside it. The Moon is the one the owner asked about by name.
+
+Routing them through that same function rather than a parallel one
+fixes every caller at once, including one that was not on the list: the
+emulator rendered the Moon at the **900-arcsec mean radius** in its
+target table, a figure that cannot follow the 14% monthly swing. Indoor
+practice at the wrong apparent size teaches the wrong framing, which is
+the whole reason the emulator exists.
+
+### And the defect
+
+`LunarSolarSize.h` and `SkyObject.h` both defined
+`raduk::sky::AU_KM`, so **any translation unit including both failed to
+compile.** It sat on master through #53 because nothing included both:
+`lunar_framing.cpp` reaches `LunarSolarSize.h` through `MosaicPlan.h`
+only, and `main.cpp` had `SkyObject.h` and not the other. 97.4 is the
+first thing that needs them together, which is how it surfaced.
+
+The phase-97 compile matrix checked `main.cpp` in both configurations,
+all four mount backends, and both new headers under native `g++` — and
+none of those is the combination. **A new header in an established
+namespace has to be compiled alongside its siblings, not only on its
+own.** `SkyObject.h` now includes `LunarSolarSize.h` and keeps no
+duplicate, which is the correct layering anyway since the latter
+depends on nothing but `<cmath>`.
+
+### What the operator is told
+
+`DescribeFraming` in `MosaicPlan.h` builds the report and `GoToPanel`
+logs it after a slew, down the `m_onLog` channel that already carries
+the plate-scale comparison after every solve. Deliberately not panel
+layout: a framing report has nothing to add on the great majority of
+targets, which makes it exactly the wrong thing to reserve permanent
+pixels for.
+
+```
+Jupiter is 0.6' across and the frame is 13.0' x 7.3': it fits in one.
+```
+```
+Moon is 31.3' across and the frame is 13.0' x 7.3': 2.4 frames wide, 4.3 tall.
+3 x 6 grid, 18 panels, all of them on the disc.
+About 8.3 minutes at 20 s a panel plus 8 s to settle.
+Drift over that is 272" against a 44" budget: THE MOSAIC WILL NOT
+CLOSE. The frames stay sharp; the last panel just is not where the plan
+says. 80 s is the deadline. Set the target's tracking rate.
+```
+
+The "frames stay sharp" clause is load-bearing. An operator told only
+that there is drift will reach for a shorter exposure, which fixes
+nothing — the failure is geometric, not photographic.
+
+**An emergent result worth having:** a *solar* mosaic closes under
+plain sidereal where a lunar one cannot, because the Sun drifts
+thirteen times slower. It is the larger of the two bodies at the moment
+this was measured, so it is the drift rate deciding it and not the
+size. Assuming one rate for both would have been wrong in the safe
+direction for the Sun and the unsafe one for the Moon.
+
 ## 5. What is not done
 
-- **No UI.** The framing plan is computed and nothing displays it. The
-  object panel and GoTo panel are the right homes, and both are in
-  flight on PR #52, so this stage deliberately stops at the arithmetic
-  and the mount. That is **97.4**.
+- **No panel layout.** The report goes to the log, by the reasoning
+  above. If it earns permanent pixels the GoTo panel is where they go.
+- **The mosaic is still not executed.** The plan says where to point
+  and the report says whether it will work; nothing drives the mount
+  through the panels. That remains the larger half.
 - **No lunar feature targeting.** Pointing at a named crater needs a
   crater catalogue with selenographic coordinates plus libration. 94.3
   has `LunarLatLon` and that is the start of it, not the end.

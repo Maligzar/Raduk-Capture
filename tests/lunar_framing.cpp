@@ -35,6 +35,7 @@
 
 #include "sky/MosaicPlan.h"
 #include "core/IMount.h"
+#include "sky/SkyObject.h"
 
 #include <cstdio>
 #include <cmath>
@@ -491,6 +492,133 @@ int main() {
         Check(raduk::core::IMount::RateForTarget(nullptr) ==
               raduk::core::IMount::RATE_SIDEREAL,
               "and a null name does not dereference it");
+    }
+
+    // ───────────────────────────────────────────────────────────
+    printf("\n10. The Moon and the Sun reach the size path at all (97.4)\n");
+    {
+        // Phase 94.2 built PlanetApparentSizeAt because size_arcmin is
+        // NULL for every planet in the knowledge database. It is NULL
+        // for the Moon and the Sun too, and they were NOT covered: the
+        // lookup is against kPlanetBodies, which holds the seven
+        // planets. So the two largest objects this rig can point at
+        // had no apparent size anywhere in the application -- no
+        // figure, no frame-fill sentence, and a scale diagram that
+        // drew the sensor outline with nothing inside it.
+        //
+        // Phase 97 computed both diameters and nothing consumed them.
+        const double jd = 2460000.5;
+        const auto moon = raduk::sky::PlanetApparentSizeAt("Moon", jd);
+        const auto sun  = raduk::sky::PlanetApparentSizeAt("Sun",  jd);
+        const auto jup  = raduk::sky::PlanetApparentSizeAt("Jupiter", jd);
+        const auto sat  = raduk::sky::PlanetApparentSizeAt("Saturn", jd);
+        const auto star = raduk::sky::PlanetApparentSizeAt("Vega", jd);
+        printf("  --    Moon %.0f\" | Sun %.0f\" | Jupiter %.1f\""
+               " | Saturn disc %.1f\" ring %.1f\"\n",
+               moon.discArcsec, sun.discArcsec, jup.discArcsec,
+               sat.discArcsec, sat.framingArcsec);
+        Check(moon.valid && sun.valid,
+              "the Moon and the Sun now come back valid");
+        Check(moon.discArcsec > 1700.0 && moon.discArcsec < 2050.0,
+              "with the Moon between its apogee and perigee extremes");
+        Check(sun.discArcsec > 1880.0 && sun.discArcsec < 1960.0,
+              "and the Sun near 32 arcmin");
+        Check(moon.framingArcsec == moon.discArcsec &&
+              sun.framingArcsec == sun.discArcsec,
+              "neither has rings, so what must fit the frame is the disc");
+
+        // The planets must be untouched: this routed two bodies into an
+        // existing function and a regression there would be silent.
+        Check(jup.valid && jup.discArcsec > 30.0 && jup.discArcsec < 50.0,
+              "Jupiter is unchanged");
+        Check(sat.framingArcsec / sat.discArcsec > 2.2 &&
+              sat.framingArcsec / sat.discArcsec < 2.35,
+              "and Saturn still frames on the rings, 2.27x the globe");
+        Check(!star.valid,
+              "while a star is still invalid and falls back, as 94.1"
+              " renders it as an Airy pattern instead");
+        Check(moon.distanceAU > 0.0 && moon.distanceAU < 0.01,
+              "the Moon's distance comes back in AU like everything"
+              " else, however odd that unit is for it");
+    }
+
+    // ───────────────────────────────────────────────────────────
+    printf("\n11. What the operator is told (97.4)\n");
+    {
+        using namespace raduk::sky;
+        const FieldOfView fov = FrameFov(SENW, SENH, PX);
+        const double jd = 2460000.5;
+
+        // Jupiter: one line, and it had better not mention panels.
+        const auto jup = PlanetApparentSizeAt("Jupiter", jd);
+        const auto jl = DescribeFraming("Jupiter", jup.framingArcsec / 60.0,
+                                        fov, 0.20, 0.0, 20.0, 8.0, false);
+        for (const auto& l : jl) printf("  --    J: %s\n", l.c_str());
+        Check(jl.size() == 1,
+              "a target that fits gets exactly one line");
+        Check(jl[0].find("fits in one") != std::string::npos,
+              "and that line says so");
+
+        // The Moon under sidereal: the report that matters.
+        const auto mn = PlanetApparentSizeAt("Moon", jd);
+        const auto ml = DescribeFraming("Moon", mn.framingArcsec / 60.0,
+                                        fov, 0.20,
+                                        MOON_DRIFT_ARCSEC_PER_SEC,
+                                        20.0, 8.0, false);
+        for (const auto& l : ml) printf("  --    M: %s\n", l.c_str());
+        Check(ml.size() == 4,
+              "the Moon gets four: what it is, the grid, the time, the"
+              " drift");
+        Check(ml[3].find("WILL NOT CLOSE") != std::string::npos,
+              "and the verdict is stated, not implied");
+        Check(ml[3].find("stay sharp") != std::string::npos,
+              "together with WHY, because the failure is not blur and"
+              " an operator told only 'drift' will reach for a shorter"
+              " exposure");
+
+        // At lunar rate the same mosaic closes. If this ever stops
+        // being true the whole justification for phase 97's mount work
+        // has evaporated.
+        const auto tracked = DescribeFraming(
+            "Moon", mn.framingArcsec / 60.0, fov, 0.20,
+            MOON_DRIFT_ARCSEC_PER_SEC * 0.05, 20.0, 8.0, true);
+        printf("  --    M (lunar rate): %s\n", tracked[3].c_str());
+        Check(tracked[3].find("closes") != std::string::npos &&
+              tracked[3].find("NOT CLOSE") == std::string::npos,
+              "at lunar rate it closes, which is the entire point of"
+              " phase 97's mount change");
+        Check(tracked[3].find("tracking rate") != std::string::npos,
+              "and says it is the rate doing the work");
+
+        // The Sun is the emergent result worth pinning: it drifts
+        // thirteen times slower, so a SOLAR mosaic closes under plain
+        // sidereal where a lunar one cannot. Assuming one rate for
+        // both would get this wrong in the safe direction for the Sun
+        // and the unsafe one for the Moon.
+        const auto sn = PlanetApparentSizeAt("Sun", jd);
+        const auto sl = DescribeFraming("Sun", sn.framingArcsec / 60.0,
+                                        fov, 0.20,
+                                        SUN_DRIFT_ARCSEC_PER_SEC,
+                                        20.0, 8.0, false);
+        printf("  --    S: %s\n", sl[3].c_str());
+        Check(sl[3].find("NOT CLOSE") == std::string::npos,
+              "a solar mosaic closes under sidereal, because the Sun"
+              " drifts 13x slower than the Moon");
+        Check(sn.framingArcsec > mn.framingArcsec,
+              "even though the Sun is the LARGER of the two here, so"
+              " this is the drift rate deciding it and not the size");
+
+        // Degenerate inputs must not emit a confident sentence about
+        // nothing.
+        Check(DescribeFit("X", 0.0, fov).empty() &&
+              DescribeFit("X", 31.0, FieldOfView{}).empty(),
+              "no target or no frame says nothing at all");
+        const MosaicPlan one = PlanMosaic(5.0, fov, 0.20);
+        Check(DescribePanels(one, fov, 5.0).empty() &&
+              DescribeTime(one, 20.0, 8.0).empty() &&
+              DescribeDrift(one, 1.0, 20.0, 8.0, false).empty(),
+              "and a single frame has no grid, no mosaic time and no"
+              " drift verdict to give");
     }
 
     printf("\n%s\n", g_fail ? "FAILURES" : "all good");

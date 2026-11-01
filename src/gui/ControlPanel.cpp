@@ -856,6 +856,13 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
 
     if (id == ID_COMBO_PROFILE && notifyCode == CBN_SELCHANGE) return true;
 
+    if (id == ID_COMBO_CAPTURE_FORMAT && notifyCode == CBN_SELCHANGE) {
+        m_ui.captureFits =
+            SendMessage(m_comboCaptureFormat, CB_GETCURSEL, 0, 0) == 1;
+        if (m_onCaptureFormat) m_onCaptureFormat(m_ui.captureFits);
+        return true;
+    }
+
     // ── Phase 98: a typed exposure ─────────────────────────────
     //
     // This must come BEFORE the BN_CLICKED bail below, which is why
@@ -1575,6 +1582,12 @@ std::string ControlPanel::GetFilePrefix() const {
     return std::string(out[0] ? out : "Capture");
 }
 
+void ControlPanel::SetCaptureFits(bool fits) {
+    m_ui.captureFits = fits;
+    if (m_comboCaptureFormat)
+        SendMessage(m_comboCaptureFormat, CB_SETCURSEL, fits ? 1 : 0, 0);
+}
+
 std::string ControlPanel::GetFrameType() const {
     if (!m_comboFrameType) return "Light";
     int sel = (int)SendMessage(m_comboFrameType, CB_GETCURSEL, 0, 0);
@@ -2132,6 +2145,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_editGoToTarget = m_btnGoToFind = nullptr;
     m_editFilePrefix = m_btnBrowseDir = m_editOutputDir = nullptr;
     m_comboFrameType = nullptr;
+    m_comboCaptureFormat = nullptr;
     m_btnRGBAlign = m_sliderRGBManual = m_lblRGBAlign = nullptr;
     m_btnFX = nullptr;
     m_btnNight = nullptr;
@@ -2598,25 +2612,39 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_btnBrowseDir = MakeButton(L"...", x+w-20, y-2, 20, BH, ID_BTN_BROWSE_DIR);
     y += BH + 1;
 
-    // Frame type dropdown — Light / Dark / Flat / Bias
+    // Frame type dropdown — Light / Dark / Flat / Bias, and beside it the
+    // file format, on the same row so CAPTURE does not grow.
     {
         int lblW = 32;
+        const int fmtW = 54;
         TagControl(MakeLabel(L"Type:", x, y, lblW, SH), Section::Capture);
         m_comboFrameType = CreateWindowExW(0, L"COMBOBOX", L"",
             WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
-            x + lblW + 2, y - 2, w - lblW - 2, 80, m_panelHwnd,
+            x + lblW + 2, y - 2, w - lblW - 2 - fmtW - 2, 80, m_panelHwnd,
             (HMENU)(INT_PTR)ID_COMBO_FRAME_TYPE, GetModuleHandle(nullptr), nullptr);
         if (m_comboFrameType) {
             // Apply panel font immediately so items render at correct size
             HFONT hf = (HFONT)SendMessage(m_panelHwnd, WM_GETFONT, 0, 0);
             if (hf) SendMessage(m_comboFrameType, WM_SETFONT, (WPARAM)hf, FALSE);
-            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Light");
-            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Dark");
-            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Flat");
-            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Bias");
+            SendMessageW(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Light");
+            SendMessageW(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Dark");
+            SendMessageW(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Flat");
+            SendMessageW(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Bias");
             SendMessage(m_comboFrameType, CB_SETCURSEL, 0, 0);
         }
         TagControl(m_comboFrameType, Section::Capture);
+        m_comboCaptureFormat = CreateWindowExW(0, L"COMBOBOX", L"",
+            WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+            x + w - fmtW, y - 2, fmtW, 80, m_panelHwnd,
+            (HMENU)(INT_PTR)ID_COMBO_CAPTURE_FORMAT, GetModuleHandle(nullptr), nullptr);
+        if (m_comboCaptureFormat) {
+            HFONT hf = (HFONT)SendMessage(m_panelHwnd, WM_GETFONT, 0, 0);
+            if (hf) SendMessage(m_comboCaptureFormat, WM_SETFONT, (WPARAM)hf, FALSE);
+            SendMessageW(m_comboCaptureFormat, CB_ADDSTRING, 0, (LPARAM)L"SER");
+            SendMessageW(m_comboCaptureFormat, CB_ADDSTRING, 0, (LPARAM)L"FITS");
+            SendMessage(m_comboCaptureFormat, CB_SETCURSEL, m_ui.captureFits ? 1 : 0, 0);
+        }
+        TagControl(m_comboCaptureFormat, Section::Capture);
         y += BH + 1;
     }
     m_editOutputDir = MakeEditBox(raduk::core::ToWide(raduk::core::Paths::Captures()).c_str(),

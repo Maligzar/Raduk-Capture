@@ -21,7 +21,8 @@ which is itself the honest shape of a project built against real hardware.
 
 ## Built and in use
 
-**Core capture:** SER v3 recording with capture-time trailer timestamps,
+**Core capture:** SER v3 or FITS cube recording with capture-time per-frame
+timestamps,
 RAM-first write buffering, per-frame lucky-imaging quality scores,
 resolution and bit-depth presets on the toolbar through one shared
 reconfigure path.
@@ -134,10 +135,6 @@ never verified, and the fix costs no code.
 
 | Phase | Feature | Effort |
 |-------|---------|--------|
-| 46 | Connect / disconnect all hardware | Medium |
-| 30 | Push-to assistant | Medium |
-| 47 | Pixel position / click to recentre | Medium |
-| 48 | Go to previous image (framing recall) | Medium |
 | 16 | Polar alignment assistant | Hard |
 
 ### Tier 3
@@ -146,10 +143,9 @@ never verified, and the fix costs no code.
 |-------|---------|--------|
 | 31 | Multi-star FWHM focus | Hard |
 | 32 | Bahtinov mask focus | Hard |
-| 18 | AVI / FITS output | Medium |
+| 18 | AVI output (FITS shipped as phase 106) | Medium |
 | 19 | Multi-session stats dashboard | Medium |
 | 43 | Deep sky image annotation | Hard |
-| 34 | Solar / lunar framing | Hard |
 | 33 | Stellar photometry | Very hard |
 | 20 | Distribution / ASCOM support | Very hard |
 

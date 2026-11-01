@@ -1,5 +1,10 @@
 # Next session — outstanding work
 
+**Stale since 2026-10-11, and kept for its testing notes.** What to do
+next is [`ROADMAP-Next.md`](ROADMAP-Next.md), and what state anything is
+in is [`PHASE-STATUS.md`](PHASE-STATUS.md). Sections 1 and 5 below,
+including the count of 26 unstarted phases, are out of date.
+
 Rewritten 2026-10-11 at Phase 84. The previous version was written at
 Phase 70 and ended with "Nothing else is planned", which stopped being
 true the same week.

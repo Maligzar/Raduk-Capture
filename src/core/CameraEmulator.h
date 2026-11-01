@@ -194,6 +194,7 @@ public:
         m_info.MaxHeight = 2160;
         m_info.IsColorCam = ASI_TRUE;
         m_info.BayerPattern = ASI_BAYER_RG;
+        m_info.PixelSize = 2.0;
         m_isOpen = true;
         // Open at the full sensor, like the real camera does. The app's
         // own startup default is 3840x2160 and was being silently

@@ -434,6 +434,13 @@ public:
     void SetFilePrefix(const std::string& prefix);
     void SetCaptureLimit(bool byFrames, uint32_t frames, double timeSec);
     std::string GetFrameType() const;  // Phase 44: "Light", "Dark", "Flat", "Bias"
+    // Phase 106. Kept in m_ui as well as the combo, because the combo
+    // only exists while CAPTURE is expanded.
+    bool GetCaptureFits() const { return m_ui.captureFits; }
+    void SetCaptureFits(bool fits);
+    void SetCaptureFormatCallback(std::function<void(bool fits)> cb) {
+        m_onCaptureFormat = cb;
+    }
     std::string GetOutputDir() const;
 
     // Notes — profile-linked (Phase 24 / notes redesign)
@@ -601,6 +608,7 @@ private:
         // prefix, the notes and the quality gate.
         std::wstring goToTarget;
         int  frameType    = -1;
+        bool captureFits  = false;
         int  limitByFrames = -1;   // -1 unknown, 0 time, 1 frames
         // Review pass 2: the capture quality gate lived ONLY in its
         // checkbox, which exists only while CAPTURE is expanded. Since
@@ -779,6 +787,7 @@ private:
     HWND m_btnBrowseDir    = nullptr;
     HWND m_editFilePrefix  = nullptr;
     HWND m_comboFrameType  = nullptr;
+    HWND m_comboCaptureFormat = nullptr;
     HWND m_editLimitFrames = nullptr;
     // Phase 23: RGB align
     HWND m_btnRGBAlign     = nullptr;
@@ -851,6 +860,7 @@ private:
         
         ID_BTN_RECORD = 1800,
         ID_COMBO_FRAME_TYPE,
+        ID_COMBO_CAPTURE_FORMAT,
         ID_BTN_RGB_ALIGN,       // Phase 23: toggle RGB align
         ID_SLIDER_RGB_MANUAL,   // Phase 23: manual fine-tune ±20px
         ID_BTN_FX,              // Phase 25: Display FX cycle
@@ -892,6 +902,7 @@ private:
     std::function<void()>                   m_onFXCycle;
     std::function<void()>                   m_onNightVision;
     std::function<void()>                   m_onCalDark;
+    std::function<void(bool)>               m_onCaptureFormat;
     std::function<void(int,int)>            m_onStretch;
     std::function<void()>                   m_onCalFlat;
     std::function<void()>                   m_onCalClear;

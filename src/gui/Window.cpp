@@ -414,7 +414,11 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (firstPress && m_onFXCycle) m_onFXCycle();
             return true;
         case 'K':   // stacK the last recording in AutoStakkert
-            if (firstPress && m_onStackLast) m_onStackLast();
+            // Shift+K opens it in whatever Windows has for the file
+            // instead, so a capture can be looked at without leaving
+            // the app to find it.
+            if (shift) { if (firstPress && m_onOpenLast) m_onOpenLast(); }
+            else if (firstPress && m_onStackLast) m_onStackLast();
             return true;
         case 'N':
             if (firstPress && m_onNightVision) m_onNightVision();

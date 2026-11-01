@@ -10,6 +10,17 @@ finished: Tiers 0, 1 and 3 entirely, and the debt items D1–D3. The
 tier sections are kept as the record of what was planned and why, with
 their outcomes marked.
 
+**The direction, set by the owner on 2026-11-01. This outranks the
+competitive scoring wherever the two disagree.** First, make this the best
+planetary imaging capture application ever made, surface detail above all.
+Then make it the best astrophotography application for a CMOS camera, on a
+telescope or on its own. Adoption is not a goal. Tier 5's hardware breadth
+and distribution items measure a market this project is not competing in,
+so they no longer drive the ranking. **The primary targets will always be bright objects
+visible from this site:** planets, satellites, rockets and the like, so
+faint deep-sky work ranks below all of them. A release may come months or years
+from now: [`Plan-Installer-And-Release-PARKED.md`](Plan-Installer-And-Release-PARKED.md).
+
 **This file ranks. It does not assert status.** What state a phase is
 actually in — and the difference between built, wired, gated and
 measured — is [`PHASE-STATUS.md`](PHASE-STATUS.md), which is the only
@@ -1091,6 +1102,10 @@ not pretending the decision has been taken:
 Record the decision whichever way it goes. An unmade decision here
 reads as the restrictive answer, because that is what it currently is.
 
+**Decided by the owner, 2026-11-01: PolyForm Noncommercial stays.** The
+aim is that nobody takes this work and makes money from it, while anyone
+who stumbles on it is free to benefit. That is the first option above.
+
 ---
 
 ## New debt found today
@@ -1202,6 +1217,17 @@ together, red-dominant to blue-dominant.
 
 ### D4 · The AI runs on CPU — not actionable in code
 
+**Measured again 2026-11-01. Lower priority than the score work, by the
+owner's call.** The driver is still 546.01. `OLLAMA_LLM_LIBRARY=cpu` in
+the environment is what pins Ollama to the CPU. With it removed, on a
+second temporary server, Ollama 0.40.13 found the RTX 2060 through
+`cuda_v12`, then crashed at load with `CUDA error: device kernel image is
+invalid`, also with `CUDA_VISIBLE_DEVICES=0`. So taking the setting away
+is not enough on this driver. `OLLAMA_CONTEXT_LENGTH=262144` is why a 2 GB
+model takes 17 GB of RAM, and `OLLAMA_HOST=0.0.0.0` listens beyond this
+PC. A newer model on the RTX needs this crash solved first, with a driver
+that passes the unified-package check for both cards.
+
 Referenced from several places above and, until now, defined nowhere.
 
 The local model runs on the CPU because the installed NVIDIA driver
@@ -1275,6 +1301,16 @@ the ranking below it is what to pick up next.
 | West and south jogs did nothing on the emulator | `b0015dc` (merged as #21) — a signed rate looked up as preset 0, "stopped"; gated by `tests/mount_jog.cpp` |
 | The mount panel: a clipped plot, and a D-pad that never existed | `9db7cd7` (merged as #22) |
 | Lower the CMake floor (P5.5) | `48e53a9` — 3.21, found by building |
+| Real sky in the emulator, 94.1-94.3 | Point sources, live planet sizes, a Moon with a terminator |
+| Single-star HFD and FWHM (31/32 part) | `82a9588` |
+| Visual system that survives the dark (96.1-96.5) | `0014d8b` to `b3e5996`; 96.4b still needs eyes on a screen |
+| Solar and lunar framing, mosaic execution (34, as 97-97.5) | `c3b35bc` to `d00ec7e` |
+| Camera panel review, dead code sweep, docking deleted (98-100) | `8e98465`, `284f811`, `7b45026` |
+| Panel state restored, dead buttons wired (101-102) | `40e99d2`, `c2ed80b`, `2fce14a` |
+| Object panel and share view text fit their windows (103-104) | `e454f72`, `857592b` |
+| The recording timer counts (105) | `3b3b40a` |
+| The gate builds all its tests | `faa3585` (#66): four tests had never compiled under `run-tests.ps1` |
+| FITS output (phase 106, row 18) | Cube, FRAMES table, `SER`/`FITS` selector, `[STACK]`, `Shift+K`. AutoStakkert opens a cube by hand, not headless, so `[STACK]` shows its window. **Siril has not opened a file**: checklist 29 |
 | Fuzz the WebSocket parser, token on every connection (P5.6) | `137dc5c` — gated by `tests/ws_protocol.cpp`, `ws_fuzz.cpp`, `ws_server_loopback.cpp`; the real dashboard connected and jogged the mount 2026-10-25, **owes one remote stop seen to work** |
 
 ---
@@ -1340,7 +1376,7 @@ consolidated](#live-sky-debt-consolidated).
 | ~~4~~ | **Phase 47, click to recentre** — DONE 2026-10-18 | Bench | — | `Ctrl`+click an object and it goes to the middle. No new orientation config: the phase 51 guide calibration already MEASURED how the image responds to a pulse, so it contains the camera angle, the mirror flip and the axis signs. The 2x2 solve moved into `src/core/GuideSolve.h` and the guide loop now calls the same one — two copies would be two sign conventions. Gated by `tests/recentre.cpp`, including a round trip that pushes the solved pulses back through the measured matrix |
 | ~~5~~ | **Phase 46, connect/disconnect hardware** — BUILT and GATED 2026-10-18; owes one press in the running app | Bench | — | One `[HW]` button, and `MountProxy` so a reconnect can pick a different transport or port without stranding the tracker and the panels that hold the mount pointer. The crash it caused on the way is worth reading: `main.cpp` was static_cast-ing the mount pointer to `MountEmulator` |
 | 6 | **P5.6: fuzz the WebSocket frame parser, and authenticate the command path** — WIRED (emu) 2026-10-25: the real dashboard connects with the token and jogs the mount; owes one remote stop seen to work, and `apex_bridge.py` | Bench | S-M | The only safety-flavored item left on the bench. An unauthenticated RFC 6455 parser in C++ that accepts mount commands; loopback-by-default is a good default and is not a control. Raised in the July 2026 security review and hardened in Phase 57 without the auth gap being closed |
-| 7 | **Pick again from the unscheduled list** | Bench | varies | Seven features left. **Phase 30 and 47b are both built**: 30 owes one session pushing a real scope by it, 47b owes a solve to settle its row-order flag (clear-night item 15). Both are bench-gated under MSVC as of 2026-10-30, and neither has run in the app, so the next useful hour is a clear night, not another feature. The one exception needing no sky is P5.3's indoor ASCOM run, whose blocker was removed on 2026-10-30: see [`ASCOM-SIMULATOR-RUN.md`](ASCOM-SIMULATOR-RUN.md). What state any of them is in is [`PHASE-STATUS.md`](PHASE-STATUS.md)'s question, not this row's |
+| 7 | **Pick again from the unscheduled list** | Bench | varies | Three unstarted features left: 19, 43 and 33. **Phase 30 and 47b are both built**: 30 owes one session pushing a real scope by it, 47b owes a solve to settle its row-order flag (clear-night item 15). Both are bench-gated under MSVC as of 2026-10-30, and neither has run in the app, so the next useful hour is a clear night, not another feature. The one exception needing no sky is P5.3's indoor ASCOM run, whose blocker was removed on 2026-10-30: see [`ASCOM-SIMULATOR-RUN.md`](ASCOM-SIMULATOR-RUN.md). What state any of them is in is [`PHASE-STATUS.md`](PHASE-STATUS.md)'s question, not this row's |
 | ~~8~~ | **P5.5: lower the CMake floor** — DONE 2026-10-25, floor 3.21 by test | Bench | S | The cheapest item on the list. One line, once the oldest workable version has been established by trying it |
 | ~~9~~ | **P5.1: exposure-midpoint SER timestamps** - WRITTEN, NOT BUILT 2026-10-26 (#32) | Bench | S | Off the queue, not finished. The stamp is the midpoint now, gated by `tests/ser_timestamp_midpoint.cpp`, and nothing has been through MSVC. What it owes is in [`PHASE-STATUS.md`](PHASE-STATUS.md) |
 | ~~10~~ | **P5.4: no hardcoded `D:` paths** - WRITTEN, NOT BUILT 2026-10-26 (#33) | Bench | M | The paths half only. One root in `src/core/Paths.h`, 15 sites through it, and the roadmap had said six. **The installer and release halves are untouched and still owed** |
@@ -1741,6 +1777,12 @@ depend on them:
 
 #### B1 · The object panel clips its text, and bleeds it over the diagram
 
+**Phase 103 closed the clipping and the bleed.** The third instance is
+only half closed: `Text` now clips to its rect, so a wrapped derived line
+no longer overprints the next one, but the loop still gives each line a
+1.3em box. A line long enough to wrap loses its second row. Rather than
+overprinting it now disappears. The rest of this entry is the original.
+
 Raised 2026-10-18 from a screenshot. Two defects in one section, and the
 diagnosis is recorded here so it is not derived a second time.
 
@@ -1895,7 +1937,7 @@ true the moment a phase was split in two.
 | ~~30~~ | ~~Push-to assistant~~ | — | **Built 2026-10-30.** Repeating solve, alt/az instruction, stops when centred. Owes a real session |
 | ~~94~~ | ~~Real sky in the emulator~~ | **94.1-94.3 done, 94.4-94.5 backlogged, 2026-10-31** | Planned 2026-10-30: [`Phase94-Plan-Real-Sky-Emulator.md`](Phase94-Plan-Real-Sky-Emulator.md). The emulator is target-centric and has no stars: its background is a 1-in-4096 hash sprinkle of single pixels, so **no plate solve can ever succeed in the emulator** and every solve path is unexercisable indoors. Staged because the asks differ wildly in cost: a star as a target and live planet sizes are small, a solvable star field needs a catalog to about mag 14 (tens of millions of entries) because a full-sensor field is 6.4e-7 of the sky. The Moon is already the right size since phase 91; what it lacks is a terminator to focus on |
 | ~~31/32~~ | ~~FWHM / Bahtinov focus~~ **single-star HFD+FWHM done 2026-10-31** | H | Star focus; autofocus is tuned for a planetary disc. **A visible gap in the comparison**: SharpCap ships multi-star FWHM, HFD and Bahtinov aids with Pro auto-scans, FireCapture has a third-party autofocus plugin, ASICap has coarse/fine EAF buttons. Nothing in this tree implements either measure (checked: no FWHM or Bahtinov code in `src/`), and the planetary-disc V-curve does not substitute for star focus. **Partly unblocked 2026-10-31**: 94.1 gives the emulator a real point source with an Airy pattern, so single-star FWHM and Bahtinov finally have something to be tested against, where before an implementation could only have been checked against a one-pixel hash sprinkle. **MULTI-star FWHM is still blocked** and now deliberately so: several stars in a 13 x 7 arcmin field needs a catalog to about mag 14, and 94.5 was backlogged with that cost on the table |
-| 18 | AVI / FITS output | M | **FITS leads, AVI follows, and the comparison raises the value of both.** FITS is the interop format the post-processing chain consumes and is the one output that would let this project touch any photometric or deep-sky workflow; AVI is a legacy container that chain does not want. SharpCap and FireCapture both write FITS; ASICap does not, so "every competitor writes FITS" is too strong, but the two that matter do. Neither writer exists anywhere in `src/` |
+| 18 | AVI / ~~FITS~~ output | M | **FITS done as phase 106, 2026-11-01; AVI stays here until someone asks for it.** The original note: **FITS leads, AVI follows, and the comparison raises the value of both.** FITS is the interop format the post-processing chain consumes and is the one output that would let this project touch any photometric or deep-sky workflow; AVI is a legacy container that chain does not want. SharpCap and FireCapture both write FITS; ASICap does not, so "every competitor writes FITS" is too strong, but the two that matter do. Neither writer exists anywhere in `src/` |
 | 19 | Multi-session stats dashboard | M | |
 | 34 | Solar / lunar framing | H | **Phase 97 + 97.4 + 97.5, 2026-10-31. Row complete at the bench.** Arithmetic, mount rate, operator report and mosaic EXECUTION all done; what is left is a clear night and lunar feature targeting. The app did not know how big the Moon was: `SkyObject.h` computes its longitude and latitude and **skips the distance term**, and `SunRADec` stops before the radius vector. Added in `src/sky/LunarSolarSize.h` (Meeus Ch.47 and Ch.25), checked against published extremes over a year — 356,819 / 406,501 km against 356,500 / 406,700. **The finding:** the full sensor sees 12.99′ × 7.31′ at 0.203″/px, so the Moon is 2.4 frames wide and 4.2 tall and needs eighteen panels; the Moon drifts 0.55″/s (2.71 px/s) against the stars, which is **0.05 px in a 20 ms exposure** (sidereal does NOT blur a lunar frame), 4% of the frame over a 60-second run, and **272″ against an 88″ overlap over an 8-minute mosaic — three times the whole overlap, so the mosaic does not close.** `ASCOMMount` was pinning `TrackingRate` to the literal 0 at two sites including every GoTo, with `1=Lunar, 2=Solar` in the comment beside it, and there was no rate abstraction at all (`IMount::TrackingMode` is the mount's frame, not its rate). Now `IMount::TrackingRate`, opt-in per backend, remembered so GoTo stops resetting it, set in the profile-apply funnel. Grid, serpentine ordering and the cos(dec) conversion in `src/sky/MosaicPlan.h`, gated by `tests/lunar_framing.cpp` (63 assertions) **97.4 found phase 97's diameters reached nothing: `PlanetApparentSizeAt` is the one path to the object panel's figure, its frame-fill sentence, its scale diagram and the emulator's disc, and the Moon and Sun were not in it — so the two largest objects the rig can point at had no apparent size anywhere. Routing them through it also fixed the emulator, which was rendering the Moon at a fixed 900-arcsec mean radius that cannot follow the 14% monthly swing.** It also surfaced a latent defect from #53: `LunarSolarSize.h` and `SkyObject.h` both defined `raduk::sky::AU_KM`, so any TU including both failed to compile, and nothing included both until 97.4 needed them together. `GoToPanel` now logs the framing report after a slew **97.5 drives the mount through the panels, and changed 97's own verdict: "does not close" was about FIXED offsets, and `MosaicRunner::Tick()` takes the target's position NOW every call, so the last panel is aimed where the Moon IS. Only the 54 px of drift within one panel is left, 7% of the overlap.** `Ctrl+Shift+M` starts and stops it. The runner is a pure state machine gated by `tests/mosaic_run.cpp`, which found two bugs in it: a slew timeout that could not fire on the one failure it existed for, and a default config that would have run · owes: lunar feature targeting (needs a crater catalogue with selenographic coordinates plus libration), mosaic execution, and a clear night — nothing here has seen the Moon. Plan in [`Phase97-Plan-Lunar-Framing.md`](Phase97-Plan-Lunar-Framing.md) |
 | 43 | Deep sky image annotation | H | |

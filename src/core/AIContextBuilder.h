@@ -785,16 +785,22 @@ public:
     }
 
 private:
-    // Scan output directory for tonight's SER files.
+    // Scan output directory for tonight's captures, in either format.
     // "Tonight" = files modified in the last 12 hours.
     std::vector<std::string> ScanCapturesDir(const std::string& dir) const {
         std::vector<std::string> results;
         if (dir.empty()) return results;
 
-        std::string pattern = dir + "\\*.ser";
+        for (const char* ext : { "\\*.ser", "\\*.fits" })
+            ScanCapturesDir(dir + ext, results);
+        return results;
+    }
+
+    void ScanCapturesDir(const std::string& pattern,
+                         std::vector<std::string>& results) const {
         WIN32_FIND_DATAA fd;
         HANDLE hf = FindFirstFileA(pattern.c_str(), &fd);
-        if (hf == INVALID_HANDLE_VALUE) return results;
+        if (hf == INVALID_HANDLE_VALUE) return;
 
         FILETIME now; GetSystemTimeAsFileTime(&now);
         ULONGLONG nowULL = ((ULONGLONG)now.dwHighDateTime << 32) | now.dwLowDateTime;
@@ -818,7 +824,6 @@ private:
         } while (FindNextFileA(hf, &fd) && results.size() < 20);
 
         FindClose(hf);
-        return results;
     }
 
     std::string        m_helpText;

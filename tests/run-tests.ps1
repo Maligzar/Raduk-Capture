@@ -27,7 +27,7 @@ $Tests = @(
     @{ Name = "sensor_analysis";    Sources = @("src\core\FrameAnalyzer.cpp") }
     @{ Name = "write_buffer_sizing"; Sources = @() }
     @{ Name = "sky_conditions";     Sources = @() }
-    @{ Name = "capture_thread_submit"; Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp") }
+    @{ Name = "capture_thread_submit"; Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "ai_context_facts";   Sources = @() }
     @{ Name = "object_knowledge";   Sources = @() }
     @{ Name = "object_panel_text"; Sources = @() }
@@ -66,7 +66,10 @@ $Tests = @(
     @{ Name = "motion";          Sources = @() }
     @{ Name = "object_panel_fit"; Sources = @() }
     @{ Name = "share_caption";   Sources = @() }
-    @{ Name = "rec_timer";       Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp") }
+    @{ Name = "rec_timer";       Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
+    @{ Name = "fits_format";     Sources = @() }
+    @{ Name = "fits_writer";     Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
+    @{ Name = "capture_writer";  Sources = @("src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

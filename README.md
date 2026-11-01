@@ -130,5 +130,5 @@ that better. See **What is not built yet** in
 
 ## License
 
-PolyForm Noncommercial 1.0.0 — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
+Copyright 2026 Kenneth C Wood Jr. PolyForm Noncommercial 1.0.0 — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
 property of Suzhou ZWO Co., Ltd. under their own terms.

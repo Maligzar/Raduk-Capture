@@ -41,7 +41,7 @@ BEGIN
             VALUE "FileDescription",  "RadukCapture - Planetary Imaging Capture"
             VALUE "FileVersion",      "@RADUK_VERSION_DOT@"
             VALUE "InternalName",     "RadukCapture"
-            VALUE "LegalCopyright",   "Copyright 2026 Raduk Astrophotography"
+            VALUE "LegalCopyright",   "Copyright 2026 Kenneth C Wood Jr"
             VALUE "OriginalFilename", "RadukCapture.exe"
             VALUE "ProductName",      "RadukCapture"
             VALUE "ProductVersion",   "@RADUK_VERSION_DOT@"

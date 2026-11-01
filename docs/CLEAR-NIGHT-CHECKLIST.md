@@ -978,3 +978,31 @@ For contrast, so this list is not read as "nothing works":
     have been wrong while elapsed was zero. After the run the panel
     should say how long it ran, and that figure should stop, not keep
     climbing.
+
+29. **FITS in the programs that will read it** (phase 106). `astropy`
+    has read real cubes from this app, and that says the file is valid
+    FITS. It does not say a stacker reads it the way it was meant.
+
+    Install Siril if it is not here, make it the program for `.fits` in
+    Windows, record a short FITS run and press `Shift+K`. Three
+    questions: does it open as a sequence, is the frame count the one
+    the recording reported, and are the colours right after debayering?
+    Red and blue swapped means a reader is taking the rows from the
+    bottom, whatever `ROWORDER` says, and that is the finding to report,
+    with the program's name.
+
+    AutoStakkert: the owner confirmed by hand on 2026-11-01 that it
+    opens a cube. Its headless switches do not process one, so `K` and
+    `[STACK]` open the window instead. Check the stacked result is
+    right-way-round in colour.
+
+30. **The two controls phase 106 left untried** (phase 106). With `FITS`
+    selected, `[STACK]` should open AutoStakkert's window with the cube
+    loaded. With `AutoStackOnStop=1` a FITS run should only leave a
+    notice, and no window should appear.
+    With `SER` selected, `[STACK]` should stack as `K` always has.
+    `Shift+K` should open each file type in its own program, and a type
+    with no program should say so on the notification bar. The toolbar
+    should still fit, with `EXIT` and the format buttons in place. Ask
+    the assistant what was captured tonight, once it is answering again:
+    `.fits` files should be in the list.

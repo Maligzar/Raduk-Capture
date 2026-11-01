@@ -89,6 +89,17 @@ enum class CaptureError {
     Other,
 };
 
+// As FITS BAYERPAT and the observation record spell it.
+inline const char* BayerName(BayerPattern p) {
+    switch (p) {
+        case BayerPattern::RG: return "RGGB";
+        case BayerPattern::BG: return "BGGR";
+        case BayerPattern::GR: return "GRBG";
+        case BayerPattern::GB: return "GBRG";
+        default:               return "MONO";
+    }
+}
+
 struct CameraInfo {
     std::string  name;
     int          maxWidth    = 0;

@@ -1275,6 +1275,8 @@ static int RunApp(bool useEmulator) {
         cfg.limitFrames      = 1000;
         cfg.limitTimeSec     = 60.0;
         cfg.writeBufferSlots = 512;
+        cfg.format = raduk::core::CaptureFormatFromName(
+            raduk::core::RigConfig::Get().captureFormat);
         capturer.SetConfig(cfg);
     }
     Log("[INIT] Capture manager ready\n");
@@ -3016,7 +3018,7 @@ static int RunApp(bool useEmulator) {
         OPENFILENAMEW ofn{};
         ofn.lStructSize = sizeof(ofn);
         ofn.hwndOwner   = window.Handle();
-        ofn.lpstrFilter = L"Captures (*_observation.txt, *.ser)\0*_observation.txt;*.ser\0"
+        ofn.lpstrFilter = L"Captures (*_observation.txt, *.ser, *.fits)\0*_observation.txt;*.ser;*.fits\0"
                           L"All files\0*.*\0";
         ofn.lpstrFile   = fileBuf;
         ofn.nMaxFile    = MAX_PATH;
@@ -3680,6 +3682,15 @@ static int RunApp(bool useEmulator) {
                                 L"AutoStakkertPath in rig.ini");
             return;
         }
+        if (raduk::core::IsFitsCapture(serPath)) {
+            const bool opened = stacker.OpenInteractive(toWide(serPath));
+            Log("[STACK] FITS, %s in AutoStakkert's window: %s\n",
+                opened ? "opened" : "COULD NOT open", serPath.c_str());
+            if (opened) notifBar.NotifyInfo(L"FITS opened in AutoStakkert - "
+                                            L"it stacks from its own window");
+            else        notifBar.NotifyWarn(L"Could not start AutoStakkert");
+            return;
+        }
         if (stacker.IsRunning()) {
             notifBar.NotifyInfo(L"A stack is already running");
             return;
@@ -3741,6 +3752,8 @@ static int RunApp(bool useEmulator) {
             cfg.filePrefix    = controls.GetFilePrefix();
             cfg.outputDir     = controls.GetOutputDir();
             cfg.frameType     = controls.GetFrameType();  // Phase 44
+            cfg.format        = controls.GetCaptureFits()
+                                    ? CaptureFormat::FITS : CaptureFormat::SER;
             cfg.limitFrames   = controls.GetLimitFrames();
             cfg.limitTimeSec  = controls.GetLimitTimeSec();
             cfg.limitType     = controls.GetLimitByFrames()
@@ -3796,6 +3809,15 @@ static int RunApp(bool useEmulator) {
             path.empty() ? "(empty)" : path.c_str());
         if (!normal) return;
         if (!raduk::core::RigConfig::Get().autoStackOnStop) return;
+        // Auto-stack is unattended, and a FITS cube only stacks with
+        // someone at AutoStakkert's window. Do not throw one up over the
+        // session when a recording ends.
+        if (raduk::core::IsFitsCapture(path)) {
+            Log("[STACK] auto-stack passes over FITS: %s\n", path.c_str());
+            notifBar.NotifyInfo(L"Auto-stack is SER only - press [STACK] "
+                                L"to open this FITS in AutoStakkert");
+            return;
+        }
         doStackFile(path);
     });
 
@@ -3817,6 +3839,9 @@ static int RunApp(bool useEmulator) {
             if (cam.GetRegion(w, h, bin, it)) r.bin = bin;
             int sx = -1, sy = -1;
             if (cam.GetStartPos(sx, sy)) { r.roiX = sx; r.roiY = sy; }
+            const CameraInfo ci = cam.Describe();
+            r.colour = BayerName(ci.bayer);
+            if (ci.pixelSizeUm > 0.0) r.pixelUm = ci.pixelSizeUm;
         }
         if (focuser.IsOpen()) {
             r.focuserPos   = focuser.GetPosition();
@@ -4209,6 +4234,28 @@ static int RunApp(bool useEmulator) {
     };
     window.SetFXCycleHandler([&]() { doFXCycle(); });
     window.SetStackLastHandler([&]() { doStackFile(capturer.LastFilePath()); });
+    toolbar.SetStackCallback([&]() { doStackFile(capturer.LastFilePath()); });
+
+    // Phase 106: Shift+K, the last recording in whatever Windows opens
+    // that kind of file with. The association is the configuration, so
+    // the app needs no setting per viewer, and a FITS and a SER can go
+    // to different programs without it knowing either.
+    window.SetOpenLastHandler([&]() {
+        const std::string path = capturer.LastFilePath();
+        if (path.empty()) {
+            notifBar.NotifyInfo(L"No finished recording to open yet");
+            return;
+        }
+        const HINSTANCE r = ShellExecuteW(nullptr, L"open", toWide(path).c_str(),
+                                          nullptr, nullptr, SW_SHOWNORMAL);
+        if ((INT_PTR)r <= 32) {
+            Log("[OPEN] ShellExecute %d: %s\n", (int)(INT_PTR)r, path.c_str());
+            notifBar.NotifyWarn(L"Could not open it - no program is set for "
+                                L"this file type in Windows");
+            return;
+        }
+        Log("[OPEN] %s\n", path.c_str());
+    });
     controls.SetFXCycleCallback([&]() { doFXCycle(); });
 
     // ── Phase 12b: the advisory loop ──────────────────────────
@@ -4348,6 +4395,20 @@ static int RunApp(bool useEmulator) {
             cam.GetControlValue(ControlId::ExposureUs) / 1000.0);
         calStatus();
     };
+    controls.SetCaptureFits(capturer.Config().format == CaptureFormat::FITS);
+    controls.SetCaptureFormatCallback([&](bool fits) {
+        const CaptureFormat f = fits ? CaptureFormat::FITS : CaptureFormat::SER;
+        auto& rig = raduk::core::RigConfig::Get();
+        rig.captureFormat = raduk::core::CaptureFormatName(f);
+        rig.SaveCaptureFormat();
+        // A run under way keeps the format it opened with. The next one,
+        // from any route into a recording, takes this.
+        if (!capturer.IsRecording()) {
+            CaptureConfig cfg = capturer.Config();
+            cfg.format = f;
+            capturer.SetConfig(cfg);
+        }
+    });
     controls.SetCalDarkCallback([&]() { beginCal(true);  });
     controls.SetCalFlatCallback([&]() { beginCal(false); });
     controls.SetCalClearCallback([&]() {

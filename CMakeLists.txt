@@ -148,6 +148,7 @@ add_executable(RadukCapture WIN32
     src/core/CaptureThread.cpp
     src/core/CaptureManager.cpp
     src/core/SERWriter.cpp
+    src/core/FITSWriter.cpp
     src/core/WriteBuffer.cpp
     src/core/FrameAnalyzer.cpp
     src/core/ADCAlignment.cpp

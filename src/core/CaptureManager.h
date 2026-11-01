@@ -2,7 +2,7 @@
 // ============================================================
 // CaptureManager.h — Recording orchestration for RadukCapture
 // Coordinates: RingBuffer (preview) -> WriteBuffer (RAM) ->
-//              writer thread -> SERWriter (disk).
+//              writer thread -> ICaptureWriter (disk).
 //
 // The capture thread keeps running at full speed (it only feeds
 // the preview RingBuffer). CaptureManager taps the preview ring
@@ -15,6 +15,7 @@
 
 #include "WriteBuffer.h"
 #include "SERWriter.h"
+#include "FITSWriter.h"
 #include "SessionLog.h"
 #include "FrameSlot.h"
 #include "Sharpness.h"
@@ -26,6 +27,7 @@
 #include <mutex>
 #include <chrono>
 #include <functional>   // SetOnComplete
+#include <cctype>
 #include <cstdio>
 #include <ctime>
 #include <windows.h>
@@ -33,6 +35,30 @@
 namespace raduk::core {
 
 enum class LimitType { Frames, Time };
+enum class CaptureFormat { SER, FITS };
+
+// As rig.ini spells it. Anything else is SER, the default.
+inline CaptureFormat CaptureFormatFromName(const std::string& name) {
+    return name == "fits" ? CaptureFormat::FITS : CaptureFormat::SER;
+}
+inline const char* CaptureFormatName(CaptureFormat f) {
+    return f == CaptureFormat::FITS ? "fits" : "ser";
+}
+
+// AutoStakkert opens a FITS cube when a person loads it, but its headless
+// /process /hide run never starts on one: measured 2026-11-01 on 100 and
+// 1436 frames, the switches logged and no "Processing started", where a
+// SER stacks in under a minute. The caller asks first, and shows the
+// window instead of waiting on a hidden run that will time out.
+// Case-insensitive: a path can come from a file dialog.
+inline bool IsFitsCapture(const std::string& path) {
+    const std::string ext = ".fits";
+    if (path.size() < ext.size()) return false;
+    const size_t at = path.size() - ext.size();
+    for (size_t i = 0; i < ext.size(); ++i)
+        if (tolower((unsigned char)path[at + i]) != ext[i]) return false;
+    return true;
+}
 
 struct CaptureConfig {
     std::string outputDir   = Paths::Captures();
@@ -42,6 +68,7 @@ struct CaptureConfig {
     uint32_t    limitFrames = 1000;
     double      limitTimeSec = 60.0;
     int         writeBufferSlots = 512;
+    CaptureFormat format = CaptureFormat::SER;
 };
 
 struct CaptureStatus {
@@ -82,12 +109,12 @@ public:
     void NoteSky(double altDeg, double azDeg, double airmass,
                  double seeingFactor, double dispersionArcsec) {
         if (m_status.recording.load())
-            m_writer.NoteSkyConditions(altDeg, azDeg, airmass,
+            m_writer->NoteSkyConditions(altDeg, azDeg, airmass,
                                        seeingFactor, dispersionArcsec);
     }
 
     // Phase 48: who fills in the observation record. Called on the
-    // thread that calls StartRecording(), just after the SER opens,
+    // thread that calls StartRecording(), just before the file opens,
     // and expected to fill in what only the app knows -- target,
     // profile, exposure, gain, focuser, mount position. The manager
     // adds the file, the format and the run's own numbers itself, so
@@ -101,11 +128,11 @@ public:
 
     // ── Recording control ──────────────────────────────────────
 
-    // Start recording. Allocates write buffer, opens SER file, starts writer thread.
+    // Start recording. Allocates write buffer, opens the file, starts writer thread.
     // frameSizeBytes: expected bytes per frame (width * height * (bitDepth/8))
     bool StartRecording(int width, int height, int bitDepth);
 
-    // Stop recording. Drains remaining write buffer, closes SER file.
+    // Stop recording. Drains remaining write buffer, closes the file.
     void StopRecording(bool normal = true);
 
     // ── Frame submission ───────────────────────────────────────
@@ -257,7 +284,9 @@ private:
     // below, which writes the session summary file. Different jobs.
     std::function<void(const std::string&)> m_logFn;
     void Say(const std::string& s) const { if (m_logFn) m_logFn("[CAPTURE] " + s); }
-    SERWriter       m_writer;
+    SERWriter       m_ser;
+    FITSWriter      m_fits;
+    ICaptureWriter* m_writer = &m_ser;
     SessionLog*     m_log = nullptr;
     CaptureStatus   m_status;
     std::mutex      m_mutex;

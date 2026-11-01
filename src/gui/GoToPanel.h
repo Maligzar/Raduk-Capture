@@ -34,6 +34,7 @@
 
 #include "../sky/SkyObject.h"
 #include "../sky/ASTAPSolver.h"
+#include "../sky/PlateScaleCheck.h"
 #include "../sky/PushTo.h"
 #include "../sky/MosaicPlan.h"
 #include "../sky/MosaicRunner.h"
@@ -70,6 +71,9 @@ public:
     // CentroidTracker stayed invisible for its whole life.
     void SetLogCallback(std::function<void(const std::string&)> cb)
         { m_onLog = cb; }
+    // From the camera, not a literal. Zero until one is connected.
+    // Atomic because the solve callbacks read it on a worker thread.
+    void SetPixelSizeUm(double um) { m_pixelUm.store(um); }
 
     void SetProfileAutoLoadCallback(std::function<void(const std::string&)> cb)
         { m_onProfileAutoLoad = cb; }
@@ -699,6 +703,7 @@ public:
                 raduk::sky::PushToHint hint;
 
                 if (result.solved) {
+                    ReportPlateScale(result, fw);
                     // The tolerance rule lives in PushTo.h so it can
                     // be gated; see tests/push_to.cpp.
                     const double tol =
@@ -722,6 +727,18 @@ public:
                 m_pushToFresh.store(true);
                 PublishWcs(result, (int)fw, (int)fh, gen);
             });
+    }
+
+    // A solve knows the true field width, so it knows the true plate
+    // scale. Called from all four solve callbacks rather than from
+    // PublishWcs, which AutoSolveOnLock does not use and which drops a
+    // solve that a slew overtook: the frame moved, the scale did not.
+    void ReportPlateScale(const raduk::sky::SolveResult& r, uint32_t frameW) {
+        const std::string line = raduk::sky::FormatPlateScale(
+            raduk::sky::CheckPlateScale(
+                r, frameW, raduk::core::RigConfig::Get().plateScaleArcsecPx,
+                m_pixelUm.load()));
+        if (!line.empty() && m_onLog) m_onLog(line);
     }
 
     // Called from whichever worker thread finished a solve. Stores
@@ -843,27 +860,7 @@ public:
                     m_alignPoints++;
                 }
 
-                // A solve knows the true field width, so it knows the
-                // true plate scale. PlateScaleArcsecPx in rig.ini is a
-                // calculated figure -- focal length over pixel size --
-                // that has never been checked against the sky, and it
-                // feeds the ADC figure, the drift readout and every
-                // overlay scale. Rather than leave that a manual check
-                // nobody remembers, every solve now reports it.
-                if (result.fovW > 0.0 && w > 0) {
-                    const double measured = result.fovW * 3600.0 / (double)w;
-                    const double assumed  =
-                        raduk::core::RigConfig::Get().plateScaleArcsecPx;
-                    const double offPct = (assumed > 0.0001)
-                        ? fabs(measured - assumed) / assumed * 100.0 : 0.0;
-                    char sb[200];
-                    sprintf_s(sb, "Plate scale: solved %.4f\"/px vs "
-                                  "rig.ini %.4f\"/px (%.0f%% out)%s",
-                              measured, assumed, offPct,
-                              offPct > 5.0 ? " <- set PlateScaleArcsecPx to "
-                                             "the solved value" : "");
-                    if (m_onLog) m_onLog(sb);
-                }
+                ReportPlateScale(result, w);
 
                 // Record to pointing model
                 m_pointingModel.Record(
@@ -2228,6 +2225,7 @@ private:
                         result.ra, result.dec, result.fovW);
                     PostSolveStatus(msg);
                     PublishWcs(result, (int)fw, (int)fh, gen);
+                    ReportPlateScale(result, fw);
                     printf("[GoToPanel] Plate solve OK: RA=%.4fh Dec=%.4f°\n",
                            result.ra, result.dec);
                 } else {
@@ -2286,6 +2284,7 @@ private:
                     // Signal main thread to update UI via Tick()
                     m_pendingSyncSuccess.store(true);
                     PublishWcs(result, (int)sfw, (int)sfh, sgen);
+                    ReportPlateScale(result, sfw);
 
                     wchar_t msg[128];
                     swprintf(msg, 128,
@@ -2715,6 +2714,7 @@ private:
     std::function<void()>        m_mosaicEnd;
     std::function<void(const std::string&)> m_onProfileAutoLoad;
     std::function<void(const std::string&)> m_onLog;
+    std::atomic<double> m_pixelUm{0.0};
     std::function<bool(double,double)>  m_preSlew;   // cord-wrap guard
     std::function<void(double,double)>      m_onSync;
     std::function<void(const std::string&, float, float, float)> m_onInfo;

@@ -2434,9 +2434,10 @@ a SER file cannot change format part-way through. Set the format first.
 ### ADC reading seems wrong
 - **Plate-solve once and read the log.** The ADC figure scales with the plate
   scale, and `PlateScaleArcsecPx` in `rig.ini` is calculated rather than
-  measured. Every successful solve now logs
-  `Plate scale: solved X"/px vs rig.ini Y"/px`, and flags anything more than
-  5% out. Correct it there and the ADC figure corrects with it.
+  measured. Every successful solve, from any of the solve buttons, logs
+  `Plate scale: solved X"/px vs rig.ini Y"/px` with the focal length that
+  implies, and flags anything more than 5% out. Correct it there and the ADC
+  figure corrects with it. Use the full sensor at bin 1 for this.
 - **Check the filter first.** The `Filter:` line directly under the ADC
   readout says which band the figure was computed over. If that does not match
   the glass actually on the camera, the number is wrong by as much as 4× —

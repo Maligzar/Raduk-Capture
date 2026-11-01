@@ -1472,6 +1472,7 @@ static int RunApp(bool useEmulator) {
                           raduk::core::RigConfig::Get().siteLonDeg);
 
     gotoPanel.Create(window.Handle(), 0, 0, 500, 750);
+    if (cam.IsOpen()) gotoPanel.SetPixelSizeUm(cam.Describe().pixelSizeUm);
 
     // ── Sky Map (Phase 6.1) ────────────────────────────────────
     // Positioned to the right of the GoTo panel
@@ -3440,6 +3441,7 @@ static int RunApp(bool useEmulator) {
         if (!cam.IsOpen()) {
             if (cam.Open(0)) {
                 Log("[HW] Camera: %s\n", cam.Name().c_str());
+                gotoPanel.SetPixelSizeUm(cam.Describe().pixelSizeUm);
                 // The settings the session was using, not the camera's
                 // defaults: a reconnect mid-session should look like
                 // nothing happened.

@@ -73,7 +73,8 @@ struct ObservationRecord {
     int         bin      = 0;
     int         roiX     = -1;     // ROI start on the sensor, binned px
     int         roiY     = -1;
-    std::string colour;            // "RGGB" or "MONO", as in the SER header
+    std::string colour;            // Bayer pattern, or "MONO"
+    double      pixelUm = kObsUnknown;
 
     // Exposure
     double      exposureMs = kObsUnknown;
@@ -284,6 +285,7 @@ inline std::string SerializeObservation(const ObservationRecord& r) {
     Int(o, "roi_y",     r.roiY,     r.roiY >= 0);
     Str(o, "colour",    r.colour);
 
+    Num(o, "pixel_um", r.pixelUm, 3);
     Num(o, "exposure_ms", r.exposureMs, 3);
     Num(o, "gain",        r.gain,       0);
 
@@ -403,6 +405,7 @@ inline bool ParseObservation(const std::string& text, ObservationRecord& r,
         else if (k == "bin")         ToInt(v, r.bin);
         else if (k == "roi_x")       ToInt(v, r.roiX);
         else if (k == "roi_y")       ToInt(v, r.roiY);
+        else if (k == "pixel_um")    ToDouble(v, r.pixelUm);
         else if (k == "exposure_ms") ToDouble(v, r.exposureMs);
         else if (k == "gain")        ToDouble(v, r.gain);
         else if (k == "focuser_pos")    ToInt(v, r.focuserPos);

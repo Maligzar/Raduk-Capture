@@ -112,7 +112,7 @@ startup retains the last settings.
 | `EXPTIME` | `exposureMs` | s |
 | `OBJECT`, `FRAME`/`IMAGETYP` | `target`, `frameType` | |
 | `GAIN`, `XBINNING`, `YBINNING` | camera | |
-| `XPIXSZ`, `YPIXSZ`, `FOCALLEN` | `RigConfig` | um, mm |
+| `XPIXSZ`, `YPIXSZ` | the camera's `Describe()` | um |
 | `XORGSUBF`, `YORGSUBF` | `roiX`, `roiY` | px |
 | `BAYERPAT`, `ROWORDER` | frame type | |
 | `RA`, `DEC`, `OBJCTALT`, `OBJCTAZ`, `AIRMASS` | mount, sky summary | deg |
@@ -151,8 +151,14 @@ appends the table and rewrites the header. `CaptureManager` chooses by a
 `CaptureConfig` format field and the real frame type replaces the
 hardcoded `RGGB`.
 
+The record is now built before the file opens, because it carries the
+camera's real Bayer pattern. `BuildFilePath` takes its extension from
+the format here too: a FITS file named `.ser` is not a state worth
+having for one stage.
+
 **106.4 · The surfaces.** The format selector, saved in `rig.ini`. The
-extension in `BuildFilePath`. `AIContextBuilder` and the framing-recall
+five `SetConfig` sites in `main.cpp` have to keep the format, since at
+least one builds a fresh `CaptureConfig`. `AIContextBuilder` and the framing-recall
 file filter learn `.fits`. `doStackFile` refuses a FITS path **in the
 log and on the status line** if AutoStakkert turns out not to read it,
 rather than launching and failing.
@@ -205,10 +211,12 @@ fuzzer. A swap applied twice and a dropped `BZERO` must both fail.
 | The swap's time per frame, read from `[PERF]` | RAW16 at 3840x2160 is about 16.6 MB per frame | Stated in the status row. If it costs frames, the swap gets vectorised before the phase closes |
 | RAW8 FITS, same run | SER | No measurable difference |
 
-**An independent validator.** `astropy` is not installed here, and
-`fitsverify` is not on the path. A throwaway Python environment with
-`astropy` opens one real cube and verifies it. That is a one-off check,
-not a merge gate, so the test suite gains no Python dependency.
+**An independent validator: done 2026-11-01.** A throwaway Python
+environment with `astropy` 8.0.2 opened an 8-bit and a 16-bit cube from
+the real `FITSWriter`. `verify('exception')` was clean, every pixel
+matched, 16-bit rescaled to `uint16`, and the `FRAMES` table read back
+at the written spacing. It was a one-off check, not a merge gate, so the
+test suite gains no Python dependency.
 
 **Owed to the owner, in the running app** (the `ask-user-for-in-app-tests`
 rule, a step list at the end of the phase):

@@ -15,6 +15,7 @@
 
 #include "WriteBuffer.h"
 #include "SERWriter.h"
+#include "FITSWriter.h"
 #include "SessionLog.h"
 #include "FrameSlot.h"
 #include "Sharpness.h"
@@ -33,6 +34,7 @@
 namespace raduk::core {
 
 enum class LimitType { Frames, Time };
+enum class CaptureFormat { SER, FITS };
 
 struct CaptureConfig {
     std::string outputDir   = Paths::Captures();
@@ -42,6 +44,7 @@ struct CaptureConfig {
     uint32_t    limitFrames = 1000;
     double      limitTimeSec = 60.0;
     int         writeBufferSlots = 512;
+    CaptureFormat format = CaptureFormat::SER;
 };
 
 struct CaptureStatus {
@@ -87,7 +90,7 @@ public:
     }
 
     // Phase 48: who fills in the observation record. Called on the
-    // thread that calls StartRecording(), just after the SER opens,
+    // thread that calls StartRecording(), just before the file opens,
     // and expected to fill in what only the app knows -- target,
     // profile, exposure, gain, focuser, mount position. The manager
     // adds the file, the format and the run's own numbers itself, so
@@ -101,11 +104,11 @@ public:
 
     // ── Recording control ──────────────────────────────────────
 
-    // Start recording. Allocates write buffer, opens SER file, starts writer thread.
+    // Start recording. Allocates write buffer, opens the file, starts writer thread.
     // frameSizeBytes: expected bytes per frame (width * height * (bitDepth/8))
     bool StartRecording(int width, int height, int bitDepth);
 
-    // Stop recording. Drains remaining write buffer, closes SER file.
+    // Stop recording. Drains remaining write buffer, closes the file.
     void StopRecording(bool normal = true);
 
     // ── Frame submission ───────────────────────────────────────
@@ -258,6 +261,7 @@ private:
     std::function<void(const std::string&)> m_logFn;
     void Say(const std::string& s) const { if (m_logFn) m_logFn("[CAPTURE] " + s); }
     SERWriter       m_ser;
+    FITSWriter      m_fits;
     ICaptureWriter* m_writer = &m_ser;
     SessionLog*     m_log = nullptr;
     CaptureStatus   m_status;

@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 #include <windows.h>
+#include "ObservationRecord.h"
 #include "Timestamp.h"
 
 namespace raduk::core {
@@ -233,6 +234,11 @@ public:
     // 0 = unknown.
     virtual bool WriteFrame(const uint8_t* data, size_t sizeBytes,
                             uint64_t timestampUs, float sharpness) = 0;
+
+    // The run's whole record, handed over just before Close(). A
+    // format that keeps its metadata inside the file overrides this;
+    // a SER has nowhere to put it.
+    virtual void NoteObservation(const ObservationRecord&) {}
 
     // Finalize the file and write the quality sidecar.
     virtual bool Close() = 0;

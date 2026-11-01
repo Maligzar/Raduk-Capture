@@ -73,15 +73,11 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
         }
     }
 
-    // Open SER writer
-    if (!m_writer->Open(path, width, height, bitDepth, true)) {
-        { char b[512]; snprintf(b, sizeof(b), "Failed to open SER: %s", path.c_str()); Say(b); }
-        return false;
-    }
-
     // Phase 48: the observation record, snapshotted at the start --
     // where the mount was pointing when the run began is the framing
     // worth returning to, not wherever it had drifted to by the end.
+    // Ahead of the file, because it says whether the frames are Bayer
+    // and the file has to be told that as it opens.
     m_obs = ObservationRecord{};
     {
         const size_t slash = path.find_last_of("\\/");
@@ -92,8 +88,15 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     m_obs.width     = width;
     m_obs.height    = height;
     m_obs.bitDepth  = bitDepth;
-    m_obs.colour    = "RGGB";   // what Open() was told, above
+    m_obs.colour    = "RGGB";   // the source corrects it from the camera
     if (m_obsSource) m_obsSource(m_obs);
+
+    m_writer = (m_config.format == CaptureFormat::FITS)
+             ? static_cast<ICaptureWriter*>(&m_fits) : &m_ser;
+    if (!m_writer->Open(path, width, height, bitDepth, m_obs.colour != "MONO")) {
+        { char b[512]; snprintf(b, sizeof(b), "Failed to open capture file: %s", path.c_str()); Say(b); }
+        return false;
+    }
 
     // Reset stats
     m_status.framesRecorded.store(0);
@@ -176,6 +179,7 @@ void CaptureManager::StopRecording(bool normal) {
     }
 
     // Close the writer (finalizes the file, writes the quality sidecar)
+    m_writer->NoteObservation(m_obs);
     m_writer->Close();
     WriteObservationRecord();
 
@@ -392,10 +396,11 @@ std::string CaptureManager::BuildFilePath(int width, int height, int bitDepth) {
     int run = 1;
     while (true) {
         char name[256];
-        sprintf_s(name, "%s_%s_%s_%dx%d_%dbit_%04d.ser",
+        sprintf_s(name, "%s_%s_%s_%dx%d_%dbit_%04d.%s",
             m_config.filePrefix.c_str(), timebuf,
             m_config.frameType.c_str(),
-            width, height, bitDepth, run);
+            width, height, bitDepth, run,
+            m_config.format == CaptureFormat::FITS ? "fits" : "ser");
         std::string path = m_config.outputDir + "\\" + name;
         FILE* f = nullptr;
         if (fopen_s(&f, path.c_str(), "rb") != 0) return path; // doesn't exist

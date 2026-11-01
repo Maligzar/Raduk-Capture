@@ -3817,6 +3817,9 @@ static int RunApp(bool useEmulator) {
             if (cam.GetRegion(w, h, bin, it)) r.bin = bin;
             int sx = -1, sy = -1;
             if (cam.GetStartPos(sx, sy)) { r.roiX = sx; r.roiY = sy; }
+            const CameraInfo ci = cam.Describe();
+            r.colour = BayerName(ci.bayer);
+            if (ci.pixelSizeUm > 0.0) r.pixelUm = ci.pixelSizeUm;
         }
         if (focuser.IsOpen()) {
             r.focuserPos   = focuser.GetPosition();

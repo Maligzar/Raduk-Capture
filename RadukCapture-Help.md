@@ -440,6 +440,7 @@ capture format.
 | `[?]` | `?` | Toggle this Help window |
 | `[AI]` | — | Toggle the AI assistant chat panel |
 | `[FOLLOW]` | — | **ROI following.** While a target is locked on a crop, the app moves the ROI on the sensor to hold it, and the mount slowly brings the window back. The setting is saved. If the camera does not apply moves during capture, it stops and tells you |
+| `[DEROT]` | — | **Derotation limit.** Each recording of a planet or the Sun is told how long it has before rotation blurs detail, from tonight's apparent size and the aperture. Jupiter on this telescope is about three minutes. `WARN` warns when that passes, `STOP` ends the run there. Saved. The Moon has no limit |
 | `[STACK]` | `K` | Stack the last finished recording. A SER runs hidden and exits; a FITS file opens in AutoStakkert's window |
 | `[DASH]` | — | **Open the browser dashboard, already signed in.** It connects to this PC by itself; see **The browser dashboard** |
 | `FULL` | — | **Whole sensor, 3840x2160** - the widest field, and the way back from any crop |
@@ -1473,6 +1474,8 @@ compare.**
 `Jupiter_20260322_213045_Light_3840x2160_8bit_0001.ser`
 
 `prefix _ timestamp _ frametype _ WxH _ bitdepth _ runnumber .ser`
+
+When a Light finishes, the middle of the run in UT goes on the front so WinJUPOS can read it: `2026-03-22-2130_4-Jupiter_20260322_213045_Light_3840x2160_8bit_0001.ser`. The last digit is tenths of a minute. `WinJuposNames=0` in `rig.ini` turns this off.
 
 A `_quality.txt` file is written alongside each SER with per-frame sharpness scores, mean, and peak.
 

@@ -69,6 +69,11 @@ struct CaptureConfig {
     double      limitTimeSec = 60.0;
     int         writeBufferSlots = 512;
     CaptureFormat format = CaptureFormat::SER;
+    // Phase 108. Stop a run this far in, whatever the other limit says.
+    // 0 never stops. Set per run, because it depends on the target.
+    double      derotationStopSec = 0.0;
+    // Rename a finished Light for WinJUPOS when it closes.
+    bool        winJuposNames = false;
 };
 
 struct CaptureStatus {
@@ -196,6 +201,8 @@ public:
     // Set when a frame or time limit was reached. The render loop polls
     // this and calls StopRecording() on its own thread.
     bool LimitReached() const { return m_limitReached.load(std::memory_order_relaxed); }
+    // Phase 108: and it was the derotation window that did it.
+    bool DerotationStopped() const { return m_derotationStopped.load(std::memory_order_relaxed); }
 
     bool SubmitFrame(const FrameSlot* slot, float sharpness = 0.0f,
                      uint32_t cropCX = 0, uint32_t cropCY = 0);
@@ -317,6 +324,7 @@ private:
     double    m_lastKnownFps = 0.0;
     std::atomic<bool>     m_gateOpen{true};
     std::atomic<bool>     m_limitReached{false};
+    std::atomic<bool>     m_derotationStopped{false};
     std::atomic<uint32_t> m_hintCX{0}, m_hintCY{0};
     std::atomic<float>    m_hintSharp{0.0f};
     int       m_frameWidth  = 0;

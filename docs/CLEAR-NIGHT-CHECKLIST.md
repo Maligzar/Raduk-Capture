@@ -1014,3 +1014,15 @@ For contrast, so this list is not read as "nothing works":
     apply during capture on this camera, and following needs a different
     route. If it held, note the slowest landing in frames, and check the
     frame rate did not fall while the window was moving.
+
+32. **The derotation limit and WinJUPOS names** (phase 108). No sky
+    needed for the first half. In the app, record Jupiter: the
+    notification bar should give the window, about three minutes when
+    Jupiter is near 44 arcsec, and warn when it passes. Press
+    `[DEROT]` to `STOP` and the next run should end there. The toolbar
+    should still fit, with `EXIT` in place. The finished file should
+    start with the run's middle in UT, like `2026-11-01-2130_4-`, with
+    its `_quality.txt` and `_observation.txt` beside it, and `Shift+G`
+    and `[STACK]` should still find it. Then open it in WinJUPOS, which
+    should fill in the date and time from the name: the format comes
+    from forum reports, not from WinJUPOS's own documentation.

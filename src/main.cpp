@@ -101,6 +101,7 @@
 #include "profiles/ProfileManager.h"
 #include "core/AutofocusRoutine.h"
 #include "core/ADCAssistant.h"
+#include "core/DerotationLimit.h"
 #include "core/AutoExposureAssistant.h"
 
 using namespace raduk::core;
@@ -1605,6 +1606,11 @@ static int RunApp(bool useEmulator) {
     // Each panel is its own recording, which is what a stacker wants:
     // eighteen files to register separately and then join, not one
     // file containing eighteen different parts of the Moon.
+    // Phase 108: this run's window, worked out when it starts. 0 is none.
+    double      derotWindowSec = 0.0;
+    bool        derotWarned    = false;
+    std::string derotBody;
+
     gotoPanel.SetMosaicCapture(
         [&](int ordinal, int total) -> bool {
             if (capturer.IsRecording()) {
@@ -1616,6 +1622,14 @@ static int RunApp(bool useEmulator) {
             // us rather than what was asked for, which is the whole
             // reason it exists and the reason the RECORD button was
             // wrong about it once already.
+            //
+            // Phase 108: the config still holds the last planet's window.
+            derotWindowSec = 0.0;
+            {
+                CaptureConfig mc = capturer.Config();
+                mc.derotationStopSec = 0.0;
+                capturer.SetConfig(mc);
+            }
             if (!capturer.StartRecording(roiWidth, roiHeight, roiBits)) {
                 Log("[MOSAIC] StartRecording failed on panel %d\n", ordinal);
                 return false;
@@ -3774,6 +3788,29 @@ static int RunApp(bool useEmulator) {
             cfg.limitTimeSec  = controls.GetLimitTimeSec();
             cfg.limitType     = controls.GetLimitByFrames()
                                     ? LimitType::Frames : LimitType::Time;
+
+            // Phase 108: how long this target has before rotation blurs it.
+            const auto& rig = raduk::core::RigConfig::Get();
+            derotWindowSec = 0.0;
+            derotWarned    = false;
+            derotBody.clear();
+            if (cfg.frameType == "Light") {
+                std::string tgt = gotoPanel.CurrentTarget();
+                if (tgt.empty())
+                    if (const auto* ap = profiles.Active()) tgt = ap->name;
+                if (const auto* b = raduk::core::FindRotatingBody(tgt)) {
+                    const auto sz = raduk::sky::PlanetApparentSizeAt(
+                        b->name, raduk::sky::CurrentJD());
+                    if (sz.valid) {
+                        derotBody      = b->name;
+                        derotWindowSec = raduk::core::DerotationWindowSec(
+                            sz.discArcsec, b->periodSec,
+                            raduk::core::RayleighArcsec(rig.apertureMm));
+                    }
+                }
+            }
+            cfg.derotationStopSec = rig.derotationStop ? derotWindowSec : 0.0;
+            cfg.winJuposNames     = rig.winJuposNames;
             capturer.SetConfig(cfg);
             CreateDirectoryA(cfg.outputDir.c_str(), nullptr);
 
@@ -3795,6 +3832,15 @@ static int RunApp(bool useEmulator) {
                 usbMgr.SetCapturing(true);
                 slog.System("USB capture mode — %s", usbMgr.StatusString());
                 Log("[USB] Throttling EAF+mount: %s\n", usbMgr.StatusString());
+                if (derotWindowSec > 0.0) {
+                    Log("[DEROT] %s: %.0f s window, %s\n", derotBody.c_str(),
+                        derotWindowSec, rig.derotationStop ? "stop" : "warn");
+                    wchar_t msg[128];
+                    swprintf(msg, 128, L"%hs: rotation blurs detail after %.1f min (%ls)",
+                             derotBody.c_str(), derotWindowSec / 60.0,
+                             rig.derotationStop ? L"the run stops there" : L"it will warn");
+                    notifBar.NotifyInfo(msg);
+                }
                 // Phase 25: disable FX on recording start — capture raw frames
                 if (preview.GetDisplayFX() != DisplayFX::Normal) {
                     preview.SetDisplayFX(DisplayFX::Normal);
@@ -4932,6 +4978,18 @@ static int RunApp(bool useEmulator) {
             ? L"ROI following on - it runs once the planet is locked on a crop"
             : L"ROI following off");
     });
+    toolbar.SetDerotLabel(raduk::core::RigConfig::Get().derotationStop
+                              ? L"[DEROT] STOP" : L"[DEROT] WARN");
+    toolbar.SetDerotCallback([&]() {
+        auto& rig = raduk::core::RigConfig::Get();
+        rig.derotationStop = !rig.derotationStop;
+        rig.SaveDerotationStop();
+        toolbar.SetDerotLabel(rig.derotationStop ? L"[DEROT] STOP"
+                                                 : L"[DEROT] WARN");
+        notifBar.NotifyInfo(rig.derotationStop
+            ? L"Runs now stop at the derotation window, from the next recording"
+            : L"Runs now only warn at the derotation window, from the next recording");
+    });
     // Phase 49: Help toggle — toolbar [?] button and ? key
     auto doHelp = [&]() { helpWindow.Toggle(); };
     toolbar.SetHelpCallback([&]()       { doHelp(); });
@@ -5345,8 +5403,19 @@ static int RunApp(bool useEmulator) {
             // Phase 98: through endRecording, so the limit path restores
             // USB polling like every other stop. It did not, and the EAF
             // and mount stayed throttled afterwards.
-            if (capturer.LimitReached())
-                endRecording(true, "frame/time limit reached");
+            if (capturer.LimitReached()) {
+                const bool derot = capturer.DerotationStopped();
+                endRecording(true, derot ? "derotation window"
+                                         : "frame/time limit reached");
+                if (derot)
+                    notifBar.NotifyInfo(L"Run stopped at the derotation window");
+            } else if (derotWindowSec > 0.0 && !derotWarned &&
+                       capturer.ElapsedSec() >= derotWindowSec) {
+                derotWarned = true;
+                Log("[DEROT] window passed at %.0f s\n", capturer.ElapsedSec());
+                notifBar.NotifyWarn(L"Past the derotation window - rotation is "
+                                    L"blurring this run, unless you derotate it");
+            }
         }
 
         // Submit to frame analyzer (non-blocking, always)

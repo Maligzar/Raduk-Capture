@@ -1064,3 +1064,37 @@ For contrast, so this list is not read as "nothing works":
     do what they did. In a dark room with night vision on, idle, the amber
     outline and the lit bar should be told apart at a glance, and no
     button should be brighter than the rest of the screen wants.
+
+35. **The camera controls** (phase 112). Emulator first. Open CAMERA and
+    the values should match the log's `[CAMERA] startup` line, not gain
+    100. Type into each of the six boxes: Enter applies, Escape restores,
+    `900` in gain shows 570, `abc` restores. Gamma 100 should visibly
+    lift the image, and WB red should redden it. Start `RADUK_EMU_NO_GAMMA=1`
+    and gamma should grey out and read `n/a`. Record a short run and read
+    the record beside it for `gamma`, `wb_red`, `wb_blue`, `usb_bandwidth`,
+    `high_speed` and `ae_mode`. Press AUTO FOCUS with AE off: the button
+    should read `AE AUTO`, CAMERA should open, the status line should
+    say it is settling, the sliders should move, `AE: held for autofocus`
+    should show during the sweep, and AE should stay on after. Abort
+    during the settling too. Load Saturn with AE AUTO: exposure should
+    stop near 20 ms and gain should take over. On the camera: read the `[CAMERA] control`
+    lines, which say whether this camera has gamma at all. Then record
+    the same scene in RAW16 at WB red 50 and 75 and compare red means,
+    which says whether white balance reaches raw data. On a planet, note
+    where AE settles and the sharpness there: the knees of 20 ms and gain
+    350 in `RailsFor` are guesses, and this is what tests them.
+
+36. **A sequence of runs** (phase 113). Emulator first: load Jupiter, set
+    `AutorunRuns=3` in `rig.ini`, centre it, press `RUNS`. The button
+    should light as `#1`, autofocus should run first, then a run that
+    stops at the derotation window even with `[DEROT]` on `WARN`, then a
+    15 s gap, then `#2`. `[AUTORUN]` log lines should show each step and an
+    `end:` line should give the count. Press `RUNS`, RECORD and Escape
+    during a run on separate tries: each should stop the sequence and
+    close the file, and nothing should start afterwards. Slew away during
+    a gap: it should wait two minutes and stop, saying why. On the sky:
+    run a real sequence on a planet and read the focus positions and
+    exposures across it, and whether the gap gives AE enough time. On the
+    Moon, see whether a full frame still counts as the target being seen,
+    because that is what the check asks.
+

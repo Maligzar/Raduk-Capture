@@ -61,9 +61,20 @@ public:
     void UpdateSlider(bool isExposure, int val);
     // Phase 98: one exposure formatter, shared. See the .cpp.
     static void FormatExposure(wchar_t* buf, size_t n, double ms);
-    void CommitTypedExposure();
-    static LRESULT CALLBACK ExposureEditProc(HWND, UINT, WPARAM, LPARAM,
-                                            UINT_PTR, DWORD_PTR);
+    // Phase 112: every camera box goes through these two.
+    void CommitTypedField(HWND edit);
+    void ShowFieldFromSlider(HWND edit);
+    static LRESULT CALLBACK CameraEditProc(HWND, UINT, WPARAM, LPARAM,
+                                           UINT_PTR, DWORD_PTR);
+
+    // Phase 112: the panel shows what the camera is doing. Reads the
+    // camera, never writes it. Call after anything that changed a
+    // control without going through the panel.
+    void SyncFromCamera();
+    // Phase 112: for whatever wants the sliders watched.
+    void ShowCameraSection() {
+        if (IsCollapsed(Section::Camera)) ToggleCollapse(Section::Camera);
+    }
 
     // Called each render tick with latest frame analysis.
     // Point the TELESCOPE card's GoTo box at an object.
@@ -205,8 +216,11 @@ public:
     void SetAECallback(std::function<void(bool enabled, bool autoApply)> cb) {
         m_onAEToggle = cb;
     }
+    // Cached as well, because expanding a section rebuilds the label
+    // and the rebuilt one said "AE: off" while auto-exposure ran on.
     void SetAEStatus(const wchar_t* msg) {
-        if (m_lblAEStatus) SetWindowTextW(m_lblAEStatus, msg ? msg : L"");
+        m_aeStatus = msg ? msg : L"";
+        if (m_lblAEStatus) SetWindowTextW(m_lblAEStatus, m_aeStatus.c_str());
     }
     // state: 0=off, 1=advisory, 2=auto
     void SetAEState(int state) {
@@ -683,12 +697,16 @@ private:
 
     // ── Camera controls ────────────────────────────────────────
     HWND m_sliderGain = nullptr, m_sliderExposure = nullptr;
-    // Phase 98: the exposure readout IS an edit box now, so an exact
-    // value can be typed. m_lblExpVal is left declared and null -- the
-    // callers that wrote to it are guarded rather than deleted, since
-    // a label and a box showing the same number is two things to
-    // disagree.
-    HWND m_editExposure = nullptr;
+    // Phase 98 made the exposure readout an edit box; phase 112 did the
+    // same for the rest, so the read-only value labels are gone. A
+    // label and a box showing one number is two things to disagree.
+    HWND m_editExposure = nullptr, m_editGain = nullptr;
+    HWND m_editGamma = nullptr, m_editWBR = nullptr;
+    HWND m_editWBB = nullptr, m_editUSB = nullptr;
+    HWND SliderFor(HWND edit) const;
+    HWND EditFor(HWND slider) const;
+    void ApplyToCamera(HWND slider, int pos);
+    HWND MakeCameraEdit(int x, int y, int w, int h, int id, const wchar_t* text);
     // Set while the operator is dragging a slider, so auto-exposure
     // does not write to the thumb under their hand.
     HWND m_draggingSlider = nullptr;
@@ -697,9 +715,6 @@ private:
     HWND m_sliderWBB = nullptr, m_sliderUSB = nullptr;
     HWND m_btnAEAuto = nullptr;   // Phase 12: AE mode toggle
     HWND m_lblAEStatus = nullptr; // Phase 12: AE status text
-    HWND m_lblGainVal = nullptr, m_lblExpVal = nullptr;
-    HWND m_lblGammaVal = nullptr, m_lblWBRVal = nullptr;
-    HWND m_lblWBBVal = nullptr, m_lblUSBVal = nullptr;
 
     // ── Focuser controls ───────────────────────────────────────
     HWND m_lblFocusPos = nullptr, m_lblFocusTemp = nullptr;
@@ -815,8 +830,8 @@ private:
         ID_BTN_AE_AUTO, ID_LBL_AE_STATUS,
         // Phase 98: the camera section had no numeric entry at all.
         ID_EDIT_EXPOSURE,
-        ID_LBL_GAIN_VAL = 1100, ID_LBL_GAMMA_VAL,
-        ID_LBL_WBR_VAL, ID_LBL_WBB_VAL, ID_LBL_USB_VAL,
+        ID_EDIT_GAIN = 1100, ID_EDIT_GAMMA,
+        ID_EDIT_WBR, ID_EDIT_WBB, ID_EDIT_USB,
         ID_LBL_FOCUS_POS = 1200, ID_LBL_FOCUS_TEMP, ID_EDIT_FOCUS_GOTO,
         ID_BTN_FOCUS_IN5000 = 1300, ID_BTN_FOCUS_IN1000,
         ID_BTN_FOCUS_OUT1000, ID_BTN_FOCUS_OUT5000,
@@ -908,6 +923,7 @@ private:
     std::function<void()>                   m_onCalClear;
     std::function<void()>                   m_onChannelCycle;
     int                                     m_aeState = 0;  // 0=off, 1=advisory, 2=auto
+    std::wstring                            m_aeStatus = L"AE: off";
 };
 
 } // namespace raduk::gui

@@ -277,6 +277,9 @@ inline std::string BuildHeader(const ObservationRecord& r,
     if (ObsKnown(r.exposureMs))
         add(CardReal("EXPTIME", r.exposureMs / 1000.0, 6, "per frame, s"));
     addReal("GAIN", r.gain, 2, "camera gain");
+    addReal("GAMMA",  r.gamma,  0, "camera gamma, 50 neutral");
+    addReal("WB_RED", r.wbRed,  0, "camera white balance, red");
+    addReal("WB_BLUE", r.wbBlue, 0, "camera white balance, blue");
     if (r.bin > 0) {
         add(CardInt("XBINNING", r.bin));
         add(CardInt("YBINNING", r.bin));

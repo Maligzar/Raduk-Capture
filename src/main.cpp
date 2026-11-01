@@ -102,6 +102,7 @@
 #include "core/AutofocusRoutine.h"
 #include "core/ADCAssistant.h"
 #include "core/DerotationLimit.h"
+#include "core/AutorunRunner.h"
 #include "core/AutoExposureAssistant.h"
 
 using namespace raduk::core;
@@ -859,6 +860,11 @@ static int RunApp(bool useEmulator) {
     // ── EAF ────────────────────────────────────────────────────
     EAFFocuser focuser;
     raduk::core::AutofocusRoutine autofocus;
+    // Up here because the observation record states its mode.
+    raduk::core::AutoExposureAssistant ae;
+    // Phase 112: autofocus has been asked for and AE is settling first.
+    bool afWaitingForAE = false;
+    auto afWaitStart = std::chrono::steady_clock::now();
 #ifdef RADUK_EMULATOR
     focuser.Open(0);
     Log("[INIT] EAF emulated — pos=%d\n", focuser.GetPosition());
@@ -1369,6 +1375,21 @@ static int RunApp(bool useEmulator) {
             (int)cam.GetControlValue(ControlId::WhiteBalanceRed),
             (int)cam.GetControlValue(ControlId::WhiteBalanceBlue),
             (int)cam.GetControlValue(ControlId::UsbBandwidth));
+        // Phase 112: what this camera offers, in the log, because which
+        // controls an SDK lists is a fact about the SDK and the camera
+        // together and nothing else can say. Gamma is why.
+        for (ControlId id : { ControlId::Gain, ControlId::ExposureUs,
+                              ControlId::Gamma, ControlId::WhiteBalanceRed,
+                              ControlId::WhiteBalanceBlue,
+                              ControlId::UsbBandwidth }) {
+            ControlRange r;
+            if (cam.GetControlRange(id, r))
+                Log("[CAMERA] control %d: %ld to %ld, default %ld, %s\n",
+                    (int)id, r.min, r.max, r.defaultVal,
+                    r.writable ? "writable" : "read only");
+            else
+                Log("[CAMERA] control %d: NOT LISTED by this camera\n", (int)id);
+        }
     }
 
     // ── Toolbar strip (Win32 native buttons above preview) ─────
@@ -1613,6 +1634,14 @@ static int RunApp(bool useEmulator) {
     double      derotWindowSec = 0.0;
     bool        derotWarned    = false;
     std::string derotBody;
+
+    // Phase 113: a sequence of runs. It presses the same RECORD and the
+    // same autofocus as a person does, so a press from it has to be told
+    // apart from a person's, which stops it.
+    raduk::core::AutorunRunner autorun;
+    bool autorunPressing = false;
+    bool autorunShown    = false;
+    std::atomic<bool> autorunFocusFailed{false};
 
     gotoPanel.SetMosaicCapture(
         [&](int ordinal, int total) -> bool {
@@ -2481,7 +2510,11 @@ static int RunApp(bool useEmulator) {
             p->gain         = (int)cam.GetControlValue(ControlId::Gain);
             // SDK exposure is microseconds; the profile stores ms.
             p->exposureMs   = (double)cam.GetControlValue(ControlId::ExposureUs) / 1000.0;
-            p->gamma        = (int)cam.GetControlValue(ControlId::Gamma);
+            // Not from a camera that has no gamma control: GetControl
+            // answers 0 for those, and the profile's own value is better.
+            ControlRange gammaCaps;
+            if (cam.GetControlRange(ControlId::Gamma, gammaCaps))
+                p->gamma    = (int)cam.GetControlValue(ControlId::Gamma);
             p->wbRed        = (int)cam.GetControlValue(ControlId::WhiteBalanceRed);
             p->wbBlue       = (int)cam.GetControlValue(ControlId::WhiteBalanceBlue);
             p->usbBandwidth = (int)cam.GetControlValue(ControlId::UsbBandwidth);
@@ -3507,6 +3540,7 @@ static int RunApp(bool useEmulator) {
             usbMgr.SetCapturing(false);
         }
         if (tracker.IsRunning()) tracker.Reset();
+        afWaitingForAE = false;
         autofocus.Abort();
 
         if (mountProxy.IsConnected()) {
@@ -3777,8 +3811,36 @@ static int RunApp(bool useEmulator) {
             why ? why : "manual", usbMgr.StatusString());
     };
 
+    // Phase 108: how long this target has before rotation blurs it.
+    auto workOutDerotWindow = [&](const std::string& frameType) {
+        derotWindowSec = 0.0;
+        derotWarned    = false;
+        derotBody.clear();
+        if (frameType != "Light") return;
+        std::string tgt = gotoPanel.CurrentTarget();
+        if (tgt.empty())
+            if (const auto* ap = profiles.Active()) tgt = ap->name;
+        if (const auto* b = raduk::core::FindRotatingBody(tgt)) {
+            const auto sz = raduk::sky::PlanetApparentSizeAt(
+                b->name, raduk::sky::CurrentJD());
+            if (sz.valid) {
+                derotBody      = b->name;
+                derotWindowSec = raduk::core::DerotationWindowSec(
+                    sz.discArcsec, b->periodSec,
+                    raduk::core::RayleighArcsec(
+                        raduk::core::RigConfig::Get().apertureMm));
+            }
+        }
+    };
+
     // ── Record toggle — also notifies USB manager ──────────────
     auto doRecord = [&]() {
+        // Phase 113: RECORD during a sequence stops the sequence, and the
+        // next tick closes the file.
+        if (autorun.Running() && !autorunPressing) {
+            autorun.Abort("stopped with RECORD");
+            return;
+        }
         if (capturer.IsRecording()) {
             endRecording(true, "operator");
         } else {
@@ -3793,27 +3855,12 @@ static int RunApp(bool useEmulator) {
             cfg.limitType     = controls.GetLimitByFrames()
                                     ? LimitType::Frames : LimitType::Time;
 
-            // Phase 108: how long this target has before rotation blurs it.
             const auto& rig = raduk::core::RigConfig::Get();
-            derotWindowSec = 0.0;
-            derotWarned    = false;
-            derotBody.clear();
-            if (cfg.frameType == "Light") {
-                std::string tgt = gotoPanel.CurrentTarget();
-                if (tgt.empty())
-                    if (const auto* ap = profiles.Active()) tgt = ap->name;
-                if (const auto* b = raduk::core::FindRotatingBody(tgt)) {
-                    const auto sz = raduk::sky::PlanetApparentSizeAt(
-                        b->name, raduk::sky::CurrentJD());
-                    if (sz.valid) {
-                        derotBody      = b->name;
-                        derotWindowSec = raduk::core::DerotationWindowSec(
-                            sz.discArcsec, b->periodSec,
-                            raduk::core::RayleighArcsec(rig.apertureMm));
-                    }
-                }
-            }
-            cfg.derotationStopSec = rig.derotationStop ? derotWindowSec : 0.0;
+            workOutDerotWindow(cfg.frameType);
+            // Phase 113: a sequence always stops at the window. A run
+            // past it is what a sequence exists to prevent.
+            const bool stopAtWindow = rig.derotationStop || autorun.Running();
+            cfg.derotationStopSec = stopAtWindow ? derotWindowSec : 0.0;
             cfg.winJuposNames     = rig.winJuposNames;
             capturer.SetConfig(cfg);
             CreateDirectoryA(cfg.outputDir.c_str(), nullptr);
@@ -3838,11 +3885,11 @@ static int RunApp(bool useEmulator) {
                 Log("[USB] Throttling EAF+mount: %s\n", usbMgr.StatusString());
                 if (derotWindowSec > 0.0) {
                     Log("[DEROT] %s: %.0f s window, %s\n", derotBody.c_str(),
-                        derotWindowSec, rig.derotationStop ? "stop" : "warn");
+                        derotWindowSec, stopAtWindow ? "stop" : "warn");
                     wchar_t msg[128];
                     swprintf(msg, 128, L"%hs: rotation blurs detail after %.1f min (%ls)",
                              derotBody.c_str(), derotWindowSec / 60.0,
-                             rig.derotationStop ? L"the run stops there" : L"it will warn");
+                             stopAtWindow ? L"the run stops there" : L"it will warn");
                     notifBar.NotifyInfo(msg);
                 }
                 // Phase 25: disable FX on recording start — capture raw frames
@@ -3873,8 +3920,17 @@ static int RunApp(bool useEmulator) {
             normal ? 1 : 0,
             raduk::core::RigConfig::Get().autoStackOnStop ? 1 : 0,
             path.empty() ? "(empty)" : path.c_str());
+        // Phase 113: anything but a normal end stops a sequence, whoever
+        // did it: Escape, a format change, the hardware going away.
+        if (!normal) autorun.Abort("a recording was stopped from outside");
         if (!normal) return;
         if (!raduk::core::RigConfig::Get().autoStackOnStop) return;
+        // Stacking takes minutes of CPU, and the next run is seconds away.
+        if (autorun.Running()) {
+            Log("[STACK] auto-stack passes over a run in a sequence: %s\n",
+                path.c_str());
+            return;
+        }
         // Auto-stack is unattended, and a FITS cube only stacks with
         // someone at AutoStakkert's window. Do not throw one up over the
         // session when a recording ends.
@@ -3901,6 +3957,19 @@ static int RunApp(bool useEmulator) {
         if (cam.IsOpen()) {
             r.exposureMs = cam.GetControlValue(ControlId::ExposureUs) / 1000.0;
             r.gain       = (double)cam.GetControlValue(ControlId::Gain);
+            // Phase 112: the rest of what shapes the pixels. Only what
+            // the camera lists, so a control it does not have is
+            // omitted rather than recorded as 0.
+            ControlRange caps;
+            if (cam.GetControlRange(ControlId::Gamma, caps))
+                r.gamma = (double)cam.GetControlValue(ControlId::Gamma);
+            if (cam.GetControlRange(ControlId::WhiteBalanceRed, caps))
+                r.wbRed = (double)cam.GetControlValue(ControlId::WhiteBalanceRed);
+            if (cam.GetControlRange(ControlId::WhiteBalanceBlue, caps))
+                r.wbBlue = (double)cam.GetControlValue(ControlId::WhiteBalanceBlue);
+            r.usbBandwidth = (double)cam.GetControlValue(ControlId::UsbBandwidth);
+            r.highSpeed = cam.GetControlValue(ControlId::HighSpeedMode) != 0 ? 1 : 0;
+            r.aeMode = ae.IsEnabled() ? (ae.IsAuto() ? "auto" : "advisory") : "off";
             int w = 0, h = 0, bin = 0; ImageType it{};
             if (cam.GetRegion(w, h, bin, it)) r.bin = bin;
             int sx = -1, sy = -1;
@@ -3989,27 +4058,50 @@ static int RunApp(bool useEmulator) {
             controls.SetAutofocusStatus(buf);
             slog.Focuser("AutoFocus failed: %s", result.message.c_str());
             Log("[AF] Failed: %s\n", result.message.c_str());
+            autorunFocusFailed.store(true);
         }
     });
+
+    // ── Phase 112: autofocus runs with auto-exposure, visibly ──
+    //
+    // The owner's call: focus is judged by measurement, and the user
+    // should see that happening. So every way of starting autofocus
+    // comes through here. AE goes to AUTO on the panel, CAMERA opens so
+    // the sliders can be watched, and the sweep starts once AE has
+    // nothing left to do. AE then holds for the sweep (SetHold), because
+    // the sharpness score goes as the square of the signal, and resumes
+    // afterwards. It stays on: the sharper disc is brighter, and that
+    // correction is the point of leaving it running.
+    auto startAutofocus = [&]() {
+        if (!focuser.IsOpen()) {
+            controls.SetAutofocusStatus(L"No focuser connected");
+            return;
+        }
+        controls.ShowCameraSection();
+        controls.SetAEState(2);
+        ae.SetEnabled(true);
+        ae.SetAuto(true);
+        controls.SetAEStatus(L"AE: auto");
+        controls.SetAutofocusRunning(true);
+        controls.SetAutofocusStatus(L"AE AUTO on: settling exposure before focus");
+        Log("[AF] AE AUTO on; waiting for it to settle before the sweep\n");
+        afWaitingForAE = true;
+        afWaitStart = std::chrono::steady_clock::now();
+    };
+    auto abortAutofocus = [&]() {
+        afWaitingForAE = false;
+        autofocus.Abort();
+        controls.SetAutofocusRunning(false);
+        controls.SetAutofocusStatus(L"Aborted");
+    };
 
     // Button callback — toggles start/abort
     controls.SetAutofocusCallback([&](bool start) {
         if (start) {
-            if (!focuser.IsOpen()) {
-                controls.SetAutofocusStatus(L"No focuser connected");
-                return;
-            }
-            int pos = focuser.GetPosition();
-            Log("[AF] Starting V-curve scan from pos=%d\n", pos);
-            slog.Focuser("AutoFocus: starting from pos=%d", pos);
-            controls.SetAutofocusStatus(L"Starting...");
-            controls.SetAutofocusRunning(true);
-            autofocus.Start(pos);
+            startAutofocus();
         } else {
             Log("[AF] Abort requested\n");
-            autofocus.Abort();
-            controls.SetAutofocusRunning(false);
-            controls.SetAutofocusStatus(L"Aborted");
+            abortAutofocus();
         }
     });
 
@@ -4022,16 +4114,12 @@ static int RunApp(bool useEmulator) {
     // ── Phase 12: Auto-Exposure Assistant ─────────────────────
     capturer.SetLogCallback([](const std::string& s) { Log("%s\n", s.c_str()); });
 
-    raduk::core::AutoExposureAssistant ae;
     // Its running commentary was printf, which a GUI build throws away.
     // Needed on the night: AE deciding something odd is only debuggable
     // if it says what it decided and what it saw.
     ae.SetLogCallback([](const std::string& m) { Log("%s\n", m.c_str()); });
     {
         raduk::core::AutoExposureAssistant::Config aeCfg;
-        // ASI678MC HCG floor — never go below 182 in auto mode
-        aeCfg.gainMin   = raduk::profiles::CameraRails::GAIN_HCG_THRESHOLD;
-        aeCfg.gainMax   = 570;
         // ── Phase 100: from the rail, not a fourth literal ─────
         //
         // These two lines said 0.5 and 40.0, and enforcing the rails
@@ -4049,6 +4137,10 @@ static int RunApp(bool useEmulator) {
             raduk::profiles::CameraRails::RailsFor("planet");
         aeCfg.expMinMs  = planetRail.minMs;
         aeCfg.expMaxMs  = planetRail.maxMs;
+        aeCfg.expKneeMs = planetRail.expKneeMs;
+        aeCfg.gainMin   = planetRail.gainFloor;
+        aeCfg.gainKnee  = planetRail.gainKnee;
+        aeCfg.gainMax   = planetRail.gainMax;
         ae.SetConfig(aeCfg);
     }
     // ── Phase 100: the assistant's clamp follows the target ────
@@ -4062,12 +4154,18 @@ static int RunApp(bool useEmulator) {
     profileHooks.setAERails = [&](const TargetProfile& p) {
         auto cfg = ae.Config_();
         const auto rail = raduk::profiles::CameraRails::RailsFor(p.targetType);
-        if (cfg.expMinMs == rail.minMs && cfg.expMaxMs == rail.maxMs) return;
-        cfg.expMinMs = rail.minMs;
-        cfg.expMaxMs = rail.maxMs;
+        if (cfg.expMinMs == rail.minMs && cfg.expMaxMs == rail.maxMs &&
+            cfg.gainMin == rail.gainFloor) return;
+        cfg.expMinMs  = rail.minMs;
+        cfg.expMaxMs  = rail.maxMs;
+        cfg.expKneeMs = rail.expKneeMs;
+        cfg.gainMin   = rail.gainFloor;
+        cfg.gainKnee  = rail.gainKnee;
+        cfg.gainMax   = rail.gainMax;
         ae.SetConfig(cfg);
-        Log("[AE] exposure clamp now %.3g-%.3g ms for a '%s' target\n",
-            rail.minMs, rail.maxMs, p.targetType.c_str());
+        Log("[AE] ladder now %.3g-%.3g ms, knee %.3g ms, gain %d/%d/%d for "
+            "a '%s' target\n", rail.minMs, rail.maxMs, rail.expKneeMs,
+            rail.gainFloor, rail.gainKnee, rail.gainMax, p.targetType.c_str());
     };
 
     controls.SetAECallback([&](bool enabled, bool autoApply) {
@@ -4244,10 +4342,12 @@ static int RunApp(bool useEmulator) {
     // otherwise the guide loop restarts the mount within 250-500ms of the
     // user pressing STOP.
     auto doEmergencyStop = [&]() {
+        autorun.Abort("emergency stop");
         if (capturer.IsRecording()) {
             capturer.StopRecording(false);  // emergency stop - do not auto-stack
             usbMgr.SetCapturing(false);
         }
+        afWaitingForAE = false;
         autofocus.Abort();                // Phase 9: stop any running AF scan
         controls.SetAutofocusRunning(false);
         tracker.Reset();  // stops all stages, joins correction thread
@@ -4688,6 +4788,10 @@ static int RunApp(bool useEmulator) {
             Log("[MOSAIC] stopped by the operator\n");
             return;
         }
+        if (autorun.Running()) {
+            notifBar.NotifyWarn(L"A sequence of runs is going - stop it first");
+            return;
+        }
         // Whatever the capture profile currently names, resolved the
         // same way everything else resolves it, so "Moon - Copernicus"
         // starts a lunar mosaic.
@@ -4745,18 +4849,8 @@ static int RunApp(bool useEmulator) {
     });
     window.SetAutofocusToggleHandler([&]() {
         // A key: same as clicking the AF button — toggle start/abort
-        bool start = !autofocus.IsRunning();
-        if (start) {
-            if (!focuser.IsOpen()) return;
-            int pos = focuser.GetPosition();
-            controls.SetAutofocusStatus(L"Starting...");
-            controls.SetAutofocusRunning(true);
-            autofocus.Start(pos);
-        } else {
-            autofocus.Abort();
-            controls.SetAutofocusRunning(false);
-            controls.SetAutofocusStatus(L"Aborted");
-        }
+        if (autofocus.IsRunning() || afWaitingForAE) abortAutofocus();
+        else                                         startAutofocus();
     });
 
     // ── Startup visibility for the windows on their own screens ──
@@ -4991,6 +5085,53 @@ static int RunApp(bool useEmulator) {
             ? L"Runs now stop at the derotation window, from the next recording"
             : L"Runs now only warn at the derotation window, from the next recording");
     });
+
+    // ── Phase 113: a sequence of runs ─────────────────────────
+    //
+    // One press, where the mosaic wants a chord, because this never moves
+    // the mount. It stops on the same press.
+    toolbar.SetRunsCallback([&]() {
+        const double nowSec = std::chrono::duration<double>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        if (autorun.Running()) {
+            autorun.Abort("stopped by the operator");
+            return;
+        }
+        if (capturer.IsRecording() || gotoPanel.MosaicRunning() ||
+            autofocus.IsRunning() || afWaitingForAE) {
+            notifBar.NotifyWarn(L"Finish what is running first");
+            return;
+        }
+        const auto& rig = raduk::core::RigConfig::Get();
+        workOutDerotWindow(controls.GetFrameType());
+
+        raduk::core::AutorunRunner::Config c;
+        c.runs         = rig.autorunRuns;
+        c.gapSec       = rig.autorunGapSec;
+        c.refocusEvery = focuser.IsOpen() ? rig.autorunRefocusEvery : 0;
+        c.minAltDeg    = rig.autorunMinAltDeg;
+        c.runSec       = raduk::core::AutorunRunSec(
+            derotWindowSec, controls.GetLimitByFrames(),
+            controls.GetLimitFrames(), controls.GetLimitTimeSec(),
+            capture.Stats().fps.load());
+
+        autorunFocusFailed.store(false);
+        if (!autorun.Start(c, nowSec)) {
+            wchar_t msg[128];
+            swprintf(msg, 128, L"Runs not started: %hs", autorun.Reason().c_str());
+            notifBar.NotifyWarn(msg);
+            return;
+        }
+        Log("[AUTORUN] start: %d runs of %.0f s, gap %.0f s, focus every %d, "
+            "floor %.0f deg\n", c.runs, c.runSec, c.gapSec, c.refocusEvery,
+            c.minAltDeg);
+        slog.Capture("Autorun: %d runs of %.0f s", c.runs, c.runSec);
+        wchar_t msg[128];
+        swprintf(msg, 128, L"Sequence: %d runs of %.1f min", c.runs,
+                 c.runSec / 60.0);
+        notifBar.NotifyInfo(msg);
+    });
+
     // Phase 49: Help toggle — toolbar [?] button and ? key
     auto doHelp = [&]() { helpWindow.Toggle(); };
     toolbar.SetHelpCallback([&]()       { doHelp(); });
@@ -5153,6 +5294,7 @@ static int RunApp(bool useEmulator) {
                 try { if (!rc.arg.empty()) g = std::stoi(rc.arg); } catch (...) {}
                 if (g >= 0 && g <= 570 && cam.IsOpen()) {
                     cam.SetGain(g);
+                    controls.SyncFromCamera();
                     Log("[WS] Remote set_gain: %d\n", g);
                 }
             } else if (rc.cmd == "set_exposure") {
@@ -5160,6 +5302,7 @@ static int RunApp(bool useEmulator) {
                 try { ms = std::stod(rc.arg); } catch (...) {}
                 if (ms > 0 && cam.IsOpen()) {
                     cam.SetExposure(ms);
+                    controls.SyncFromCamera();
                     Log("[WS] Remote set_exposure: %.2fms\n", ms);
                 }
             } else if (rc.cmd == "set_gamma") {
@@ -5167,15 +5310,14 @@ static int RunApp(bool useEmulator) {
                 try { if (!rc.arg.empty()) g = std::stoi(rc.arg); } catch (...) {}
                 if (g >= 1 && g <= 100 && cam.IsOpen()) {
                     cam.SetGamma(g);
+                    controls.SyncFromCamera();
                     Log("[WS] Remote set_gamma: %d\n", g);
                 }
             } else if (rc.cmd == "autofocus") {
-                if (!autofocus.IsRunning() && focuser.IsOpen()) {
+                if (!autofocus.IsRunning() && !afWaitingForAE && focuser.IsOpen()) {
                     Log("[WS] Remote autofocus\n");
                     slog.Focuser("APEX: autofocus triggered");
-                    controls.SetAutofocusRunning(true);
-                    controls.SetAutofocusStatus(L"Remote AF...");
-                    autofocus.Start(focuser.GetPosition());
+                    startAutofocus();
                 }
             } else if (rc.cmd == "move_eaf_rel") {
                 int steps = 0;
@@ -5185,9 +5327,8 @@ static int RunApp(bool useEmulator) {
                     focuser.MoveRelative(steps);
                 }
             } else if (rc.cmd == "autofocus_abort") {
-                if (autofocus.IsRunning()) {
-                    autofocus.Abort();
-                    controls.SetAutofocusRunning(false);
+                if (autofocus.IsRunning() || afWaitingForAE) {
+                    abortAutofocus();
                     Log("[WS] Remote autofocus_abort\n");
                 }
             } else if (rc.cmd == "centroid_start") {
@@ -5999,6 +6140,9 @@ static int RunApp(bool useEmulator) {
                 long curExpUs = cam.GetControlValue(ControlId::ExposureUs);
                 double curExpMs = curExpUs / 1000.0;
 
+                // Phase 112: see AutoExposureAssistant::SetHold.
+                ae.SetHold(autofocus.IsRunning()  ? "autofocus"
+                         : capturer.IsRecording() ? "recording" : nullptr);
                 ae.Feed(lastAnalysis.highlightDN,
                         lastAnalysis.meanBrightness,
                         lastAnalysis.clipPct,
@@ -6016,11 +6160,109 @@ static int RunApp(bool useEmulator) {
                         cam.SetGain(sug.gain);
                         controls.UpdateSlider(false, sug.gain);
                     }
+                    // Any real change. This was 0.05 ms, a flat figure
+                    // that discarded the assistant's own small steps
+                    // at the short end.
                     if (sug.exposureMs > 0 &&
-                        fabs(sug.exposureMs - curExpMs) >= 0.05) {
+                        fabs(sug.exposureMs - curExpMs) >= 0.001) {
                         cam.SetExposure(sug.exposureMs);
                         controls.UpdateSlider(true, (int)(sug.exposureMs * 1000.0));
                     }
+                }
+            }
+
+            // Phase 112: the sweep starts when AE is done, or when it
+            // is plainly not going to be. A rig that cannot reach its
+            // target still needs focusing, on the settings it has.
+            if (afWaitingForAE) {
+                const double waited = std::chrono::duration<double>(
+                    now - afWaitStart).count();
+                if (ae.Settled() || capturer.IsRecording() ||
+                    waited >= raduk::core::AF_AE_SETTLE_LIMIT_S) {
+                    afWaitingForAE = false;
+                    const int pos = focuser.GetPosition();
+                    Log("[AF] AE %s after %.1fs; V-curve scan from pos=%d\n",
+                        ae.Settled() ? "settled" : "not settled, going anyway",
+                        waited, pos);
+                    slog.Focuser("AutoFocus: starting from pos=%d", pos);
+                    controls.SetAutofocusStatus(L"Sweeping, AE held until it ends");
+                    autofocus.Start(pos);
+                }
+            }
+
+            // Phase 113. After the autofocus wait above, so the sweep it
+            // asks for has started by the next time it looks.
+            if (autorun.Running() || autorunShown) {
+                using Autorun = raduk::core::AutorunRunner;
+                const double nowSec = std::chrono::duration<double>(
+                    now.time_since_epoch()).count();
+                if (autorunFocusFailed.exchange(false))
+                    autorun.NoteFocusFailed();
+
+                Autorun::Inputs ai;
+                ai.recording = capturer.IsRecording();
+                ai.focusing  = autofocus.IsRunning() || afWaitingForAE;
+                ai.frames    = capturer.FramesRecorded();
+                if (autorun.AboutToCheck(nowSec)) {
+                    ai.targetSeen = lastAnalysis.valid && lastAnalysis.centroidValid;
+                    ai.altDeg     = preview.MountAltitude();
+                    // A disk that will not answer is not a reason to stop.
+                    ULARGE_INTEGER avail{};
+                    const uint64_t want = raduk::core::AutorunRunBytes(
+                        roiWidth, roiHeight, roiBits, stats.fps.load(),
+                        autorun.RunSec());
+                    ai.diskHasRoom =
+                        !GetDiskFreeSpaceExA(controls.GetOutputDir().c_str(),
+                                             &avail, nullptr, nullptr) ||
+                        avail.QuadPart >= want;
+                }
+
+                switch (autorun.Tick(nowSec, ai)) {
+                case Autorun::Action::StartFocus:
+                    Log("[AUTORUN] focus before run %d\n", autorun.Ordinal());
+                    startAutofocus();
+                    break;
+                case Autorun::Action::StartRun: {
+                    autorunPressing = true;
+                    doRecord();
+                    autorunPressing = false;
+                    if (capturer.IsRecording()) {
+                        Log("[AUTORUN] run %d of %d\n", autorun.Ordinal(),
+                            autorun.Total());
+                        slog.Capture("Autorun: run %d of %d", autorun.Ordinal(),
+                                     autorun.Total());
+                    } else {
+                        autorun.RunRefused();
+                    }
+                    break;
+                }
+                case Autorun::Action::StopRun:
+                    endRecording(true, "sequence");
+                    controls.ForceRecordButtonUpdate(false);
+                    break;
+                case Autorun::Action::AbortFocus:
+                    abortAutofocus();
+                    break;
+                default:
+                    break;
+                }
+
+                toolbar.SetRuns(autorun.Running(), autorun.Ordinal());
+                const bool ended = autorunShown && !autorun.Running();
+                autorunShown = autorun.Running();
+                if (ended) {
+                    const bool ok = autorun.State() == Autorun::Phase::Complete;
+                    Log("[AUTORUN] end: %d of %d runs, %d empty, %d focus failed: %s\n",
+                        autorun.Done(), autorun.Total(), autorun.Empty(),
+                        autorun.FocusFailures(), autorun.Reason().c_str());
+                    slog.Capture("Autorun ended: %d of %d runs: %s", autorun.Done(),
+                                 autorun.Total(), autorun.Reason().c_str());
+                    wchar_t msg[192];
+                    swprintf(msg, 192, L"Sequence: %d of %d runs - %hs",
+                             autorun.Done(), autorun.Total(),
+                             autorun.Reason().c_str());
+                    if (ok) notifBar.NotifyInfo(msg);
+                    else    notifBar.NotifyWarn(msg);
                 }
             }
 

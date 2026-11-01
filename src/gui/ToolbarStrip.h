@@ -156,6 +156,14 @@ public:
         Show(ID_TB_DEROT, stop ? L"DEROT STOP" : L"DEROT WARN",
              stop ? State::Active : State::Idle);
     }
+    void SetRunsCallback    (std::function<void()> cb) { m_onRuns     = cb; }
+    // Phase 113: lit with the run under way, which is all that fits.
+    void SetRuns(bool active, int ordinal) {
+        wchar_t lbl[8];
+        swprintf(lbl, 8, L"#%d", ordinal);
+        Show(ID_TB_RUNS, active ? lbl : L"RUNS",
+             active ? State::Active : State::Idle);
+    }
     // Phase 45: the reticle button cycles shapes, so its label has to
     // name the shape rather than just ON.
     void SetReticleShapeLabel(const wchar_t* lbl) {
@@ -252,6 +260,7 @@ public:
             case ID_TB_STACK:    if (m_onStack)    m_onStack();    return true;
             case ID_TB_FOLLOW:   if (m_onFollow)   m_onFollow();   return true;
             case ID_TB_DEROT:    if (m_onDerot)    m_onDerot();    return true;
+            case ID_TB_RUNS:     if (m_onRuns)     m_onRuns();     return true;
             case ID_TB_EXIT:     if (m_onExit)     m_onExit();     return true;
             case ID_TB_RES_FULL:
             case ID_TB_RES_1920:
@@ -435,6 +444,7 @@ private:
     std::function<void()> m_onStack;
     std::function<void()> m_onFollow;
     std::function<void()> m_onDerot;
+    std::function<void()> m_onRuns;
     std::function<void()> m_onExit;
     std::function<void(int,int)> m_onRes;
     std::function<void(int)>     m_onBits;

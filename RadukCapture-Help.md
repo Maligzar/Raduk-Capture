@@ -441,6 +441,7 @@ capture format.
 | `[AI]` | — | Toggle the AI assistant chat panel |
 | `[FOLLOW]` | — | **ROI following.** While a target is locked on a crop, the app moves the ROI on the sensor to hold it, and the mount slowly brings the window back. The setting is saved. When the target fills the frame, as the Moon and the Sun do, it holds a patch of the surface instead of a disc, and says so. If the camera does not apply moves during capture, it stops and tells you |
 | `[DEROT]` | — | **Derotation limit.** Each recording of a planet or the Sun is told how long it has before rotation blurs detail, from tonight's apparent size and the aperture. Jupiter on this telescope is about three minutes. `WARN` warns when that passes, `STOP` ends the run there. Saved. The Moon has no limit |
+| `[RUNS]` | — | **A sequence of runs.** Repeats focus, record and a gap, so a night's runs do not each need a press of RECORD. Each run stops at the derotation window whatever `[DEROT]` says; a target with no window uses the frame or time limit. It focuses first and every third run, with AE on. Before each run it checks the target is in frame, above 20° and that the disk has room. Lit, it shows the run under way. Press it again, or RECORD, to stop; the file is closed. Auto-stack is skipped during a sequence. Set in `rig.ini`: `AutorunRuns`, `AutorunGapSec`, `AutorunRefocusEvery`, `AutorunMinAltDeg` |
 | `[STACK]` | `K` | Stack the last finished recording. A SER runs hidden and exits; a FITS file opens in AutoStakkert's window |
 | `[DASH]` | — | **Open the browser dashboard, already signed in.** It connects to this PC by itself; see **The browser dashboard** |
 | `FULL` | — | **Whole sensor, 3840x2160** - the widest field, and the way back from any crop |
@@ -505,13 +506,17 @@ are set through the profile editor, which accepts up to 60 s.
 
 - **Gain** — ASI678MC gain (0–600). HCG threshold at 182 — above this gain, the camera switches to high-conversion-gain mode.
 - **Exposure** — Exposure time in ms (0.1ms–10000ms).
-- **Gamma** — Display gamma adjustment (1–100, default 50).
-- **WB Red / WB Blue** — White balance offsets for the red and blue channels.
+- **Gamma** — Camera gamma (1–100, 50 is neutral). Greyed and marked `n/a` if the camera does not list the control.
+- **WB Red / WB Blue** — White balance for the red and blue channels.
 - **USB** — USB bandwidth limit (40–100%). Reduce if you see USB errors during recording.
 - **AE OFF / AE ADV / AE AUTO** — Auto-Exposure modes:
   - `AE OFF` — Manual control only.
   - `AE ADV` — Advisory mode: suggests gain/exposure changes but does not apply them.
-  - `AE AUTO` — Automatically adjusts gain and exposure to target 50–70% histogram peak.
+  - `AE AUTO` — Automatically adjusts gain and exposure to bring the planet's highlights to 185–215 DN. It raises exposure to about 20 ms, then gain, so a dim target keeps a short exposure. The sliders follow what it sets.
+
+Every slider has a box beside it. Type a value and press Enter; Escape restores the current value, and a value out of range clamps and shows the clamp.
+
+AE holds during a recording. **AUTO FOCUS** turns AE to AUTO and opens this section, waits up to 20 seconds for AE to settle, holds it for the sweep, and leaves it on afterwards. All these settings are written to the record beside each capture.
 
 ### FOCUSER
 - **Position readout** — Current EAF stepper position (0–500000).

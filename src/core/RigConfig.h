@@ -169,6 +169,12 @@ struct RigConfig {
     bool        derotationStop = false;
     bool        winJuposNames  = true;
 
+    // Phase 113: a sequence of runs. Starting figures, not measured ones.
+    int         autorunRuns         = 10;
+    float       autorunGapSec       = 15.0f;
+    int         autorunRefocusEvery = 3;
+    float       autorunMinAltDeg    = 20.0f;
+
     bool        autoStackOnStop = false;
     std::string autoStakkertPath;       // blank = probe the usual places
 
@@ -340,6 +346,10 @@ struct RigConfig {
         ws("RoiFollow", roiFollow ? "1" : "0");
         ws("DerotationStop", derotationStop ? "1" : "0");
         ws("WinJuposNames", winJuposNames ? "1" : "0");
+        wf("AutorunRuns", autorunRuns);
+        wf("AutorunGapSec", autorunGapSec);
+        wf("AutorunRefocusEvery", autorunRefocusEvery);
+        wf("AutorunMinAltDeg", autorunMinAltDeg);
         wf("ApertureMm", apertureMm);
         ws("AutoStackOnStop", autoStackOnStop ? "1" : "0");
         ws("AutoStakkertPath", autoStakkertPath);
@@ -474,6 +484,10 @@ private:
         cfg.roiFollow             = rs("RoiFollow", cfg.roiFollow ? "1" : "0") == "1";
         cfg.derotationStop        = rs("DerotationStop", cfg.derotationStop ? "1" : "0") == "1";
         cfg.winJuposNames         = rs("WinJuposNames", cfg.winJuposNames ? "1" : "0") == "1";
+        cfg.autorunRuns           = (int)rf("AutorunRuns", cfg.autorunRuns);
+        cfg.autorunGapSec         = (float)rf("AutorunGapSec", cfg.autorunGapSec);
+        cfg.autorunRefocusEvery   = (int)rf("AutorunRefocusEvery", cfg.autorunRefocusEvery);
+        cfg.autorunMinAltDeg      = (float)rf("AutorunMinAltDeg", cfg.autorunMinAltDeg);
         cfg.apertureMm            = (float)rf("ApertureMm", cfg.apertureMm);
         cfg.autoStackOnStop       = rs("AutoStackOnStop", cfg.autoStackOnStop ? "1" : "0") == "1";
         cfg.autoStakkertPath      = rs("AutoStakkertPath", cfg.autoStakkertPath);

@@ -10,8 +10,8 @@
 //   - Two modes: ADVISORY (text only) and AUTO (applies changes)
 //   - Uses a simple I-controller (integral only) — avoids the
 //     oscillation that P-only gives with a slow camera loop
-//   - Adjusts EXPOSURE first (preserves gain for noise floor
-//     reasons), then GAIN if exposure hits its limits
+//   - Moves EXPOSURE and GAIN along one path, LightLadder.h, so a
+//     dim target gets gain before its exposure stops freezing seeing
 //   - Clipping detected via clipPct — emergency gain/exp cut
 //   - HCG floor enforced: gain never drops below 182 in AUTO
 //     mode unless operator explicitly overrides
@@ -36,8 +36,14 @@
 #include <functional>
 #include <algorithm>
 #include "profiles/TargetProfile.h"   // for GAIN_HCG_THRESHOLD
+#include "LightLadder.h"
 
 namespace raduk::core {
+
+// How long autofocus waits for auto-exposure before sweeping anyway.
+// A correction takes 3 s with its settling, and a far-off start wants
+// four or five of them.
+inline constexpr double AF_AE_SETTLE_LIMIT_S = 20.0;
 
 // Suggestion returned by the assistant each tick
 struct AESuggestion {
@@ -81,8 +87,12 @@ public:
         int gainMin = raduk::profiles::CameraRails::GAIN_HCG_THRESHOLD; // 182 - HCG floor
         int gainMax = 570;
 
-        // Proportional gain -- the fraction of the normalised error
-        // applied per tick.
+        // Where the ladder changes lever. See LightLadder.h.
+        double expKneeMs = 20.0;
+        int    gainKnee  = 350;
+
+        // Proportional gain -- the fraction of the error in stops
+        // applied per tick. See Tick() for phase 112's change of unit.
         //
         // Phase 98: this was 0.10f with a comment saying "10%
         // correction per 2s tick", while the expression below
@@ -147,10 +157,41 @@ public:
     void SetAuto(bool enabled) {
         m_autoMode = enabled;
         m_settling = 0;
+        m_settled  = false;
         if (enabled) Say("[AE] Auto mode ON");
         else         Say("[AE] Advisory mode");
     }
+    // ── Phase 112: when the settings must not move ────────────
+    //
+    // Pass what is running, or nullptr when nothing is.
+    //
+    // A focus sweep compares sharpness between positions, and the
+    // sharpness score is a Laplacian variance: it goes as the SQUARE of
+    // the signal. So a 10% exposure change mid-sweep moves the score
+    // about 21%, and it moves it where AE is most likely to act, since
+    // defocus dims the highlight and AE answers by adding light. AE was
+    // running straight through autofocus, bending the curve the fit was
+    // reading.
+    //
+    // A recording is held for a plainer reason: the observation record
+    // states one exposure and one gain for the run, and a stack of
+    // frames at several of each matches no dark.
+    //
+    // A hold beats the clip emergency too. The operator can see clipping
+    // and stop; a sweep or a run quietly changed underneath cannot be
+    // repaired afterwards.
+    //
+    // On release the assistant settles first, so its first decision is
+    // made on frames from after the sweep and not on the last one of it.
+    void SetHold(const char* why) {
+        const bool was = m_hold != nullptr;
+        m_hold = why;
+        if (was && !why) m_settling = m_cfg.settleFrames;
+    }
     bool IsAuto()     const { return m_autoMode; }
+    // True when the last tick looked and found nothing to change: on
+    // target, or against a limit it cannot pass. Autofocus waits on it.
+    bool Settled()    const { return m_settled; }
     bool IsEnabled()  const { return m_enabled; }
     void SetEnabled(bool e) { m_enabled = e; if (!e) m_autoMode = false; }
 
@@ -170,9 +211,16 @@ public:
         AESuggestion s;
         s.gain       = m_currentGain;
         s.exposureMs = m_currentExpMs;
+        m_settled    = false;
 
         if (!m_enabled || !m_hasData) {
             s.text = "AE: disabled";
+            m_lastSuggestion = s;
+            return s;
+        }
+
+        if (m_hold) {
+            s.text = std::string("AE: held for ") + m_hold;
             m_lastSuggestion = s;
             return s;
         }
@@ -188,46 +236,38 @@ public:
         }
 
         // ── Emergency clip cut ─────────────────────────────────
+        // 30% off, down the ladder, so gain goes before exposure and a
+        // rig at its exposure floor still has gain to give. A clipped
+        // image is worse than low conversion gain, so this can pass the
+        // HCG floor (phase 59).
         if (m_clipPct > m_cfg.clipEmergency) {
             s.clipping = true;
-            // Cut exposure by 30%
-            double newExp = m_currentExpMs * 0.70;
-            newExp = std::max(newExp, m_cfg.expMinMs);
-            s.exposureMs = snapExp(newExp);
-            // Phase 59 (review S4): if exposure is already at its floor and
-            // we're still clipping, exposure alone can never recover — cut
-            // gain too (below the HCG floor if that's what it takes; a
-            // clipped image is worse than low conversion gain).
-            // Phase 98: "at the floor" is a tolerance on the floor
-            // itself, not on the current exposure, so it uses the
-            // absolute resolution rather than the relative step. The
-            // relative one would scale with whatever the exposure
-            // happens to be and so would mean something different on
-            // each tick of a run that is actively cutting it.
-            const double floorTol = m_cfg.expMinStepMs;
-            bool expStuck = (s.exposureMs   <= m_cfg.expMinMs + floorTol) &&
-                            (m_currentExpMs <= m_cfg.expMinMs + floorTol);
-            if (expStuck && m_currentGain > 0) {
-                int newGain = (int)(m_currentGain * 0.85f);
-                s.gain = std::max(0, newGain);
-            }
+            const LightPoint p = WalkLadder(Ladder(), m_currentExpMs,
+                                            m_currentGain, std::log2(0.70));
+            s.exposureMs = p.expMs;
+            s.gain       = p.gain;
             char buf[96];
             snprintf(buf, sizeof(buf),
-                     "AE: CLIPPING %.1f%% -> exp %.2fms%s",
-                     m_clipPct, s.exposureMs,
-                     (s.gain != m_currentGain) ? " + gain cut" : "");
+                     "AE: CLIPPING %.1f%% -> exp %.2fms g=%d",
+                     m_clipPct, s.exposureMs, s.gain);
             s.text = buf;
+            // Nothing left to cut: autofocus should not wait on this.
+            if (p.expMs == m_currentExpMs && p.gain == m_currentGain) {
+                m_settled = true;
+                m_lastSuggestion = s;
+                return s;
+            }
             m_settling = m_cfg.settleFrames;
             m_lastSuggestion = s;
             Say(s.text);
             return s;
         }
 
-        // ── I-controller on mean brightness ───────────────────
+        // ── I-controller on the highlight ─────────────────────
         // Error: how far are we from the center of target range?
         float target = (m_cfg.targetLo + m_cfg.targetHi) / 2.0f;  // ~200
         float error  = target - m_highlightDN;  // positive = too dark
-        float deadband = (m_cfg.targetHi - m_cfg.targetLo) / 2.0f; // ±25.5
+        float deadband = (m_cfg.targetHi - m_cfg.targetLo) / 2.0f;
 
         if (fabsf(error) <= deadband) {
             // In target range — no action
@@ -236,77 +276,49 @@ public:
                      "AE: OK  hi %.0f DN  [%.0f-%.0f]",
                      m_highlightDN, m_cfg.targetLo, m_cfg.targetHi);
             s.text = buf;
+            m_settled = true;
             m_lastSuggestion = s;
             return s;
         }
 
-        // Correction factor: proportional to error. error/255 gives
-        // the fraction; iGain is applied directly now that it says
-        // what it means (see the Config comment).
-        float correctionFactor = 1.0f + (error / 255.0f) * m_cfg.iGain;
-
-        // ── Try exposure first ─────────────────────────────────
-        double newExp = m_currentExpMs * correctionFactor;
-        newExp = std::clamp(newExp, m_cfg.expMinMs, m_cfg.expMaxMs);
-        newExp = snapExp(newExp);
+        // In stops, the unit the ladder walks in, and from the ratio
+        // rather than the difference. The signal is linear in light, so
+        // the ratio IS the correction; iGain takes a fraction of it to
+        // leave room for seeing. A difference over 255 asked for only
+        // 1.29x on a highlight of 60 DN that wanted 3x, which took
+        // 50 s to converge, past what autofocus waits for.
+        const double stops = m_cfg.iGain *
+            std::log2((double)target / (std::max)((double)m_highlightDN, 1.0));
+        const LightPoint p = WalkLadder(Ladder(), m_currentExpMs, m_currentGain,
+                                        std::clamp(stops, -2.0, 2.0));
 
         // The threshold scales with the exposure, so a short one is
         // not held still by a figure chosen for a long one.
         const double expMinStep =
             (std::max)(m_cfg.expMinStepMs,
                        m_currentExpMs * m_cfg.expMinStepFrac);
-        bool expChanged = fabs(newExp - m_currentExpMs) >= expMinStep;
+        const bool expChanged  = fabs(p.expMs - m_currentExpMs) >= expMinStep;
+        const bool gainChanged = abs(p.gain - m_currentGain) >= m_cfg.gainMinStep;
 
-        if (expChanged) {
-            s.exposureMs = newExp;
-            const char* dir = (newExp > m_currentExpMs) ? "+" : "";
-            char buf[80];
-            snprintf(buf, sizeof(buf),
-                     "AE: %s%.2fms  (hi %.0f DN)",
-                     dir, newExp - m_currentExpMs, m_highlightDN);
-            // Prepend arrow for clarity
-            std::string arrow = (newExp > m_currentExpMs) ? "AE: Exp +" : "AE: Exp ";
-            char full[80];
-            snprintf(full, sizeof(full),
-                     "%s%.2fms -> %.2fms",
-                     (newExp > m_currentExpMs) ? "AE: \xe2\x86\x91 Exp " : "AE: \xe2\x86\x93 Exp ",
-                     m_currentExpMs, newExp);
+        if (expChanged || gainChanged) {
+            if (expChanged)  s.exposureMs = p.expMs;
+            if (gainChanged) s.gain       = p.gain;
+            char ex[48] = "", ga[32] = "";
+            if (expChanged)
+                snprintf(ex, sizeof(ex), "Exp %.2f -> %.2fms  ",
+                         m_currentExpMs, p.expMs);
+            if (gainChanged)
+                snprintf(ga, sizeof(ga), "Gain %d -> %d",
+                         m_currentGain, p.gain);
+            char full[112];
+            snprintf(full, sizeof(full), "%s%s%s",
+                     (error > 0) ? "AE: \xe2\x86\x91 " : "AE: \xe2\x86\x93 ",
+                     ex, ga);
             s.text = full;
             m_settling = m_cfg.settleFrames;
             m_lastSuggestion = s;
             Say(s.text);
             return s;
-        }
-
-        // Exposure already at limit — try gain
-        bool expAtMax = (m_currentExpMs >= m_cfg.expMaxMs - expMinStep);
-        bool expAtMin = (m_currentExpMs <= m_cfg.expMinMs + expMinStep);
-        bool needGain = (error > 0 && expAtMax) || (error < 0 && expAtMin);
-
-        if (needGain) {
-            int newGain = (int)(m_currentGain * correctionFactor);
-            // Phase 59 (review S4): the HCG floor is advisory, not a hard
-            // clamp. Clamping a DOWNWARD correction to 182 snapped gain UP
-            // on already-bright low-gain profiles (Venus/Moon at min
-            // exposure), brightening a clipped image. Only enforce the
-            // floor when the correction itself is raising gain.
-            int lowBound = (error < 0) ? 0 : m_cfg.gainMin;
-            newGain = std::clamp(newGain, lowBound, m_cfg.gainMax);
-            int gainDelta = newGain - m_currentGain;
-
-            if (abs(gainDelta) >= m_cfg.gainMinStep) {
-                s.gain = newGain;
-                char buf[80];
-                snprintf(buf, sizeof(buf),
-                         "%s%d -> %d  (exp limit)",
-                         (gainDelta > 0) ? "AE: \xe2\x86\x91 Gain " : "AE: \xe2\x86\x93 Gain ",
-                         m_currentGain, newGain);
-                s.text = buf;
-                m_settling = m_cfg.settleFrames;
-                m_lastSuggestion = s;
-                Say(s.text);
-                return s;
-            }
         }
 
         // ── Nothing applied, and WHY matters ────────────────
@@ -318,27 +330,26 @@ public:
         // needs to know what is going on, the panel named a limit it
         // might be nowhere near and showed the wrong number.
         //
-        // Now it says which of the three it actually is.
+        // Now it says which it actually is.
         char buf[96];
-        const bool atCeiling = expAtMax && m_currentGain >= m_cfg.gainMax;
-        const bool atFloor   = expAtMin && m_currentGain <= 0;
+        const bool atCeiling = error > 0 &&
+                               m_currentExpMs >= m_cfg.expMaxMs - expMinStep &&
+                               m_currentGain >= m_cfg.gainMax;
+        const bool atFloor   = error < 0 &&
+                               m_currentExpMs <= m_cfg.expMinMs + expMinStep &&
+                               m_currentGain <= 0;
         if (atCeiling || atFloor) {
             snprintf(buf, sizeof(buf),
                      "AE: at %s  hi %.0f DN  exp=%.2fms g=%d",
                      atCeiling ? "maximum" : "minimum",
                      m_highlightDN, m_currentExpMs, m_currentGain);
-        } else if (needGain) {
-            // Gain was the right lever and the step was too small to
-            // be worth a write.
-            snprintf(buf, sizeof(buf),
-                     "AE: holding  hi %.0f DN  gain step < %d",
-                     m_highlightDN, m_cfg.gainMinStep);
         } else {
             snprintf(buf, sizeof(buf),
                      "AE: holding  hi %.0f DN  exp=%.2fms g=%d",
                      m_highlightDN, m_currentExpMs, m_currentGain);
         }
         s.text = buf;
+        m_settled = true;
         m_lastSuggestion = s;
         return s;
     }
@@ -352,12 +363,15 @@ public:
     float  MeanBrightness()    const { return m_meanBrightness; }
 
 private:
-    // Round exposure to sensible steps to avoid micro-jitter
-    static double snapExp(double ms) {
-        if      (ms < 1.0)  return round(ms * 10.0) / 10.0;  // 0.1ms steps
-        else if (ms < 5.0)  return round(ms * 4.0)  / 4.0;   // 0.25ms steps
-        else if (ms < 20.0) return round(ms * 2.0)  / 2.0;   // 0.5ms steps
-        else                return round(ms);                  // 1ms steps
+    LightLadder Ladder() const {
+        LightLadder l;
+        l.expMinMs  = m_cfg.expMinMs;
+        l.expKneeMs = m_cfg.expKneeMs;
+        l.expMaxMs  = m_cfg.expMaxMs;
+        l.gainFloor = m_cfg.gainMin;
+        l.gainKnee  = m_cfg.gainKnee;
+        l.gainMax   = m_cfg.gainMax;
+        return l;
     }
 
     Config  m_cfg;
@@ -365,6 +379,8 @@ private:
     bool    m_autoMode   = false;
     bool    m_hasData    = false;
     int     m_settling   = 0;
+    const char* m_hold   = nullptr;   // a literal, see SetHold
+    bool    m_settled    = false;
 
     std::function<void(const std::string&)> m_log;
     void Say(const std::string& s) const { if (m_log) m_log(s); }

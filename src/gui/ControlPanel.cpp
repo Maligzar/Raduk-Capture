@@ -2626,10 +2626,10 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
             // Apply panel font immediately so items render at correct size
             HFONT hf = (HFONT)SendMessage(m_panelHwnd, WM_GETFONT, 0, 0);
             if (hf) SendMessage(m_comboFrameType, WM_SETFONT, (WPARAM)hf, FALSE);
-            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Light");
-            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Dark");
-            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Flat");
-            SendMessage(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Bias");
+            SendMessageW(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Light");
+            SendMessageW(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Dark");
+            SendMessageW(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Flat");
+            SendMessageW(m_comboFrameType, CB_ADDSTRING, 0, (LPARAM)L"Bias");
             SendMessage(m_comboFrameType, CB_SETCURSEL, 0, 0);
         }
         TagControl(m_comboFrameType, Section::Capture);
@@ -2640,8 +2640,8 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         if (m_comboCaptureFormat) {
             HFONT hf = (HFONT)SendMessage(m_panelHwnd, WM_GETFONT, 0, 0);
             if (hf) SendMessage(m_comboCaptureFormat, WM_SETFONT, (WPARAM)hf, FALSE);
-            SendMessage(m_comboCaptureFormat, CB_ADDSTRING, 0, (LPARAM)L"SER");
-            SendMessage(m_comboCaptureFormat, CB_ADDSTRING, 0, (LPARAM)L"FITS");
+            SendMessageW(m_comboCaptureFormat, CB_ADDSTRING, 0, (LPARAM)L"SER");
+            SendMessageW(m_comboCaptureFormat, CB_ADDSTRING, 0, (LPARAM)L"FITS");
             SendMessage(m_comboCaptureFormat, CB_SETCURSEL, m_ui.captureFits ? 1 : 0, 0);
         }
         TagControl(m_comboCaptureFormat, Section::Capture);

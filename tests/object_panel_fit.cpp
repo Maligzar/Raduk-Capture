@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <cmath>
 #include <string>
-#include "ObjectPanel.h"
+#include "gui/ObjectPanel.h"
 
 static int failures = 0;
 static int checks   = 0;
@@ -74,15 +74,19 @@ static void TestFit() {
     ok(tight >= OP::BODY_FLOOR_PX, "and never below the readable floor");
 
     // The result actually fits, which is the whole contract. Checked
-    // at the returned size, not assumed.
-    if (tight > OP::BODY_FLOOR_PX)
-        ok(OP::EstimatedHeight(4000, 400.0f, tight) <= 200.0f,
-           "the size it returns does fit the box");
+    // at the returned size, not assumed. These need a case that lands
+    // ABOVE the floor: they used to run on the 4000-character case
+    // above behind an "if above the floor", which that case never is,
+    // so neither assertion had ever executed.
+    const float roomy = OP::FitBodyPx(1000, 400.0f, 300.0f, want);
+    ok(roomy < want && roomy > OP::BODY_FLOOR_PX,
+       "this case shrinks but stops short of the floor");
+    ok(OP::EstimatedHeight(1000, 400.0f, roomy) <= 300.0f,
+       "the size it returns does fit the box");
 
     // And it is the LARGEST such size: one pixel more must not fit.
-    if (tight > OP::BODY_FLOOR_PX)
-        ok(OP::EstimatedHeight(4000, 400.0f, tight + 1.0f) > 200.0f,
-           "it returns the largest size that fits, not merely one that does");
+    ok(OP::EstimatedHeight(1000, 400.0f, roomy + 1.0f) > 300.0f,
+       "it returns the largest size that fits, not merely one that does");
 
     // Impossible boxes floor rather than vanishing. Readable and
     // clipped beats complete and unreadable, and clipping is real now.
@@ -117,6 +121,8 @@ static void TestFit() {
        "a wanted size already at the floor stays there");
     ok(OP::FitBodyPx(5000, 400.0f, 100.0f, 5.0f) == OP::BODY_FLOOR_PX,
        "a wanted size below the floor is raised to it");
+    ok(OP::FitBodyPx(10, 800.0f, 600.0f, 5.0f) == OP::BODY_FLOOR_PX,
+       "even when the text would have fitted at that size");
 }
 
 static void TestJupiter() {

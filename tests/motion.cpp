@@ -7,7 +7,7 @@
 
 #include <cstdio>
 #include <cmath>
-#include "Theme.h"
+#include "gui/Theme.h"
 
 static int failures = 0;
 static int checks   = 0;

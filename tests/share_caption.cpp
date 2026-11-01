@@ -20,7 +20,7 @@
 #include <cmath>
 #include <string>
 #include <algorithm>
-#include "AudienceLayout.h"
+#include "gui/AudienceLayout.h"
 
 static int failures = 0;
 static int checks   = 0;

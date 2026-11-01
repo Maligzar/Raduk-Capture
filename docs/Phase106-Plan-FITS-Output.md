@@ -102,6 +102,10 @@ the last reserved block.
 own it, for the reason given on 2026-10-11 about the capture format:
 startup retains the last settings.
 
+**`FOCALLEN` is not written.** `RigConfig` stores only the plate scale,
+which has never been checked against the sky, and deriving a focal
+length from it would state an unverified figure as a fact.
+
 ### Keywords
 
 | Keyword | From | Unit |

@@ -11,6 +11,7 @@
 #include <timeapi.h>
 #pragma comment(lib, "winmm.lib")
 #include "Theme.h"
+#include "ToolbarLayout.h"
 #include <windowsx.h>
 #include <dwmapi.h>
 #include <cstdio>
@@ -21,7 +22,7 @@
 // the WS_CHILD panel. Update here if PANEL_WIDTH changes.
 // +20 accounts for WS_VSCROLL width (~17px) plus a small gap.
 static constexpr int PREVIEW_PANEL_RESERVED = 580;  // 560 panel + 20 scrollbar/gap
-static constexpr int TOOLBAR_HEIGHT_PX = 30;  // must match ToolbarStrip.h TOOLBAR_HEIGHT
+static constexpr int TOOLBAR_HEIGHT_PX = raduk::gui::TOOLBAR_HEIGHT;
 
 // Panel is a fixed PREVIEW_PANEL_RESERVED px wide, docked to the right edge.
 // Preview area = clientW - PREVIEW_PANEL_RESERVED.

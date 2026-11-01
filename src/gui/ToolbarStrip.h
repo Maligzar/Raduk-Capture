@@ -2,17 +2,16 @@
 // ============================================================
 // ToolbarStrip.h — Win32 native button toolbar for RadukCapture
 //
-// A WS_CHILD HWND containing native BS_PUSHBUTTON controls.
-// Sits above the D2D preview area. Because these are real Win32
-// controls, DPI scaling is handled by the OS — no coordinate
-// math, no D2D brushes, no visibility issues.
-//
-// Layout (left → right):
-//   [CENTROID]  [LOCK]  [ROI]  |  [COLOR]  [MAP]  [GOTO]  [RETICLE]
+// A WS_CHILD HWND containing owner-drawn buttons, two rows of them,
+// above the D2D preview area. Where they go is ToolbarLayout.h, which
+// is arithmetic and is tested; how they look is DrawButton below.
 //
 // Button IDs start at ID_TB_FIRST. Caller wires WM_COMMAND via
-// SetCommandCallback. Active state is shown by bold/underline
-// via owner-draw or by updating button text with a marker.
+// SetCommandCallback.
+//
+// Phase 111: these were stock BS_PUSHBUTTONs, which cannot follow
+// night vision and could show "active" only by bold type or a marker
+// in the label. A button now has a state and is painted from it.
 // ============================================================
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -23,49 +22,19 @@
 #endif
 
 #include "Theme.h"
+#include "ToolbarLayout.h"
 #include "../core/HardwareLink.h"   // Phase 46: what the [HW] button shows
 #include <windows.h>
 #include <commctrl.h>
+#include <uxtheme.h>
 #include <functional>
 #include <cstdio>
+#include <string>
 
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "uxtheme.lib")
 
 namespace raduk::gui {
-
-// Command IDs for toolbar buttons
-enum ToolbarCmd : int {
-    ID_TB_FIRST     = 3000,
-    ID_TB_CENTROID  = 3000,
-    ID_TB_LOCK      = 3001,
-    ID_TB_ROI       = 3002,
-    ID_TB_COLOR     = 3003,
-    ID_TB_MAP       = 3004,
-    ID_TB_GOTO      = 3005,
-    ID_TB_RETICLE   = 3006,
-    ID_TB_CLIP      = 3007,
-    ID_TB_HELP      = 3008,
-    ID_TB_AI        = 3009,
-    ID_TB_EXIT      = 3010,
-    ID_TB_GHOST     = 3011,
-    // Capture format group. Resolution had no control at all: once the
-    // ROI was cropped, by [ROI] or by dragging a box, nothing could widen
-    // it again short of restarting. Bit depth was hardcoded RAW8 in every
-    // call site, so the 16-bit the DSO profile asks for never happened.
-    ID_TB_RES_FULL  = 3012,
-    ID_TB_RES_1920  = 3013,
-    ID_TB_RES_1280  = 3014,
-    ID_TB_RES_640   = 3015,
-    ID_TB_BIT8      = 3016,
-    ID_TB_BIT16     = 3017,
-    ID_TB_FRAME     = 3018,   // Phase 39: framing shot (boosted 5s preview)
-    ID_TB_HW        = 3019,   // Phase 46: connect / disconnect all hardware
-    ID_TB_DASH      = 3020,   // the browser dashboard, signed in
-    ID_TB_STACK     = 3021,   // Phase 106: the last recording, in AutoStakkert
-    ID_TB_FOLLOW    = 3022,   // Phase 107: move the ROI to hold the target
-    ID_TB_DEROT     = 3023,   // Phase 108: warn or stop at the derotation window
-    ID_TB_LAST      = 3023,
-};
 
 // One resolution preset. FULL is first because it is the default and the
 // widest field -- the one to come back to when a crop went wrong.
@@ -84,8 +53,6 @@ static constexpr int kResPresetCount =
 // Adding a preset without adding an id would index past the table.
 static_assert(ID_TB_RES_640 - ID_TB_RES_FULL + 1 == kResPresetCount,
               "resolution button ids and kResPresets have drifted apart");
-
-static constexpr int TOOLBAR_HEIGHT = 30; // physical pixels
 
 class ToolbarStrip {
 public:
@@ -140,7 +107,8 @@ public:
                                     L"Space Mono");
         if (!m_fontActive) m_fontActive = m_font;
 
-        BuildButtons(w, h);
+        BuildButtons();
+        PlaceButtons(w);
         printf("[ToolbarStrip] Created (%dx%d)\n", w, h);
         return true;
     }
@@ -150,9 +118,9 @@ public:
         if (!m_hwnd || !m_mainHwnd) return;
         RECT cr; GetClientRect(m_mainHwnd, &cr);
         int w = cr.right - m_panelWidth;
-        int h = TOOLBAR_HEIGHT;
-        SetWindowPos(m_hwnd, HWND_TOP, 0, 0, w, h, SWP_NOZORDER | SWP_NOACTIVATE);
-        RebuildButtons(w, h);
+        SetWindowPos(m_hwnd, HWND_TOP, 0, 0, w, TOOLBAR_HEIGHT,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        PlaceButtons(w);
     }
 
     HWND Handle() const { return m_hwnd; }
@@ -180,31 +148,19 @@ public:
     // The same action as the K key, which had no button.
     void SetStackCallback   (std::function<void()> cb) { m_onStack    = cb; }
     void SetFollowCallback  (std::function<void()> cb) { m_onFollow   = cb; }
-    void SetFollowLabel(const wchar_t* lbl) {
-        if (m_btnFollow) SetWindowTextW(m_btnFollow, lbl);
+    void SetFollowOn(bool on) {
+        Show(ID_TB_FOLLOW, L"FOLLOW", on ? State::Active : State::Idle);
     }
     void SetDerotCallback   (std::function<void()> cb) { m_onDerot    = cb; }
-    void SetDerotLabel(const wchar_t* lbl) {
-        if (m_btnDerot) SetWindowTextW(m_btnDerot, lbl);
+    void SetDerotStop(bool stop) {
+        Show(ID_TB_DEROT, stop ? L"DEROT STOP" : L"DEROT WARN",
+             stop ? State::Active : State::Idle);
     }
-    // Phase 45: the reticle button now cycles shapes, so its label has
-    // to name the shape rather than just ON. Stored rather than written
-    // directly, because UpdateStates owns that button's text and would
-    // overwrite anything set behind its back on the next tick.
+    // Phase 45: the reticle button cycles shapes, so its label has to
+    // name the shape rather than just ON.
     void SetReticleShapeLabel(const wchar_t* lbl) {
-        std::wstring s = lbl ? lbl : L"RETICLE";
-        if (s == m_reticleLabel) return;
-        m_reticleLabel = s;
-        // Written straight to the button. The first attempt flipped
-        // m_lastReticleVis to force UpdateStates to repaint, which
-        // backfired: on the two presses that also change visibility,
-        // the flip made the cached value MATCH the new one, so
-        // UpdateStates early-returned and the label stayed a press
-        // behind. Writing it here needs no cooperation from the cache.
-        if (m_btnReticle) {
-            std::wstring rl = L"[+] " + m_reticleLabel;
-            SetWindowTextW(m_btnReticle, rl.c_str());
-        }
+        m_reticleLabel = ReticleButtonLabel(lbl ? lbl : L"RETICLE");
+        Show(ID_TB_RETICLE, m_reticleLabel.c_str(), StateOf(ID_TB_RETICLE));
     }
 
     // Resolution: called with the preset's sensor dimensions.
@@ -219,67 +175,30 @@ public:
     // signature to carry it would have made both harder to read.
     void UpdateFormat(int roiW, int roiH, int bits) {
         if (!m_hwnd) return;
-        if (roiW == m_lastResW && roiH == m_lastResH && bits == m_lastBits)
-            return;
-        m_lastResW = roiW; m_lastResH = roiH; m_lastBits = bits;
-
-        HWND resBtns[kResPresetCount] = {
-            m_btnResFull, m_btnRes1920, m_btnRes1280, m_btnRes640
-        };
-        for (int i = 0; i < kResPresetCount; i++) {
-            if (!resBtns[i]) continue;
-            const bool active = (kResPresets[i].w == roiW &&
-                                 kResPresets[i].h == roiH);
-            wchar_t lbl[16];
-            // A dot rather than a different colour: these are plain
-            // BS_PUSHBUTTONs, and the bold font alone is too subtle to
-            // read at a glance on a dark strip at night.
-            swprintf(lbl, 16, active ? L"%s●" : L"%s",
-                     kResPresets[i].label);
-            SetWindowTextW(resBtns[i], lbl);
-            SendMessage(resBtns[i], WM_SETFONT,
-                        (WPARAM)(active ? m_fontActive : m_font), TRUE);
-        }
         // A size no preset matches -- a dragged box, or a crop from
         // [ROI] that is not 1280x960 because the sensor clamped it.
         // Every preset reads inactive, which is correct: none is live.
-        if (m_btnBit8) {
-            SetWindowTextW(m_btnBit8, bits == 8 ? L"8b●" : L"8b");
-            SendMessage(m_btnBit8, WM_SETFONT,
-                        (WPARAM)(bits == 8 ? m_fontActive : m_font), TRUE);
+        for (int i = 0; i < kResPresetCount; i++) {
+            const bool active = (kResPresets[i].w == roiW &&
+                                 kResPresets[i].h == roiH);
+            Toggle(ID_TB_RES_FULL + i, kResPresets[i].label, active);
         }
-        if (m_btnBit16) {
-            SetWindowTextW(m_btnBit16, bits == 16 ? L"16b●" : L"16b");
-            SendMessage(m_btnBit16, WM_SETFONT,
-                        (WPARAM)(bits == 16 ? m_fontActive : m_font), TRUE);
-        }
+        Toggle(ID_TB_BIT8,  L"8b",  bits == 8);
+        Toggle(ID_TB_BIT16, L"16b", bits == 16);
     }
 
     // Phase 46: which devices are live. Separate from UpdateStates for
     // the same reason UpdateFormat is -- this changes when hardware
-    // comes or goes, not every render tick.
-    //
-    // The plan asked for green / amber / red. These are stock
-    // BS_PUSHBUTTONs on a themed strip, with no owner-draw and no
-    // per-button colour anywhere in this file, so the state is carried
-    // the way every other button here carries it: the label, plus the
-    // bold font when something is live. "2/3" also says more than amber
-    // does -- it says how many to go looking for.
+    // comes or goes, not every render tick. "2/3" says how many to go
+    // looking for, and an unlit button at a glance means nothing is
+    // talking to the app.
     void UpdateHardware(const raduk::core::DeviceLinks& links) {
-        if (!m_hwnd || !m_btnHW) return;
-        if (m_hwLinksKnown && links == m_lastLinks) return;
-        m_hwLinksKnown = true;
-        m_lastLinks = links;
-
-        const std::string label = raduk::core::LinkLabel(links);
+        if (!m_hwnd) return;
         wchar_t w[24] = {};
-        MultiByteToWideChar(CP_UTF8, 0, label.c_str(), -1, w, 24);
-        SetWindowTextW(m_btnHW, w);
-        // Bold while anything is connected: an unlit [HW] at a glance
-        // means nothing is talking to the app.
-        const bool any = links.Count() > 0;
-        SendMessage(m_btnHW, WM_SETFONT,
-                    (WPARAM)(any ? m_fontActive : m_font), TRUE);
+        StripBrackets(raduk::core::LinkLabel(links).c_str(), w, 24);
+        const int n = links.Count();
+        Show(ID_TB_HW, w, n == 3 ? State::Active
+                        : n > 0  ? State::Ready : State::Idle);
     }
 
     // Update button labels to reflect active state — only repaints when changed
@@ -290,72 +209,26 @@ public:
                       bool ghostActive = false) {
         if (!m_hwnd) return;
 
-        if (acqStage      == m_lastAcqStage   &&
-            lockReady     == m_lastLockReady   &&
-            roiReady      == m_lastRoiReady    &&
-            colorActive   == m_lastColorActive &&
-            mapVisible    == m_lastMapVisible  &&
-            gotoVisible   == m_lastGotoVisible &&
-            reticleVisible== m_lastReticleVis  &&
-            clipVisible   == m_lastClipVis     &&
-            helpVisible   == m_lastHelpVis     &&
-            aiVisible     == m_lastAIVis       &&
-            ghostActive   == m_lastGhostActive) return;
-
-        m_lastAcqStage    = acqStage;
-        m_lastLockReady   = lockReady;
-        m_lastRoiReady    = roiReady;
-        m_lastColorActive = colorActive;
-        m_lastMapVisible  = mapVisible;
-        m_lastGotoVisible = gotoVisible;
-        m_lastReticleVis  = reticleVisible;
-        m_lastClipVis     = clipVisible;
-        m_lastHelpVis     = helpVisible;
-        m_lastAIVis       = aiVisible;
-        m_lastGhostActive = ghostActive;
-
         // Stage values (AcquisitionStage): 0 Off, 1 Searching,
         // 2 Calibrating (Phase 51), 3 Centering, 4 Locked
-        const wchar_t* centLabel =
-            (acqStage >= 3) ? L"[CENTROID \u2713]" :
-            (acqStage >= 1) ? L"[CENTROID \u25CF]" : L"[CENTROID]";
-        const wchar_t* lockLabel =
-            (acqStage >= 3) ? L"[LOCK \u2713]" :
-            (acqStage == 2) ? L"[LOCK CAL\u2026]" :
-            lockReady       ? L"[LOCK \u25CF]"  : L"[LOCK]";
-        const wchar_t* roiLabel =
-            (acqStage >= 4) ? L"[ROI \u2713]" :
-            roiReady        ? L"[ROI \u25CF]"  : L"[ROI]";
+        Show(ID_TB_CENTROID, L"CENTROID",
+             acqStage >= 3 ? State::Active :
+             acqStage >= 1 ? State::Ready  : State::Idle);
+        Show(ID_TB_LOCK, acqStage == 2 ? L"LOCK CAL\u2026" : L"LOCK",
+             acqStage >= 3                   ? State::Active :
+             (acqStage == 2 || lockReady)    ? State::Ready  : State::Idle);
+        Show(ID_TB_ROI, L"ROI",
+             acqStage >= 4 ? State::Active :
+             roiReady      ? State::Ready  : State::Idle);
 
-        SetWindowTextW(m_btnCentroid, centLabel);
-        SetWindowTextW(m_btnLock,     lockLabel);
-        SetWindowTextW(m_btnROI,      roiLabel);
-        SetWindowTextW(m_btnColor,    colorActive    ? L"[C] COLOR \u25CF" : L"[C] COLOR");
-        SetWindowTextW(m_btnMap,      mapVisible      ? L"[*] MAP ON"      : L"[*] MAP");
-        SetWindowTextW(m_btnGoTo,     gotoVisible     ? L"[I] GOTO ON"     : L"[I] GOTO");
-        {
-            // m_reticleLabel already reads "RETICLE" when the reticle is
-            // off, so the visibility flag does not need consulting here --
-            // and consulting it was what let the two values disagree.
-            std::wstring rl = L"[+] " + m_reticleLabel;
-            SetWindowTextW(m_btnReticle, rl.c_str());
-        }
-        SetWindowTextW(m_btnClip,     clipVisible     ? L"[CLIP ON]"       : L"[CLIP]");
-        SetWindowTextW(m_btnHelp,     helpVisible     ? L"[? ON]"          : L"[?]");
-        SetWindowTextW(m_btnAI,       aiVisible       ? L"[AI ON]"         : L"[AI]");
-        SetWindowTextW(m_btnGhost,    ghostActive     ? L"[GH ON]"         : L"[GH]");
-
-        SendMessage(m_btnCentroid, WM_SETFONT, (WPARAM)(acqStage > 0  ? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnLock,     WM_SETFONT, (WPARAM)(acqStage >= 2 ? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnROI,      WM_SETFONT, (WPARAM)(acqStage >= 4 ? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnColor,    WM_SETFONT, (WPARAM)(colorActive   ? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnMap,      WM_SETFONT, (WPARAM)(mapVisible    ? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnGoTo,     WM_SETFONT, (WPARAM)(gotoVisible   ? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnReticle,  WM_SETFONT, (WPARAM)(reticleVisible? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnClip,     WM_SETFONT, (WPARAM)(clipVisible   ? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnHelp,     WM_SETFONT, (WPARAM)(helpVisible   ? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnAI,       WM_SETFONT, (WPARAM)(aiVisible     ? m_fontActive : m_font), TRUE);
-        SendMessage(m_btnGhost,    WM_SETFONT, (WPARAM)(ghostActive   ? m_fontActive : m_font), TRUE);
+        Toggle(ID_TB_COLOR,   L"COLOR",               colorActive);
+        Toggle(ID_TB_MAP,     L"MAP",                 mapVisible);
+        Toggle(ID_TB_GOTO,    L"GOTO",                gotoVisible);
+        Toggle(ID_TB_RETICLE, m_reticleLabel.c_str(), reticleVisible);
+        Toggle(ID_TB_CLIP,    L"CLIP",                clipVisible);
+        Toggle(ID_TB_HELP,    L"?",                   helpVisible);
+        Toggle(ID_TB_AI,      L"AI",                  aiVisible);
+        Toggle(ID_TB_GHOST,   L"GH",                  ghostActive);
     }
 
     // Handle WM_COMMAND forwarded from main window — returns true if consumed
@@ -397,143 +270,108 @@ public:
     }
 
 private:
-    void BuildButtons(int w, int h) {
-        // Button layout:
-        //  Left group  (acquisition): CENTROID | LOCK | ROI
-        //  Separator gap (8px)
-        //  Right group (view):        COLOR | MAP | GOTO | RETICLE
-        //
-        // Each button is auto-sized to its label + padding.
-        // We use fixed widths that fit the longest label.
+    // Idle, on its way (searching, or two devices of three), and on.
+    // Night vision flattens hue, so the three differ in shape as well as
+    // colour: nothing, an outline, a filled face with a bar under it.
+    enum class State { Idle, Ready, Active };
 
-        struct BtnDef { int id; const wchar_t* label; int width; HWND* out; };
-        BtnDef defs[] = {
-            { ID_TB_CENTROID, L"[CENTROID]",  90, &m_btnCentroid },
-            { ID_TB_LOCK,     L"[LOCK]",      56, &m_btnLock     },
-            { ID_TB_ROI,      L"[ROI]",       46, &m_btnROI      },
-            // gap at i==3
-            { ID_TB_COLOR,    L"[C] COLOR",   74, &m_btnColor    },
-            { ID_TB_MAP,      L"[*] MAP",     60, &m_btnMap      },
-            { ID_TB_GOTO,     L"[I] GOTO",    64, &m_btnGoTo     },
-            { ID_TB_RETICLE,  L"[+] RETICLE", 84, &m_btnReticle  },
-            { ID_TB_CLIP,     L"[CLIP]",      60, &m_btnClip     },
-            { ID_TB_FRAME,    L"[FRAME]",     62, &m_btnFrame    },
-            { ID_TB_GHOST,    L"[GH]",        40, &m_btnGhost    },
-            // Wide enough for the longest label it takes, "[HW] OFF".
-            { ID_TB_HW,       L"[HW] OFF",    74, &m_btnHW       },
-            { ID_TB_HELP,     L"[?]",         36, &m_btnHelp     },
-            { ID_TB_AI,       L"[AI]",        40, &m_btnAI       },
-            { ID_TB_DASH,     L"[DASH]",      52, &m_btnDash     },
-            { ID_TB_STACK,    L"[STACK]",     60, &m_btnStack    },
-            { ID_TB_FOLLOW,   L"[FOLLOW] OFF", 92, &m_btnFollow  },
-            { ID_TB_DEROT,    L"[DEROT] WARN", 92, &m_btnDerot   },
-            // gap at i==17 — capture format group
-            { ID_TB_RES_FULL, L"FULL",        46, &m_btnResFull  },
-            { ID_TB_RES_1920, L"1920",        46, &m_btnRes1920  },
-            { ID_TB_RES_1280, L"1280",        46, &m_btnRes1280  },
-            { ID_TB_RES_640,  L"640",         40, &m_btnRes640   },
-            { ID_TB_BIT8,     L"8b",          32, &m_btnBit8     },
-            { ID_TB_BIT16,    L"16b",         36, &m_btnBit16    },
-            // gap at i==23
-            { ID_TB_EXIT,     L"EXIT",        44, &m_btnExit     },
-        };
-        const int nDefs = (int)(sizeof(defs) / sizeof(defs[0]));
+    static int Index(int id) { return id - ID_TB_FIRST; }
+    State StateOf(int id) const { return m_state[Index(id)]; }
 
-        const int pad  = 4;
-        const int sep  = 12;
-        const int btnH = h - 6;
-        const int btnY = 3;
-        int x = 4;
+    void Toggle(int id, const wchar_t* label, bool on) {
+        Show(id, label, on ? State::Active : State::Idle);
+    }
 
-        for (int i = 0; i < nDefs; i++) {
-            auto& d = defs[i];
-            // Indices, so they move when a button is inserted. [HW]
-            // went in at 10, [DASH] at 13, [STACK] at 14, [FOLLOW] at 15 and
-            // [DEROT] at 16, each pushing
-            // the format group and EXIT along by one.
-            if (i == 3)  x += sep;   // gap before view buttons
-            if (i == 17) x += sep;   // gap before the format group
-            if (i == 23) x += sep;   // gap before EXIT
+    // Repaints only on a change: this runs every render tick and a
+    // redraw per tick would flash.
+    void Show(int id, const wchar_t* label, State s) {
+        const int i = Index(id);
+        if (!m_btn[i] || (m_state[i] == s && m_text[i] == label)) return;
+        m_state[i] = s;
+        m_text[i]  = label;
+        InvalidateRect(m_btn[i], nullptr, FALSE);
+    }
 
-            HWND btn = CreateWindowExW(
-                0, L"BUTTON", d.label,
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_FLAT,
-                x, btnY, d.width, btnH,
-                m_hwnd, (HMENU)(intptr_t)d.id,
-                GetModuleHandle(nullptr), nullptr);
-
-            if (btn) {
-                // No SetWindowTheme here, deliberately. Stripping the
-                // visual style was tried to make these button faces
-                // follow night vision, and measurement rejected it: the
-                // toolbar only went from 5.1% to 4% blue, because the
-                // residual is ClearType subpixel fringing on the labels
-                // and not the face at all -- while day mode lost its
-                // normal appearance permanently, reading 0.17% blue with
-                // night vision OFF where it had been 39%. A fix that
-                // misses its target and damages the common case is worse
-                // than the gap it was aimed at.
-                SendMessage(btn, WM_SETFONT, (WPARAM)m_font, TRUE);
-                *d.out = btn;
+    void BuildButtons() {
+        for (const ToolbarRow& row : kToolbarRows) {
+            for (int i = 0; i < row.count; i++) {
+                const ToolbarItem& d = row.items[i];
+                HWND btn = CreateWindowExW(
+                    0, L"BUTTON", d.label,
+                    WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+                    0, 0, d.width, kToolbarBtnH,
+                    m_hwnd, (HMENU)(intptr_t)d.id,
+                    GetModuleHandle(nullptr), nullptr);
+                if (btn) SetWindowTheme(btn, L"", L"");
+                m_btn[Index(d.id)]  = btn;
+                m_text[Index(d.id)] = d.label;
             }
-            x += d.width + pad;
         }
     }
 
-    void RebuildButtons(int w, int h) {
-        // Destroy and recreate — simplest resize strategy for a small fixed toolbar
-        if (m_btnCentroid) { DestroyWindow(m_btnCentroid); m_btnCentroid = nullptr; }
-        if (m_btnLock)     { DestroyWindow(m_btnLock);     m_btnLock     = nullptr; }
-        if (m_btnROI)      { DestroyWindow(m_btnROI);      m_btnROI      = nullptr; }
-        if (m_btnColor)    { DestroyWindow(m_btnColor);    m_btnColor    = nullptr; }
-        if (m_btnMap)      { DestroyWindow(m_btnMap);      m_btnMap      = nullptr; }
-        if (m_btnGoTo)     { DestroyWindow(m_btnGoTo);     m_btnGoTo     = nullptr; }
-        if (m_btnReticle)  { DestroyWindow(m_btnReticle);  m_btnReticle  = nullptr; }
-        if (m_btnClip)     { DestroyWindow(m_btnClip);     m_btnClip     = nullptr; }
-        if (m_btnHelp)     { DestroyWindow(m_btnHelp);     m_btnHelp     = nullptr; }
-        if (m_btnAI)       { DestroyWindow(m_btnAI);       m_btnAI       = nullptr; }
-        if (m_btnGhost)    { DestroyWindow(m_btnGhost);    m_btnGhost    = nullptr; }
-        if (m_btnHW)       { DestroyWindow(m_btnHW);       m_btnHW       = nullptr; }
-        if (m_btnDash)     { DestroyWindow(m_btnDash);     m_btnDash     = nullptr; }
-        if (m_btnStack)    { DestroyWindow(m_btnStack);    m_btnStack    = nullptr; }
-        if (m_btnFollow)   { DestroyWindow(m_btnFollow);   m_btnFollow   = nullptr; }
-        if (m_btnDerot)    { DestroyWindow(m_btnDerot);    m_btnDerot    = nullptr; }
-        if (m_btnExit)     { DestroyWindow(m_btnExit);     m_btnExit     = nullptr; }
-        if (m_btnResFull)  { DestroyWindow(m_btnResFull);  m_btnResFull  = nullptr; }
-        if (m_btnRes1920)  { DestroyWindow(m_btnRes1920);  m_btnRes1920  = nullptr; }
-        if (m_btnRes1280)  { DestroyWindow(m_btnRes1280);  m_btnRes1280  = nullptr; }
-        if (m_btnRes640)   { DestroyWindow(m_btnRes640);   m_btnRes640   = nullptr; }
-        if (m_btnBit8)     { DestroyWindow(m_btnBit8);     m_btnBit8     = nullptr; }
-        if (m_btnBit16)    { DestroyWindow(m_btnBit16);    m_btnBit16    = nullptr; }
-        if (m_btnFrame)    { DestroyWindow(m_btnFrame);    m_btnFrame    = nullptr; }
-        BuildButtons(w, h);
-        // The new buttons carry their plain BuildButtons labels, but the
-        // caches still hold the states those labels used to show, so every
-        // Update* call would early-return and the window would come back
-        // from a resize with every active marker gone. Clearing the caches
-        // makes the next tick repaint. This applies to the acquisition and
-        // view buttons too -- they had the same hole before the format
-        // group was added.
-        ResetStateCache();
+    // Moved rather than recreated, so a resize keeps every button's
+    // state and there is nothing to repaint from scratch.
+    void PlaceButtons(int stripW) {
+        for (int r = 0; r < 2; r++) {
+            const ToolbarRow& row = kToolbarRows[r];
+            int x[16] = {};
+            PlaceToolbarRow(row, stripW, x);
+            for (int i = 0; i < row.count; i++) {
+                HWND btn = m_btn[Index(row.items[i].id)];
+                if (btn) SetWindowPos(btn, nullptr, x[i], kToolbarRowY[r],
+                                      row.items[i].width, kToolbarBtnH,
+                                      SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+        }
     }
 
-    void ResetStateCache() {
-        m_lastAcqStage    = -1;
-        m_lastLockReady   = false;
-        m_lastRoiReady    = false;
-        m_lastColorActive = false;
-        m_lastMapVisible  = false;
-        m_lastGotoVisible = false;
-        m_lastReticleVis  = false;
-        m_lastClipVis     = false;
-        m_lastHelpVis     = false;
-        m_lastAIVis       = false;
-        m_lastGhostActive = false;
-        m_lastResW = m_lastResH = m_lastBits = -1;
-        // Phase 46: the same hole. A rebuild gives [HW] its plain
-        // creation label, so the next UpdateHardware has to repaint
-        // even though the link state itself has not changed.
-        m_hwLinksKnown = false;
+    // Composited on the far side of the night transform, as Theme's
+    // shadow helpers do: NV is a table for tokens and blending first
+    // would land on the derived luminance, not the designed one.
+    void DrawButton(const DRAWITEMSTRUCT* dis) {
+        const int i = Index((int)dis->CtlID);
+        if (i < 0 || i >= kToolbarButtons) return;
+
+        HDC  hdc     = dis->hDC;
+        RECT r       = dis->rcItem;
+        const State s = m_state[i];
+        const bool pressed = (dis->itemState & ODS_SELECTED) != 0;
+        const COLORREF panel  = Theme::NV(Theme::Rgb::PANEL);
+        const COLORREF accent = Theme::NV(Theme::Rgb::ACCENT);
+
+        COLORREF face = panel;
+        if (s == State::Active) face = Theme::Mix(panel, accent, 0.18f);
+        if (pressed)            face = Theme::Mix(face, accent, 0.25f);
+        HBRUSH hbg = CreateSolidBrush(face);
+        FillRect(hdc, &r, hbg);
+        DeleteObject(hbg);
+        Theme::RaiseInRect(hdc, r, Theme::Rgb::PANEL, Theme::Elev::RAISED);
+
+        HPEN pen = CreatePen(PS_SOLID, 1,
+            s == State::Ready ? Theme::NV(Theme::Rgb::ACCENT2)
+                              : Theme::NV(Theme::Rgb::BORDER));
+        HPEN   oldPen   = (HPEN)SelectObject(hdc, pen);
+        HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        Rectangle(hdc, r.left, r.top, r.right, r.bottom);
+        SelectObject(hdc, oldPen);
+        SelectObject(hdc, oldBrush);
+        DeleteObject(pen);
+
+        if (s == State::Active) {
+            RECT bar = { r.left + 1, r.bottom - 3, r.right - 1, r.bottom - 1 };
+            HBRUSH hbar = CreateSolidBrush(accent);
+            FillRect(hdc, &bar, hbar);
+            DeleteObject(hbar);
+        }
+
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, s == State::Active ? accent
+                                             : Theme::NV(Theme::Rgb::TEXT));
+        HFONT old = (HFONT)SelectObject(hdc,
+            s == State::Active ? m_fontActive : m_font);
+        DrawTextW(hdc, m_text[i].c_str(), -1, &r,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        SelectObject(hdc, old);
     }
 
     static LRESULT CALLBACK ToolbarWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -547,14 +385,9 @@ private:
         }
 
         switch (msg) {
-            case WM_CTLCOLORBTN: {
-                // Paint button background to match toolbar dark theme
-                HDC hdc = (HDC)wParam;
-                SetBkColor(hdc, Theme::NV(Theme::Rgb::PANEL));
-                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT)); // --text
-                HBRUSH hBg = Theme::Brush(Theme::Rgb::PANEL);
-                return (LRESULT)hBg;
-            }
+            case WM_DRAWITEM:
+                if (self) self->DrawButton(reinterpret_cast<DRAWITEMSTRUCT*>(lParam));
+                return TRUE;
             case WM_ERASEBKGND: {
                 HDC hdc = (HDC)wParam;
                 RECT cr; GetClientRect(hwnd, &cr);
@@ -580,45 +413,11 @@ private:
     HFONT m_fontActive = nullptr;
     int   m_panelWidth = 560;
 
-    HWND  m_btnCentroid = nullptr;
-    HWND  m_btnLock     = nullptr;
-    HWND  m_btnROI      = nullptr;
-    HWND  m_btnColor    = nullptr;
-    HWND  m_btnMap      = nullptr;
-    HWND  m_btnGoTo     = nullptr;
-    HWND  m_btnReticle  = nullptr;
-    HWND  m_btnClip     = nullptr;
-    HWND  m_btnHelp     = nullptr;
-    HWND  m_btnAI       = nullptr;
-    HWND  m_btnGhost    = nullptr;
-    HWND  m_btnExit     = nullptr;
-    HWND  m_btnResFull  = nullptr;
-    HWND  m_btnRes1920  = nullptr;
-    HWND  m_btnRes1280  = nullptr;
-    HWND  m_btnRes640   = nullptr;
-    HWND  m_btnBit8     = nullptr;
-    HWND  m_btnBit16    = nullptr;
-    HWND  m_btnFrame    = nullptr;
-
-    // -1 so the first UpdateFormat always paints, and so ResetStateCache()
-    // can force a repaint after the buttons are recreated.
+    // Indexed by id - ID_TB_FIRST.
+    HWND         m_btn[kToolbarButtons]   = {};
+    State        m_state[kToolbarButtons] = {};
+    std::wstring m_text[kToolbarButtons];
     std::wstring m_reticleLabel = L"RETICLE";
-    int  m_lastResW = -1;
-    int  m_lastResH = -1;
-    int  m_lastBits = -1;
-
-    // State cache — UpdateStates skips SetWindowTextW when unchanged (prevents flash)
-    int  m_lastAcqStage    = -1;
-    bool m_lastLockReady   = false;
-    bool m_lastRoiReady    = false;
-    bool m_lastColorActive = false;
-    bool m_lastMapVisible  = false;
-    bool m_lastGotoVisible = false;
-    bool m_lastReticleVis  = false;
-    bool m_lastClipVis     = false;
-    bool m_lastHelpVis     = false;
-    bool m_lastAIVis       = false;
-    bool m_lastGhostActive = false;
 
     std::function<void()> m_onCentroid;
     std::function<void()> m_onLock;
@@ -632,22 +431,10 @@ private:
     std::function<void()> m_onAI;
     std::function<void()> m_onGhost;
     std::function<void()> m_onHardware;
-    HWND m_btnHW = nullptr;
     std::function<void()> m_onDash;
-    HWND m_btnDash = nullptr;
     std::function<void()> m_onStack;
-    HWND m_btnStack = nullptr;
     std::function<void()> m_onFollow;
-    HWND m_btnFollow = nullptr;
     std::function<void()> m_onDerot;
-    HWND m_btnDerot = nullptr;
-    // The link state last painted. m_hwLinksKnown distinguishes "all
-    // three down" from "never set", which matters because the
-    // all-down state is the DEFAULT-constructed one -- without the
-    // flag, the first paint of a disconnected rig is skipped as
-    // unchanged and the button keeps its creation-time label.
-    raduk::core::DeviceLinks m_lastLinks;
-    bool m_hwLinksKnown = false;
     std::function<void()> m_onExit;
     std::function<void(int,int)> m_onRes;
     std::function<void(int)>     m_onBits;

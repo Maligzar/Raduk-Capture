@@ -34,6 +34,7 @@
 
 #include <windows.h>
 #include "Theme.h"
+#include "ToolbarLayout.h"
 #include <shellapi.h>
 #include <functional>
 #include <string>
@@ -147,7 +148,6 @@ public:
     }
 
 private:
-    static constexpr int TOOLBAR_HEIGHT = 30; // must match Window.cpp
 
     void Show(NotifLevel level, const std::wstring& text,
               const std::wstring& folderPath) {

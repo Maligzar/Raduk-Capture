@@ -193,50 +193,27 @@ inline std::string TypeName(const std::string& t, const std::string& sub) {
 // being wrong that way shrinks the text slightly and being wrong the
 // other way puts it through the bottom of the window.
 
-// Average glyph advance as a fraction of the em, and line height as a
-// multiple of it. Measured for the panel's body face at the sizes it
-// uses; see tests/object_panel_fit.cpp.
-inline constexpr float BODY_ADVANCE_EM = 0.47f;
-inline constexpr float BODY_LINE_EM    = 1.30f;
-
-// Never go below this for narrative text. The panel is read from
-// across a room, and text too small to read from there is no better
-// than text that is not on screen.
-inline constexpr float BODY_FLOOR_PX = 11.0f;
+// Phase 104: the implementation moved to namespace audience, where
+// the share view could reach it too. These names stay because they
+// read better at the object panel's call sites and because phase 103's
+// test is written against them; they are one-line forwards, not a
+// second copy of the arithmetic.
+using audience::BODY_ADVANCE_EM;
+using audience::BODY_LINE_EM;
+using audience::BODY_FLOOR_PX;
 
 inline float EstimatedLines(size_t chars, float width, float bodyPx) {
-    const float charW = bodyPx * BODY_ADVANCE_EM;
-    if (charW <= 0.0f || width <= 0.0f) return 1.0f;
-    // A column narrower than eight characters is not a column; the
-    // floor keeps a pathological width from predicting thousands of
-    // lines and collapsing the font to the minimum.
-    const float perLine = (std::max)(8.0f, width / charW);
-    const float lines = std::ceil((float)chars / perLine);
-    return (std::max)(1.0f, lines);
+    return audience::EstimatedLines(chars, width, bodyPx);
 }
 
 inline float EstimatedHeight(size_t chars, float width, float bodyPx) {
-    return bodyPx * BODY_LINE_EM * EstimatedLines(chars, width, bodyPx);
+    return audience::EstimatedHeight(chars, width, bodyPx);
 }
 
-// The largest body size at or below want whose text is estimated to
-// fit boxH, never below floorPx.
-//
-// Returns floorPx when even that does not fit, rather than something
-// smaller: at that point the text genuinely cannot fit and the honest
-// outcome is readable text that is clipped, not unreadable text that
-// is complete. Clipping is now real, so the caller's rect holds.
 inline float FitBodyPx(size_t chars, float width, float boxH,
                        float want, float floorPx = BODY_FLOOR_PX) {
-    if (chars == 0 || width <= 0.0f || boxH <= 0.0f) return want;
-    if (want <= floorPx) return floorPx;
-    if (EstimatedHeight(chars, width, want) <= boxH) return want;
-    // Walk down in whole pixels. The range is at most a few dozen
-    // steps and this runs once per draw of one panel, so there is
-    // nothing to gain from bisecting and a readable loop to lose.
-    for (float px = std::floor(want); px >= floorPx; px -= 1.0f)
-        if (EstimatedHeight(chars, width, px) <= boxH) return px;
-    return floorPx;
+    return audience::FitPx(chars, width, boxH, want,
+                           audience::BODY_ADVANCE_EM, floorPx);
 }
 
 } // namespace objectpanel

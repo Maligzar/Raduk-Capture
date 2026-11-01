@@ -1098,3 +1098,20 @@ For contrast, so this list is not read as "nothing works":
     Moon, see whether a full frame still counts as the target being seen,
     because that is what the check asks.
 
+37. **Seeing-aware runs** (phase 114). Emulator first: start it with
+    `RADUK_EMU_SEEING_AS=1`, press `RUNS`, and read the `[AUTORUN] start`
+    line. The first run should begin within a few seconds, because nothing
+    has set a bar yet. The emulator's seeing cannot be changed while it
+    runs, so to see a hold, set `AutorunSeeingHoldSec=30` and
+    `AutorunSeeingPct=100`, which only the night's best moment can clear.
+    A sequence should then log `waiting`, show the notice, and go on after
+    at most 30 s, and the `end:` line should count any it gave up on. The
+    folder should hold an
+    `autorun_<date>_<time>.txt` listing the runs best first. Stop one
+    sequence partway: the list should still appear, with the stopped run
+    in it. On a real planet: log the seeing figure beside your own eye for
+    a few minutes through a change in the sky. Then change the exposure by
+    a third and see that the figure holds, which is the claim the phase
+    rests on. Stack the best and worst runs of a sequence and see whether
+    the order agrees with the results. 80% is a starting figure.
+

@@ -41,6 +41,7 @@ struct Rig {
     bool     targetSeen = true;
     double   altDeg     = 45.0;
     bool     disk       = true;
+    bool     seeing     = true;
 
     bool     recording = false;
     bool     focusing  = false;
@@ -73,6 +74,7 @@ struct Rig {
             in.targetSeen  = targetSeen;
             in.altDeg      = altDeg;
             in.diskHasRoom = disk;
+            in.seeingOpen  = seeing;
         }
         switch (ar.Tick(now, in)) {
         case AR::Action::StartRun:
@@ -275,6 +277,102 @@ static void TestTargetLost() {
     }
 }
 
+static void TestSeeingHold() {
+    printf("waiting for the sky\n");
+    {
+        Rig r;
+        auto c = r.Config(); c.holdForSeeing = true; c.refocusEvery = 0;
+        r.seeing = false;
+        r.ar.Start(c, r.now);
+        r.RunFor(60.0);
+        Check(r.runsStarted == 0 && r.ar.HoldingForSeeing(), "a run waits");
+        r.seeing = true;
+        r.RunFor(3.0);
+        Check(r.runsStarted == 1, "and starts when it clears");
+        Check(!r.ar.HoldingForSeeing(), "and no longer says it is waiting");
+        Check(r.ar.SeeingGaveUp() == 0, "with nothing counted");
+        r.RunFor(r.runSec + 5.0);
+        Check(r.ar.State() == AR::Phase::Waiting && !r.ar.HoldingForSeeing(),
+              "and the next gap is not a wait for the sky");
+    }
+    {
+        Rig r;
+        auto c = r.Config(); c.holdForSeeing = true; c.refocusEvery = 1;
+        r.seeing = false;
+        r.ar.Start(c, r.now);
+        r.RunFor(60.0);
+        Check(r.sweeps == 0, "a sweep waits too");
+        r.seeing = true;
+        r.RunFor(3.0);
+        Check(r.sweeps == 1 && r.runsStarted == 0, "and it comes first");
+    }
+    {
+        Rig r;
+        auto c = r.Config(); c.holdForSeeing = true; c.refocusEvery = 0;
+        c.runs = 2;
+        r.seeing = false;
+        r.ar.Start(c, r.now);
+        r.RunFor(c.seeingHoldSec - 5.0);
+        Check(r.runsStarted == 0, "still waiting near the limit");
+        r.RunFor(10.0);
+        Check(r.runsStarted == 1, "past it, the run goes anyway");
+        Check(r.ar.SeeingGaveUp() == 1, "and it is counted");
+        r.RunOut();
+        Check(r.ar.State() == AR::Phase::Complete && r.ar.SeeingGaveUp() == 2,
+              "a poor night finishes, each wait on its own limit");
+        Check(r.runsStarted == 2, "with every run taken");
+    }
+    {
+        // Giving up before the sweep must not wait all over again after it.
+        Rig r;
+        auto c = r.Config(); c.holdForSeeing = true; c.refocusEvery = 1;
+        c.runs = 1;
+        r.seeing = false;
+        r.ar.Start(c, r.now);
+        const double t0 = r.now;
+        r.RunOut();
+        Check(r.ar.SeeingGaveUp() == 1, "one wait for the cycle, sweep or no");
+        Check(r.now - t0 < c.seeingHoldSec + r.focusSec + r.runSec + 20.0,
+              "and no second one");
+    }
+    {
+        Rig r;
+        auto c = r.Config(); c.refocusEvery = 0; c.runs = 1;
+        r.seeing = false;
+        r.ar.Start(c, r.now);
+        r.RunOut();
+        Check(r.ar.SeeingGaveUp() == 0 && r.runsStarted == 1,
+              "off means off");
+    }
+    {
+        // The floor still stops a sequence that is waiting.
+        Rig r;
+        auto c = r.Config(); c.holdForSeeing = true;
+        r.seeing = false;
+        r.ar.Start(c, r.now);
+        r.RunFor(30.0);
+        r.altDeg = 10.0;
+        r.RunOut();
+        Check(r.ar.State() == AR::Phase::Complete && r.runsStarted == 0,
+              "a target sinking during the wait ends it");
+    }
+    {
+        Rig r;
+        auto c = r.Config(); c.holdForSeeing = true;
+        r.seeing = false;
+        r.ar.Start(c, r.now);
+        r.RunFor(170.0);
+        r.seeing = true;
+        r.RunFor(r.focusSec + r.runSec + 10.0);
+        Check(r.runsStarted == 1 && !r.recording, "into the next gap");
+        r.seeing = false;
+        r.RunFor(30.0);
+        Check(r.runsStarted == 1, "the next run is waiting too");
+        Check(r.ar.SeeingGaveUp() == 0 && r.ar.Running(),
+              "a later wait gets its own limit");
+    }
+}
+
 static void TestRefusedRun() {
     printf("a recording that will not start\n");
     Rig r;
@@ -455,6 +553,16 @@ static void TestRestart() {
     Check(r.ar.Done() == 0 && r.ar.Empty() == 0 && r.ar.FocusFailures() == 0,
           "every count clears");
     Check(r.ar.Reason().empty(), "and so does the reason");
+    {
+        Rig s;
+        auto d = s.Config(); d.holdForSeeing = true; d.runs = 1; d.refocusEvery = 0;
+        s.seeing = false;
+        s.ar.Start(d, s.now);
+        s.RunOut();
+        Check(s.ar.SeeingGaveUp() == 1, "a wait given up on is counted");
+        s.ar.Start(d, s.now);
+        Check(s.ar.SeeingGaveUp() == 0, "and clears too");
+    }
     r.RunOut();
     Check(r.ar.State() == AR::Phase::Complete, "and it runs");
 }
@@ -509,6 +617,7 @@ int main() {
     TestAltitude();
     TestDisk();
     TestTargetLost();
+    TestSeeingHold();
     TestRefusedRun();
     TestCameraDied();
     TestFocus();

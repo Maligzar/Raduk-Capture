@@ -915,3 +915,22 @@ For contrast, so this list is not read as "nothing works":
     if it does not fit, which is the clip. To see the clip on its own,
     make the window very short: the text should be cut off cleanly at
     the edge rather than spilling over it.
+
+27. **A long target name on the share view** (phase 104). This is the
+    audience screen, so it is the one worth being fussy about. Set a
+    target with a long name -- type one into the GoTo box, the longer
+    the better -- and bring up the share view.
+
+    Before this, two separate things went wrong at two different
+    lengths. Past about 53 characters the name wrapped, and its second
+    line landed on the detail line beneath it, outside the dark scrim
+    that is meant to back the caption, at the very bottom edge of the
+    screen. Past 95 characters the name vanished altogether: the
+    conversion into a fixed buffer failed rather than truncating, and
+    the caption drew nothing.
+
+    It should now stay on one line at a slightly smaller size, and only
+    if it is far too long should it end in an ellipsis. Check an
+    ordinary name too -- "Jupiter" must still be drawn at full size,
+    since an over-eager fit that shrinks every caption would be a
+    regression of its own.

@@ -72,6 +72,7 @@
 #include "core/ObservationRecord.h" // phase 48: the record beside each capture, and recall
 #include "core/MountProxy.h"   // phase 46: one mount pointer that never goes stale
 #include "core/HardwareLink.h" // phase 46: what the [HW] button shows and says
+#include "core/RoiFollower.h"
 #include "core/DashboardLaunch.h" // [DASH]: open the dashboard with its token
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
 #pragma comment(lib, "shlwapi.lib")
@@ -824,6 +825,7 @@ static int RunApp(bool useEmulator) {
     // without it, a second acquisition cycle (ROI still cropped from the
     // first) placed the new crop at the wrong sensor position.
     // The ASI SDK centres a ROI when no start position is set; seed to match.
+    bool followGaveUp = false;   // Phase 107: until the button is pressed again
     int roiStartX = ((cam.MaxWidth()  - roiWidth)  / 2 / 8) * 8;
     int roiStartY = ((cam.MaxHeight() - roiHeight) / 2 / 2) * 2;
     // Phase 88: last session's values, falling back to the old
@@ -1065,6 +1067,11 @@ static int RunApp(bool useEmulator) {
             driftAs = (float)atof(envBuf);
         cam.SetCameraRotationDeg(rotDeg);
         cam.SetSeeingJitterArcsec(jitAs);
+        // Phase 107: a target that walks, to try ROI following indoors.
+        if (const char* d = getenv("RADUK_EMU_DRIFT_PX_S")) {
+            const float rate = (float)atof(d);
+            cam.SetDriftPxPerSec(rate, rate * 0.5f);
+        }
         if (emuMount) emuMount->SetTrackingErrorRate(driftAs, driftAs * 0.4f);
         Log("[INIT] Closed-loop emulation: rot=%.1f deg jitter=%.2f\" drift=%.2f\"/s\n",
             rotDeg, jitAs, driftAs);
@@ -1285,8 +1292,16 @@ static int RunApp(bool useEmulator) {
     // one per render pass. See the comment in the render loop for what
     // that was costing. The ring is untouched: it feeds the preview,
     // which is supposed to skip frames.
-    capture.SetFrameSink([&capturer](const raduk::core::FrameSlot* slot) {
+    //
+    // Phase 107: this is also the only place that sees every frame, so
+    // ROI following measures here, and moves the window from the thread
+    // that is already talking to the camera.
+    raduk::core::RoiFollowLink roiFollow;
+    roiFollow.SetMover([&cam](int x, int y) { return cam.SetStartPos(x, y); });
+    capture.SetFrameSink([&capturer, &roiFollow](const raduk::core::FrameSlot* slot) {
         capturer.SubmitFromCaptureThread(slot);
+        roiFollow.OnFrame(slot->data, (int)slot->width, (int)slot->height,
+                          (int)slot->bitDepth);
     });
 
     // ── Session summary accumulators ───────────────────────────
@@ -3234,6 +3249,7 @@ static int RunApp(bool useEmulator) {
     auto applyFormat = [&](int reqW, int reqH, int bits,
                            int wantCx, int wantCy, const char* why) -> bool {
         if (!cam.IsOpen()) return false;
+        roiFollow.Disarm();   // the render loop re-arms on the new format
 
         // ASI alignment: width %8, height %2. Enforced here rather than
         // at each call site, so a preset and a dragged box cannot
@@ -4903,6 +4919,19 @@ static int RunApp(bool useEmulator) {
         else           notifBar.NotifyWarn(L"Dashboard opened, but there is no usable WsToken to give it");
     };
     toolbar.SetDashCallback([&]() { doDashboard(); });
+    toolbar.SetFollowLabel(raduk::core::RigConfig::Get().roiFollow
+                               ? L"[FOLLOW] ON" : L"[FOLLOW] OFF");
+    toolbar.SetFollowCallback([&]() {
+        auto& rig = raduk::core::RigConfig::Get();
+        rig.roiFollow = !rig.roiFollow;
+        rig.SaveRoiFollow();
+        followGaveUp = false;
+        if (!roiFollow.Armed()) roiFollow.Reset();
+        toolbar.SetFollowLabel(rig.roiFollow ? L"[FOLLOW] ON" : L"[FOLLOW] OFF");
+        notifBar.NotifyInfo(rig.roiFollow
+            ? L"ROI following on - it runs once the planet is locked on a crop"
+            : L"ROI following off");
+    });
     // Phase 49: Help toggle — toolbar [?] button and ? key
     auto doHelp = [&]() { helpWindow.Toggle(); };
     toolbar.SetHelpCallback([&]()       { doHelp(); });
@@ -5419,7 +5448,8 @@ static int RunApp(bool useEmulator) {
         // render tick would fake a stationary trail.
         if (freshAnalysis && lastAnalysis.valid && lastAnalysis.centroidValid) {
             mountCtrl.FeedCameraMotion(
-                lastAnalysis.centroidX, lastAnalysis.centroidY,
+                lastAnalysis.centroidX + roiFollow.OffsetX(),
+                lastAnalysis.centroidY + roiFollow.OffsetY(),
                 raduk::core::RigConfig::Get().plateScaleArcsecPx,
                 std::chrono::duration<double>(
                     std::chrono::steady_clock::now()
@@ -5443,6 +5473,39 @@ static int RunApp(bool useEmulator) {
             autofocus.SubmitSharpness(lastAnalysis.sharpnessPct,
                                       lastAnalysis.centroidValid,
                                       (int)lastAnalysis.centroidPeak);
+
+        // Phase 107: following runs only while LOCKED, on a crop.
+        // Calibration measures how the image moves, so a moving window
+        // would corrupt it, and a full-sensor frame has nowhere to go.
+        {
+            const bool want = raduk::core::RigConfig::Get().roiFollow &&
+                              !followGaveUp && cam.IsOpen() &&
+                              tracker.Stage() == raduk::core::AcquisitionStage::Locked &&
+                              (roiWidth < cam.MaxWidth() || roiHeight < cam.MaxHeight());
+            if (roiFollow.Armed()) {
+                roiStartX = roiFollow.OriginX();
+                roiStartY = roiFollow.OriginY();
+            }
+            if (want && !roiFollow.Armed()) {
+                roiFollow.Arm(roiStartX, roiStartY, roiWidth, roiHeight,
+                              cam.MaxWidth(), cam.MaxHeight());
+                Log("[FOLLOW] armed at (%d,%d) on %dx%d\n",
+                    roiStartX, roiStartY, roiWidth, roiHeight);
+            } else if (!want && roiFollow.Armed()) {
+                roiFollow.Disarm();
+                const auto s = roiFollow.Snapshot();
+                Log("[FOLLOW] stopped: %d moves, %d landed, slowest %d frames\n",
+                    s.Moves(), s.Landed(), s.MaxLandingFrames());
+            }
+            if (roiFollow.GaveUp() && !followGaveUp) {
+                followGaveUp = true;   // want goes false until the button
+                const auto s = roiFollow.Snapshot();
+                Log("[FOLLOW] gave up: the camera did not apply %d moves in a row\n",
+                    s.Moves() - s.Landed());
+                notifBar.NotifyWarn(L"ROI following stopped - the camera is not "
+                                    L"applying moves during capture");
+            }
+        }
 
         // Feed centroid to tracker for all active stages
         // Stage 1 (Searching): SubmitCentroid updates stable counter, no corrections
@@ -5489,8 +5552,11 @@ static int RunApp(bool useEmulator) {
 
             if (stage != raduk::core::AcquisitionStage::Off && freshAnalysis) {
                 if (lastAnalysis.valid && lastAnalysis.centroidValid)
-                    tracker.SubmitCentroid(lastAnalysis.centroidX,
-                                           lastAnalysis.centroidY,
+                    // Plus the window's offset, so the tracker sees the
+                    // true error on the sensor and the mount keeps
+                    // walking the window back towards home.
+                    tracker.SubmitCentroid(lastAnalysis.centroidX + roiFollow.OffsetX(),
+                                           lastAnalysis.centroidY + roiFollow.OffsetY(),
                                            lastAnalysis.width,
                                            lastAnalysis.height);
                 else

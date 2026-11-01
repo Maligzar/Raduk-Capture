@@ -159,6 +159,9 @@ struct RigConfig {
     // chain reads.
     std::string captureFormat = "ser";
 
+    // Phase 107: move the ROI to hold a locked target.
+    bool        roiFollow = false;
+
     bool        autoStackOnStop = false;
     std::string autoStakkertPath;       // blank = probe the usual places
 
@@ -266,6 +269,11 @@ struct RigConfig {
     // the rig can never change or clear it. Never log it.
     std::string wsToken;
 
+    void SaveRoiFollow() const {
+        WritePrivateProfileStringA("Rig", "RoiFollow", roiFollow ? "1" : "0",
+                                   IniPath().c_str());
+    }
+
     void SaveCaptureFormat() const {
         WritePrivateProfileStringA("Rig", "CaptureFormat", captureFormat.c_str(),
                                    IniPath().c_str());
@@ -316,6 +324,7 @@ struct RigConfig {
         wf("FilterLowNm",  filterLowNm);
         wf("FilterHighNm", filterHighNm);
         ws("CaptureFormat", captureFormat);
+        ws("RoiFollow", roiFollow ? "1" : "0");
         ws("AutoStackOnStop", autoStackOnStop ? "1" : "0");
         ws("AutoStakkertPath", autoStakkertPath);
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
@@ -446,6 +455,7 @@ private:
         cfg.filterLowNm           = (float)rf("FilterLowNm",  cfg.filterLowNm);
         cfg.filterHighNm          = (float)rf("FilterHighNm", cfg.filterHighNm);
         cfg.captureFormat         = rs("CaptureFormat", cfg.captureFormat);
+        cfg.roiFollow             = rs("RoiFollow", cfg.roiFollow ? "1" : "0") == "1";
         cfg.autoStackOnStop       = rs("AutoStackOnStop", cfg.autoStackOnStop ? "1" : "0") == "1";
         cfg.autoStakkertPath      = rs("AutoStakkertPath", cfg.autoStakkertPath);
         cfg.guideRateArcsecPerSec = (float)rf("GuideRateArcsecPerSec", cfg.guideRateArcsecPerSec);

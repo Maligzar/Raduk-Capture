@@ -547,50 +547,15 @@ private:
         b->Release();
     }
 
-    // Phase 104. MultiByteToWideChar with a non-zero buffer size does
-    // not truncate: given more than the buffer holds it FAILS, returns
-    // 0, and leaves the buffer's contents undefined. The caption used
-    // a wchar_t[96] and checked target[0], so a target name over 95
-    // characters produced an empty string and the audience screen
-    // showed no target name at all.
-    //
-    // That is reachable from outside the app. The remote goto_target
-    // command over the WebSocket calls RequestGoToByName, which sets
-    // the string this caption displays, and nothing on that path
-    // bounds its length.
-    //
-    // This converts the whole string and lets the caller decide what
-    // to do with its length, which is the decision the fixed buffer
-    // was making silently and wrongly.
-    static std::wstring Wide(const std::string& s) {
-        if (s.empty()) return L"";
-        const int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1,
-                                          nullptr, 0);
-        if (n <= 1) return L"";
-        std::wstring w((size_t)(n - 1), L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, &w[0], n);
-        return w;
-    }
-
-    // Shortened to fit, with an ellipsis so it reads as shortened
-    // rather than as the object's name. Only ever called once the
-    // font has already been shrunk as far as it may go.
-    static std::wstring Ellipsize(const std::wstring& s, size_t fits) {
-        if (fits == 0) return L"";
-        if (s.size() <= fits) return s;
-        if (fits <= 1) return L"\u2026";
-        return s.substr(0, fits - 1) + L"\u2026";
-    }
-
     void DrawCaption() {
         if (!m_bigFormat || !m_smallFormat) return;
 
-        const std::wstring targetFull = Wide(m_cap.target);
+        const std::wstring targetFull = audience::Wide(m_cap.target);
 
         // One quiet line of what it is and how it is being taken. The
         // rig string first, because at a star party the second question
         // is always what the scope is.
-        const std::wstring rigStr = Wide(m_cap.rig);
+        const std::wstring rigStr = audience::Wide(m_cap.rig);
         const wchar_t* rig = rigStr.c_str();
 
         wchar_t line[256];
@@ -648,7 +613,7 @@ private:
                 targetFull.size(), availW, m_fontPx,
                 audience::DISPLAY_ADVANCE_EM);
             IDWriteTextFormat* bigf = BigAt(fitPx);
-            const std::wstring shown = Ellipsize(
+            const std::wstring shown = audience::Ellipsize(
                 targetFull,
                 audience::CharsThatFit(availW, fitPx,
                                        audience::DISPLAY_ADVANCE_EM));

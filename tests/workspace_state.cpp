@@ -8,7 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
-#include "WorkspaceLayout.h"
+#include "gui/WorkspaceLayout.h"
 
 static int failures = 0;
 static int checks   = 0;

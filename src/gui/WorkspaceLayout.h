@@ -49,6 +49,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#pragma comment(lib, "user32.lib")
 #include <string>
 #include <vector>
 #include <map>

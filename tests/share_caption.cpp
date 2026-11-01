@@ -20,7 +20,7 @@
 #include <cmath>
 #include <string>
 #include <algorithm>
-#include "AudienceLayout.h"
+#include "gui/AudienceLayout.h"
 
 static int failures = 0;
 static int checks   = 0;
@@ -67,6 +67,16 @@ static void TestWrapIsReachable() {
         ok(len <= fits, "and fits on one line");
     }
 
+    // The font is h / 18, which is only a whole number on some screens.
+    // At 1200 high it is 66.67, and a name that fits must keep that
+    // size rather than being floored to a whole pixel on the way past.
+    const Caption tall{ 1920.0f, 1200.0f };
+    ok(tall.fontPx() != std::floor(tall.fontPx()),
+       "this screen's caption size is fractional");
+    ok(A::FitPxOneLine(7, tall.availW(), tall.fontPx(),
+                       A::DISPLAY_ADVANCE_EM) == tall.fontPx(),
+       "and an ordinary name keeps it exactly");
+
     // The buffer the old code used was 96 wide chars, and a line holds
     // fewer than that, so there was a range of lengths that wrapped
     // without ever reaching the truncation bug. Both failures were
@@ -95,10 +105,12 @@ static void TestFitKeepsOneLine() {
         const bool oneLine =
             A::EstimatedLines(len, c.availW(), px,
                               A::DISPLAY_ADVANCE_EM) <= 1.0f;
-        // Either it fits on one line at the fitted size, or the floor
-        // was reached and the caller ellipsizes instead.
-        ok(oneLine || px == A::BODY_FLOOR_PX,
-           "it fits on one line, or the floor was reached and it is cut");
+        // A name that CAN fit at the floor must fit: only one longer
+        // than that may reach the floor and be cut by the caller.
+        const size_t atFloor = A::CharsThatFit(c.availW(), A::BODY_FLOOR_PX,
+                                               A::DISPLAY_ADVANCE_EM);
+        if (len <= atFloor) ok(oneLine, "it fits on one line");
+        else ok(px == A::BODY_FLOOR_PX, "past that it floors and is cut");
     }
 
     // The 95-character case: the exact length that used to blank the
@@ -150,6 +162,67 @@ static void TestObjectPanelStillForwards() {
        "and still shrinks what does not fit");
 }
 
+static void TestWide() {
+    printf("The conversion that used to blank the caption\n");
+    ok(A::Wide("").empty(), "empty stays empty");
+    ok(A::Wide("Jupiter") == L"Jupiter", "an ordinary name converts");
+
+    // The defect itself: the old wchar_t[96] held 95 characters, and
+    // 96 made the conversion fail and the caption vanish. Either side
+    // of that edge, and far past it, the whole name must come through.
+    for (size_t len : { (size_t)95, (size_t)96, (size_t)97, (size_t)5000 }) {
+        const std::string name(len, 'x');
+        const std::wstring w = A::Wide(name);
+        ok(w.size() == len, "no length is lost, at or past the old buffer");
+        ok(w == std::wstring(len, L'x'), "and the characters are intact");
+    }
+
+    // Fitting is by characters, so the length must count characters
+    // and not bytes. "Ganymede" with a two-byte e-acute.
+    const std::wstring accented = A::Wide("Ganym\xC3\xA9" "de");
+    ok(accented.size() == 8, "UTF-8 counts characters, not bytes");
+    ok(accented.size() == 8 && accented[5] == (wchar_t)0x00E9,
+       "and decodes as UTF-8, not the ANSI page");
+
+    // Nothing bounds the remote goto_target string, so it can be junk.
+    ok(!A::Wide("bad\xFFname").empty(), "invalid UTF-8 still shows something");
+}
+
+static void TestEllipsize() {
+    printf("Shortening a name\n");
+    const wchar_t dots = (wchar_t)0x2026;
+    ok(A::Ellipsize(L"Jupiter", 7) == L"Jupiter", "an exact fit is untouched");
+    ok(A::Ellipsize(L"Jupiter", 50) == L"Jupiter", "so is a name with room");
+    ok(A::Ellipsize(L"Jupiter", 6) == std::wstring(L"Jupit") + dots,
+       "one too long loses a character to the ellipsis");
+    ok(A::Ellipsize(L"Jupiter", 1) == std::wstring(1, dots),
+       "one slot is only the ellipsis");
+    ok(A::Ellipsize(L"Jupiter", 0).empty(), "no slots draws nothing");
+    ok(A::Ellipsize(L"", 5).empty(), "empty stays empty");
+    for (size_t fits = 1; fits < 12; ++fits)
+        ok(A::Ellipsize(L"Jupiter's moons", fits).size() <= fits,
+           "the result never exceeds what fits");
+}
+
+static void TestCaptionEndToEnd() {
+    printf("A long name, the way DrawCaption handles it\n");
+    const Caption c{ 1920.0f, 1080.0f };
+
+    // The same three calls in the same order, on a name past both old
+    // failures: it must come out non-empty, on one line, and cut.
+    const std::wstring full = A::Wide(std::string(5000, 'x'));
+    const float px = A::FitPxOneLine(full.size(), c.availW(), c.fontPx(),
+                                     A::DISPLAY_ADVANCE_EM);
+    const size_t fits = A::CharsThatFit(c.availW(), px, A::DISPLAY_ADVANCE_EM);
+    const std::wstring shown = A::Ellipsize(full, fits);
+    ok(!shown.empty(), "a 5000-character name still draws");
+    ok(shown.size() < full.size() && shown.back() == (wchar_t)0x2026,
+       "shortened, and visibly so");
+    ok(A::EstimatedLines(shown.size(), c.availW(), px,
+                         A::DISPLAY_ADVANCE_EM) <= 1.0f,
+       "and what is drawn stays on one line");
+}
+
 int main() {
     printf("=== phase 104: the share view's caption ===\n\n");
     TestWrapIsReachable();
@@ -157,6 +230,9 @@ int main() {
     TestCharsThatFit();
     TestAdvanceConstants();
     TestObjectPanelStillForwards();
+    TestWide();
+    TestEllipsize();
+    TestCaptionEndToEnd();
     printf("\n%d checks, %d failures\n", checks, failures);
     if (failures == 0) printf("PASS\n");
     return failures ? 1 : 0;

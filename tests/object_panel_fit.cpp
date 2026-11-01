@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <cmath>
 #include <string>
-#include "ObjectPanel.h"
+#include "gui/ObjectPanel.h"
 
 static int failures = 0;
 static int checks   = 0;
@@ -67,6 +67,9 @@ static void TestFit() {
     // common case and must not shrink anything.
     ok(OP::FitBodyPx(80, 800.0f, 600.0f, want) == want,
        "text that fits is left at the wanted size");
+    // The panel's body size is computed, so it is rarely whole.
+    ok(OP::FitBodyPx(80, 800.0f, 600.0f, 33.2f) == 33.2f,
+       "and a fractional size is kept exactly, not floored");
 
     // Text that does not fit comes back smaller.
     const float tight = OP::FitBodyPx(4000, 400.0f, 200.0f, want);
@@ -74,15 +77,19 @@ static void TestFit() {
     ok(tight >= OP::BODY_FLOOR_PX, "and never below the readable floor");
 
     // The result actually fits, which is the whole contract. Checked
-    // at the returned size, not assumed.
-    if (tight > OP::BODY_FLOOR_PX)
-        ok(OP::EstimatedHeight(4000, 400.0f, tight) <= 200.0f,
-           "the size it returns does fit the box");
+    // at the returned size, not assumed. These need a case that lands
+    // ABOVE the floor: they used to run on the 4000-character case
+    // above behind an "if above the floor", which that case never is,
+    // so neither assertion had ever executed.
+    const float roomy = OP::FitBodyPx(1000, 400.0f, 300.0f, want);
+    ok(roomy < want && roomy > OP::BODY_FLOOR_PX,
+       "this case shrinks but stops short of the floor");
+    ok(OP::EstimatedHeight(1000, 400.0f, roomy) <= 300.0f,
+       "the size it returns does fit the box");
 
     // And it is the LARGEST such size: one pixel more must not fit.
-    if (tight > OP::BODY_FLOOR_PX)
-        ok(OP::EstimatedHeight(4000, 400.0f, tight + 1.0f) > 200.0f,
-           "it returns the largest size that fits, not merely one that does");
+    ok(OP::EstimatedHeight(1000, 400.0f, roomy + 1.0f) > 300.0f,
+       "it returns the largest size that fits, not merely one that does");
 
     // Impossible boxes floor rather than vanishing. Readable and
     // clipped beats complete and unreadable, and clipping is real now.
@@ -117,6 +124,8 @@ static void TestFit() {
        "a wanted size already at the floor stays there");
     ok(OP::FitBodyPx(5000, 400.0f, 100.0f, 5.0f) == OP::BODY_FLOOR_PX,
        "a wanted size below the floor is raised to it");
+    ok(OP::FitBodyPx(10, 800.0f, 600.0f, 5.0f) == OP::BODY_FLOOR_PX,
+       "even when the text would have fitted at that size");
 }
 
 static void TestJupiter() {
@@ -153,12 +162,12 @@ static void TestJupiter() {
     printf("  fitted body size: %.1f px\n", fit);
 
     ok(fit < bodyPx, "so it is shrunk");
-    ok(fit >= OP::BODY_FLOOR_PX, "but stays readable");
-    ok(OP::EstimatedHeight(summaryChars, col2, boxH > 0 ? fit : fit) <= boxH ||
-       fit == OP::BODY_FLOOR_PX,
+    // Above the floor, so the two checks below cannot pass by reaching it
+    // and have to mean what they say.
+    ok(fit > OP::BODY_FLOOR_PX, "but stays well above the floor");
+    ok(OP::EstimatedHeight(summaryChars, col2, fit) <= boxH,
        "and the summary fits at the fitted size");
-    ok(OP::EstimatedHeight(mythChars, col2, fit) <= boxH ||
-       fit == OP::BODY_FLOOR_PX,
+    ok(OP::EstimatedHeight(mythChars, col2, fit) <= boxH,
        "as does the mythology, since both columns share one size");
 
     // Both columns share a size, so the shared size must be the

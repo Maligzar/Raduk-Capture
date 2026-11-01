@@ -51,6 +51,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <string>
 
 namespace raduk::gui {
 namespace audience {
@@ -362,6 +363,7 @@ inline float FitPxOneLine(size_t chars, float width, float want,
                           float floorPx = BODY_FLOOR_PX) {
     if (chars == 0 || width <= 0.0f) return want;
     if (want <= floorPx) return floorPx;
+    if (EstimatedLines(chars, width, want, advanceEm) <= 1.0f) return want;
     for (float px = std::floor(want); px >= floorPx; px -= 1.0f)
         if (EstimatedLines(chars, width, px, advanceEm) <= 1.0f) return px;
     return floorPx;
@@ -376,6 +378,42 @@ inline size_t CharsThatFit(float width, float px,
     if (charW <= 0.0f || width <= 0.0f) return 0;
     const float n = std::floor(width / charW);
     return (n <= 0.0f) ? 0 : (size_t)n;
+}
+
+// Phase 104, moved here from ShareView so tests/share_caption.cpp can
+// reach it. MultiByteToWideChar with a non-zero buffer size does
+// not truncate: given more than the buffer holds it FAILS, returns
+// 0, and leaves the buffer's contents undefined. The caption used
+// a wchar_t[96] and checked target[0], so a target name over 95
+// characters produced an empty string and the audience screen
+// showed no target name at all.
+//
+// That is reachable from outside the app. The remote goto_target
+// command over the WebSocket calls RequestGoToByName, which sets
+// the string this caption displays, and nothing on that path
+// bounds its length.
+//
+// This converts the whole string and lets the caller decide what
+// to do with its length, which is the decision the fixed buffer
+// was making silently and wrongly.
+inline std::wstring Wide(const std::string& s) {
+    if (s.empty()) return L"";
+    const int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1,
+                                      nullptr, 0);
+    if (n <= 1) return L"";
+    std::wstring w((size_t)(n - 1), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, &w[0], n);
+    return w;
+}
+
+// Shortened to fit, with an ellipsis so it reads as shortened
+// rather than as the object's name. Only ever called once the
+// font has already been shrunk as far as it may go.
+inline std::wstring Ellipsize(const std::wstring& s, size_t fits) {
+    if (fits == 0) return L"";
+    if (s.size() <= fits) return s;
+    if (fits <= 1) return L"\u2026";
+    return s.substr(0, fits - 1) + L"\u2026";
 }
 
 } // namespace audience

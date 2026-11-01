@@ -67,6 +67,7 @@ $Tests = @(
     @{ Name = "object_panel_fit"; Sources = @() }
     @{ Name = "share_caption";   Sources = @() }
     @{ Name = "rec_timer";       Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp") }
+    @{ Name = "fits_format";     Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

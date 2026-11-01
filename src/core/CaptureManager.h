@@ -45,11 +45,12 @@ inline const char* CaptureFormatName(CaptureFormat f) {
     return f == CaptureFormat::FITS ? "fits" : "ser";
 }
 
-// AutoStakkert's accepted inputs are avi/ser/as3/dat and image formats,
-// and a FITS cube has not been shown to be one of them. Handing it one
-// would launch it and fail where nobody is looking, so the caller asks
-// first and says so. Case-insensitive: a path can come from a file
-// dialog.
+// AutoStakkert opens a FITS cube when a person loads it, but its headless
+// /process /hide run never starts on one: measured 2026-11-01 on 100 and
+// 1436 frames, the switches logged and no "Processing started", where a
+// SER stacks in under a minute. The caller asks first, and shows the
+// window instead of waiting on a hidden run that will time out.
+// Case-insensitive: a path can come from a file dialog.
 inline bool IsFitsCapture(const std::string& path) {
     const std::string ext = ".fits";
     if (path.size() < ext.size()) return false;

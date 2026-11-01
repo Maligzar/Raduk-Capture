@@ -187,6 +187,26 @@ public:
     }
 
     void SetPath(const std::wstring& p) { m_exe = p; }
+
+    // Phase 106: the file loaded in AutoStakkert's own window, and the
+    // operator drives from there. For a FITS cube, which the headless
+    // switches do not process. Fire and forget: the app has nothing to
+    // wait for and the window outlives it.
+    bool OpenInteractive(const std::wstring& path) const {
+        if (m_exe.empty()) return false;
+        std::wstring cmd = L"\"" + m_exe + L"\" \"" + path + L"\"";
+        std::vector<wchar_t> buf(cmd.begin(), cmd.end());
+        buf.push_back(L'\0');
+        STARTUPINFOW si{};
+        si.cb = sizeof(si);
+        PROCESS_INFORMATION pi{};
+        if (!CreateProcessW(nullptr, buf.data(), nullptr, nullptr, FALSE,
+                            0, nullptr, nullptr, &si, &pi))
+            return false;
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        return true;
+    }
     // Narrow-string log sink, so the exact command line reaches the
     // session log instead of a console nobody can read afterwards.
     void SetLogger(std::function<void(const std::string&)> f) {

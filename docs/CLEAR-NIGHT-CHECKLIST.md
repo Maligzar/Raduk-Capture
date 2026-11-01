@@ -991,12 +991,15 @@ For contrast, so this list is not read as "nothing works":
     bottom, whatever `ROWORDER` says, and that is the finding to report,
     with the program's name.
 
-    Then open a `.fits` in AutoStakkert by hand. `K` and `[STACK]` skip
-    FITS on the assumption that it cannot. If it loads, that block comes
-    out.
+    AutoStakkert: the owner confirmed by hand on 2026-11-01 that it
+    opens a cube. Its headless switches do not process one, so `K` and
+    `[STACK]` open the window instead. Check the stacked result is
+    right-way-round in colour.
 
 30. **The two controls phase 106 left untried** (phase 106). With `FITS`
-    selected, `[STACK]` should warn and AutoStakkert should not start.
+    selected, `[STACK]` should open AutoStakkert's window with the cube
+    loaded. With `AutoStackOnStop=1` a FITS run should only leave a
+    notice, and no window should appear.
     With `SER` selected, `[STACK]` should stack as `K` always has.
     `Shift+K` should open each file type in its own program, and a type
     with no program should say so on the notification bar. The toolbar

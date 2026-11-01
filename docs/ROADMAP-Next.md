@@ -1284,7 +1284,7 @@ the ranking below it is what to pick up next.
 | Object panel and share view text fit their windows (103-104) | `e454f72`, `857592b` |
 | The recording timer counts (105) | `3b3b40a` |
 | The gate builds all its tests | `faa3585` (#66): four tests had never compiled under `run-tests.ps1` |
-| FITS output (phase 106, row 18) | Cube, FRAMES table, `SER`/`FITS` selector, `[STACK]`, `Shift+K`. **Siril and AutoStakkert have not opened a file**: checklist 29 |
+| FITS output (phase 106, row 18) | Cube, FRAMES table, `SER`/`FITS` selector, `[STACK]`, `Shift+K`. AutoStakkert opens a cube by hand, not headless, so `[STACK]` shows its window. **Siril has not opened a file**: checklist 29 |
 | Fuzz the WebSocket parser, token on every connection (P5.6) | `137dc5c` — gated by `tests/ws_protocol.cpp`, `ws_fuzz.cpp`, `ws_server_loopback.cpp`; the real dashboard connected and jogged the mount 2026-10-25, **owes one remote stop seen to work** |
 
 ---

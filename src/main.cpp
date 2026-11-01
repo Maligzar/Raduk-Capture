@@ -3677,16 +3677,18 @@ static int RunApp(bool useEmulator) {
             notifBar.NotifyInfo(L"No finished recording to stack yet");
             return;
         }
-        if (raduk::core::IsFitsCapture(serPath)) {
-            Log("[STACK] skipped, not handed to AutoStakkert: %s\n",
-                serPath.c_str());
-            notifBar.NotifyWarn(L"Stack skipped - FITS is not sent to "
-                                L"AutoStakkert. Record SER to stack");
-            return;
-        }
         if (!stacker.IsAvailable()) {
             notifBar.NotifyWarn(L"AutoStakkert not found - set "
                                 L"AutoStakkertPath in rig.ini");
+            return;
+        }
+        if (raduk::core::IsFitsCapture(serPath)) {
+            const bool opened = stacker.OpenInteractive(toWide(serPath));
+            Log("[STACK] FITS, %s in AutoStakkert's window: %s\n",
+                opened ? "opened" : "COULD NOT open", serPath.c_str());
+            if (opened) notifBar.NotifyInfo(L"FITS opened in AutoStakkert - "
+                                            L"it stacks from its own window");
+            else        notifBar.NotifyWarn(L"Could not start AutoStakkert");
             return;
         }
         if (stacker.IsRunning()) {
@@ -3807,6 +3809,15 @@ static int RunApp(bool useEmulator) {
             path.empty() ? "(empty)" : path.c_str());
         if (!normal) return;
         if (!raduk::core::RigConfig::Get().autoStackOnStop) return;
+        // Auto-stack is unattended, and a FITS cube only stacks with
+        // someone at AutoStakkert's window. Do not throw one up over the
+        // session when a recording ends.
+        if (raduk::core::IsFitsCapture(path)) {
+            Log("[STACK] auto-stack passes over FITS: %s\n", path.c_str());
+            notifBar.NotifyInfo(L"Auto-stack is SER only - press [STACK] "
+                                L"to open this FITS in AutoStakkert");
+            return;
+        }
         doStackFile(path);
     });
 

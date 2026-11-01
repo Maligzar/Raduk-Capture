@@ -339,7 +339,7 @@ fullscreen.
 | `V` | Toggle RGB Align |
 | `X` | Toggle Pixel Value Readout |
 | `Z` | Cycle Zoom (FIT → 50% → 100% → 200%) |
-| `K` | Stac**K** the last finished SER in AutoStakkert. A FITS file is skipped, with a warning |
+| `K` | Stac**K** the last finished recording. A SER stacks hidden; a FITS file opens in AutoStakkert's window |
 | `Shift+K` | Open the last finished recording in the program Windows has for that file type |
 | `↑↓←→` | Jog mount (hold to slew) |
 | `+` / `-` | Fine focus step |
@@ -439,7 +439,7 @@ capture format.
 | `[GH]` | — | Ghost/frame-stack display FX |
 | `[?]` | `?` | Toggle this Help window |
 | `[AI]` | — | Toggle the AI assistant chat panel |
-| `[STACK]` | `K` | Stack the last finished SER in AutoStakkert. It runs hidden and exits; a FITS file is skipped, with a warning |
+| `[STACK]` | `K` | Stack the last finished recording. A SER runs hidden and exits; a FITS file opens in AutoStakkert's window |
 | `[DASH]` | — | **Open the browser dashboard, already signed in.** It connects to this PC by itself; see **The browser dashboard** |
 | `FULL` | — | **Whole sensor, 3840x2160** - the widest field, and the way back from any crop |
 | `1920` | — | 1920x1080 |
@@ -562,9 +562,10 @@ boxes, the boxes silently won every time. One section, one set of values.
   what AutoStakkert stacks. FITS writes one cube per recording, with the
   observation details in its header and each frame's time and sharpness in a
   table after the image. The choice is saved, and a recording already running
-  keeps the format it started with. `K` and `[STACK]` skip a FITS file with a
-  warning; `Shift+K` opens the last recording in whatever program Windows has
-  for that file type.
+  keeps the format it started with. `K` and `[STACK]` open a FITS file in
+  AutoStakkert's own window, where you stack it by hand, because AutoStakkert's
+  hidden run does not process FITS. Auto-stack is SER only. `Shift+K` opens the
+  last recording in whatever program Windows has for that file type.
 - **Output directory** — Where recordings are saved (default: `D:\RadukCapture\captures`).
 - **Frames / Sec radio** — Capture limit mode: by frame count or by time. Also
   set by a profile load — a time-limited profile selects **Sec** for you,

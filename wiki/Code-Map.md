@@ -1,10 +1,12 @@
 # Code Map
 
-Every source file, what it owns, and how big it is. ~48,900 lines across 114
+Every source file, what it owns, and how big it is. ~59,500 lines across 137
 files; **only 15 translation units compile** — the rest are header-only,
 included into `main.cpp`.
 
-Line counts are from the revision this wiki was generated from.
+Line counts are from the revision each row was written against, so older rows
+run low. `main.cpp` was 7,162 lines on 2026-11-01, and its landmark line
+numbers below are older than that: search for the name instead.
 
 ---
 
@@ -48,6 +50,9 @@ local, wired with lambdas. Notable landmarks:
 | [`SERWriter.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/SERWriter.h) / `.cpp` | 113 / 199 | SER v3 header, frames, timestamp trailer, `_quality.txt` |
 | [`Timestamp.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/Timestamp.h) | 51 | QPC microsecond timing |
 | [`SessionLog.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/SessionLog.h) | 201 | Dated session log, mutex-serialised |
+| [`core/CaptureWriter.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/CaptureWriter.h) | 256 | Phase 106. What every format shares: pointing notes, wall-clock conversion, the quality sidecar |
+| [`core/FITSWriter.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/FITSWriter.h) | 75 | Phase 106. One cube per run with a `FRAMES` table. Paired with `FITSWriter.cpp` |
+| [`core/FITSFormat.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/FITSFormat.h) | 378 | Phase 106. FITS header and table encoding, pure so a test can read it back |
 
 See [Capture Pipeline](Capture-Pipeline), [Recording and SER Format](Recording-and-SER-Format).
 
@@ -62,7 +67,7 @@ See [Capture Pipeline](Capture-Pipeline), [Recording and SER Format](Recording-a
 | [`IMount.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/IMount.h) | 122 | Abstract mount interface, `GuideDirection`, RA/Dec formatters |
 | [`ASICamera.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ASICamera.h) / `.cpp` | 83 / 160 | ZWO ASI SDK wrapper |
 | `ASICamera2Stub.h` | 139 | SDK type stubs for emulator builds |
-| [`CameraEmulator.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/CameraEmulator.h) | **984** | Synthetic frames: per-planet render, rotation, moons, defocus, noise, seeing, 1280×960 cap |
+| [`CameraEmulator.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/CameraEmulator.h) | **984** | Synthetic frames: per-planet render, rotation, moons, defocus, noise, seeing, stars, lunar surface, full sensor |
 | [`EAFFocuser.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/EAFFocuser.h) / `.cpp` | 52 / 131 | ZWO EAF SDK wrapper |
 | `EAF_focuser_stub.h` | 49 | SDK stubs |
 | [`EAFEmulator.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/EAFEmulator.h) | 161 | Simulated motor at realistic step rate |
@@ -82,6 +87,9 @@ See [Device Layer](Device-Layer), [Mount Control](Mount-Control).
 | [`Sharpness.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/Sharpness.h) | 200 | **The one** Bayer Laplacian variance definition, `SHARP_CEIL`, the recorded noise-floor finding |
 | [`QuickLookStacker.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/QuickLookStacker.h) | 327 | Percentile gate, shift solving, scale-invariant gradient metric. Holds no pixel buffers |
 | [`CalibrationFrames.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/CalibrationFrames.h) | 328 | Master dark and flat, per-Bayer-position flat normalisation |
+| [`core/StarMetrics.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/StarMetrics.h) | 539 | Single-star HFD and FWHM. HFD is the headline, because FWHM stops meaning anything on a defocused annulus |
+| [`core/SeeingMonitor.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/SeeingMonitor.h) | 164 | Phase 114. Sharpness over the highlight squared, a 10 s median, compared across a sequence and used to rank its runs |
+| [`core/LunarSurface.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/LunarSurface.h) | 236 | Phase 94. Terminator and shadow geometry for the emulated Moon, pure |
 
 See [Image Analysis](Image-Analysis).
 
@@ -93,6 +101,10 @@ See [Image Analysis](Image-Analysis).
 | [`AutofocusRoutine.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/AutofocusRoutine.h) | 789 | V-curve scan, `FitPeakWindow`, backlash approach, the regression revert |
 | [`CordWrap.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/CordWrap.h) | 142 | Cumulative azimuth travel, GoTo-jump rejection |
 | [`AlignGuide.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/AlignGuide.h) | 102 | Turns "point north" into the observer's own landmarks from one bearing |
+| [`core/RoiFollower.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/RoiFollower.h) | 307 | Phase 107. Moves the sensor window on the capture thread, and proves each move landed |
+| [`core/SurfaceLock.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/SurfaceLock.h) | 325 | Phase 109. Correlates a surface patch when the target fills the frame. Its answer means what a centroid means |
+| [`core/AutorunRunner.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/AutorunRunner.h) | 325 | Phases 113, 114. Pure state machine for a night's runs: check, hold, focus, record, gap |
+| [`core/DerotationLimit.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/DerotationLimit.h) | 140 | Phase 108. Run length from the Rayleigh limit and tonight's apparent size |
 
 See [Tracking and Guiding](Tracking-and-Guiding), [Autofocus](Autofocus).
 
@@ -115,6 +127,10 @@ See [Tracking and Guiding](Tracking-and-Guiding), [Autofocus](Autofocus).
 | [`TextConv.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/TextConv.h) | 71 | UTF-8 ↔ UTF-16, sized from the data rather than a fixed buffer |
 | [`ADCAlignment.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ADCAlignment.h) | 144 | Per-channel centroid displacement — measures what a dispersion corrector has left behind |
 | [`SkyConditions.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/SkyConditions.h) | 211 | Airmass, resolution cost and the imaging window, from altitude |
+| [`core/LightLadder.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/LightLadder.h) | 107 | Phase 112. The one path auto-exposure takes along exposure and gain, with gain in dB |
+| [`core/ExposureScale.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/ExposureScale.h) | 111 | Phase 98. The exposure slider's log mapping |
+| [`core/CameraEntry.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/CameraEntry.h) | 57 | Phase 112. What a typed camera value means, and how it clamps |
+| [`core/DashboardLaunch.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/DashboardLaunch.h) | 98 | `[DASH]`. Opens the dashboard with the token in the URL fragment |
 
 See [Advisors](Advisors), [AI Assistant](AI-Assistant).
 
@@ -165,6 +181,8 @@ See [Configuration Reference](Configuration-Reference).
 | [`SharpnessDraw.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/SharpnessDraw.h) | 127 | Shared sharpness painter, same reason |
 | [`TemperatureDraw.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/TemperatureDraw.h) | 123 | Shared temperature painter, same reason |
 | [`ConfirmToast.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/ConfirmToast.h) | 182 | A large, self-dismissing confirmation for actions whose whole point is to change a file — read from across a room, at night |
+| [`gui/AudienceLayout.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/AudienceLayout.h) | 420 | Phases 96, 103, 104. Geometry and text fitting for the object panel and share view, pure |
+| [`gui/ToolbarLayout.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/gui/ToolbarLayout.h) | 183 | Phase 111. Where every toolbar button goes, and the one height constant |
 
 See [Rendering and UI](Rendering-and-UI).
 
@@ -181,6 +199,17 @@ See [Rendering and UI](Rendering-and-UI).
 | [`sky/SkyObject.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/SkyObject.h) | 642 | VSOP87 planets, 110 Messier, NGC subset, bright stars, Julian date helpers |
 | [`sky/ASTAPSolver.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/ASTAPSolver.h) | 334 | BMP export, ASTAP invocation with FOV hint, `.ini` parse, threaded |
 | [`sky/PointingModel.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/PointingModel.h) | 284 | CSV history, inverse-distance-squared `GetCorrection()`. **Reports, does not apply** |
+| [`net/PreviewStreamer.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/net/PreviewStreamer.h) | 70 | Dashboard preview pictures. Paired with `PreviewStreamer.cpp` |
+| [`net/PreviewFrame.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/net/PreviewFrame.h) | 124 | Preview JPEG framing, pure |
+| [`net/LeobenClient.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/net/LeobenClient.h) | 205 | Background fetch of `GET /weather/current`, every 10 minutes |
+| [`net/LeobenWeather.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/net/LeobenWeather.h) | 213 | Leoben's reply parsed, and sea-level to station pressure |
+| [`sky/LunarSolarSize.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/LunarSolarSize.h) | 220 | Moon and Sun distance and apparent diameter |
+| [`sky/MosaicPlan.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/MosaicPlan.h) | 391 | Grid, serpentine order, tangent-plane offsets, the framing report |
+| [`sky/MosaicRunner.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/MosaicRunner.h) | 334 | Phase 97.5. Pure state machine that takes the target's live position on every tick |
+| [`sky/PixelWCS.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/PixelWCS.h) | 470 | Phase 47b. TAN deprojection, the direction rose, solve staleness |
+| [`sky/SolveResult.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/SolveResult.h) | 123 | Phase 47b. One solve's result and how long it may be trusted |
+| [`sky/PlateScaleCheck.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/PlateScaleCheck.h) | 83 | Phase 110. Measured against configured scale, on all four solve paths |
+| [`sky/PushTo.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/PushTo.h) | 183 | Phase 30. Push-to geometry and the centred tolerance |
 | [`profiles/TargetProfile.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/profiles/TargetProfile.h) | 376 | Profile struct, defaults, hardware rails, `GAIN_HCG_THRESHOLD` |
 | [`profiles/ProfileManager.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/profiles/ProfileManager.h) | 220 | INI load/save via Win32, no dependencies |
 

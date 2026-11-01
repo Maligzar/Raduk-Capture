@@ -6,10 +6,10 @@ The project uses two parallel records, and the distinction matters:
 
 | Record | Is |
 |--------|-----|
-| [`RadukCapture-Architecture.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/RadukCapture-Architecture.md) phase table | The roadmap of **planned** features |
+| [`RadukCapture-Architecture.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/RadukCapture-Architecture.md) sections 12 and 13 | What is built, and what is **planned** |
 | [`RadukCapture-Help.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/RadukCapture-Help.md) phase history | The record of **what shipped** |
 
-> **Phases 60–84 are not in the roadmap table.** They were reactive work —
+> **Phases 60–84 were never in the plan.** They were reactive work —
 > reviews, defect fixes, and things the rig turned out to need — rather than
 > items from the plan.
 
@@ -123,7 +123,7 @@ What each still owes is in
 and the same thing is owed by all of them: **a run of
 `tests\run-tests.ps1`**. They are recorded as `GATED (mingw+wine)`, which
 is honest evidence and not the gate. P5.4's installer and release halves
-are untouched, and P5.7 is still undecided.
+are parked by the owner, and P5.7 is decided: PolyForm Noncommercial stays.
 
 The comparison also re-weighted work already on the list. By its
 weighting the highest-value unticked item in the project is clear-night
@@ -135,7 +135,7 @@ never verified, and the fix costs no code.
 
 | Phase | Feature | Effort |
 |-------|---------|--------|
-| 16 | Polar alignment assistant | Hard |
+| 6.6 | GoTo map learning, the correcting half | Med-Hard |
 
 ### Tier 3
 
@@ -147,34 +147,26 @@ never verified, and the fix costs no code.
 | 19 | Multi-session stats dashboard | Medium |
 | 43 | Deep sky image annotation | Hard |
 | 33 | Stellar photometry | Very hard |
-| 20 | Distribution / ASCOM support | Very hard |
 
 ### Partial
 
 | Phase | State |
 |-------|-------|
 | **6.6 GoTo map learning** | **◑ partial.** Auto solve+sync on lock ships; the accumulating map **reports but does not correct** — see [why](Sky-GoTo-and-Plate-Solving#why-it-reports-and-does-not-correct) |
-| 17 Live stacking preview | ◑ Superseded by the quick-look stacker (Phase 74) |
 | Phase 4 APEX items | `apex_bridge.py` RC telemetry forwarding, weather-aware capture suggestions |
 | Phase 77 AutoStakkert | ✅ **CLI and in-app launch both verified 2026-10-18** — 50.4 s via the app's own path, 8 files, with and without another AS instance open. The earlier "in-app launch does not work" is withdrawn; what caused it is unexplained and no longer reproducible |
 
-### Deferred indefinitely
+### Off the list
 
-**OBS / RTSP streaming (Phase 7).** H.264 from the capture PC GPU (NVENC or
-Media Foundation) to OBS on the monitoring PC, ~5–10 Mbps.
+| Item | State |
+|------|-------|
+| Installer and first release (the rest of phase 20 and P5.4) | Parked by the owner, 2026-11-01 |
+| Polar alignment (16) | Backlogged until a wedge and probably a new mount |
+| Live stacking preview (17) | Dropped, superseded by the quick-look stacker |
+| OBS / RTSP streaming (7) | Dropped |
 
-> Deferred until home WiFi bandwidth is confirmed sufficient for
-> low-latency video. No timeline — revisit after all Tier 1 and Tier 2
-> phases complete.
-
-### Superseded
-
-**Milestone 8 — ASCOM mount layer.** Built and tested, then superseded by
-NexStar direct. All known CPWI ASCOM drivers (CPWI Telescope, DeviceHub,
-ASIMount, JustAHub, all simulators) are blacklisted in
-`ASCOMMount::FindCPWIDriver()`. NexStar direct is faster, has no COM or
-registry dependencies, and supports all required commands.
-`ASCOMMount.h` is kept for potential future use.
+**ASCOM is not superseded.** The mount path tries ASCOM first and falls back
+to NexStar direct. `AscomProgId` names a driver past the refusal list.
 
 ---
 
@@ -317,7 +309,7 @@ Condensed from the help file's phase history. The full table is in
 | v2.1 | Phase 48: an observation record beside every capture, and `Shift+G` framing recall |
 | v2.2 | B3: the browser dashboard shows the telescope's view, a small JPEG about twice a second; every dashboard socket gets a 500 ms send timeout |
 | v2.3 | `[DASH]` on the toolbar opens the browser dashboard with the access token already in it, and it connects by itself |
-| v2.4 | **The current version.** The dashboard from any device on the home network (`WsLan`, `WsLanOpen`), and it stays connected; weather and sky from Leoben into the ADC, the status window, the observation record and the assistant. No tag yet |
+| v2.4 | **The current version, and phases 89 to 114 shipped without changing the number.** The dashboard from any device on the home network (`WsLan`, `WsLanOpen`), and it stays connected; weather and sky from Leoben into the ADC, the status window, the observation record and the assistant. No tag yet |
 
 ### Two version boundaries that invalidate old numbers
 

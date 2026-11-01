@@ -10,6 +10,17 @@ finished: Tiers 0, 1 and 3 entirely, and the debt items D1–D3. The
 tier sections are kept as the record of what was planned and why, with
 their outcomes marked.
 
+**The direction, set by the owner on 2026-11-01. This outranks the
+competitive scoring wherever the two disagree.** First, make this the best
+planetary imaging capture application ever made, surface detail above all.
+Then make it the best astrophotography application for a CMOS camera, on a
+telescope or on its own. Adoption is not a goal. Tier 5's hardware breadth
+and distribution items measure a market this project is not competing in,
+so they no longer drive the ranking. **The primary targets will always be bright objects
+visible from this site:** planets, satellites, rockets and the like, so
+faint deep-sky work ranks below all of them. A release may come months or years
+from now: [`Plan-Installer-And-Release-PARKED.md`](Plan-Installer-And-Release-PARKED.md).
+
 **This file ranks. It does not assert status.** What state a phase is
 actually in — and the difference between built, wired, gated and
 measured — is [`PHASE-STATUS.md`](PHASE-STATUS.md), which is the only
@@ -1091,6 +1102,10 @@ not pretending the decision has been taken:
 Record the decision whichever way it goes. An unmade decision here
 reads as the restrictive answer, because that is what it currently is.
 
+**Decided by the owner, 2026-11-01: PolyForm Noncommercial stays.** The
+aim is that nobody takes this work and makes money from it, while anyone
+who stumbles on it is free to benefit. That is the first option above.
+
 ---
 
 ## New debt found today
@@ -1201,6 +1216,17 @@ checked by sampling six window bodies across a toggle — all six moved
 together, red-dominant to blue-dominant.
 
 ### D4 · The AI runs on CPU — not actionable in code
+
+**Measured again 2026-11-01. Lower priority than the score work, by the
+owner's call.** The driver is still 546.01. `OLLAMA_LLM_LIBRARY=cpu` in
+the environment is what pins Ollama to the CPU. With it removed, on a
+second temporary server, Ollama 0.40.13 found the RTX 2060 through
+`cuda_v12`, then crashed at load with `CUDA error: device kernel image is
+invalid`, also with `CUDA_VISIBLE_DEVICES=0`. So taking the setting away
+is not enough on this driver. `OLLAMA_CONTEXT_LENGTH=262144` is why a 2 GB
+model takes 17 GB of RAM, and `OLLAMA_HOST=0.0.0.0` listens beyond this
+PC. A newer model on the RTX needs this crash solved first, with a driver
+that passes the unified-package check for both cards.
 
 Referenced from several places above and, until now, defined nowhere.
 

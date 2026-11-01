@@ -7,11 +7,13 @@
 
 #include "ControlPanel.h"
 #include "../core/ExposureScale.h"
+#include "../core/CameraEntry.h"
 #include "Theme.h"
 #include "core/RigConfig.h"
 #include "core/Paths.h"
 #include "core/TextConv.h"
 #include <windowsx.h>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
@@ -875,8 +877,10 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
     // Tab. Enter is handled by the subclass in MakeExposureEdit,
     // because typing a number and pressing Enter is the interaction
     // this box exists for and Win32 does not deliver it here.
-    if (id == ID_EDIT_EXPOSURE && notifyCode == EN_KILLFOCUS) {
-        CommitTypedExposure();
+    if (notifyCode == EN_KILLFOCUS &&
+        (id == ID_EDIT_EXPOSURE || id == ID_EDIT_GAIN || id == ID_EDIT_GAMMA ||
+         id == ID_EDIT_WBR || id == ID_EDIT_WBB || id == ID_EDIT_USB)) {
+        CommitTypedField((HWND)lParam);
         return true;
     }
 
@@ -1117,60 +1121,143 @@ void ControlPanel::FormatExposure(wchar_t* buf, size_t n, double ms) {
     else                  swprintf(buf, n, L"%.0f", ms);
 }
 
-// ── Phase 98: the typed exposure ───────────────────────────────
-//
-// Parsed in milliseconds, which is what the box shows. Clamped to
-// what the slider can represent rather than rejected: somebody typing
-// 500 into a box labelled ms has asked for half a second, and the
-// honest response is to give them the 60 ms ceiling and show it,
-// not to silently keep the old value.
-//
-// A value that does not parse at all restores the current one, so the
-// box can never be left showing something the camera is not doing.
-void ControlPanel::CommitTypedExposure() {
-    if (!m_editExposure) return;
-    wchar_t txt[48] = {};
-    GetWindowTextW(m_editExposure, txt, 48);
+// ── Phase 112: which box belongs to which slider ───────────────
 
-    wchar_t* end = nullptr;
-    const double ms = wcstod(txt, &end);
-    const bool parsed = (end != txt) && (ms > 0.0);
+HWND ControlPanel::SliderFor(HWND edit) const {
+    if (!edit) return nullptr;
+    if (edit == m_editExposure) return m_sliderExposure;
+    if (edit == m_editGain)     return m_sliderGain;
+    if (edit == m_editGamma)    return m_sliderGamma;
+    if (edit == m_editWBR)      return m_sliderWBR;
+    if (edit == m_editWBB)      return m_sliderWBB;
+    if (edit == m_editUSB)      return m_sliderUSB;
+    return nullptr;
+}
 
-    double us = parsed ? ms * 1000.0
-                       : raduk::core::ExposureUsAt(
-                             (int)SendMessage(m_sliderExposure, TBM_GETPOS, 0, 0));
-    if (us < raduk::core::EXP_MIN_US) us = raduk::core::EXP_MIN_US;
-    if (us > raduk::core::EXP_MAX_US) us = raduk::core::EXP_MAX_US;
+HWND ControlPanel::EditFor(HWND slider) const {
+    if (!slider) return nullptr;
+    if (slider == m_sliderExposure) return m_editExposure;
+    if (slider == m_sliderGain)     return m_editGain;
+    if (slider == m_sliderGamma)    return m_editGamma;
+    if (slider == m_sliderWBR)      return m_editWBR;
+    if (slider == m_sliderWBB)      return m_editWBB;
+    if (slider == m_sliderUSB)      return m_editUSB;
+    return nullptr;
+}
 
-    SendMessage(m_sliderExposure, TBM_SETPOS, TRUE,
-                (LPARAM)raduk::core::ExposurePosFor(us));
+// The camera write for a slider position, shared by a drag and a typed
+// value so the two cannot reach different setters. Exposure is not
+// here: its position is a log step and it has its own write.
+void ControlPanel::ApplyToCamera(HWND slider, int pos) {
+    if (!m_camera) return;
+    if (slider == m_sliderGain)  m_camera->SetGain(pos);
+    if (slider == m_sliderGamma) m_camera->SetGamma(pos);
+    if (slider == m_sliderUSB)   m_camera->SetUSBBandwidth(pos);
+    if (slider == m_sliderWBR)
+        m_camera->SetWhiteBalance(
+            pos, (int)SendMessage(m_sliderWBB, TBM_GETPOS, 0, 0));
+    if (slider == m_sliderWBB)
+        m_camera->SetWhiteBalance(
+            (int)SendMessage(m_sliderWBR, TBM_GETPOS, 0, 0), pos);
+}
+
+// Puts the slider's value back in the box, for a value that does not
+// parse, so a box can never be left showing something the camera is
+// not doing.
+void ControlPanel::ShowFieldFromSlider(HWND edit) {
+    HWND slider = SliderFor(edit);
+    if (!slider) return;
+    const int pos = (int)SendMessage(slider, TBM_GETPOS, 0, 0);
     wchar_t buf[32];
-    FormatExposure(buf, 32, us / 1000.0);
-    SetWindowTextW(m_editExposure, buf);
-    if (m_camera) m_camera->SetExposure(us / 1000.0);
+    if (edit == m_editExposure)
+        FormatExposure(buf, 32, raduk::core::ExposureUsAt(pos) / 1000.0);
+    else
+        swprintf(buf, 32, L"%d", pos);
+    SetWindowTextW(edit, buf);
+}
+
+// ── Typed values ───────────────────────────────────────────────
+//
+// Phase 98 did this for exposure, in milliseconds, which is what its
+// box shows. Clamped rather than rejected: somebody typing 500 into a
+// box labelled ms has asked for half a second, and the honest response
+// is to give them the 60 ms ceiling and show it, not to silently keep
+// the old value. Phase 112 extends the same rule to the other five.
+//
+// A box the operator has not typed in is not a value. Exposure used to
+// commit on every focus loss, so clicking through it wrote its text to
+// the camera: a DSO profile's "30000+" clamped to 60 ms, and a box left
+// holding the caret while AE ran undid AE on the way out. EM_GETMODIFY
+// is the difference, and SetWindowText clears it.
+void ControlPanel::CommitTypedField(HWND edit) {
+    HWND slider = SliderFor(edit);
+    if (!slider) return;
+    if (!SendMessage(edit, EM_GETMODIFY, 0, 0)) {
+        SyncFromCamera();
+        return;
+    }
+
+    wchar_t txt[48] = {};
+    GetWindowTextW(edit, txt, 48);
+
+    if (edit == m_editExposure) {
+        using namespace raduk::core;
+        const CameraEntry e = ParseCameraEntry(txt, EXP_MIN_US / 1000.0,
+                                               EXP_MAX_US / 1000.0);
+        if (!e.parsed) { ShowFieldFromSlider(edit); return; }
+        SendMessage(slider, TBM_SETPOS, TRUE,
+                    (LPARAM)ExposurePosFor(e.value * 1000.0));
+        wchar_t buf[32];
+        FormatExposure(buf, 32, e.value);
+        SetWindowTextW(edit, buf);
+        if (m_camera) m_camera->SetExposure(e.value);
+        return;
+    }
+
+    const double lo = (double)SendMessage(slider, TBM_GETRANGEMIN, 0, 0);
+    const double hi = (double)SendMessage(slider, TBM_GETRANGEMAX, 0, 0);
+    const raduk::core::CameraEntry e = raduk::core::ParseCameraEntry(txt, lo, hi);
+    if (!e.parsed) { ShowFieldFromSlider(edit); return; }
+    const int v = (int)std::lround(e.value);
+    SendMessage(slider, TBM_SETPOS, TRUE, (LPARAM)v);
+    ShowFieldFromSlider(edit);
+    ApplyToCamera(slider, v);
 }
 
 // Enter in a plain EDIT does not reach the parent as a notification,
-// so the box is subclassed for that one key. Escape puts the current
+// so the box is subclassed for that one key. Escape puts the camera's
 // value back, which is the other half of what anyone expects from a
 // field they have just mistyped into.
-LRESULT CALLBACK ControlPanel::ExposureEditProc(HWND h, UINT msg, WPARAM wp,
-                                                LPARAM lp, UINT_PTR,
-                                                DWORD_PTR ref) {
+LRESULT CALLBACK ControlPanel::CameraEditProc(HWND h, UINT msg, WPARAM wp,
+                                              LPARAM lp, UINT_PTR,
+                                              DWORD_PTR ref) {
     auto* self = reinterpret_cast<ControlPanel*>(ref);
     if (msg == WM_KEYDOWN && self) {
-        if (wp == VK_RETURN) { self->CommitTypedExposure(); return 0; }
+        if (wp == VK_RETURN) { self->CommitTypedField(h); return 0; }
         if (wp == VK_ESCAPE) {
-            const int pos = (int)SendMessage(self->m_sliderExposure,
-                                             TBM_GETPOS, 0, 0);
-            wchar_t buf[32];
-            FormatExposure(buf, 32, raduk::core::ExposureUsAt(pos) / 1000.0);
-            SetWindowTextW(h, buf);
+            // Off the box first: SyncFromCamera skips the one with the
+            // caret, and ShowFieldFromSlider would lose a '+' mark.
+            SendMessage(h, EM_SETMODIFY, FALSE, 0);
+            SetFocus(self->m_panelHwnd);
             return 0;
         }
     }
-    if (msg == WM_NCDESTROY) RemoveWindowSubclass(h, ExposureEditProc, 1);
+    // Swallow the matching characters, or the box beeps at each one.
+    if (msg == WM_CHAR && (wp == VK_RETURN || wp == VK_ESCAPE)) return 0;
+    if (msg == WM_NCDESTROY) RemoveWindowSubclass(h, CameraEditProc, 1);
     return DefSubclassProc(h, msg, wp, lp);
+}
+
+HWND ControlPanel::MakeCameraEdit(int x, int y, int w, int h, int id,
+                                  const wchar_t* text) {
+    HWND e = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", text,
+        WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL,
+        x, y, w, h, m_panelHwnd,
+        (HMENU)(INT_PTR)id, GetModuleHandle(nullptr), nullptr);
+    SetWindowTheme(e, L"", L"");
+    SetWindowSubclass(e, CameraEditProc, 1, reinterpret_cast<DWORD_PTR>(this));
+    TagControl(e, Section::Camera);
+    return e;
 }
 
 // ── WM_HSCROLL ─────────────────────────────────────────────────
@@ -1213,11 +1300,6 @@ bool ControlPanel::HandleScroll(WPARAM wParam, LPARAM lParam) {
         }
     }
 
-    if (slider == m_sliderGain) {
-        swprintf(buf, 32, L"%d", pos); SetWindowTextW(m_lblGainVal, buf);
-        if (commit && m_camera) m_camera->SetGain(pos);
-        return true;
-    }
     if (slider == m_sliderExposure) {
         // Phase 98: the position is a LOG step now, not microseconds.
         // ExposureScale.h owns the mapping so the panel, the profile
@@ -1229,27 +1311,6 @@ bool ControlPanel::HandleScroll(WPARAM wParam, LPARAM lParam) {
         if (commit && m_camera) m_camera->SetExposure(ms);
         return true;
     }
-    if (slider == m_sliderGamma) {
-        swprintf(buf, 32, L"%d", pos); SetWindowTextW(m_lblGammaVal, buf);
-        if (commit && m_camera) m_camera->SetGamma(pos);
-        return true;
-    }
-    if (slider == m_sliderWBR) {
-        swprintf(buf, 32, L"%d", pos); SetWindowTextW(m_lblWBRVal, buf);
-        if (commit && m_camera) {
-            int wbb = (int)SendMessage(m_sliderWBB, TBM_GETPOS, 0, 0);
-            m_camera->SetWhiteBalance(pos, wbb);
-        }
-        return true;
-    }
-    if (slider == m_sliderWBB) {
-        swprintf(buf, 32, L"%d", pos); SetWindowTextW(m_lblWBBVal, buf);
-        if (commit && m_camera) {
-            int wbr = (int)SendMessage(m_sliderWBR, TBM_GETPOS, 0, 0);
-            m_camera->SetWhiteBalance(wbr, pos);
-        }
-        return true;
-    }
     if (slider == m_sliderBlack || slider == m_sliderWhite) {
         // Both are reported together: the stretch is one window, and
         // SetStretch has to be able to keep them apart.
@@ -1259,9 +1320,10 @@ bool ControlPanel::HandleScroll(WPARAM wParam, LPARAM lParam) {
         if (m_onStretch) m_onStretch(b, wv);
         return true;
     }
-    if (slider == m_sliderUSB) {
-        swprintf(buf, 32, L"%d%%", pos); SetWindowTextW(m_lblUSBVal, buf);
-        if (commit && m_camera) m_camera->SetUSBBandwidth(pos);
+    if (HWND edit = EditFor(slider)) {
+        swprintf(buf, 32, L"%d", pos);
+        SetWindowTextW(edit, buf);
+        if (commit) ApplyToCamera(slider, pos);
         return true;
     }
     return false;
@@ -1303,7 +1365,7 @@ void ControlPanel::UpdateJogRateButtons() {
 // Used by Auto-Exposure assistant to sync panel when it applies changes.
 void ControlPanel::UpdateSlider(bool isExposure, int val) {
     HWND slider = isExposure ? m_sliderExposure : m_sliderGain;
-    HWND lbl    = isExposure ? m_lblExpVal      : m_lblGainVal;
+    HWND edit   = isExposure ? m_editExposure   : m_editGain;
 
     // ── Phase 98: do not fight the operator's hand ─────────────
     //
@@ -1327,29 +1389,13 @@ void ControlPanel::UpdateSlider(bool isExposure, int val) {
         SendMessage(slider, TBM_SETPOS, TRUE, (LPARAM)pos);
     }
 
-    // The exposure readout is an edit box now. Do not write to it
-    // while it has the caret, for the same reason as the slider: the
-    // operator is mid-way through typing a number.
-    if (isExposure && m_editExposure) {
-        if (GetFocus() != m_editExposure) {
-            wchar_t eb[32];
-            FormatExposure(eb, 32, val / 1000.0);
-            SetWindowTextW(m_editExposure, eb);
-        }
-        return;
-    }
-
-    if (lbl) {
+    // Not while the box has the caret, for the same reason as the
+    // slider: the operator is mid-way through typing a number.
+    if (edit && GetFocus() != edit) {
         wchar_t buf[32];
-        if (isExposure) {
-            double ms = val / 1000.0;
-            if      (ms < 1.0)  swprintf(buf, 32, L"%.3fms", ms);
-            else if (ms < 10.0) swprintf(buf, 32, L"%.2fms", ms);
-            else                swprintf(buf, 32, L"%.1fms", ms);
-        } else {
-            swprintf(buf, 32, L"%d", val);
-        }
-        SetWindowTextW(lbl, buf);
+        if (isExposure) FormatExposure(buf, 32, val / 1000.0);
+        else            swprintf(buf, 32, L"%d", val);
+        SetWindowTextW(edit, buf);
     }
 }
 
@@ -1638,19 +1684,22 @@ bool ControlPanel::GetLimitByFrames() const {
 
 void ControlPanel::SetCameraSliders(int gain, int exposureUs, int gamma,
                                     int wbRed, int wbBlue, int usbBandwidth) {
-    wchar_t buf[32];
-    auto put = [&](HWND sl, HWND lbl, int v, const wchar_t* fmt) {
+    auto put = [&](HWND sl, HWND edit, int v) {
         if (!sl) return;
-        SendMessage(sl, TBM_SETPOS, TRUE, v);
-        if (lbl) { swprintf(buf, 32, fmt, v); SetWindowTextW(lbl, buf); }
+        if (sl != m_draggingSlider) SendMessage(sl, TBM_SETPOS, TRUE, v);
+        if (edit && GetFocus() != edit) {
+            wchar_t buf[32];
+            swprintf(buf, 32, L"%d", v);
+            SetWindowTextW(edit, buf);
+        }
     };
-    put(m_sliderGain,  m_lblGainVal,  gain,         L"%d");
-    put(m_sliderGamma, m_lblGammaVal, gamma,        L"%d");
-    put(m_sliderWBR,   m_lblWBRVal,   wbRed,        L"%d");
-    put(m_sliderWBB,   m_lblWBBVal,   wbBlue,       L"%d");
-    put(m_sliderUSB,   m_lblUSBVal,   usbBandwidth, L"%d%%");
+    put(m_sliderGain,  m_editGain,  gain);
+    put(m_sliderGamma, m_editGamma, gamma);
+    put(m_sliderWBR,   m_editWBR,   wbRed);
+    put(m_sliderWBB,   m_editWBB,   wbBlue);
+    put(m_sliderUSB,   m_editUSB,   usbBandwidth);
 
-    if (m_sliderExposure) {
+    if (m_sliderExposure && m_sliderExposure != m_draggingSlider) {
         // Phase 98: log steps. The '+' marking below still works and
         // is still needed -- the DSO profile asks for 30 SECONDS and
         // the slider stops at 60 ms -- but it is now decided by
@@ -1666,23 +1715,47 @@ void ControlPanel::SetCameraSliders(int gain, int exposureUs, int gamma,
                 wcscat_s(eb, 40, L"+");
             SetWindowTextW(m_editExposure, eb);
         }
-        if (m_lblExpVal) {
-            // The slider tops out at 60 ms, by design -- longer exposures
-            // are set in the profile editor. But the DSO profile asks for
-            // 30 SECONDS, and TBM_SETPOS silently clamps, so printing the
-            // profile's value beside a pegged slider would have them
-            // disagreeing: the same fault this method exists to fix.
-            // The label tells the truth about the camera and marks itself
-            // with a '+' when the slider cannot reach it.
-            const int shown = (int)SendMessage(m_sliderExposure, TBM_GETPOS, 0, 0);
-            const bool pegged = (shown != exposureUs);
-            const double ms = (double)exposureUs / 1000.0;
-            const wchar_t* tail = pegged ? L"+" : L"";
-            if (ms < 1.0)       swprintf(buf, 32, L"%.3fms%ls", ms, tail);
-            else if (ms < 10.0) swprintf(buf, 32, L"%.2fms%ls", ms, tail);
-            else if (ms < 1000.0) swprintf(buf, 32, L"%.1fms%ls", ms, tail);
-            else                swprintf(buf, 32, L"%.1fs%ls", ms / 1000.0, tail);
-            SetWindowTextW(m_lblExpVal, buf);
+    }
+}
+
+// ── Phase 112: the panel follows the camera ────────────────────
+//
+// The owner's report: AE should show on the sliders. Part of why it did
+// not is that the sliders were not showing the camera at all. Every
+// section starts collapsed, so the startup and profile pushes found
+// null handles and did nothing, and RebuildControls then built the
+// sliders from constants: gain 100, exposure 0.08 ms, gamma 50, whatever
+// the camera was doing. Opening CAMERA showed a fiction, nudging a
+// slider wrote from it, and each collapse toggle reset it. The rebuild
+// now ends here, as does everything that changes a control behind the
+// panel's back.
+//
+// A control the camera does not list is greyed rather than left to
+// fail: the SDK refuses the write and the setters return nothing, so
+// the slider would move and the image would not. Gamma is the live
+// case. See docs/Phase112-Plan-Camera-Review.md.
+void ControlPanel::SyncFromCamera() {
+    using CamId = raduk::core::ControlId;
+    if (!m_camera || !m_camera->IsOpen()) return;
+    SetCameraSliders((int)m_camera->GetControlValue(CamId::Gain),
+                     (int)m_camera->GetControlValue(CamId::ExposureUs),
+                     (int)m_camera->GetControlValue(CamId::Gamma),
+                     (int)m_camera->GetControlValue(CamId::WhiteBalanceRed),
+                     (int)m_camera->GetControlValue(CamId::WhiteBalanceBlue),
+                     (int)m_camera->GetControlValue(CamId::UsbBandwidth));
+
+    struct { CamId id; HWND slider; HWND edit; } rows[] = {
+        { CamId::Gamma,            m_sliderGamma, m_editGamma },
+        { CamId::WhiteBalanceRed,  m_sliderWBR,   m_editWBR   },
+        { CamId::WhiteBalanceBlue, m_sliderWBB,   m_editWBB   },
+    };
+    for (auto& r : rows) {
+        raduk::core::ControlRange range;
+        const bool usable = m_camera->GetControlRange(r.id, range) && range.writable;
+        if (r.slider) EnableWindow(r.slider, usable);
+        if (r.edit) {
+            EnableWindow(r.edit, usable);
+            if (!usable) SetWindowTextW(r.edit, L"n/a");
         }
     }
 }
@@ -2121,8 +2194,8 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     }, 0);
 
     // Reset all HWND members
-    m_lblGainVal = m_lblExpVal = m_lblGammaVal = nullptr;
-    m_lblUSBVal  = m_lblWBRVal = m_lblWBBVal   = nullptr;
+    m_editExposure = m_editGain = m_editGamma = nullptr;
+    m_editUSB = m_editWBR = m_editWBB = nullptr;
     m_sliderGain = m_sliderExposure = m_sliderGamma  = nullptr;
     m_sliderUSB  = m_sliderWBR = m_sliderWBB    = nullptr;
     m_lblFocusPos = m_lblFocusTemp = nullptr;
@@ -2290,16 +2363,15 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // ── CAMERA ────────────────────────────────────────────────────
     secC("CAMERA", Section::Camera);
     if (!IsCollapsed(Section::Camera)) {
-    // Value labels are right-aligned, 44px wide; slider fills between label text and value
+    // Every row ends in a box the width of exposure's. Phase 112.
     const int LBLW = 58;   // left label column width
-    const int VALW = 44;   // right value label width
+    const int EDW  = 54;   // wide enough for "60.000" plus a caret
     auto makeSliderRow = [&](const wchar_t* lbl, int lo, int hi, int val, int id,
-                              int lblId, HWND& slider, HWND& valLbl,
+                              int editId, HWND& slider, HWND& edit,
                               const wchar_t* initTxt) {
         TagControl(MakeLabel(lbl, x, y, LBLW, SH), Section::Camera);
-        slider = MakeSlider(x+LBLW+2, y, w-LBLW-2-VALW-2, SL, lo, hi, val, id);
-        valLbl = MakeValueLabel(initTxt, x+w-VALW, y, VALW, SH, lblId);
-        TagControl(valLbl, Section::Camera);
+        slider = MakeSlider(x+LBLW+2, y, w-LBLW-2-EDW-2, SL, lo, hi, val, id);
+        edit   = MakeCameraEdit(x+w-EDW, y, EDW, SL, editId, initTxt);
         y += SL + 4;
     };
 
@@ -2315,9 +2387,9 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // one, since the camera follows the move handler.
     swprintf(expBuf,   16, L"%.2fms",(float)initExp / 1000.0f);
     swprintf(gammaBuf, 16, L"%d",    initGamma);
-    swprintf(usbBuf,   16, L"%d%%",  initUSB);
+    swprintf(usbBuf,   16, L"%d",    initUSB);
 
-    makeSliderRow(L"Gain",     0, 570,   initGain,  ID_SLIDER_GAIN,  ID_LBL_GAIN_VAL,  m_sliderGain,     m_lblGainVal,  gainBuf);
+    makeSliderRow(L"Gain",     0, 570,   initGain,  ID_SLIDER_GAIN,  ID_EDIT_GAIN,  m_sliderGain,  m_editGain,  gainBuf);
 
     // ── Exposure: LOG scale, and a box to type in ─────────────
     //
@@ -2347,7 +2419,6 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     {
         using namespace raduk::core;
         TagControl(MakeLabel(L"Exposure", x, y, LBLW, SH), Section::Camera);
-        const int EDW = 54;   // wide enough for "60.000" plus a caret
         m_sliderExposure = MakeSlider(x+LBLW+2, y, w-LBLW-2-EDW-2, SL,
                                       0, EXP_SLIDER_STEPS,
                                       ExposurePosFor((double)initExp),
@@ -2358,48 +2429,39 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
                     (LPARAM)EXP_LINE_STEPS);
         SendMessage(m_sliderExposure, TBM_SETPAGESIZE, 0,
                     (LPARAM)EXP_PAGE_STEPS);
-        m_editExposure = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", expBuf,
-            WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL,
-            x+w-EDW, y, EDW, SL, m_panelHwnd,
-            (HMENU)(INT_PTR)ID_EDIT_EXPOSURE, GetModuleHandle(nullptr), nullptr);
-        SetWindowTheme(m_editExposure, L"", L"");
-        SetWindowSubclass(m_editExposure, ExposureEditProc, 1,
-                          reinterpret_cast<DWORD_PTR>(this));
-        TagControl(m_editExposure, Section::Camera);
-        // The old read-only label is gone; the edit box IS the
-        // readout. Keeping both would be two things to disagree.
-        m_lblExpVal = nullptr;
+        m_editExposure = MakeCameraEdit(x+w-EDW, y, EDW, SL,
+                                        ID_EDIT_EXPOSURE, expBuf);
         y += SL + 4;
     }
-    makeSliderRow(L"Gamma",    1, 100,   initGamma, ID_SLIDER_GAMMA, ID_LBL_GAMMA_VAL, m_sliderGamma,    m_lblGammaVal, gammaBuf);
+    makeSliderRow(L"Gamma",    1, 100,   initGamma, ID_SLIDER_GAMMA, ID_EDIT_GAMMA, m_sliderGamma, m_editGamma, gammaBuf);
 
     // WB row — two half-width sliders, tighter geometry
     {
         const int WBLW = 46;  // "WB Red" / "WB Blue" label width
-        const int WBVW = 22;  // value label width
+        const int WBEW = 38;  // box width; three digits and a caret
         int hw = (w - 4) / 2;
         TagControl(MakeLabel(L"WB Red",  x,      y, WBLW, SH), Section::Camera);
-        m_sliderWBR = MakeSlider(x+WBLW, y, hw-WBLW-WBVW-1, SL, 0, 100, 52, ID_SLIDER_WBR);
-        m_lblWBRVal = MakeValueLabel(L"52", x+hw-WBVW, y, WBVW, SH, ID_LBL_WBR_VAL);
-        TagControl(m_lblWBRVal, Section::Camera);
+        m_sliderWBR = MakeSlider(x+WBLW, y, hw-WBLW-WBEW-1, SL, 0, 100, 52, ID_SLIDER_WBR);
+        m_editWBR   = MakeCameraEdit(x+hw-WBEW, y, WBEW, SL, ID_EDIT_WBR, L"52");
         TagControl(MakeLabel(L"WB Blue", x+hw+2, y, WBLW, SH), Section::Camera);
-        m_sliderWBB = MakeSlider(x+hw+2+WBLW, y, hw-WBLW-WBVW-1, SL, 0, 100, 47, ID_SLIDER_WBB);
-        m_lblWBBVal = MakeValueLabel(L"47", x+w-WBVW, y, WBVW, SH, ID_LBL_WBB_VAL);
-        TagControl(m_lblWBBVal, Section::Camera);
+        m_sliderWBB = MakeSlider(x+hw+2+WBLW, y, hw-WBLW-WBEW-1, SL, 0, 100, 47, ID_SLIDER_WBB);
+        m_editWBB   = MakeCameraEdit(x+w-WBEW, y, WBEW, SL, ID_EDIT_WBB, L"47");
         y += SL + 3;
     }
-    makeSliderRow(L"USB",      40, 100,  initUSB,   ID_SLIDER_USB,   ID_LBL_USB_VAL,   m_sliderUSB,      m_lblUSBVal,   usbBuf);
+    makeSliderRow(L"USB %",    40, 100,  initUSB,   ID_SLIDER_USB,   ID_EDIT_USB,   m_sliderUSB,   m_editUSB,   usbBuf);
     TagControls({ m_sliderGain, m_sliderExposure, m_sliderGamma,
                   m_sliderUSB, m_sliderWBR, m_sliderWBB }, Section::Camera);
 
     // Phase 12 — Auto-Exposure row: [AE ADVISORY] label + [AUTO] toggle button
     {
         int btnW = 52;
-        m_lblAEStatus = MakeValueLabel(L"AE: off", x, y, w - btnW - 2, SH, ID_LBL_AE_STATUS);
+        m_lblAEStatus = MakeValueLabel(m_aeStatus.c_str(), x, y, w - btnW - 2, SH, ID_LBL_AE_STATUS);
         TagControl(m_lblAEStatus, Section::Camera);
         m_btnAEAuto = MakeButton(L"AE OFF", x + w - btnW, y - 2, btnW, BH, ID_BTN_AE_AUTO);
         SetWindowTheme(m_btnAEAuto, L"", L"");
         TagControl(m_btnAEAuto, Section::Camera);
+        // The button is rebuilt with everything else; AE is not.
+        SetAEState(m_aeState);
         y += BH + 2;
     }
     } // end Camera
@@ -2732,8 +2794,6 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     } // end Notes
 
     // Tag sections
-    TagControls({ m_lblGainVal, m_lblExpVal, m_lblGammaVal,
-                  m_lblUSBVal, m_lblWBRVal, m_lblWBBVal }, Section::Camera);
     TagControls({ m_lblFocusPos, m_lblFocusTemp }, Section::EAF);
     TagControls({ m_lblMountRA, m_lblMountDec,
                   m_lblMountTrack, m_lblMountControl }, Section::Mount);
@@ -2834,6 +2894,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // Same idea as the cached status strings above, for everything the
     // user typed or chose. Must come last: the controls have to exist.
     RestoreUi();
+    SyncFromCamera();
 }
 
 } // namespace raduk::gui

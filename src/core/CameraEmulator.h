@@ -275,6 +275,16 @@ public:
         return true;
     }
 
+    static constexpr int EMU_WB_R_NEUTRAL = 52, EMU_WB_B_NEUTRAL = 47;
+
+    // Phase 112: gain is 0.1 dB a unit, so 60 units double the signal.
+    // This was gain/100, linear, which is no camera, and a ladder
+    // working in stops could not have been tested against it. Gain 100
+    // at 8 ms still reads 1.0, so that is where the two agree.
+    float EmuBrightness() const {
+        return std::pow(10.0f, (m_gain - 100) / 200.0f) * (m_exposureUs / 8000.0f);
+    }
+
     bool SetControl(ASI_CONTROL_TYPE type, long value, bool /*autoMode*/ = false) {
         switch (type) {
             case ASI_GAIN:             m_gain = (int)value; break;
@@ -308,8 +318,28 @@ public:
         }
     }
 
-    bool GetControlCaps(ASI_CONTROL_TYPE /*type*/, ASI_CONTROL_CAPS& /*caps*/) const {
-        return false;
+    // Phase 112: answers for the controls it holds, because the panel
+    // now greys what a camera does not list. Set RADUK_EMU_NO_GAMMA=1 to
+    // be the camera the SDK may really be: see
+    // docs/Phase112-Plan-Camera-Review.md.
+    bool GetControlCaps(ASI_CONTROL_TYPE type, ASI_CONTROL_CAPS& caps) const {
+        caps = ASI_CONTROL_CAPS{};
+        caps.ControlType = type;
+        caps.IsWritable  = ASI_TRUE;
+        switch (type) {
+            case ASI_GAIN:     caps.MaxValue = 570;     caps.DefaultValue = 100; break;
+            case ASI_EXPOSURE: caps.MinValue = 32;
+                               caps.MaxValue = 2000000000; caps.DefaultValue = 8000; break;
+            case ASI_GAMMA:
+                if (m_noGamma) return false;
+                caps.MinValue = 1; caps.MaxValue = 100; caps.DefaultValue = 50; break;
+            case ASI_WB_R:     caps.MaxValue = 100; caps.DefaultValue = EMU_WB_R_NEUTRAL; break;
+            case ASI_WB_B:     caps.MaxValue = 100; caps.DefaultValue = EMU_WB_B_NEUTRAL; break;
+            case ASI_BANDWIDTHOVERLOAD:
+                caps.MinValue = 40; caps.MaxValue = 100; caps.DefaultValue = 80; break;
+            default: return false;
+        }
+        return true;
     }
 
     const std::vector<ASI_CONTROL_CAPS>& AllControls() const { return m_controls; }
@@ -580,7 +610,7 @@ public:
     // Expose the synthetic disc to a given peak level, 0 = leave the
     // gain/exposure result alone.
     //
-    // brightness = (gain/100)*(exposureUs/8000) clamped to [0.35, 3.5]
+    // brightness = EmuBrightness(), clamped to [0.35, 3.5]
     // puts the disc at 230-254 DN under most profiles - effectively
     // saturated. A real planetary imager deliberately exposes to about
     // 70-80% to keep headroom, so the emulator was reproducing an
@@ -702,7 +732,7 @@ public:
             std::vector<uint8_t> firstFrame(W * H, 0);
             const float CX=W*0.5f,CY=H*0.5f,JR=H*0.22f,JRy=JR*(1.f-0.0649f);
             const float PI=3.14159265f, iR=1.f/JR, iRy=1.f/JRy;
-            float brightness = (m_gain/100.0f)*(m_exposureUs/8000.0f);
+            float brightness = EmuBrightness();
             if(brightness<0.35f)brightness=0.35f; if(brightness>3.5f)brightness=3.5f;
             for(int py=0;py<H;py++){
                 float dy=(py-CY)*iRy, dy2=dy*dy;
@@ -1033,7 +1063,7 @@ private:
         while (m_isCapturing) {
             auto frameStart = std::chrono::steady_clock::now();
             float timeS = std::chrono::duration<float>(frameStart - startTime).count();
-            float brightness = (m_gain/100.0f)*(m_exposureUs/8000.0f);
+            float brightness = EmuBrightness();
             // Brightness floor raised 0.1 → 0.35: profile auto-load on GoTo
             // can set sub-millisecond exposures (Moon/Venus profiles), and at
             // the old floor the synthetic disk peaked below the analyzer's
@@ -1539,6 +1569,8 @@ private:
                 }
             }
 
+            ApplyOutputResponse(backBuf.data(), W, H);
+
             {
                 std::lock_guard<std::mutex> lk(m_frameMutex);
                 m_frameBuffer.swap(backBuf);
@@ -1613,6 +1645,47 @@ private:
     long                        m_exposureUs = 8000;
     int                         m_gamma = 50;
     int                         m_wbR = 52, m_wbB = 47;
+    bool                        m_noGamma = (getenv("RADUK_EMU_NO_GAMMA") != nullptr);
+
+    // ── Phase 112: gamma and white balance reach the pixels ────
+    //
+    // Both were stored and read back and applied to nothing, so moving
+    // either changed no pixel: the owner's report on gamma. Applied last,
+    // to the finished Bayer frame, because that is where an SDK would
+    // do it: after the optics, on the digital value.
+    //
+    // The curve is this emulator's own and is a test rig, not a claim
+    // about ZWO: 50 is the identity and a higher number lifts the
+    // midtones. White balance scales the red and blue sites by their
+    // distance from the sensor neutral.
+    int     m_lutGamma = -1, m_lutR = -1, m_lutB = -1;
+    uint8_t m_lutRed[256] = {}, m_lutGreen[256] = {}, m_lutBlue[256] = {};
+
+    void ApplyOutputResponse(uint8_t* buf, int W, int H) {
+        const int g = m_gamma, wr = m_wbR, wb = m_wbB;
+        if (g == 50 && wr == EMU_WB_R_NEUTRAL && wb == EMU_WB_B_NEUTRAL) return;
+        if (g != m_lutGamma || wr != m_lutR || wb != m_lutB) {
+            m_lutGamma = g; m_lutR = wr; m_lutB = wb;
+            const double ex = 50.0 / (double)(g < 1 ? 1 : g);
+            for (int i = 0; i < 256; i++) {
+                const double v = 255.0 * std::pow(i / 255.0, ex);
+                auto u8 = [](double x) {
+                    return (uint8_t)(x < 0.0 ? 0 : x > 255.0 ? 255 : x + 0.5);
+                };
+                m_lutGreen[i] = u8(v);
+                m_lutRed[i]   = u8(v * wr / EMU_WB_R_NEUTRAL);
+                m_lutBlue[i]  = u8(v * wb / EMU_WB_B_NEUTRAL);
+            }
+        }
+        // RGGB: red on even rows and columns, blue on odd ones.
+        for (int y = 0; y < H; y++) {
+            uint8_t* row = buf + (size_t)y * W;
+            const uint8_t* even = (y & 1) ? m_lutGreen : m_lutRed;
+            const uint8_t* odd  = (y & 1) ? m_lutBlue  : m_lutGreen;
+            for (int x = 0; x < W; x++)
+                row[x] = (x & 1) ? odd[row[x]] : even[row[x]];
+        }
+    }
     float                       m_sensorTemp = 22.4f;
     std::vector<ASI_CONTROL_CAPS> m_controls;
 

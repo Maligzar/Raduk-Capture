@@ -80,6 +80,18 @@ struct ObservationRecord {
     double      exposureMs = kObsUnknown;
     double      gain       = kObsUnknown;
 
+    // Phase 112: the other camera settings in force. The owner asked for
+    // every adjustment to be saved with the capture the way exposure is,
+    // and these were read from nothing. Unknown means the camera does
+    // not list that control. Doubles for the same reason as gain: the
+    // sentinel is how "not known" stays apart from a real zero.
+    double      gamma        = kObsUnknown;
+    double      wbRed        = kObsUnknown;
+    double      wbBlue       = kObsUnknown;
+    double      usbBandwidth = kObsUnknown;
+    int         highSpeed    = -1;      // 0, 1, or -1 for unknown
+    std::string aeMode;                 // "off", "advisory" or "auto"
+
     // Focuser
     int         focuserPos   = -1;
     double      focuserTempC = kObsUnknown;
@@ -288,6 +300,12 @@ inline std::string SerializeObservation(const ObservationRecord& r) {
     Num(o, "pixel_um", r.pixelUm, 3);
     Num(o, "exposure_ms", r.exposureMs, 3);
     Num(o, "gain",        r.gain,       0);
+    Num(o, "gamma",         r.gamma,        0);
+    Num(o, "wb_red",        r.wbRed,        0);
+    Num(o, "wb_blue",       r.wbBlue,       0);
+    Num(o, "usb_bandwidth", r.usbBandwidth, 0);
+    Int(o, "high_speed",    r.highSpeed,    r.highSpeed >= 0);
+    Str(o, "ae_mode",       r.aeMode);
 
     Int(o, "focuser_pos",    r.focuserPos, r.focuserPos >= 0);
     Num(o, "focuser_temp_c", r.focuserTempC, 1);
@@ -408,6 +426,12 @@ inline bool ParseObservation(const std::string& text, ObservationRecord& r,
         else if (k == "pixel_um")    ToDouble(v, r.pixelUm);
         else if (k == "exposure_ms") ToDouble(v, r.exposureMs);
         else if (k == "gain")        ToDouble(v, r.gain);
+        else if (k == "gamma")         ToDouble(v, r.gamma);
+        else if (k == "wb_red")        ToDouble(v, r.wbRed);
+        else if (k == "wb_blue")       ToDouble(v, r.wbBlue);
+        else if (k == "usb_bandwidth") ToDouble(v, r.usbBandwidth);
+        else if (k == "high_speed")    ToInt(v, r.highSpeed);
+        else if (k == "ae_mode")       r.aeMode = v;
         else if (k == "focuser_pos")    ToInt(v, r.focuserPos);
         else if (k == "focuser_temp_c") ToDouble(v, r.focuserTempC);
         else if (k == "ra_hours")    ToDouble(v, r.raHours);

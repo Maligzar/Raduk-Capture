@@ -92,6 +92,13 @@ struct CameraRails {
         double      maxMs = EXP_MAX_MS;
         const char* why   = "";
         bool        advisory = false;   // false = hardware bounds only
+        // Phase 112: the auto-exposure ladder, LightLadder.h. A human
+        // is not held to these. Starting figures from the stock
+        // profiles, UNVERIFIED ON SKY.
+        double      expKneeMs = EXP_MAX_MS;
+        int         gainFloor = GAIN_MIN;
+        int         gainKnee  = GAIN_MAX;
+        int         gainMax   = GAIN_MAX;
     };
 
     // targetType is one of "planet", "moon", "dso", "star" -- a field
@@ -105,6 +112,7 @@ struct CameraRails {
             r.why = "deep sky: under a second is not a sub, over five "
                     "minutes is tracking luck";
             r.advisory = true;
+            r.expKneeMs = 60000.0; r.gainKnee = 300;
         } else if (targetType == "planet" || targetType == "moon" ||
                    targetType == "star") {
             // A star profile is a focusing or metrics profile and lives
@@ -114,6 +122,10 @@ struct CameraRails {
             r.why = "lucky imaging: under a millisecond oversamples the "
                     "seeing, over fifty blurs the rotation";
             r.advisory = true;
+            r.expKneeMs = 20.0; r.gainKnee = 350;
+            // A planet wants HCG. The Moon and the focus profiles sit
+            // below it on purpose, and a floor would snap them up.
+            if (targetType == "planet") r.gainFloor = GAIN_HCG_THRESHOLD;
         }
         // Anything else gets the hardware bounds and no opinion: an
         // unrecognised type is not licence to invent a limit for it.

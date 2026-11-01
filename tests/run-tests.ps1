@@ -62,6 +62,7 @@ $Tests = @(
     @{ Name = "lunar_framing";   Sources = @() }
     @{ Name = "mosaic_run";      Sources = @() }
     @{ Name = "camera_panel";    Sources = @() }
+    @{ Name = "camera_controls"; Sources = @() }
     @{ Name = "exposure_rails"; Sources = @() }
     @{ Name = "workspace_state"; Sources = @() }
     @{ Name = "motion";          Sources = @() }
@@ -73,6 +74,7 @@ $Tests = @(
     @{ Name = "derotation_limit"; Sources = @() }
     @{ Name = "surface_lock";    Sources = @() }
     @{ Name = "toolbar_layout";  Sources = @() }
+    @{ Name = "autorun";         Sources = @() }
     @{ Name = "fits_writer";     Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "capture_writer";  Sources = @("src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
 )

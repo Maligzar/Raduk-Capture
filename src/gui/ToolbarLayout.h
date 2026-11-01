@@ -46,7 +46,8 @@ enum ToolbarCmd : int {
     ID_TB_STACK     = 3021,   // Phase 106: the last recording, in AutoStakkert
     ID_TB_FOLLOW    = 3022,   // Phase 107: move the ROI to hold the target
     ID_TB_DEROT     = 3023,   // Phase 108: warn or stop at the derotation window
-    ID_TB_LAST      = 3023,
+    ID_TB_RUNS      = 3024,   // Phase 113: a sequence of runs
+    ID_TB_LAST      = 3024,
 };
 
 static constexpr int kToolbarButtons = ID_TB_LAST - ID_TB_FIRST + 1;
@@ -101,8 +102,9 @@ static constexpr ToolbarItem kToolbarRow1[] = {
     { ID_TB_CLIP,     L"CLIP",       L"CLIP",           36, false },
     { ID_TB_FRAME,    L"FRAME",      L"FRAME",          44, false },
     { ID_TB_GHOST,    L"GH",         L"GH",             26, false },
-    { ID_TB_MAP,      L"MAP",        L"MAP",            32, true  },
-    { ID_TB_GOTO,     L"GOTO",       L"GOTO",           40, false },
+    { ID_TB_MAP,      L"MAP",        L"MAP",            30, true  },
+    { ID_TB_GOTO,     L"GOTO",       L"GOTO",           38, false },
+    { ID_TB_RUNS,     L"RUNS",       L"RUNS",           38, false },
     // right
     { ID_TB_HW,       L"HW OFF",     L"HW OFF",         50, false },
     { ID_TB_AI,       L"AI",         L"AI",             24, false },
@@ -119,7 +121,7 @@ struct ToolbarRow {
 };
 static constexpr ToolbarRow kToolbarRows[2] = {
     { kToolbarRow0, (int)(sizeof(kToolbarRow0) / sizeof(kToolbarRow0[0])), 5 },
-    { kToolbarRow1, (int)(sizeof(kToolbarRow1) / sizeof(kToolbarRow1[0])), 7 },
+    { kToolbarRow1, (int)(sizeof(kToolbarRow1) / sizeof(kToolbarRow1[0])), 8 },
 };
 
 // Left and right edges of each button in one row. The right group is

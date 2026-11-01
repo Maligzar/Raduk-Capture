@@ -67,6 +67,9 @@ static void TestFit() {
     // common case and must not shrink anything.
     ok(OP::FitBodyPx(80, 800.0f, 600.0f, want) == want,
        "text that fits is left at the wanted size");
+    // The panel's body size is computed, so it is rarely whole.
+    ok(OP::FitBodyPx(80, 800.0f, 600.0f, 33.2f) == 33.2f,
+       "and a fractional size is kept exactly, not floored");
 
     // Text that does not fit comes back smaller.
     const float tight = OP::FitBodyPx(4000, 400.0f, 200.0f, want);
@@ -159,12 +162,12 @@ static void TestJupiter() {
     printf("  fitted body size: %.1f px\n", fit);
 
     ok(fit < bodyPx, "so it is shrunk");
-    ok(fit >= OP::BODY_FLOOR_PX, "but stays readable");
-    ok(OP::EstimatedHeight(summaryChars, col2, boxH > 0 ? fit : fit) <= boxH ||
-       fit == OP::BODY_FLOOR_PX,
+    // Above the floor, so the two checks below cannot pass by reaching it
+    // and have to mean what they say.
+    ok(fit > OP::BODY_FLOOR_PX, "but stays well above the floor");
+    ok(OP::EstimatedHeight(summaryChars, col2, fit) <= boxH,
        "and the summary fits at the fitted size");
-    ok(OP::EstimatedHeight(mythChars, col2, fit) <= boxH ||
-       fit == OP::BODY_FLOOR_PX,
+    ok(OP::EstimatedHeight(mythChars, col2, fit) <= boxH,
        "as does the mythology, since both columns share one size");
 
     // Both columns share a size, so the shared size must be the

@@ -965,3 +965,16 @@ For contrast, so this list is not read as "nothing works":
     ordinary name too -- "Jupiter" must still be drawn at full size,
     since an over-eager fit that shrinks every caption would be a
     regression of its own.
+
+28. **The recording timer actually counts** (phase 105). Start a
+    frame-limited capture -- the planetary default -- and watch the
+    panel. "REC 00:00" should advance a second at a time. It never did:
+    the elapsed figure was only written inside the time-limit branch,
+    so a frame-limited run left it at zero for the whole capture.
+
+    Then check the two things either side of it. During the run the
+    "~m:ss left" estimate should appear once there is a second of run
+    to estimate from, since it divides by elapsed and could only ever
+    have been wrong while elapsed was zero. After the run the panel
+    should say how long it ran, and that figure should stop, not keep
+    climbing.

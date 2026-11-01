@@ -186,7 +186,34 @@ public:
     bool IsRecording()      const { return m_status.recording.load(); }
     uint32_t FramesRecorded() const { return m_status.framesRecorded.load(); }
     uint32_t FramesDropped()  const { return m_status.framesDropped.load(); }
-    double   ElapsedSec()     const { return m_status.elapsedSec.load(); }
+    // How long the current run has been going, in seconds.
+    //
+    // Phase 105. This used to return m_status.elapsedSec, a field that
+    // something else had to remember to keep current -- and only one
+    // path did. In SubmitFromCaptureThread the store sat INSIDE
+    // `if (m_config.limitType == LimitType::Time)`, so a frame-limited
+    // or unlimited run never updated it and the panel's timer sat at
+    // 00:00 for the whole capture.
+    //
+    // Phase 48 hit the same field from the other side: the observation
+    // record said a three and a half minute capture took 0.00 s. It
+    // worked around it by measuring from m_startTime by hand and left
+    // the field broken, so the bug stayed live for the display.
+    //
+    // Derived now, not remembered. A clock that is computed cannot go
+    // stale, and it keeps running when no frames are arriving -- while
+    // paused, or with the gate shut -- which a frame-driven counter
+    // could not. After the run it returns the final figure
+    // StopRecording stored, so the panel can say how long it ran.
+    double   ElapsedSec() const {
+        if (!m_status.recording.load()) return m_status.elapsedSec.load();
+        const int64_t startNs = m_startNs.load(std::memory_order_relaxed);
+        if (startNs == 0) return 0.0;
+        const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        const int64_t d = nowNs - startNs;
+        return d > 0 ? (double)d * 1e-9 : 0.0;
+    }
     uint64_t BytesWritten()   const { return m_status.bytesWritten.load(); }
 
     // Every diagnostic in here was a printf, and this is a GUI build
@@ -267,6 +294,13 @@ private:
     int       m_frameHeight = 0;
     int       m_bitDepth    = 8;
     std::chrono::steady_clock::time_point m_startTime;
+
+    // Phase 105. The same instant as m_startTime, as a plain integer
+    // of nanoseconds, so ElapsedSec() can read it from the UI thread
+    // without racing the capture thread that sets it. A
+    // steady_clock::time_point is not atomic and this is read on every
+    // status tick while the capture thread is running.
+    std::atomic<int64_t>  m_startNs{0};
 };
 
 } // namespace raduk::core

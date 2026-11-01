@@ -105,6 +105,8 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     m_frameHeight = height;
     m_bitDepth    = bitDepth;
     m_startTime   = std::chrono::steady_clock::now();
+    m_startNs.store(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        m_startTime.time_since_epoch()).count(), std::memory_order_relaxed);
 
     {
         std::lock_guard<std::mutex> lk(m_mutex);
@@ -142,6 +144,16 @@ void CaptureManager::StopRecording(bool normal) {
     m_obs.endUnix     = (int64_t)time(nullptr);
     m_obs.durationSec = std::chrono::duration<double>(
         std::chrono::steady_clock::now() - m_startTime).count();
+
+    // Phase 105: and keep it, so ElapsedSec() can report the finished
+    // run. It derives the live value from m_startNs while recording
+    // and falls back to this once recording stops, which is what lets
+    // the panel say how long the capture ran after it has ended.
+    //
+    // Note this is stored AFTER m_status.recording went false just
+    // above, which is the order the reader needs: a reader that sees
+    // recording false must not then read a stale elapsed.
+    m_status.elapsedSec.store(m_obs.durationSec);
 
     // Signal writer thread to finish draining and exit
     m_writerRunning.store(false);
@@ -254,9 +266,12 @@ bool CaptureManager::SubmitFromCaptureThread(const FrameSlot* slot) {
         return false;
     }
     if (m_config.limitType == LimitType::Time) {
+        // Phase 105: the limit check only. The store that used to sit
+        // here was the single reason elapsedSec ever had a value, and
+        // being inside this branch is why a frame-limited run showed
+        // 00:00 throughout. ElapsedSec() derives it now.
         const double elapsed = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - m_startTime).count();
-        m_status.elapsedSec.store(elapsed);
         if (elapsed >= m_config.limitTimeSec) {
             m_limitReached.store(true, std::memory_order_relaxed);
             return false;
@@ -300,7 +315,6 @@ bool CaptureManager::SubmitFrame(const FrameSlot* slot, float sharpness,
 
     auto now = std::chrono::steady_clock::now();
     double elapsed = std::chrono::duration<double>(now - m_startTime).count();
-    m_status.elapsedSec.store(elapsed);
 
     if (m_config.limitType == LimitType::Time &&
         elapsed >= m_config.limitTimeSec) {

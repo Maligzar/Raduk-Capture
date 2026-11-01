@@ -439,6 +439,7 @@ capture format.
 | `[GH]` | — | Ghost/frame-stack display FX |
 | `[?]` | `?` | Toggle this Help window |
 | `[AI]` | — | Toggle the AI assistant chat panel |
+| `[FOLLOW]` | — | **ROI following.** While a target is locked on a crop, the app moves the ROI on the sensor to hold it, and the mount slowly brings the window back. The setting is saved. If the camera does not apply moves during capture, it stops and tells you |
 | `[STACK]` | `K` | Stack the last finished recording. A SER runs hidden and exits; a FITS file opens in AutoStakkert's window |
 | `[DASH]` | — | **Open the browser dashboard, already signed in.** It connects to this PC by itself; see **The browser dashboard** |
 | `FULL` | — | **Whole sensor, 3840x2160** - the widest field, and the way back from any crop |

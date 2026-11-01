@@ -1006,3 +1006,11 @@ For contrast, so this list is not read as "nothing works":
     should still fit, with `EXIT` and the format buttons in place. Ask
     the assistant what was captured tonight, once it is answering again:
     `.fits` files should be in the list.
+
+31. **ROI following on the real camera** (phase 107). The emulator proves
+    the logic and cannot prove the SDK. Lock a planet on a 640x480 crop
+    with `[FOLLOW]` on, nudge the mount off target, and read `[FOLLOW]`
+    in `raduk_log.txt`. If it says it gave up, `ASISetStartPos` does not
+    apply during capture on this camera, and following needs a different
+    route. If it held, note the slowest landing in frames, and check the
+    frame rate did not fall while the window was moving.

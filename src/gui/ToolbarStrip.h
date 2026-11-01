@@ -62,7 +62,8 @@ enum ToolbarCmd : int {
     ID_TB_HW        = 3019,   // Phase 46: connect / disconnect all hardware
     ID_TB_DASH      = 3020,   // the browser dashboard, signed in
     ID_TB_STACK     = 3021,   // Phase 106: the last recording, in AutoStakkert
-    ID_TB_LAST      = 3021,
+    ID_TB_FOLLOW    = 3022,   // Phase 107: move the ROI to hold the target
+    ID_TB_LAST      = 3022,
 };
 
 // One resolution preset. FULL is first because it is the default and the
@@ -177,6 +178,10 @@ public:
     void SetDashCallback    (std::function<void()> cb) { m_onDash     = cb; }
     // The same action as the K key, which had no button.
     void SetStackCallback   (std::function<void()> cb) { m_onStack    = cb; }
+    void SetFollowCallback  (std::function<void()> cb) { m_onFollow   = cb; }
+    void SetFollowLabel(const wchar_t* lbl) {
+        if (m_btnFollow) SetWindowTextW(m_btnFollow, lbl);
+    }
     // Phase 45: the reticle button now cycles shapes, so its label has
     // to name the shape rather than just ON. Stored rather than written
     // directly, because UpdateStates owns that button's text and would
@@ -367,6 +372,7 @@ public:
             case ID_TB_HW:       if (m_onHardware) m_onHardware(); return true;
             case ID_TB_DASH:     if (m_onDash)     m_onDash();     return true;
             case ID_TB_STACK:    if (m_onStack)    m_onStack();    return true;
+            case ID_TB_FOLLOW:   if (m_onFollow)   m_onFollow();   return true;
             case ID_TB_EXIT:     if (m_onExit)     m_onExit();     return true;
             case ID_TB_RES_FULL:
             case ID_TB_RES_1920:
@@ -413,14 +419,15 @@ private:
             { ID_TB_AI,       L"[AI]",        40, &m_btnAI       },
             { ID_TB_DASH,     L"[DASH]",      52, &m_btnDash     },
             { ID_TB_STACK,    L"[STACK]",     60, &m_btnStack    },
-            // gap at i==15 — capture format group
+            { ID_TB_FOLLOW,   L"[FOLLOW] OFF", 92, &m_btnFollow  },
+            // gap at i==16 — capture format group
             { ID_TB_RES_FULL, L"FULL",        46, &m_btnResFull  },
             { ID_TB_RES_1920, L"1920",        46, &m_btnRes1920  },
             { ID_TB_RES_1280, L"1280",        46, &m_btnRes1280  },
             { ID_TB_RES_640,  L"640",         40, &m_btnRes640   },
             { ID_TB_BIT8,     L"8b",          32, &m_btnBit8     },
             { ID_TB_BIT16,    L"16b",         36, &m_btnBit16    },
-            // gap at i==21
+            // gap at i==22
             { ID_TB_EXIT,     L"EXIT",        44, &m_btnExit     },
         };
         const int nDefs = (int)(sizeof(defs) / sizeof(defs[0]));
@@ -434,11 +441,12 @@ private:
         for (int i = 0; i < nDefs; i++) {
             auto& d = defs[i];
             // Indices, so they move when a button is inserted. [HW]
-            // went in at 10, [DASH] at 13 and [STACK] at 14, each pushing
+            // went in at 10, [DASH] at 13, [STACK] at 14 and [FOLLOW] at 15,
+            // each pushing
             // the format group and EXIT along by one.
             if (i == 3)  x += sep;   // gap before view buttons
-            if (i == 15) x += sep;   // gap before the format group
-            if (i == 21) x += sep;   // gap before EXIT
+            if (i == 16) x += sep;   // gap before the format group
+            if (i == 22) x += sep;   // gap before EXIT
 
             HWND btn = CreateWindowExW(
                 0, L"BUTTON", d.label,
@@ -481,6 +489,7 @@ private:
         if (m_btnHW)       { DestroyWindow(m_btnHW);       m_btnHW       = nullptr; }
         if (m_btnDash)     { DestroyWindow(m_btnDash);     m_btnDash     = nullptr; }
         if (m_btnStack)    { DestroyWindow(m_btnStack);    m_btnStack    = nullptr; }
+        if (m_btnFollow)   { DestroyWindow(m_btnFollow);   m_btnFollow   = nullptr; }
         if (m_btnExit)     { DestroyWindow(m_btnExit);     m_btnExit     = nullptr; }
         if (m_btnResFull)  { DestroyWindow(m_btnResFull);  m_btnResFull  = nullptr; }
         if (m_btnRes1920)  { DestroyWindow(m_btnRes1920);  m_btnRes1920  = nullptr; }
@@ -620,6 +629,8 @@ private:
     HWND m_btnDash = nullptr;
     std::function<void()> m_onStack;
     HWND m_btnStack = nullptr;
+    std::function<void()> m_onFollow;
+    HWND m_btnFollow = nullptr;
     // The link state last painted. m_hwLinksKnown distinguishes "all
     // three down" from "never set", which matters because the
     // all-down state is the DEFAULT-constructed one -- without the

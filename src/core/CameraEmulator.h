@@ -258,6 +258,9 @@ public:
 
         const bool changed = (w != m_roiW || h != m_roiH);
         m_roiW = w; m_roiH = h;
+        // The SDK centres a new format until told otherwise.
+        m_reqOriginX.store((m_info.MaxWidth  - w) / 2);
+        m_reqOriginY.store((m_info.MaxHeight - h) / 2);
         m_binning = binning; m_imgType = imgType;
         if (changed || width > EMU_MAX_ROI_W || height > EMU_MAX_ROI_H)
             printf("[CameraEmulator] SetROI %dx%d -> %dx%d %s\n",
@@ -326,11 +329,22 @@ public:
     void SetUSBBandwidth(int pct)        { m_usbBandwidth = pct; }
     void SetHighSpeedMode(bool en)       { m_highSpeed = en; }
     void SetFlip(ASI_FLIP_STATUS /*f*/)         {}
-    bool SetStartPos(int /*x*/, int /*y*/) override { return true; } // no-op in emulator
-    // There is no sensor position to report, so say so: the phase 48
-    // observation record then leaves roi_x/roi_y out rather than
-    // recording a position the emulator never had.
-    bool GetStartPos(int& /*x*/, int& /*y*/) const override { return false; }
+    // Phase 107: a real window on the sensor. A no-op until now, which
+    // left ROI following with nothing to move. The new origin reaches
+    // the generator a couple of frames later, because a camera does not
+    // apply one on the frame it was asked, and that is the case the
+    // follower has to survive.
+    bool SetStartPos(int x, int y) override {
+        m_reqOriginX.store(x); m_reqOriginY.store(y);
+        return true;
+    }
+    bool GetStartPos(int& x, int& y) const override {
+        x = m_reqOriginX.load(); y = m_reqOriginY.load();
+        return x >= 0 && y >= 0;
+    }
+    // How fast the target walks across the sensor, for trying ROI
+    // following indoors. RADUK_EMU_DRIFT_PX_S sets it.
+    void SetDriftPxPerSec(float x, float y) { m_driftX = x; m_driftY = y; }
 
     // ── Phase 52: closed-loop pointing input ───────────────────
     // Plate scale of the synthetic frames (arcsec/pixel). This is the
@@ -971,6 +985,8 @@ private:
     void GenerateFrames() {
         const int   W  = m_roiW, H = m_roiH;
         const float CX = W*0.5f, CY = H*0.5f;
+        int appliedX = m_reqOriginX.load(), appliedY = m_reqOriginY.load();
+        int originDelay = 0;
         const EmuTargetDef& TG = EMU_TARGETS[m_target];
         // Phase 91: pixels per arcsecond, so the disc is the size the
         // sky makes it and the frame decides how much sky is in it.
@@ -1052,6 +1068,25 @@ private:
                 const float j = m_jitterAs / EMU_PLATE_SCALE_AS_PX;
                 offX += j * (0.6f*sinf(timeS*9.7f)  + 0.4f*sinf(timeS*23.3f));
                 offY += j * (0.6f*sinf(timeS*11.3f) + 0.4f*sinf(timeS*19.1f));
+            }
+            offX += m_driftX * timeS;
+            offY += m_driftY * timeS;
+
+            // Phase 107: the planet is fixed on the sensor, so where it
+            // lands in the frame depends on where the window is.
+            {
+                const int rx = m_reqOriginX.load(), ry = m_reqOriginY.load();
+                if (rx != appliedX || ry != appliedY) {
+                    if (originDelay++ >= 2) {
+                        appliedX = rx; appliedY = ry; originDelay = 0;
+                    }
+                } else {
+                    originDelay = 0;
+                }
+                if (appliedX >= 0) {
+                    offX -= (float)(appliedX - (m_info.MaxWidth  - W) / 2);
+                    offY -= (float)(appliedY - (m_info.MaxHeight - H) / 2);
+                }
             }
             const float PCX = CX + offX, PCY = CY + offY;
 
@@ -1568,6 +1603,8 @@ private:
     bool                        m_isOpen      = false;
     bool                        m_isCapturing = false;
     int                         m_roiW = 3840, m_roiH = 2160;
+    std::atomic<int>            m_reqOriginX{-1}, m_reqOriginY{-1};
+    float                       m_driftX = 0.f, m_driftY = 0.f;
     int                         m_usbBandwidth = 80;
     bool                        m_highSpeed    = true;
     int                         m_binning = 1;

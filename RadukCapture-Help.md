@@ -431,10 +431,10 @@ capture format.
 | `[CENTROID]` | — | **Acquire the planet**: find, calibrate, centre, lock. Press again to cancel. |
 | `[LOCK]` | — | Manual override — force the calibration step |
 | `[ROI]` | — | Crop the sensor around a locked planet (not a freehand ROI — drag a box on the preview for that) |
-| `[C] COLOR` | — | COLOR / RAW debayer. **RAW shows the raw greyscale sensor data** — useful for judging focus, but the image goes monochrome |
-| `[*] MAP` | `M` | Toggle Sky Map window |
-| `[I] GOTO` | `G` | Open GoTo panel |
-| `[+] RETICLE` | `R` | Toggle crosshair reticle overlay |
+| `[COLOR]` | — | COLOR / RAW debayer. **RAW shows the raw greyscale sensor data** — useful for judging focus, but the image goes monochrome |
+| `[MAP]` | `M` | Toggle Sky Map window |
+| `[GOTO]` | `G` | Open GoTo panel |
+| `[RETICLE]` | `R` | Toggle crosshair reticle overlay; lit, it names the shape |
 | `[CLIP]` | `C` | Toggle clipping warning (red flash on saturated pixels) |
 | `[GH]` | — | Ghost/frame-stack display FX |
 | `[?]` | `?` | Toggle this Help window |
@@ -2399,7 +2399,7 @@ the camera is broken.
 
 | What you see | Likely mode | Turn it off with |
 |--------------|-------------|------------------|
-| Greyscale / monochrome | RAW debayer | `[C] COLOR` button |
+| Greyscale / monochrome | RAW debayer | `[COLOR]` button |
 | Everything red | Night vision | `N` |
 | Grey, but one colour's detail | Single channel (R/G/B) | `H` until it reads `CH: ALL` |
 | Unnaturally bright or smeared | Display FX / stack | `B` until it reads `FX: NORMAL` |

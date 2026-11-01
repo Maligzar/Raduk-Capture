@@ -16,6 +16,8 @@
 #include <cstdint>
 #include <functional>
 
+#include "ToolbarLayout.h"
+
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
 
@@ -158,7 +160,7 @@ public:
             D2D1_SIZE_U sz = m_renderTarget->GetPixelSize();
             if (sz.height > 0) return (int)sz.height;
         }
-        int ph = m_clientHeight - 30 - 30;   // toolbar + status bar
+        int ph = m_clientHeight - TOOLBAR_HEIGHT - 30;   // toolbar + status bar
         return ph > 100 ? ph : 100;
     }
     float DpiScale() const { return m_dpiScale; }

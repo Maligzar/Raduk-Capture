@@ -1057,3 +1057,10 @@ For contrast, so this list is not read as "nothing works":
     A lot lost means `kMinScore` or `kMinDetail` in `SurfaceLock.h` is
     wrong for real contrast. Note the field rotation in a long run, and
     try the Sun separately, with the solar filter on.
+
+34. **The toolbar's two rows** (phase 111). No sky needed. Every button
+    should be visible and pressable at the app's narrowest window as well
+    as maximised, including `8b`, `16b` and `EXIT`, and all of them should
+    do what they did. In a dark room with night vision on, idle, the amber
+    outline and the lit bar should be told apart at a glance, and no
+    button should be brighter than the rest of the screen wants.

@@ -4969,27 +4969,24 @@ static int RunApp(bool useEmulator) {
         else           notifBar.NotifyWarn(L"Dashboard opened, but there is no usable WsToken to give it");
     };
     toolbar.SetDashCallback([&]() { doDashboard(); });
-    toolbar.SetFollowLabel(raduk::core::RigConfig::Get().roiFollow
-                               ? L"[FOLLOW] ON" : L"[FOLLOW] OFF");
+    toolbar.SetFollowOn(raduk::core::RigConfig::Get().roiFollow);
     toolbar.SetFollowCallback([&]() {
         auto& rig = raduk::core::RigConfig::Get();
         rig.roiFollow = !rig.roiFollow;
         rig.SaveRoiFollow();
         followGaveUp = false;
         if (!roiFollow.Armed()) roiFollow.Reset();
-        toolbar.SetFollowLabel(rig.roiFollow ? L"[FOLLOW] ON" : L"[FOLLOW] OFF");
+        toolbar.SetFollowOn(rig.roiFollow);
         notifBar.NotifyInfo(rig.roiFollow
             ? L"ROI following on - it runs once the planet is locked on a crop"
             : L"ROI following off");
     });
-    toolbar.SetDerotLabel(raduk::core::RigConfig::Get().derotationStop
-                              ? L"[DEROT] STOP" : L"[DEROT] WARN");
+    toolbar.SetDerotStop(raduk::core::RigConfig::Get().derotationStop);
     toolbar.SetDerotCallback([&]() {
         auto& rig = raduk::core::RigConfig::Get();
         rig.derotationStop = !rig.derotationStop;
         rig.SaveDerotationStop();
-        toolbar.SetDerotLabel(rig.derotationStop ? L"[DEROT] STOP"
-                                                 : L"[DEROT] WARN");
+        toolbar.SetDerotStop(rig.derotationStop);
         notifBar.NotifyInfo(rig.derotationStop
             ? L"Runs now stop at the derotation window, from the next recording"
             : L"Runs now only warn at the derotation window, from the next recording");

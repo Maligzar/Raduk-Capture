@@ -899,6 +899,26 @@ For contrast, so this list is not read as "nothing works":
     confirmation. It should fade in over about 150 ms, hold for five
     seconds, and fade out. Clicking it should still dismiss it at once.
 
+23. **The two buttons that did nothing** (phase 102). On the control
+    panel, press **POINT SOLVE → SYNC**: it should report a real
+    outcome, including its refusals ("No frame yet", "ASTAP not found",
+    "Solve already running"). Before this it was completely inert, not
+    even showing "Plate solving...", because the status line sat inside
+    a null check on a callback nobody had set.
+
+    Then press **PLANET LOCK**. It should light only once acquisition
+    actually starts, and a refused acquire should leave it unlit with
+    the reason in the notification bar. Before this it lit itself
+    regardless and reported PLANET LOCK ACTIVE over a tracker that was
+    doing nothing.
+
+24. **Emergency stop disengages the lock** (phase 102). Acquire a
+    planet, confirm PLANET LOCK is lit and guiding is live, then press
+    emergency stop. The lock must drop and the guiding corrections must
+    stop. Before this the stop cleared the button and told the tracker
+    nothing, so the thing issuing corrections carried on while the UI
+    read off.
+
 25. **The GoTo, help and AI chat windows keep a closed state** (phase
     101b). These three were the ones the restore never held, because a
     loop in the startup wiring force-showed them unconditionally long

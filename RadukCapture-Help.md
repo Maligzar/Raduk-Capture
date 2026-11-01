@@ -339,7 +339,8 @@ fullscreen.
 | `V` | Toggle RGB Align |
 | `X` | Toggle Pixel Value Readout |
 | `Z` | Cycle Zoom (FIT → 50% → 100% → 200%) |
-| `K` | Stac**K** the last finished recording in AutoStakkert |
+| `K` | Stac**K** the last finished SER in AutoStakkert. A FITS file is skipped, with a warning |
+| `Shift+K` | Open the last finished recording in the program Windows has for that file type |
 | `↑↓←→` | Jog mount (hold to slew) |
 | `+` / `-` | Fine focus step |
 | `[` / `]` | Coarse focus step |
@@ -438,6 +439,7 @@ capture format.
 | `[GH]` | — | Ghost/frame-stack display FX |
 | `[?]` | `?` | Toggle this Help window |
 | `[AI]` | — | Toggle the AI assistant chat panel |
+| `[STACK]` | `K` | Stack the last finished SER in AutoStakkert. It runs hidden and exits; a FITS file is skipped, with a warning |
 | `[DASH]` | — | **Open the browser dashboard, already signed in.** It connects to this PC by itself; see **The browser dashboard** |
 | `FULL` | — | **Whole sensor, 3840x2160** - the widest field, and the way back from any crop |
 | `1920` | — | 1920x1080 |

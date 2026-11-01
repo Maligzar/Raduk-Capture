@@ -4223,6 +4223,28 @@ static int RunApp(bool useEmulator) {
     };
     window.SetFXCycleHandler([&]() { doFXCycle(); });
     window.SetStackLastHandler([&]() { doStackFile(capturer.LastFilePath()); });
+    toolbar.SetStackCallback([&]() { doStackFile(capturer.LastFilePath()); });
+
+    // Phase 106: Shift+K, the last recording in whatever Windows opens
+    // that kind of file with. The association is the configuration, so
+    // the app needs no setting per viewer, and a FITS and a SER can go
+    // to different programs without it knowing either.
+    window.SetOpenLastHandler([&]() {
+        const std::string path = capturer.LastFilePath();
+        if (path.empty()) {
+            notifBar.NotifyInfo(L"No finished recording to open yet");
+            return;
+        }
+        const HINSTANCE r = ShellExecuteW(nullptr, L"open", toWide(path).c_str(),
+                                          nullptr, nullptr, SW_SHOWNORMAL);
+        if ((INT_PTR)r <= 32) {
+            Log("[OPEN] ShellExecute %d: %s\n", (int)(INT_PTR)r, path.c_str());
+            notifBar.NotifyWarn(L"Could not open it - no program is set for "
+                                L"this file type in Windows");
+            return;
+        }
+        Log("[OPEN] %s\n", path.c_str());
+    });
     controls.SetFXCycleCallback([&]() { doFXCycle(); });
 
     // ── Phase 12b: the advisory loop ──────────────────────────

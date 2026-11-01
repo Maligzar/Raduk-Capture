@@ -61,7 +61,8 @@ enum ToolbarCmd : int {
     ID_TB_FRAME     = 3018,   // Phase 39: framing shot (boosted 5s preview)
     ID_TB_HW        = 3019,   // Phase 46: connect / disconnect all hardware
     ID_TB_DASH      = 3020,   // the browser dashboard, signed in
-    ID_TB_LAST      = 3020,
+    ID_TB_STACK     = 3021,   // Phase 106: the last recording, in AutoStakkert
+    ID_TB_LAST      = 3021,
 };
 
 // One resolution preset. FULL is first because it is the default and the
@@ -174,6 +175,8 @@ public:
     // Opens RadukCaptureDashboard.html in the browser with the access
     // token already in it, so nobody has to copy WsToken out of rig.ini.
     void SetDashCallback    (std::function<void()> cb) { m_onDash     = cb; }
+    // The same action as the K key, which had no button.
+    void SetStackCallback   (std::function<void()> cb) { m_onStack    = cb; }
     // Phase 45: the reticle button now cycles shapes, so its label has
     // to name the shape rather than just ON. Stored rather than written
     // directly, because UpdateStates owns that button's text and would
@@ -363,6 +366,7 @@ public:
             case ID_TB_GHOST:    if (m_onGhost)    m_onGhost();    return true;
             case ID_TB_HW:       if (m_onHardware) m_onHardware(); return true;
             case ID_TB_DASH:     if (m_onDash)     m_onDash();     return true;
+            case ID_TB_STACK:    if (m_onStack)    m_onStack();    return true;
             case ID_TB_EXIT:     if (m_onExit)     m_onExit();     return true;
             case ID_TB_RES_FULL:
             case ID_TB_RES_1920:
@@ -408,14 +412,15 @@ private:
             { ID_TB_HELP,     L"[?]",         36, &m_btnHelp     },
             { ID_TB_AI,       L"[AI]",        40, &m_btnAI       },
             { ID_TB_DASH,     L"[DASH]",      52, &m_btnDash     },
-            // gap at i==14 — capture format group
+            { ID_TB_STACK,    L"[STACK]",     60, &m_btnStack    },
+            // gap at i==15 — capture format group
             { ID_TB_RES_FULL, L"FULL",        46, &m_btnResFull  },
             { ID_TB_RES_1920, L"1920",        46, &m_btnRes1920  },
             { ID_TB_RES_1280, L"1280",        46, &m_btnRes1280  },
             { ID_TB_RES_640,  L"640",         40, &m_btnRes640   },
             { ID_TB_BIT8,     L"8b",          32, &m_btnBit8     },
             { ID_TB_BIT16,    L"16b",         36, &m_btnBit16    },
-            // gap at i==20
+            // gap at i==21
             { ID_TB_EXIT,     L"EXIT",        44, &m_btnExit     },
         };
         const int nDefs = (int)(sizeof(defs) / sizeof(defs[0]));
@@ -429,11 +434,11 @@ private:
         for (int i = 0; i < nDefs; i++) {
             auto& d = defs[i];
             // Indices, so they move when a button is inserted. [HW]
-            // went in at 10 and [DASH] at 13, each pushing the format
-            // group and EXIT along by one.
+            // went in at 10, [DASH] at 13 and [STACK] at 14, each pushing
+            // the format group and EXIT along by one.
             if (i == 3)  x += sep;   // gap before view buttons
-            if (i == 14) x += sep;   // gap before the format group
-            if (i == 20) x += sep;   // gap before EXIT
+            if (i == 15) x += sep;   // gap before the format group
+            if (i == 21) x += sep;   // gap before EXIT
 
             HWND btn = CreateWindowExW(
                 0, L"BUTTON", d.label,
@@ -475,6 +480,7 @@ private:
         if (m_btnGhost)    { DestroyWindow(m_btnGhost);    m_btnGhost    = nullptr; }
         if (m_btnHW)       { DestroyWindow(m_btnHW);       m_btnHW       = nullptr; }
         if (m_btnDash)     { DestroyWindow(m_btnDash);     m_btnDash     = nullptr; }
+        if (m_btnStack)    { DestroyWindow(m_btnStack);    m_btnStack    = nullptr; }
         if (m_btnExit)     { DestroyWindow(m_btnExit);     m_btnExit     = nullptr; }
         if (m_btnResFull)  { DestroyWindow(m_btnResFull);  m_btnResFull  = nullptr; }
         if (m_btnRes1920)  { DestroyWindow(m_btnRes1920);  m_btnRes1920  = nullptr; }
@@ -612,6 +618,8 @@ private:
     HWND m_btnHW = nullptr;
     std::function<void()> m_onDash;
     HWND m_btnDash = nullptr;
+    std::function<void()> m_onStack;
+    HWND m_btnStack = nullptr;
     // The link state last painted. m_hwLinksKnown distinguishes "all
     // three down" from "never set", which matters because the
     // all-down state is the DEFAULT-constructed one -- without the

@@ -49,11 +49,16 @@ public:
         // Empty runs in a row before believing it. The gate skips every
         // frame under cloud, and a file of nothing helps nobody.
         int    maxEmptyRuns  = 2;
+
+        // Phase 114. Wait for the sky before a sweep and before a run,
+        // this long at most: a run in poor seeing beats no run at all.
+        bool   holdForSeeing = false;
+        double seeingHoldSec = 180.0;
     };
 
     enum class Action { None, StartFocus, StartRun, StopRun, AbortFocus };
 
-    // What the rig says this tick. The caller fills the last three only
+    // What the rig says this tick. The caller fills the last four only
     // when AboutToCheck() is true: the disk call can be slow.
     struct Inputs {
         bool     recording   = false;
@@ -62,6 +67,7 @@ public:
         bool     targetSeen  = false;
         double   altDeg      = -1.0;    // 0 or below is unknown
         bool     diskHasRoom = false;
+        bool     seeingOpen  = false;
     };
 
     // Why a sequence may not start. nullptr means it may.
@@ -89,6 +95,9 @@ public:
         m_sinceFocus = 0;
         m_focusDue  = c.refocusEvery > 0;
         m_held      = false;
+        m_seeingHeld   = false;
+        m_seeingWaived = false;
+        m_seeingGaveUp = 0;
         m_stopPending = false;
         m_focusStopPending = false;
         m_reason.clear();
@@ -182,6 +191,11 @@ public:
     double RunSec() const { return m_cfg.runSec; }
     int   Empty() const { return m_empty; }
     int   FocusFailures() const { return m_focusBad; }
+    int   SeeingGaveUp() const { return m_seeingGaveUp; }
+    // Waiting on the sky, for anything a person reads.
+    bool  HoldingForSeeing() const {
+        return m_phase == Phase::Waiting && m_seeingHeld;
+    }
     const std::string& Reason() const { return m_reason; }
     bool Running() const {
         return m_phase == Phase::Waiting || m_phase == Phase::Focusing ||
@@ -211,10 +225,25 @@ private:
         }
         m_held = false;
 
+        // Before the sweep as well as the run: a V-curve fitted in bad
+        // seeing is a worse focus. Giving up holds for the whole cycle,
+        // or the wait would start again after the sweep.
+        if (m_cfg.holdForSeeing && !m_seeingWaived) {
+            if (!in.seeingOpen) {
+                if (!m_seeingHeld) { m_seeingHeld = true; m_seeingSince = nowSec; }
+                if (nowSec - m_seeingSince <= m_cfg.seeingHoldSec)
+                    return Action::None;
+                m_seeingWaived = true;
+                ++m_seeingGaveUp;
+            }
+            m_seeingHeld = false;
+        }
+
         if (m_focusDue) {
             Enter(Phase::Focusing, nowSec);
             return Action::StartFocus;
         }
+        m_seeingWaived = false;
         Enter(Phase::Recording, nowSec);
         return Action::StartRun;
     }
@@ -255,6 +284,10 @@ private:
     int    m_focusBad   = 0;
     int    m_sinceFocus = 0;
     bool   m_focusDue   = false;
+    bool   m_seeingHeld   = false;
+    bool   m_seeingWaived = false;
+    double m_seeingSince  = 0.0;
+    int    m_seeingGaveUp = 0;
     bool   m_stopPending = false;
     bool   m_focusStopPending = false;
     std::string m_reason;

@@ -174,6 +174,9 @@ struct RigConfig {
     float       autorunGapSec       = 15.0f;
     int         autorunRefocusEvery = 3;
     float       autorunMinAltDeg    = 20.0f;
+    // Phase 114: the bar as a percentage of tonight's best. 0 never waits.
+    int         autorunSeeingPct     = 80;
+    float       autorunSeeingHoldSec = 180.0f;
 
     bool        autoStackOnStop = false;
     std::string autoStakkertPath;       // blank = probe the usual places
@@ -350,6 +353,8 @@ struct RigConfig {
         wf("AutorunGapSec", autorunGapSec);
         wf("AutorunRefocusEvery", autorunRefocusEvery);
         wf("AutorunMinAltDeg", autorunMinAltDeg);
+        wf("AutorunSeeingPct", autorunSeeingPct);
+        wf("AutorunSeeingHoldSec", autorunSeeingHoldSec);
         wf("ApertureMm", apertureMm);
         ws("AutoStackOnStop", autoStackOnStop ? "1" : "0");
         ws("AutoStakkertPath", autoStakkertPath);
@@ -488,6 +493,8 @@ private:
         cfg.autorunGapSec         = (float)rf("AutorunGapSec", cfg.autorunGapSec);
         cfg.autorunRefocusEvery   = (int)rf("AutorunRefocusEvery", cfg.autorunRefocusEvery);
         cfg.autorunMinAltDeg      = (float)rf("AutorunMinAltDeg", cfg.autorunMinAltDeg);
+        cfg.autorunSeeingPct      = (int)rf("AutorunSeeingPct", cfg.autorunSeeingPct);
+        cfg.autorunSeeingHoldSec  = (float)rf("AutorunSeeingHoldSec", cfg.autorunSeeingHoldSec);
         cfg.apertureMm            = (float)rf("ApertureMm", cfg.apertureMm);
         cfg.autoStackOnStop       = rs("AutoStackOnStop", cfg.autoStackOnStop ? "1" : "0") == "1";
         cfg.autoStakkertPath      = rs("AutoStakkertPath", cfg.autoStakkertPath);

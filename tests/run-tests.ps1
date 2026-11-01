@@ -75,6 +75,7 @@ $Tests = @(
     @{ Name = "surface_lock";    Sources = @() }
     @{ Name = "toolbar_layout";  Sources = @() }
     @{ Name = "autorun";         Sources = @() }
+    @{ Name = "seeing_monitor";  Sources = @() }
     @{ Name = "fits_writer";     Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "capture_writer";  Sources = @("src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
 )

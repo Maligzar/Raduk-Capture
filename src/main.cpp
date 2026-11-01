@@ -103,6 +103,7 @@
 #include "core/ADCAssistant.h"
 #include "core/DerotationLimit.h"
 #include "core/AutorunRunner.h"
+#include "core/SeeingMonitor.h"
 #include "core/AutoExposureAssistant.h"
 
 using namespace raduk::core;
@@ -1642,6 +1643,12 @@ static int RunApp(bool useEmulator) {
     bool autorunPressing = false;
     bool autorunShown    = false;
     std::atomic<bool> autorunFocusFailed{false};
+    // Phase 114: how the sky is doing against tonight's best, and the
+    // runs so far, for the list written when the sequence ends.
+    raduk::core::SeeingMonitor seeing;
+    std::vector<raduk::core::RunResult> autorunResults;
+    std::string autorunLastPath;
+    bool autorunWasHolding = false;
 
     gotoPanel.SetMosaicCapture(
         [&](int ordinal, int total) -> bool {
@@ -3923,6 +3930,7 @@ static int RunApp(bool useEmulator) {
         // Phase 113: anything but a normal end stops a sequence, whoever
         // did it: Escape, a format change, the hardware going away.
         if (!normal) autorun.Abort("a recording was stopped from outside");
+        autorunLastPath = path;
         if (!normal) return;
         if (!raduk::core::RigConfig::Get().autoStackOnStop) return;
         // Stacking takes minutes of CPU, and the next run is seconds away.
@@ -5110,12 +5118,22 @@ static int RunApp(bool useEmulator) {
         c.gapSec       = rig.autorunGapSec;
         c.refocusEvery = focuser.IsOpen() ? rig.autorunRefocusEvery : 0;
         c.minAltDeg    = rig.autorunMinAltDeg;
+        c.holdForSeeing = rig.autorunSeeingPct > 0;
+        c.seeingHoldSec = rig.autorunSeeingHoldSec;
         c.runSec       = raduk::core::AutorunRunSec(
             derotWindowSec, controls.GetLimitByFrames(),
             controls.GetLimitFrames(), controls.GetLimitTimeSec(),
             capture.Stats().fps.load());
 
         autorunFocusFailed.store(false);
+        {
+            raduk::core::SeeingMonitor::Config sc;
+            sc.openFraction = rig.autorunSeeingPct / 100.0;
+            seeing.Reset(sc);
+        }
+        autorunResults.clear();
+        autorunLastPath.clear();
+        autorunWasHolding = false;
         if (!autorun.Start(c, nowSec)) {
             wchar_t msg[128];
             swprintf(msg, 128, L"Runs not started: %hs", autorun.Reason().c_str());
@@ -5123,8 +5141,8 @@ static int RunApp(bool useEmulator) {
             return;
         }
         Log("[AUTORUN] start: %d runs of %.0f s, gap %.0f s, focus every %d, "
-            "floor %.0f deg\n", c.runs, c.runSec, c.gapSec, c.refocusEvery,
-            c.minAltDeg);
+            "floor %.0f deg, seeing bar %d%%\n", c.runs, c.runSec, c.gapSec,
+            c.refocusEvery, c.minAltDeg, rig.autorunSeeingPct);
         slog.Capture("Autorun: %d runs of %.0f s", c.runs, c.runSec);
         wchar_t msg[128];
         swprintf(msg, 128, L"Sequence: %d runs of %.1f min", c.runs,
@@ -5685,6 +5703,14 @@ static int RunApp(bool useEmulator) {
                                       lastAnalysis.centroidValid,
                                       (int)lastAnalysis.centroidPeak);
 
+        // Phase 114. Not during a sweep: defocus is not the sky.
+        if (freshAnalysis && lastAnalysis.valid && autorun.Running() &&
+            !autofocus.IsRunning() && !afWaitingForAE) {
+            seeing.Push(std::chrono::duration<double>(
+                            std::chrono::steady_clock::now().time_since_epoch()).count(),
+                        lastAnalysis.sharpnessPct, lastAnalysis.highlightDN);
+        }
+
         // Phase 107: following runs only while LOCKED, on a crop.
         // Calibration measures how the image moves, so a moving window
         // would corrupt it, and a full-sensor frame has nowhere to go.
@@ -6206,6 +6232,7 @@ static int RunApp(bool useEmulator) {
                 if (autorun.AboutToCheck(nowSec)) {
                     ai.targetSeen = lastAnalysis.valid && lastAnalysis.centroidValid;
                     ai.altDeg     = preview.MountAltitude();
+                    ai.seeingOpen = seeing.Open(nowSec);
                     // A disk that will not answer is not a reason to stop.
                     ULARGE_INTEGER avail{};
                     const uint64_t want = raduk::core::AutorunRunBytes(
@@ -6217,6 +6244,16 @@ static int RunApp(bool useEmulator) {
                         avail.QuadPart >= want;
                 }
 
+                // A run that ended by itself shows up as the count moving.
+                // One ended here shows up as StopRun, and never counts.
+                const int ordinalBefore = autorun.Ordinal();
+                auto noteRun = [&]() {
+                    autorunResults.push_back({ordinalBefore, autorunLastPath,
+                                              capturer.FramesRecorded(),
+                                              seeing.EndRun()});
+                };
+                const int doneBefore = autorun.Done();
+
                 switch (autorun.Tick(nowSec, ai)) {
                 case Autorun::Action::StartFocus:
                     Log("[AUTORUN] focus before run %d\n", autorun.Ordinal());
@@ -6227,6 +6264,7 @@ static int RunApp(bool useEmulator) {
                     doRecord();
                     autorunPressing = false;
                     if (capturer.IsRecording()) {
+                        seeing.BeginRun();
                         Log("[AUTORUN] run %d of %d\n", autorun.Ordinal(),
                             autorun.Total());
                         slog.Capture("Autorun: run %d of %d", autorun.Ordinal(),
@@ -6239,6 +6277,7 @@ static int RunApp(bool useEmulator) {
                 case Autorun::Action::StopRun:
                     endRecording(true, "sequence");
                     controls.ForceRecordButtonUpdate(false);
+                    noteRun();
                     break;
                 case Autorun::Action::AbortFocus:
                     abortAutofocus();
@@ -6247,14 +6286,49 @@ static int RunApp(bool useEmulator) {
                     break;
                 }
 
+                if (autorun.Done() > doneBefore) noteRun();
+
+                if (autorun.HoldingForSeeing() != autorunWasHolding) {
+                    autorunWasHolding = autorun.HoldingForSeeing();
+                    Log("[AUTORUN] seeing %.1f against tonight's best %.1f: %s\n",
+                        seeing.Current(nowSec), seeing.Best(),
+                        autorunWasHolding ? "waiting" : "going");
+                    if (autorunWasHolding)
+                        notifBar.NotifyInfo(L"Sequence is waiting for the seeing");
+                }
+
                 toolbar.SetRuns(autorun.Running(), autorun.Ordinal());
                 const bool ended = autorunShown && !autorun.Running();
                 autorunShown = autorun.Running();
                 if (ended) {
                     const bool ok = autorun.State() == Autorun::Phase::Complete;
-                    Log("[AUTORUN] end: %d of %d runs, %d empty, %d focus failed: %s\n",
+                    Log("[AUTORUN] end: %d of %d runs, %d empty, %d focus failed, "
+                        "%d without the seeing: %s\n",
                         autorun.Done(), autorun.Total(), autorun.Empty(),
-                        autorun.FocusFailures(), autorun.Reason().c_str());
+                        autorun.FocusFailures(), autorun.SeeingGaveUp(),
+                        autorun.Reason().c_str());
+
+                    // Phase 114: which runs to stack first.
+                    if (!autorunResults.empty()) {
+                        const auto ranked = raduk::core::RankRuns(autorunResults);
+                        std::time_t tt = std::time(nullptr);
+                        std::tm lt{};
+                        localtime_s(&lt, &tt);
+                        char stamp[32];
+                        std::strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", &lt);
+                        const std::string listPath = controls.GetOutputDir() +
+                            "\\autorun_" + stamp + ".txt";
+                        FILE* lf = nullptr;
+                        if (fopen_s(&lf, listPath.c_str(), "w") == 0 && lf) {
+                            fputs(raduk::core::FormatRunRanking(
+                                      ranked, autorun.Reason()).c_str(), lf);
+                            fclose(lf);
+                            Log("[AUTORUN] runs ranked in %s, best is run %d\n",
+                                listPath.c_str(), ranked.front().ordinal);
+                        } else {
+                            Log("[AUTORUN] could not write %s\n", listPath.c_str());
+                        }
+                    }
                     slog.Capture("Autorun ended: %d of %d runs: %s", autorun.Done(),
                                  autorun.Total(), autorun.Reason().c_str());
                     wchar_t msg[192];

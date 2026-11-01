@@ -330,6 +330,14 @@ public:
         if (changed) {
             m_fadeStart = std::chrono::steady_clock::now();
             m_fading    = true;
+            // Phase 96.5: the fade needs frames of its own. Before
+            // this, the only thing that called Draw() again was the
+            // 500 ms readout poll that feeds SetContent -- 2 s while
+            // capturing -- so a 450 ms cross-fade got exactly one
+            // frame, at alpha near zero. It did not fade. It blanked
+            // the panel and then snapped back a poll later.
+            if (m_hwnd && IsVisible())
+                SetTimer(m_hwnd, TIMER_FADE, Theme::Motion::FRAME_MS, nullptr);
         }
         if (IsVisible()) Redraw();
     }
@@ -583,10 +591,13 @@ private:
         // than cuts. Nothing else on here moves.
         float alpha = 1.0f;
         if (m_fading) {
-            const double t = std::chrono::duration<double>(
+            const double ms = std::chrono::duration<double, std::milli>(
                 std::chrono::steady_clock::now() - m_fadeStart).count();
-            if (t >= FADE_SEC) { m_fading = false; }
-            else alpha = (float)(t / FADE_SEC);
+            alpha = Theme::Motion::FadeIn(ms, FADE_MS);
+            if (alpha >= 1.0f) {
+                m_fading = false;
+                if (m_hwnd) KillTimer(m_hwnd, TIMER_FADE);
+            }
         }
 
         m_rt->BeginDraw();
@@ -1047,6 +1058,11 @@ private:
                 return 0;
             }
             case WM_ERASEBKGND: return 1;
+            // Only ever armed while a transition is running; Draw()
+            // kills it on the frame the fade completes.
+            case WM_TIMER:
+                if (wp == TIMER_FADE) { self->Redraw(); return 0; }
+                break;
             // Claim only F11, the way the share view and the sky map
             // do. Escape stays global because it is the emergency stop
             // and must reach the mount from every window.
@@ -1065,7 +1081,10 @@ private:
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
 
-    static constexpr double FADE_SEC = 0.45;
+    // Rung 1 of the motion ladder: a surface whose content changes
+    // identity while the surface itself stays put.
+    static constexpr int FADE_MS    = Theme::Motion::CONTENT;
+    static constexpr UINT_PTR TIMER_FADE = 1;
 
     HWND                   m_hwnd   = nullptr;
     ID2D1HwndRenderTarget* m_rt     = nullptr;

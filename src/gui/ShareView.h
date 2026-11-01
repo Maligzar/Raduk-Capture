@@ -131,7 +131,7 @@ public:
         if (m_wantFull) FillMonitor();
         m_lastPresent = {};              // present the next frame at once
         m_hintUntil = std::chrono::steady_clock::now()
-                    + std::chrono::seconds(8);
+                    + std::chrono::milliseconds(Theme::Motion::DWELL_NOTICE);
         Redraw();
     }
     void Hide()   { if (m_hwnd) ShowWindow(m_hwnd, SW_HIDE); }
@@ -233,7 +233,7 @@ public:
     // so the screen is clean for the people it is pointed at.
     void ShowHint() {
         m_hintUntil = std::chrono::steady_clock::now()
-                    + std::chrono::seconds(8);
+                    + std::chrono::milliseconds(Theme::Motion::DWELL_NOTICE);
         Redraw();
     }
 
@@ -507,9 +507,14 @@ private:
         const auto now = std::chrono::steady_clock::now();
         if (now >= m_hintUntil) return;
 
-        const double left = std::chrono::duration<double>(
-                                m_hintUntil - now).count();
-        const float a = (float)((left < 1.5) ? left / 1.5 : 1.0) * 0.6f;
+        // Phase 96.5: the same curve ObjectPanel fades in on, read
+        // from the other end. Was a linear ramp, which held the hint
+        // at near-full apparent lightness and then dropped it in the
+        // last instant; squared, it reads as leaving.
+        const double leftMs = std::chrono::duration<double, std::milli>(
+                                  m_hintUntil - now).count();
+        const float a = Theme::Motion::FadeOut(leftMs, Theme::Motion::LONG)
+                      * HINT_PEAK_ALPHA;
 
         D2D1_COLOR_F c = Theme::Color(Theme::TEXT_DIM);
         c.a = a;
@@ -888,6 +893,9 @@ private:
     Caption          m_cap;
     WINDOWPLACEMENT  m_savedPlacement = { sizeof(WINDOWPLACEMENT) };
     std::chrono::steady_clock::time_point m_lastPresent{};
+    // The hint never paints at full strength: it is a reminder laid
+    // over someone else's picture, not a label.
+    static constexpr float HINT_PEAK_ALPHA = 0.6f;
     std::chrono::steady_clock::time_point m_hintUntil{};
 };
 

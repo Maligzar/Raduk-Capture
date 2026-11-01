@@ -23,6 +23,7 @@
 #include <vector>
 #include <algorithm>
 #include "Theme.h"
+#include <chrono>
 
 namespace raduk::gui {
 
@@ -33,8 +34,10 @@ public:
     // than the green one saying it could.
     static void Show(HWND owner, const std::wstring& title,
                      const std::vector<std::wstring>& lines,
-                     bool ok, UINT dwellMs = 5000) {
-        auto* st = new State{ title, lines, ok };
+                     bool ok,
+                     UINT dwellMs = Theme::Motion::DWELL_CONFIRM) {
+        auto* st = new State{ title, lines, ok, dwellMs,
+                              std::chrono::steady_clock::now() };
 
         static bool registered = false;
         if (!registered) {
@@ -65,14 +68,24 @@ public:
         const int y  = mi.rcWork.top  + (mh - h) / 3;   // a third down reads
                                                         // better than centred
 
+        // Phase 96.5. WS_EX_LAYERED gives this window a per-window
+        // opacity the compositor applies, so the fade costs nothing in
+        // paint: not one line of the drawing code below knows it is
+        // fading. A toast is the one surface where the motion IS the
+        // information -- something arrived, and it arrived just now --
+        // and it was the one surface that cut.
         HWND hwnd = CreateWindowExW(
-            WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
+                | WS_EX_LAYERED,
             L"RadukConfirmToast", L"", WS_POPUP,
             x, y, w, h, owner, nullptr, GetModuleHandleW(nullptr), st);
         if (!hwnd) { delete st; return; }
 
+        // Transparent before the first frame, so showing the window
+        // cannot flash it at full strength.
+        SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
         ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-        SetTimer(hwnd, 1, dwellMs, nullptr);
+        SetTimer(hwnd, TIMER_FRAME, Theme::Motion::FRAME_MS, nullptr);
     }
 
 private:
@@ -80,7 +93,27 @@ private:
         std::wstring title;
         std::vector<std::wstring> lines;
         bool ok;
+        UINT dwellMs;
+        std::chrono::steady_clock::time_point shown;
     };
+
+    static constexpr UINT_PTR TIMER_FRAME = 1;
+
+    // Fade in, hold for the dwell, fade out. Both edges run on rung 0
+    // of the motion ladder; the dwell between them is reading time and
+    // is not part of the motion.
+    //
+    // Returns false once the toast has finished leaving, which is what
+    // destroys the window -- so the dwell timer this replaced is gone
+    // and there is exactly one clock.
+    static bool Opacity(const State& st, unsigned char& outAlpha) {
+        const double ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - st.shown).count();
+        bool alive = true;
+        outAlpha = Theme::Motion::AlphaByte(Theme::Motion::TransientAlpha(
+            ms, (int)st.dwellMs, Theme::Motion::FAST, alive));
+        return alive;
+    }
 
     static LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         State* st = reinterpret_cast<State*>(GetWindowLongPtrW(h, GWLP_USERDATA));
@@ -91,10 +124,17 @@ private:
             return TRUE;
         }
         switch (m) {
-            case WM_TIMER:
-                KillTimer(h, 1);
-                DestroyWindow(h);
+            case WM_TIMER: {
+                if (wp != TIMER_FRAME || !st) break;
+                unsigned char a = 255;
+                if (!Opacity(*st, a)) {
+                    KillTimer(h, TIMER_FRAME);
+                    DestroyWindow(h);
+                    return 0;
+                }
+                SetLayeredWindowAttributes(h, 0, a, LWA_ALPHA);
                 return 0;
+            }
 
             // Clicking it dismisses early. Someone who has read it
             // should not have to wait out the rest of the dwell.

@@ -1275,6 +1275,8 @@ static int RunApp(bool useEmulator) {
         cfg.limitFrames      = 1000;
         cfg.limitTimeSec     = 60.0;
         cfg.writeBufferSlots = 512;
+        cfg.format = raduk::core::CaptureFormatFromName(
+            raduk::core::RigConfig::Get().captureFormat);
         capturer.SetConfig(cfg);
     }
     Log("[INIT] Capture manager ready\n");
@@ -3016,7 +3018,7 @@ static int RunApp(bool useEmulator) {
         OPENFILENAMEW ofn{};
         ofn.lStructSize = sizeof(ofn);
         ofn.hwndOwner   = window.Handle();
-        ofn.lpstrFilter = L"Captures (*_observation.txt, *.ser)\0*_observation.txt;*.ser\0"
+        ofn.lpstrFilter = L"Captures (*_observation.txt, *.ser, *.fits)\0*_observation.txt;*.ser;*.fits\0"
                           L"All files\0*.*\0";
         ofn.lpstrFile   = fileBuf;
         ofn.nMaxFile    = MAX_PATH;
@@ -3675,6 +3677,13 @@ static int RunApp(bool useEmulator) {
             notifBar.NotifyInfo(L"No finished recording to stack yet");
             return;
         }
+        if (raduk::core::IsFitsCapture(serPath)) {
+            Log("[STACK] skipped, not handed to AutoStakkert: %s\n",
+                serPath.c_str());
+            notifBar.NotifyWarn(L"Stack skipped - FITS is not sent to "
+                                L"AutoStakkert. Record SER to stack");
+            return;
+        }
         if (!stacker.IsAvailable()) {
             notifBar.NotifyWarn(L"AutoStakkert not found - set "
                                 L"AutoStakkertPath in rig.ini");
@@ -3741,6 +3750,8 @@ static int RunApp(bool useEmulator) {
             cfg.filePrefix    = controls.GetFilePrefix();
             cfg.outputDir     = controls.GetOutputDir();
             cfg.frameType     = controls.GetFrameType();  // Phase 44
+            cfg.format        = controls.GetCaptureFits()
+                                    ? CaptureFormat::FITS : CaptureFormat::SER;
             cfg.limitFrames   = controls.GetLimitFrames();
             cfg.limitTimeSec  = controls.GetLimitTimeSec();
             cfg.limitType     = controls.GetLimitByFrames()
@@ -4351,6 +4362,20 @@ static int RunApp(bool useEmulator) {
             cam.GetControlValue(ControlId::ExposureUs) / 1000.0);
         calStatus();
     };
+    controls.SetCaptureFits(capturer.Config().format == CaptureFormat::FITS);
+    controls.SetCaptureFormatCallback([&](bool fits) {
+        const CaptureFormat f = fits ? CaptureFormat::FITS : CaptureFormat::SER;
+        auto& rig = raduk::core::RigConfig::Get();
+        rig.captureFormat = raduk::core::CaptureFormatName(f);
+        rig.SaveCaptureFormat();
+        // A run under way keeps the format it opened with. The next one,
+        // from any route into a recording, takes this.
+        if (!capturer.IsRecording()) {
+            CaptureConfig cfg = capturer.Config();
+            cfg.format = f;
+            capturer.SetConfig(cfg);
+        }
+    });
     controls.SetCalDarkCallback([&]() { beginCal(true);  });
     controls.SetCalFlatCallback([&]() { beginCal(false); });
     controls.SetCalClearCallback([&]() {

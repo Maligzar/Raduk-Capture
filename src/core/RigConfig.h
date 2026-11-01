@@ -155,6 +155,10 @@ struct RigConfig {
     float       filterLowNm  = 400.0f;
     float       filterHighNm = 700.0f;
 
+    // "ser" or "fits". SER is the default: it is what the stacking
+    // chain reads.
+    std::string captureFormat = "ser";
+
     bool        autoStackOnStop = false;
     std::string autoStakkertPath;       // blank = probe the usual places
 
@@ -262,6 +266,11 @@ struct RigConfig {
     // the rig can never change or clear it. Never log it.
     std::string wsToken;
 
+    void SaveCaptureFormat() const {
+        WritePrivateProfileStringA("Rig", "CaptureFormat", captureFormat.c_str(),
+                                   IniPath().c_str());
+    }
+
     void SaveWsToken() const {
         WritePrivateProfileStringA("Rig", "WsToken", wsToken.c_str(), IniPath().c_str());
     }
@@ -306,6 +315,7 @@ struct RigConfig {
         ws("FilterName", filterName);
         wf("FilterLowNm",  filterLowNm);
         wf("FilterHighNm", filterHighNm);
+        ws("CaptureFormat", captureFormat);
         ws("AutoStackOnStop", autoStackOnStop ? "1" : "0");
         ws("AutoStakkertPath", autoStakkertPath);
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
@@ -435,6 +445,7 @@ private:
         cfg.filterName            = rs("FilterName", cfg.filterName);
         cfg.filterLowNm           = (float)rf("FilterLowNm",  cfg.filterLowNm);
         cfg.filterHighNm          = (float)rf("FilterHighNm", cfg.filterHighNm);
+        cfg.captureFormat         = rs("CaptureFormat", cfg.captureFormat);
         cfg.autoStackOnStop       = rs("AutoStackOnStop", cfg.autoStackOnStop ? "1" : "0") == "1";
         cfg.autoStakkertPath      = rs("AutoStakkertPath", cfg.autoStakkertPath);
         cfg.guideRateArcsecPerSec = (float)rf("GuideRateArcsecPerSec", cfg.guideRateArcsecPerSec);

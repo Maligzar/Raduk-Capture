@@ -320,6 +320,22 @@ int main() {
               "and it is a SER");
     }
 
+    printf("\n5b. The names around a format\n");
+    {
+        Check(CaptureFormatFromName("fits") == CaptureFormat::FITS, "fits");
+        Check(CaptureFormatFromName("ser") == CaptureFormat::SER, "ser");
+        Check(CaptureFormatFromName("") == CaptureFormat::SER &&
+              CaptureFormatFromName("FITS?") == CaptureFormat::SER,
+              "a missing or damaged rig.ini value is the default");
+        Check(CaptureFormatFromName(CaptureFormatName(CaptureFormat::FITS)) ==
+                  CaptureFormat::FITS, "the name round trips");
+        Check(IsFitsCapture("D:\\x\\a.fits") && IsFitsCapture("a.FITS"),
+              "a FITS path, either case");
+        Check(!IsFitsCapture("a.ser") && !IsFitsCapture("fits") &&
+              !IsFitsCapture("a.fits.ser") && !IsFitsCapture(""),
+              "and nothing else");
+    }
+
     printf("\n6. A run that never closes\n");
     {
         const std::string p = dir + "\\abandoned.fits";

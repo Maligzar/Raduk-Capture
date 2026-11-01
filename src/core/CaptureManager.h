@@ -27,6 +27,7 @@
 #include <mutex>
 #include <chrono>
 #include <functional>   // SetOnComplete
+#include <cctype>
 #include <cstdio>
 #include <ctime>
 #include <windows.h>
@@ -35,6 +36,28 @@ namespace raduk::core {
 
 enum class LimitType { Frames, Time };
 enum class CaptureFormat { SER, FITS };
+
+// As rig.ini spells it. Anything else is SER, the default.
+inline CaptureFormat CaptureFormatFromName(const std::string& name) {
+    return name == "fits" ? CaptureFormat::FITS : CaptureFormat::SER;
+}
+inline const char* CaptureFormatName(CaptureFormat f) {
+    return f == CaptureFormat::FITS ? "fits" : "ser";
+}
+
+// AutoStakkert's accepted inputs are avi/ser/as3/dat and image formats,
+// and a FITS cube has not been shown to be one of them. Handing it one
+// would launch it and fail where nobody is looking, so the caller asks
+// first and says so. Case-insensitive: a path can come from a file
+// dialog.
+inline bool IsFitsCapture(const std::string& path) {
+    const std::string ext = ".fits";
+    if (path.size() < ext.size()) return false;
+    const size_t at = path.size() - ext.size();
+    for (size_t i = 0; i < ext.size(); ++i)
+        if (tolower((unsigned char)path[at + i]) != ext[i]) return false;
+    return true;
+}
 
 struct CaptureConfig {
     std::string outputDir   = Paths::Captures();

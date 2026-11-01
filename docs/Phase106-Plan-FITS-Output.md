@@ -4,6 +4,8 @@ Roadmap row 18, priority M. The row says "FITS leads, AVI follows". This
 phase is FITS only: AVI is a legacy container the post-processing chain
 does not want, and it stays on the row until someone asks for it.
 
+**Closed at the bench 2026-11-01; what it owes is its row in `PHASE-STATUS.md`.** The sections below are the plan as it was revised during the work.
+
 **State when written, 2026-11-01:** `PLANNED`. No FITS code exists in
 `src/`. The `FITS:` comment the observation record emits (phase 48) is
 the only mention, and it was put there for this phase.

@@ -558,7 +558,14 @@ boxes, the boxes silently won every time. One section, one set of values.
 - **Prefix** — Base name for output files (e.g. `Jupiter_`). Filled in by a
   profile load, and read back by `SAVE`.
 - **Type dropdown** — Frame type: `Light` / `Dark` / `Flat` / `Bias`. Inserted in filename.
-- **Output directory** — Where SER files are saved (default: `D:\RadukCapture\captures`).
+- **Format dropdown** — Beside Type: `SER` or `FITS`. SER is the default and is
+  what AutoStakkert stacks. FITS writes one cube per recording, with the
+  observation details in its header and each frame's time and sharpness in a
+  table after the image. The choice is saved, and a recording already running
+  keeps the format it started with. `K` and `[STACK]` skip a FITS file with a
+  warning; `Shift+K` opens the last recording in whatever program Windows has
+  for that file type.
+- **Output directory** — Where recordings are saved (default: `D:\RadukCapture\captures`).
 - **Frames / Sec radio** — Capture limit mode: by frame count or by time. Also
   set by a profile load — a time-limited profile selects **Sec** for you,
   which it previously did not, so it loaded its seconds into the box and

@@ -210,7 +210,7 @@ into the write buffer when recording is active.
 ```
 StartRecording(w, h, bitDepth)
   ├── allocate WriteBuffer (realloc if slot capacity changed)
-  ├── BuildFilePath()  →  prefix_frametype_WxH_RAWn_YYYYMMDD_HHMMSS.ser
+  ├── BuildFilePath()  →  prefix_frametype_WxH_RAWn_YYYYMMDD_HHMMSS.ser or .fits
   ├── SERWriter::Open()
   └── start writer thread
 

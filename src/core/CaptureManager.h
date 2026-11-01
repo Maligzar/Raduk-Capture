@@ -2,7 +2,7 @@
 // ============================================================
 // CaptureManager.h — Recording orchestration for RadukCapture
 // Coordinates: RingBuffer (preview) -> WriteBuffer (RAM) ->
-//              writer thread -> SERWriter (disk).
+//              writer thread -> ICaptureWriter (disk).
 //
 // The capture thread keeps running at full speed (it only feeds
 // the preview RingBuffer). CaptureManager taps the preview ring
@@ -82,7 +82,7 @@ public:
     void NoteSky(double altDeg, double azDeg, double airmass,
                  double seeingFactor, double dispersionArcsec) {
         if (m_status.recording.load())
-            m_writer.NoteSkyConditions(altDeg, azDeg, airmass,
+            m_writer->NoteSkyConditions(altDeg, azDeg, airmass,
                                        seeingFactor, dispersionArcsec);
     }
 
@@ -257,7 +257,8 @@ private:
     // below, which writes the session summary file. Different jobs.
     std::function<void(const std::string&)> m_logFn;
     void Say(const std::string& s) const { if (m_logFn) m_logFn("[CAPTURE] " + s); }
-    SERWriter       m_writer;
+    SERWriter       m_ser;
+    ICaptureWriter* m_writer = &m_ser;
     SessionLog*     m_log = nullptr;
     CaptureStatus   m_status;
     std::mutex      m_mutex;

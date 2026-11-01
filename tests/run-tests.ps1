@@ -68,6 +68,7 @@ $Tests = @(
     @{ Name = "share_caption";   Sources = @() }
     @{ Name = "rec_timer";       Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp") }
     @{ Name = "fits_format";     Sources = @() }
+    @{ Name = "capture_writer";  Sources = @("src\core\SERWriter.cpp") }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

@@ -74,7 +74,7 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     }
 
     // Open SER writer
-    if (!m_writer.Open(path, width, height, bitDepth)) {
+    if (!m_writer->Open(path, width, height, bitDepth, true)) {
         { char b[512]; snprintf(b, sizeof(b), "Failed to open SER: %s", path.c_str()); Say(b); }
         return false;
     }
@@ -92,7 +92,7 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     m_obs.width     = width;
     m_obs.height    = height;
     m_obs.bitDepth  = bitDepth;
-    m_obs.colour    = "RGGB";   // SERWriter::Open's default, which is what is written
+    m_obs.colour    = "RGGB";   // what Open() was told, above
     if (m_obsSource) m_obsSource(m_obs);
 
     // Reset stats
@@ -161,11 +161,11 @@ void CaptureManager::StopRecording(bool normal) {
 
     // Remember the finished file before closing, so the caller can
     // hand it straight to AutoStakkert without reconstructing a path.
-    m_lastPath = m_writer.Path();
+    m_lastPath = m_writer->Path();
 
     // The run's sky figures, read before Close() resets them.
     {
-        const SERWriter::SkySummary sky = m_writer.SkyConditionsSummary();
+        const SkySummary sky = m_writer->SkyConditionsSummary();
         if (sky.valid) {
             m_obs.altStartDeg = sky.altStart;  m_obs.altEndDeg = sky.altEnd;
             m_obs.altMinDeg   = sky.altMin;    m_obs.altMaxDeg = sky.altMax;
@@ -175,8 +175,8 @@ void CaptureManager::StopRecording(bool normal) {
         }
     }
 
-    // Close SER writer (writes timestamp trailer, patches frame count)
-    m_writer.Close();
+    // Close the writer (finalizes the file, writes the quality sidecar)
+    m_writer->Close();
     WriteObservationRecord();
 
     uint32_t frames = m_status.framesRecorded.load();
@@ -363,7 +363,7 @@ void CaptureManager::WriterLoop() {
         float realSharp = SharpnessPercent(
             BayerLaplacianVariance(slot->data, slot->width, slot->height,
                                    slot->bitDepth, ccx, ccy));
-        bool ok = m_writer.WriteFrame(slot->data, slot->dataSize,
+        bool ok = m_writer->WriteFrame(slot->data, slot->dataSize,
                                       slot->timestampUs, realSharp);
         m_writeBuffer.Pop();
 

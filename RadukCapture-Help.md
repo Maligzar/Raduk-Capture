@@ -439,7 +439,7 @@ capture format.
 | `[GH]` | — | Ghost/frame-stack display FX |
 | `[?]` | `?` | Toggle this Help window |
 | `[AI]` | — | Toggle the AI assistant chat panel |
-| `[FOLLOW]` | — | **ROI following.** While a target is locked on a crop, the app moves the ROI on the sensor to hold it, and the mount slowly brings the window back. The setting is saved. If the camera does not apply moves during capture, it stops and tells you |
+| `[FOLLOW]` | — | **ROI following.** While a target is locked on a crop, the app moves the ROI on the sensor to hold it, and the mount slowly brings the window back. The setting is saved. When the target fills the frame, as the Moon and the Sun do, it holds a patch of the surface instead of a disc, and says so. If the camera does not apply moves during capture, it stops and tells you |
 | `[DEROT]` | — | **Derotation limit.** Each recording of a planet or the Sun is told how long it has before rotation blurs detail, from tonight's apparent size and the aperture. Jupiter on this telescope is about three minutes. `WARN` warns when that passes, `STOP` ends the run there. Saved. The Moon has no limit |
 | `[STACK]` | `K` | Stack the last finished recording. A SER runs hidden and exits; a FITS file opens in AutoStakkert's window |
 | `[DASH]` | — | **Open the browser dashboard, already signed in.** It connects to this PC by itself; see **The browser dashboard** |

@@ -1026,3 +1026,15 @@ For contrast, so this list is not read as "nothing works":
     and `[STACK]` should still find it. Then open it in WinJUPOS, which
     should fill in the date and time from the name: the format comes
     from forum reports, not from WinJUPOS's own documentation.
+
+33. **Surface lock** (phase 109). Emulator first: load the Moon on a
+    640x480 crop with `RADUK_EMU_DRIFT_PX_S` set and `[FOLLOW]` on, lock,
+    and the notification bar should say it is following the surface.
+    A crater should stay put in the frame while the window walks. If
+    `[FOLLOW]` never arms, the tracker is not locking on a full frame,
+    which is the first thing to find out. Then on the real Moon, near
+    the terminator and in ordinary seeing, read `raduk_log.txt`: the
+    `[FOLLOW] surface:` line gives frames lost and references retaken.
+    A lot lost means `kMinScore` or `kMinDetail` in `SurfaceLock.h` is
+    wrong for real contrast. Note the field rotation in a long run, and
+    try the Sun separately, with the solar filter on.

@@ -827,6 +827,8 @@ static int RunApp(bool useEmulator) {
     // first) placed the new crop at the wrong sensor position.
     // The ASI SDK centres a ROI when no start position is set; seed to match.
     bool followGaveUp = false;   // Phase 107: until the button is pressed again
+    raduk::core::RoiFollowLink::Mode followMode =
+        raduk::core::RoiFollowLink::Mode::Unknown;   // Phase 109: what was last logged
     int roiStartX = ((cam.MaxWidth()  - roiWidth)  / 2 / 8) * 8;
     int roiStartY = ((cam.MaxHeight() - roiHeight) / 2 / 2) * 2;
     // Phase 88: last session's values, falling back to the old
@@ -5565,6 +5567,20 @@ static int RunApp(bool useEmulator) {
                 const auto s = roiFollow.Snapshot();
                 Log("[FOLLOW] stopped: %d moves, %d landed, slowest %d frames\n",
                     s.Moves(), s.Landed(), s.MaxLandingFrames());
+                if (followMode == raduk::core::RoiFollowLink::Mode::Surface)
+                    Log("[FOLLOW] surface: %d frames lost, %d references retaken\n",
+                        roiFollow.SurfaceLostFrames(), roiFollow.SurfaceRefreshes());
+            }
+            // Phase 109: said once per lock, when the first frame decides.
+            const auto mode = roiFollow.CurrentMode();
+            if (mode != followMode) {
+                followMode = mode;
+                if (mode == raduk::core::RoiFollowLink::Mode::Surface) {
+                    Log("[FOLLOW] the frame is full, following the surface\n");
+                    notifBar.NotifyInfo(L"Following the surface - the target fills the frame");
+                } else if (mode == raduk::core::RoiFollowLink::Mode::Disc) {
+                    Log("[FOLLOW] following the disc\n");
+                }
             }
             if (roiFollow.GaveUp() && !followGaveUp) {
                 followGaveUp = true;   // want goes false until the button

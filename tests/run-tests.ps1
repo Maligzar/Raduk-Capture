@@ -70,6 +70,7 @@ $Tests = @(
     @{ Name = "fits_format";     Sources = @() }
     @{ Name = "roi_follower";    Sources = @() }
     @{ Name = "derotation_limit"; Sources = @() }
+    @{ Name = "surface_lock";    Sources = @() }
     @{ Name = "fits_writer";     Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "capture_writer";  Sources = @("src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
 )

@@ -193,50 +193,27 @@ inline std::string TypeName(const std::string& t, const std::string& sub) {
 // being wrong that way shrinks the text slightly and being wrong the
 // other way puts it through the bottom of the window.
 
-// Average glyph advance as a fraction of the em, and line height as a
-// multiple of it. Measured for the panel's body face at the sizes it
-// uses; see tests/object_panel_fit.cpp.
-inline constexpr float BODY_ADVANCE_EM = 0.47f;
-inline constexpr float BODY_LINE_EM    = 1.30f;
-
-// Never go below this for narrative text. The panel is read from
-// across a room, and text too small to read from there is no better
-// than text that is not on screen.
-inline constexpr float BODY_FLOOR_PX = 11.0f;
+// Phase 104: the implementation moved to namespace audience, where
+// the share view could reach it too. These names stay because they
+// read better at the object panel's call sites and because phase 103's
+// test is written against them; they are one-line forwards, not a
+// second copy of the arithmetic.
+using audience::BODY_ADVANCE_EM;
+using audience::BODY_LINE_EM;
+using audience::BODY_FLOOR_PX;
 
 inline float EstimatedLines(size_t chars, float width, float bodyPx) {
-    const float charW = bodyPx * BODY_ADVANCE_EM;
-    if (charW <= 0.0f || width <= 0.0f) return 1.0f;
-    // A column narrower than eight characters is not a column; the
-    // floor keeps a pathological width from predicting thousands of
-    // lines and collapsing the font to the minimum.
-    const float perLine = (std::max)(8.0f, width / charW);
-    const float lines = std::ceil((float)chars / perLine);
-    return (std::max)(1.0f, lines);
+    return audience::EstimatedLines(chars, width, bodyPx);
 }
 
 inline float EstimatedHeight(size_t chars, float width, float bodyPx) {
-    return bodyPx * BODY_LINE_EM * EstimatedLines(chars, width, bodyPx);
+    return audience::EstimatedHeight(chars, width, bodyPx);
 }
 
-// The largest body size at or below want whose text is estimated to
-// fit boxH, never below floorPx.
-//
-// Returns floorPx when even that does not fit, rather than something
-// smaller: at that point the text genuinely cannot fit and the honest
-// outcome is readable text that is clipped, not unreadable text that
-// is complete. Clipping is now real, so the caller's rect holds.
 inline float FitBodyPx(size_t chars, float width, float boxH,
                        float want, float floorPx = BODY_FLOOR_PX) {
-    if (chars == 0 || width <= 0.0f || boxH <= 0.0f) return want;
-    if (want <= floorPx) return floorPx;
-    if (EstimatedHeight(chars, width, want) <= boxH) return want;
-    // Walk down in whole pixels. The range is at most a few dozen
-    // steps and this runs once per draw of one panel, so there is
-    // nothing to gain from bisecting and a readable loop to lose.
-    for (float px = std::floor(want); px >= floorPx; px -= 1.0f)
-        if (EstimatedHeight(chars, width, px) <= boxH) return px;
-    return floorPx;
+    return audience::FitPx(chars, width, boxH, want,
+                           audience::BODY_ADVANCE_EM, floorPx);
 }
 
 } // namespace objectpanel
@@ -353,6 +330,14 @@ public:
         if (changed) {
             m_fadeStart = std::chrono::steady_clock::now();
             m_fading    = true;
+            // Phase 96.5: the fade needs frames of its own. Before
+            // this, the only thing that called Draw() again was the
+            // 500 ms readout poll that feeds SetContent -- 2 s while
+            // capturing -- so a 450 ms cross-fade got exactly one
+            // frame, at alpha near zero. It did not fade. It blanked
+            // the panel and then snapped back a poll later.
+            if (m_hwnd && IsVisible())
+                SetTimer(m_hwnd, TIMER_FADE, Theme::Motion::FRAME_MS, nullptr);
         }
         if (IsVisible()) Redraw();
     }
@@ -606,10 +591,13 @@ private:
         // than cuts. Nothing else on here moves.
         float alpha = 1.0f;
         if (m_fading) {
-            const double t = std::chrono::duration<double>(
+            const double ms = std::chrono::duration<double, std::milli>(
                 std::chrono::steady_clock::now() - m_fadeStart).count();
-            if (t >= FADE_SEC) { m_fading = false; }
-            else alpha = (float)(t / FADE_SEC);
+            alpha = Theme::Motion::FadeIn(ms, FADE_MS);
+            if (alpha >= 1.0f) {
+                m_fading = false;
+                if (m_hwnd) KillTimer(m_hwnd, TIMER_FADE);
+            }
         }
 
         m_rt->BeginDraw();
@@ -1070,6 +1058,11 @@ private:
                 return 0;
             }
             case WM_ERASEBKGND: return 1;
+            // Only ever armed while a transition is running; Draw()
+            // kills it on the frame the fade completes.
+            case WM_TIMER:
+                if (wp == TIMER_FADE) { self->Redraw(); return 0; }
+                break;
             // Claim only F11, the way the share view and the sky map
             // do. Escape stays global because it is the emergency stop
             // and must reach the mount from every window.
@@ -1088,7 +1081,10 @@ private:
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
 
-    static constexpr double FADE_SEC = 0.45;
+    // Rung 1 of the motion ladder: a surface whose content changes
+    // identity while the surface itself stays put.
+    static constexpr int FADE_MS    = Theme::Motion::CONTENT;
+    static constexpr UINT_PTR TIMER_FADE = 1;
 
     HWND                   m_hwnd   = nullptr;
     ID2D1HwndRenderTarget* m_rt     = nullptr;

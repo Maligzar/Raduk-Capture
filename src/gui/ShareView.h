@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <string>
+#include <cmath>
 #include <vector>
 #include <chrono>
 #include <algorithm>
@@ -130,7 +131,7 @@ public:
         if (m_wantFull) FillMonitor();
         m_lastPresent = {};              // present the next frame at once
         m_hintUntil = std::chrono::steady_clock::now()
-                    + std::chrono::seconds(8);
+                    + std::chrono::milliseconds(Theme::Motion::DWELL_NOTICE);
         Redraw();
     }
     void Hide()   { if (m_hwnd) ShowWindow(m_hwnd, SW_HIDE); }
@@ -232,7 +233,7 @@ public:
     // so the screen is clean for the people it is pointed at.
     void ShowHint() {
         m_hintUntil = std::chrono::steady_clock::now()
-                    + std::chrono::seconds(8);
+                    + std::chrono::milliseconds(Theme::Motion::DWELL_NOTICE);
         Redraw();
     }
 
@@ -262,6 +263,8 @@ private:
 
     void ReleaseD2D() {
         if (m_bigFormat)   { m_bigFormat->Release();   m_bigFormat   = nullptr; }
+        if (m_bigFit)      { m_bigFit->Release();      m_bigFit      = nullptr; }
+        m_bigFitPx = 0.0f;
         if (m_smallFormat) { m_smallFormat->Release(); m_smallFormat = nullptr; }
         if (m_microFormat) { m_microFormat->Release(); m_microFormat = nullptr; }
         if (m_bitmap)      { m_bitmap->Release();      m_bitmap      = nullptr; }
@@ -292,6 +295,20 @@ private:
     // window's own invented ratio. The object panel -- same room,
     // same audience, same night -- had invented 0.52 for the same
     // job, and neither knew about the other.
+    // A caption format at a size chosen to fit, cached so a steady
+    // target does not rebuild it every frame.
+    IDWriteTextFormat* BigAt(float px) {
+        if (px >= m_fontPx - 0.5f) return m_bigFormat;
+        if (m_bigFit && std::fabs(px - m_bigFitPx) < 0.5f) return m_bigFit;
+        if (m_bigFit) { m_bigFit->Release(); m_bigFit = nullptr; }
+        if (!m_dwrite) return m_bigFormat;
+        m_dwrite->CreateTextFormat(Theme::FONT_LABEL, nullptr,
+            DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL, px, L"en-us", &m_bigFit);
+        m_bigFitPx = px;
+        return m_bigFit ? m_bigFit : m_bigFormat;
+    }
+
     void MakeFonts() {
         if (!m_dwrite) return;
         const float px = (std::max)(28.0f, (std::min)(72.0f, (float)m_h / 18.0f));
@@ -308,6 +325,8 @@ private:
                    Theme::Type::BodyForStep(px, Theme::Type::S_HERO));
 
         if (m_bigFormat)   { m_bigFormat->Release();   m_bigFormat   = nullptr; }
+        if (m_bigFit)      { m_bigFit->Release();      m_bigFit      = nullptr; }
+        m_bigFitPx = 0.0f;
         if (m_smallFormat) { m_smallFormat->Release(); m_smallFormat = nullptr; }
         if (m_microFormat) { m_microFormat->Release(); m_microFormat = nullptr; }
 
@@ -488,9 +507,14 @@ private:
         const auto now = std::chrono::steady_clock::now();
         if (now >= m_hintUntil) return;
 
-        const double left = std::chrono::duration<double>(
-                                m_hintUntil - now).count();
-        const float a = (float)((left < 1.5) ? left / 1.5 : 1.0) * 0.6f;
+        // Phase 96.5: the same curve ObjectPanel fades in on, read
+        // from the other end. Was a linear ramp, which held the hint
+        // at near-full apparent lightness and then dropped it in the
+        // last instant; squared, it reads as leaving.
+        const double leftMs = std::chrono::duration<double, std::milli>(
+                                  m_hintUntil - now).count();
+        const float a = Theme::Motion::FadeOut(leftMs, Theme::Motion::LONG)
+                      * HINT_PEAK_ALPHA;
 
         D2D1_COLOR_F c = Theme::Color(Theme::TEXT_DIM);
         c.a = a;
@@ -523,19 +547,51 @@ private:
         b->Release();
     }
 
+    // Phase 104. MultiByteToWideChar with a non-zero buffer size does
+    // not truncate: given more than the buffer holds it FAILS, returns
+    // 0, and leaves the buffer's contents undefined. The caption used
+    // a wchar_t[96] and checked target[0], so a target name over 95
+    // characters produced an empty string and the audience screen
+    // showed no target name at all.
+    //
+    // That is reachable from outside the app. The remote goto_target
+    // command over the WebSocket calls RequestGoToByName, which sets
+    // the string this caption displays, and nothing on that path
+    // bounds its length.
+    //
+    // This converts the whole string and lets the caller decide what
+    // to do with its length, which is the decision the fixed buffer
+    // was making silently and wrongly.
+    static std::wstring Wide(const std::string& s) {
+        if (s.empty()) return L"";
+        const int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1,
+                                          nullptr, 0);
+        if (n <= 1) return L"";
+        std::wstring w((size_t)(n - 1), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, &w[0], n);
+        return w;
+    }
+
+    // Shortened to fit, with an ellipsis so it reads as shortened
+    // rather than as the object's name. Only ever called once the
+    // font has already been shrunk as far as it may go.
+    static std::wstring Ellipsize(const std::wstring& s, size_t fits) {
+        if (fits == 0) return L"";
+        if (s.size() <= fits) return s;
+        if (fits <= 1) return L"\u2026";
+        return s.substr(0, fits - 1) + L"\u2026";
+    }
+
     void DrawCaption() {
         if (!m_bigFormat || !m_smallFormat) return;
 
-        wchar_t target[96] = L"";
-        if (!m_cap.target.empty())
-            MultiByteToWideChar(CP_UTF8, 0, m_cap.target.c_str(), -1, target, 96);
+        const std::wstring targetFull = Wide(m_cap.target);
 
         // One quiet line of what it is and how it is being taken. The
         // rig string first, because at a star party the second question
         // is always what the scope is.
-        wchar_t rig[96] = L"";
-        if (!m_cap.rig.empty())
-            MultiByteToWideChar(CP_UTF8, 0, m_cap.rig.c_str(), -1, rig, 96);
+        const std::wstring rigStr = Wide(m_cap.rig);
+        const wchar_t* rig = rigStr.c_str();
 
         wchar_t line[256];
         int len = swprintf(line, 256, L"%s", rig);
@@ -566,16 +622,47 @@ private:
 
         ID2D1SolidColorBrush* b = nullptr;
 
-        if (target[0]) {
+        if (!targetFull.empty()) {
+            // Phase 104. This block is exactly two lines tall by
+            // construction -- top is m_h - pad - smlH - bigH -- and
+            // the scrim behind it is sized from that same top. So a
+            // target name that wraps does three wrong things at once:
+            // its second line lands on the detail line below, it
+            // leaves the scrim that is meant to back it, and it runs
+            // at the bottom edge of the screen.
+            //
+            // Nothing stopped it. No SetWordWrapping call exists in
+            // this file, so DWrite's default applies and the default
+            // wraps; and a layout rect does not clip, it only sets
+            // where the wrapping happens.
+            //
+            // So: shrink to fit one line, and when the floor is
+            // reached, shorten with an ellipsis. The name stays on
+            // one line either way, which is what the geometry and the
+            // scrim both already assumed.
+            const float availW = (float)m_w - pad * 2.0f;
+            // FitPxOneLine, not FitPx: the constraint here is width,
+            // because the block is one line tall by construction and
+            // a second line lands on the detail line below.
+            const float fitPx  = audience::FitPxOneLine(
+                targetFull.size(), availW, m_fontPx,
+                audience::DISPLAY_ADVANCE_EM);
+            IDWriteTextFormat* bigf = BigAt(fitPx);
+            const std::wstring shown = Ellipsize(
+                targetFull,
+                audience::CharsThatFit(availW, fitPx,
+                                       audience::DISPLAY_ADVANCE_EM));
+
             D2D1_COLOR_F c = Theme::Color(Theme::TEXT);
             c.a = 0.95f;
             m_rt->CreateSolidColorBrush(c, &b);
-            if (b) {
-                m_bigFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-                m_rt->DrawText(target, (UINT32)wcslen(target), m_bigFormat,
-                               D2D1::RectF(pad, y, (float)m_w - pad, y + bigH), b);
-                b->Release(); b = nullptr;
+            if (b && bigf) {
+                bigf->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+                m_rt->DrawText(shown.c_str(), (UINT32)shown.size(), bigf,
+                               D2D1::RectF(pad, y, (float)m_w - pad, y + bigH),
+                               b, D2D1_DRAW_TEXT_OPTIONS_CLIP);
             }
+            if (b) { b->Release(); b = nullptr; }
         }
         y += bigH;
 
@@ -593,7 +680,8 @@ private:
             if (b) {
                 m_smallFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
                 m_rt->DrawText(line, (UINT32)wcslen(line), m_smallFormat,
-                               D2D1::RectF(pad, y, (float)m_w - pad, y + smlH), b);
+                               D2D1::RectF(pad, y, (float)m_w - pad, y + smlH),
+                               b, D2D1_DRAW_TEXT_OPTIONS_CLIP);
                 b->Release(); b = nullptr;
             }
         }
@@ -786,6 +874,8 @@ private:
     ID2D1HwndRenderTarget* m_rt     = nullptr;
     IDWriteFactory*        m_dwrite = nullptr;
     IDWriteTextFormat*     m_bigFormat   = nullptr;
+    IDWriteTextFormat*     m_bigFit      = nullptr;  // caption, fitted
+    float                  m_bigFitPx    = 0.0f;
     IDWriteTextFormat*     m_smallFormat = nullptr;
     IDWriteTextFormat*     m_microFormat = nullptr;
     ID2D1Bitmap*           m_bitmap = nullptr;
@@ -803,6 +893,9 @@ private:
     Caption          m_cap;
     WINDOWPLACEMENT  m_savedPlacement = { sizeof(WINDOWPLACEMENT) };
     std::chrono::steady_clock::time_point m_lastPresent{};
+    // The hint never paints at full strength: it is a reminder laid
+    // over someone else's picture, not a label.
+    static constexpr float HINT_PEAK_ALPHA = 0.6f;
     std::chrono::steady_clock::time_point m_hintUntil{};
 };
 

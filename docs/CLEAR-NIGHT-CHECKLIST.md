@@ -888,6 +888,17 @@ For contrast, so this list is not read as "nothing works":
     windows -- which is precisely the gap that let phase 98 ship a
     one-directional fix.
 
+21. **The object panel cross-fade, now that it has frames** (phase
+    96.5). Slew between two targets with the object panel up and watch
+    the transition. Before this it blanked and snapped back; it should
+    now be a 450 ms fade. Then do it again while capturing, where the
+    content poll drops to 2 s -- the fade should look identical, since
+    it no longer depends on that poll for its frames.
+
+22. **The confirmation toast's fade** (phase 96.5). Trigger any
+    confirmation. It should fade in over about 150 ms, hold for five
+    seconds, and fade out. Clicking it should still dismiss it at once.
+
 23. **The two buttons that did nothing** (phase 102). On the control
     panel, press **POINT SOLVE → SYNC**: it should report a real
     outcome, including its refusals ("No frame yet", "ASTAP not found",
@@ -935,3 +946,22 @@ For contrast, so this list is not read as "nothing works":
     if it does not fit, which is the clip. To see the clip on its own,
     make the window very short: the text should be cut off cleanly at
     the edge rather than spilling over it.
+
+27. **A long target name on the share view** (phase 104). This is the
+    audience screen, so it is the one worth being fussy about. Set a
+    target with a long name -- type one into the GoTo box, the longer
+    the better -- and bring up the share view.
+
+    Before this, two separate things went wrong at two different
+    lengths. Past about 53 characters the name wrapped, and its second
+    line landed on the detail line beneath it, outside the dark scrim
+    that is meant to back the caption, at the very bottom edge of the
+    screen. Past 95 characters the name vanished altogether: the
+    conversion into a fixed buffer failed rather than truncating, and
+    the caption drew nothing.
+
+    It should now stay on one line at a slightly smaller size, and only
+    if it is far too long should it end in an ellipsis. Check an
+    ordinary name too -- "Jupiter" must still be drawn at full size,
+    since an over-eager fit that shrinks every caption would be a
+    regression of its own.

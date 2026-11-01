@@ -45,7 +45,10 @@ namespace raduk::gui {
 
 static constexpr int NOTIF_HEIGHT = 28;  // px — visible height of the bar
 static constexpr int NOTIF_TIMER_ID  = 901;
-static constexpr int NOTIF_TIMEOUT_MS = 8000;
+// Phase 96.5: a notice tells you something you did not know, so it
+// gets the long dwell. Was a bare 8000 here and a bare 5000 in
+// ConfirmToast with nothing saying why they differed.
+static constexpr int NOTIF_TIMEOUT_MS = Theme::Motion::DWELL_NOTICE;
 
 enum class NotifLevel { Info, Warn, Error };
 

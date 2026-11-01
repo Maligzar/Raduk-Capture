@@ -50,6 +50,7 @@ $Tests = @(
     @{ Name = "device_interfaces"; Sources = @() }
     @{ Name = "push_to";          Sources = @() }
     @{ Name = "pixel_wcs";        Sources = @() }
+    @{ Name = "plate_scale_check"; Sources = @() }
     @{ Name = "emulator_target_size"; Sources = @() }
     @{ Name = "emulator_star_psf"; Sources = @() }
     @{ Name = "lunar_surface";    Sources = @() }
@@ -69,6 +70,8 @@ $Tests = @(
     @{ Name = "rec_timer";       Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "fits_format";     Sources = @() }
     @{ Name = "roi_follower";    Sources = @() }
+    @{ Name = "derotation_limit"; Sources = @() }
+    @{ Name = "surface_lock";    Sources = @() }
     @{ Name = "fits_writer";     Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "capture_writer";  Sources = @("src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
 )

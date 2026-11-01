@@ -92,6 +92,56 @@ int main() {
         Check(!cm.IsRecording(), "which closes it when it gets there", "");
     }
 
+    // ── Phase 108: the derotation stop, and the rename ───────
+    printf("\n1b. The derotation window stops a frame-limited run\n");
+    {
+        CaptureManager cm;
+        CaptureConfig cfg;
+        cfg.outputDir         = dir;
+        cfg.filePrefix        = "submit_derot";
+        cfg.limitType         = LimitType::Frames;
+        cfg.limitFrames       = 1000000;
+        cfg.derotationStopSec = 0.02;
+        cfg.winJuposNames     = true;
+        cm.SetConfig(cfg);
+
+        Check(cm.StartRecording(W, H, 8), "recording starts", "");
+        Check(cm.SubmitFromCaptureThread(&fx.slot),
+              "a frame inside the window is taken", "");
+        Check(!cm.DerotationStopped(), "nothing has stopped it yet", "");
+        Sleep(40);
+        Check(!cm.SubmitFromCaptureThread(&fx.slot),
+              "a frame past the window is not", "");
+        Check(cm.LimitReached() && cm.DerotationStopped(),
+              "and it says the window did it", "");
+        cm.StopRecording();
+
+        const std::string last = cm.LastFilePath();
+        const std::string name = last.substr(last.find_last_of('\\') + 1);
+        Check(name.size() > 18 && name[4] == '-' && name[15] == '_' &&
+              name.find("submit_derot") == 18,
+              "the finished file has the WinJUPOS stamp first", name);
+        Check(cm.LastObservationPath().find(name.substr(0, 17)) != std::string::npos,
+              "and the observation record followed it", "");
+        FILE* f = nullptr;
+        Check(fopen_s(&f, last.c_str(), "rb") == 0, "the file is there", last);
+        if (f) fclose(f);
+    }
+    {
+        CaptureManager cm;
+        CaptureConfig cfg;
+        cfg.outputDir     = dir;
+        cfg.filePrefix    = "submit_dark";
+        cfg.frameType     = "Dark";
+        cfg.winJuposNames = true;
+        cm.SetConfig(cfg);
+        cm.StartRecording(W, H, 8);
+        cm.StopRecording();
+        const std::string last = cm.LastFilePath();
+        Check(last.substr(last.find_last_of('\\') + 1).rfind("submit_dark", 0) == 0,
+              "a dark keeps its plain name", last);
+    }
+
     // ── A gated frame is skipped, not dropped ────────────────
     printf("\n2. The gate skips; it does not drop\n");
     {

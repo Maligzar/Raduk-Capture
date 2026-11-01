@@ -4,6 +4,9 @@
 // ============================================================
 
 #include "CaptureManager.h"
+#include "DerotationLimit.h"
+
+#include <cmath>
 
 namespace raduk::core {
 
@@ -120,6 +123,7 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     m_pushFailureReported.store(false);
     m_framesSubmitted.store(0);
     m_limitReached.store(false);
+    m_derotationStopped.store(false);
 
     // Start writer thread
     m_writerRunning.store(true);
@@ -181,6 +185,28 @@ void CaptureManager::StopRecording(bool normal) {
     // Close the writer (finalizes the file, writes the quality sidecar)
     m_writer->NoteObservation(m_obs);
     m_writer->Close();
+
+    // Phase 108: here, because the middle of the run is known only now,
+    // and ahead of the observation record, which names the file.
+    if (m_config.winJuposNames && m_config.frameType == "Light") {
+        const int64_t mid = m_obs.startUnix +
+                            (int64_t)std::llround(m_obs.durationSec / 2.0);
+        const std::string renamed = RenameForWinJupos(m_lastPath, mid);
+        if (renamed == m_lastPath) {
+            Say("Could not rename for WinJUPOS, keeping: " + m_lastPath);
+        } else {
+            m_lastPath = renamed;
+            const size_t slash = renamed.find_last_of("\\/");
+            m_obs.file = (slash == std::string::npos)
+                       ? renamed : renamed.substr(slash + 1);
+            {
+                std::lock_guard<std::mutex> lk(m_mutex);
+                m_status.currentFile = renamed;
+            }
+            Say("Renamed for WinJUPOS: " + renamed);
+        }
+    }
+
     WriteObservationRecord();
 
     uint32_t frames = m_status.framesRecorded.load();
@@ -277,6 +303,17 @@ bool CaptureManager::SubmitFromCaptureThread(const FrameSlot* slot) {
         const double elapsed = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - m_startTime).count();
         if (elapsed >= m_config.limitTimeSec) {
+            m_limitReached.store(true, std::memory_order_relaxed);
+            return false;
+        }
+    }
+    // Phase 108: on top of either limit, because a frame-limited run is
+    // the planetary default and the window is in seconds.
+    if (m_config.derotationStopSec > 0.0) {
+        const double elapsed = std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - m_startTime).count();
+        if (elapsed >= m_config.derotationStopSec) {
+            m_derotationStopped.store(true, std::memory_order_relaxed);
             m_limitReached.store(true, std::memory_order_relaxed);
             return false;
         }

@@ -96,16 +96,35 @@ depends on where the camera actually sits in the light path, and feeds
 the ADC figure, the drift readout and the overlay scales.
 
 **The app now reports this itself.** A solve knows the true field width, so
-it knows the true scale. Every successful solve logs the comparison:
+it knows the true scale. Every successful solve logs the comparison, on all
+four solve paths since 2026-11-01 (before that only the auto-solve on lock
+did, so this instruction could not have worked from the `[GOTO]` button):
 
 ```
-[GOTO] Plate scale: solved 0.2061"/px vs rig.ini 0.2030"/px (2% out)
-[GOTO] Plate scale: solved 0.2480"/px vs rig.ini 0.2030"/px (22% out)
+[GOTO] Plate scale: solved 0.2061"/px vs rig.ini 0.2030"/px (1.53% out), focal length 2002 mm
+[GOTO] Plate scale: solved 0.2480"/px vs rig.ini 0.2030"/px (22.17% out), focal length 1663 mm
        <- set PlateScaleArcsecPx to the solved value
 ```
 
-**What to do:** plate-solve one frame (`[GOTO]` → solve) and read that line.
-Anything over about 5% is flagged, and worth correcting.
+**What to do:**
+
+1. Full sensor at bin 1, not a ROI. A 640x480 crop is about 0.03° and is
+   unlikely to hold enough stars, and a binned frame reads double.
+2. Focus properly and write down the EAF position. An SCT's focal length
+   moves with focus, so the number belongs to that position, and the log
+   line does not carry it.
+3. Solve three different fields (`[GOTO]` → solve) and read the line each time.
+4. If they agree, put the figure in `PlateScaleArcsecPx`, restart, and solve
+   once more: it should read close to 0%. If they disagree, do not change
+   anything; a scale that moves between fields is a finding in itself.
+
+Anything over 5% is flagged, but a smaller agreed correction is still worth
+making, since the figure is otherwise a calculation.
+
+**If solves keep failing on good stars:** ASTAP's `-fov` hint is built from
+this same rig.ini figure, so a badly wrong scale can look like "no solve".
+That is unproven, and it is the one case this line cannot report. Try the
+frame in ASTAP by hand with `-fov 0`.
 
 ---
 
@@ -1014,3 +1033,27 @@ For contrast, so this list is not read as "nothing works":
     apply during capture on this camera, and following needs a different
     route. If it held, note the slowest landing in frames, and check the
     frame rate did not fall while the window was moving.
+
+32. **The derotation limit and WinJUPOS names** (phase 108). No sky
+    needed for the first half. In the app, record Jupiter: the
+    notification bar should give the window, about three minutes when
+    Jupiter is near 44 arcsec, and warn when it passes. Press
+    `[DEROT]` to `STOP` and the next run should end there. The toolbar
+    should still fit, with `EXIT` in place. The finished file should
+    start with the run's middle in UT, like `2026-11-01-2130_4-`, with
+    its `_quality.txt` and `_observation.txt` beside it, and `Shift+G`
+    and `[STACK]` should still find it. Then open it in WinJUPOS, which
+    should fill in the date and time from the name: the format comes
+    from forum reports, not from WinJUPOS's own documentation.
+
+33. **Surface lock** (phase 109). Emulator first: load the Moon on a
+    640x480 crop with `RADUK_EMU_DRIFT_PX_S` set and `[FOLLOW]` on, lock,
+    and the notification bar should say it is following the surface.
+    A crater should stay put in the frame while the window walks. If
+    `[FOLLOW]` never arms, the tracker is not locking on a full frame,
+    which is the first thing to find out. Then on the real Moon, near
+    the terminator and in ordinary seeing, read `raduk_log.txt`: the
+    `[FOLLOW] surface:` line gives frames lost and references retaken.
+    A lot lost means `kMinScore` or `kMinDetail` in `SurfaceLock.h` is
+    wrong for real contrast. Note the field rotation in a long run, and
+    try the Sun separately, with the solar filter on.

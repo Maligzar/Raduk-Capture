@@ -134,6 +134,8 @@ struct RigConfig {
 
     // Optics / sensor (nominal)
     float  plateScaleArcsecPx = 0.203f;  // 8SE 2032mm + 2.0um pixels
+    // Phase 108: sets the resolution a run can lose to rotation.
+    float  apertureMm = 203.0f;
     // Phase 77: hand each finished recording to AutoStakkert
     // automatically. Off by default - stacking is minutes of CPU and
     // should be opted into, not sprung on someone mid-session.
@@ -161,6 +163,11 @@ struct RigConfig {
 
     // Phase 107: move the ROI to hold a locked target.
     bool        roiFollow = false;
+
+    // Phase 108: stop at the derotation window instead of only warning,
+    // and rename finished Lights for WinJUPOS.
+    bool        derotationStop = false;
+    bool        winJuposNames  = true;
 
     bool        autoStackOnStop = false;
     std::string autoStakkertPath;       // blank = probe the usual places
@@ -274,6 +281,12 @@ struct RigConfig {
                                    IniPath().c_str());
     }
 
+    void SaveDerotationStop() const {
+        WritePrivateProfileStringA("Rig", "DerotationStop",
+                                   derotationStop ? "1" : "0",
+                                   IniPath().c_str());
+    }
+
     void SaveCaptureFormat() const {
         WritePrivateProfileStringA("Rig", "CaptureFormat", captureFormat.c_str(),
                                    IniPath().c_str());
@@ -325,6 +338,9 @@ struct RigConfig {
         wf("FilterHighNm", filterHighNm);
         ws("CaptureFormat", captureFormat);
         ws("RoiFollow", roiFollow ? "1" : "0");
+        ws("DerotationStop", derotationStop ? "1" : "0");
+        ws("WinJuposNames", winJuposNames ? "1" : "0");
+        wf("ApertureMm", apertureMm);
         ws("AutoStackOnStop", autoStackOnStop ? "1" : "0");
         ws("AutoStakkertPath", autoStakkertPath);
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
@@ -456,6 +472,9 @@ private:
         cfg.filterHighNm          = (float)rf("FilterHighNm", cfg.filterHighNm);
         cfg.captureFormat         = rs("CaptureFormat", cfg.captureFormat);
         cfg.roiFollow             = rs("RoiFollow", cfg.roiFollow ? "1" : "0") == "1";
+        cfg.derotationStop        = rs("DerotationStop", cfg.derotationStop ? "1" : "0") == "1";
+        cfg.winJuposNames         = rs("WinJuposNames", cfg.winJuposNames ? "1" : "0") == "1";
+        cfg.apertureMm            = (float)rf("ApertureMm", cfg.apertureMm);
         cfg.autoStackOnStop       = rs("AutoStackOnStop", cfg.autoStackOnStop ? "1" : "0") == "1";
         cfg.autoStakkertPath      = rs("AutoStakkertPath", cfg.autoStakkertPath);
         cfg.guideRateArcsecPerSec = (float)rf("GuideRateArcsecPerSec", cfg.guideRateArcsecPerSec);

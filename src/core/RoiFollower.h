@@ -20,6 +20,10 @@
 //
 // RoiFollower is pure, with no Windows and no camera. RoiFollowLink
 // adds the lock and the atomics for the two threads that share it.
+//
+// Phase 109: the follower only needs to know where the target is, so
+// RoiFollowLink can answer from a disc's centroid or from SurfaceLock.
+// It looks once when armed and stays with that for the lock.
 // ============================================================
 
 #include <algorithm>
@@ -29,6 +33,8 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+
+#include "SurfaceLock.h"
 
 namespace raduk::core {
 
@@ -165,6 +171,7 @@ public:
 
     bool Armed()     const { return m_armed; }
     bool GaveUp()    const { return m_gaveUp; }
+    bool Waiting()   const { return m_waiting; }
     int  OriginX()   const { return m_x; }
     int  OriginY()   const { return m_y; }
     int  OffsetX()   const { return m_x - m_homeX; }
@@ -199,6 +206,8 @@ class RoiFollowLink {
 public:
     static constexpr int kStride = 4;
 
+    enum class Mode : int { Unknown, Disc, Surface };
+
     // Runs on the capture thread, so the SDK is only ever called from
     // the thread that is already talking to it.
     void SetMover(std::function<bool(int, int)> mover) {
@@ -210,6 +219,8 @@ public:
              int sensorW, int sensorH) {
         std::lock_guard<std::mutex> lk(m_mutex);
         m_f.Arm(originX, originY, frameW, frameH, sensorW, sensorH);
+        m_surface.Reset();
+        m_mode.store((int)Mode::Unknown, std::memory_order_relaxed);
         Publish();
     }
 
@@ -228,12 +239,27 @@ public:
 
     void OnFrame(const uint8_t* data, int width, int height, int bitDepth) {
         if (!m_armed.load(std::memory_order_relaxed)) return;
+        if (CurrentMode() == Mode::Unknown) {
+            const bool filled = FrameIsFilled(data, width, height, bitDepth, kStride);
+            m_mode.store((int)(filled ? Mode::Surface : Mode::Disc),
+                         std::memory_order_relaxed);
+        }
         float cx = 0.f, cy = 0.f;
-        const bool valid = FastCentroid(data, width, height, bitDepth,
-                                        kStride, cx, cy);
+        bool valid = false;
+        const bool surface = CurrentMode() == Mode::Surface;
+        if (!surface)
+            valid = FastCentroid(data, width, height, bitDepth, kStride, cx, cy);
+
         std::lock_guard<std::mutex> lk(m_mutex);
+        if (surface)
+            valid = m_surface.Measure(data, width, height, bitDepth, cx, cy);
+        const int fromX = m_f.OriginX(), fromY = m_f.OriginY();
         const RoiFollower::Move m = m_f.Update(cx, cy, valid);
-        if (m.move && (!m_mover || !m_mover(m.x, m.y))) m_f.RefuseMove();
+        if (m.move) {
+            if (surface) m_surface.ExpectMove(m.x - fromX, m.y - fromY);
+            if (!m_mover || !m_mover(m.x, m.y)) m_f.RefuseMove();
+        }
+        if (surface && !m_f.Waiting()) m_surface.ClearExpect();
         Publish();
     }
 
@@ -243,10 +269,20 @@ public:
     int  OriginX() const { return m_orgX.load(std::memory_order_relaxed); }
     int  OriginY() const { return m_orgY.load(std::memory_order_relaxed); }
     bool GaveUp()  const { return m_gaveUp.load(std::memory_order_relaxed); }
+    Mode CurrentMode() const { return (Mode)m_mode.load(std::memory_order_relaxed); }
 
     RoiFollower Snapshot() {
         std::lock_guard<std::mutex> lk(m_mutex);
         return m_f;
+    }
+
+    int SurfaceLostFrames() {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        return m_surface.LostFrames();
+    }
+    int SurfaceRefreshes() {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        return m_surface.Refreshes();
     }
 
 private:
@@ -261,7 +297,9 @@ private:
 
     std::mutex        m_mutex;
     RoiFollower       m_f;
+    SurfaceLock       m_surface;
     std::function<bool(int, int)> m_mover;
+    std::atomic<int>  m_mode{0};
     std::atomic<bool> m_armed{false}, m_gaveUp{false};
     std::atomic<int>  m_offX{0}, m_offY{0}, m_orgX{0}, m_orgY{0};
 };

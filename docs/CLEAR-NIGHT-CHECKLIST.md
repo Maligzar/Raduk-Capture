@@ -1128,3 +1128,25 @@ For contrast, so this list is not read as "nothing works":
     terminator, see whether the Sun figure in the log matches the shadows. The
     20 and 50 degree relief bands are starting figures.
 
+39. **Flying a satellite pass** (phase 116). This is the first thing in the
+    application that moves both axes fast with no hand on them. Emulator
+    first: on the Passes tab press UPDATE ELEMENTS, select a pass an hour or
+    so out if one suits, and confirm the rows look sensible. To see one fly
+    you need a pass starting soon: press TRACK, and the log should say it is
+    slewing, then the status should count down, then read `Closing in`,
+    `Tracking`, and `complete`. Press Escape during one: it should stop at
+    once and the status should say so. Jog during one: same.
+
+    On the real mount, **in daylight first, with the camera off the tube or
+    the tube balanced and your hand on the power switch.** Pick a low, slow
+    pass, not one near the ceiling. Before the window opens, confirm the
+    slew went to the right part of the sky. As it starts moving, watch which
+    way each axis goes: azimuth should climb clockwise seen from above when
+    the rate is positive. If it runs backwards the 15 degree guard should stop
+    it within seconds, and that stop is the first thing to confirm. Time the
+    log's error line, because it says how long a `z` takes. Listen to the
+    gears at the peak rate. Walk the tube to 80 degrees by hand and see what
+    the camera does: `SatMaxAltDeg` is a guess. Sync the PC clock first: a
+    second wrong is 28' at 500 km, four frames. Only then try a bright pass
+    at night, at the full sensor, and note how far from the frame it runs.
+

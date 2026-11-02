@@ -263,6 +263,13 @@ struct RigConfig {
 
     double wrapLimitDeg = 360.0;
 
+    // Phase 116: where the tube may go while it flies a satellite pass.
+    // The ceiling keeps the camera off the base and the azimuth axis out
+    // of the keyhole. Starting figures, until someone has looked.
+    double satMinAltDeg  = 15.0;
+    double satMaxAltDeg  = 80.0;
+    double satMaxRateDeg = 3.0;
+
     std::string mountPort;
 
     // Pin an exact ASCOM telescope ProgID, skipping discovery.
@@ -361,6 +368,9 @@ struct RigConfig {
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
         wf("SiteElevationM", siteElevationM);
         wf("WrapLimitDeg", wrapLimitDeg);
+        wf("SatMinAltDeg",  satMinAltDeg);
+        wf("SatMaxAltDeg",  satMaxAltDeg);
+        wf("SatMaxRateDeg", satMaxRateDeg);
         wf("KeepOutStartDeg", keepOutStartDeg);
         wf("KeepOutEndDeg",   keepOutEndDeg);
         wf("ObserverBearingDeg", observerBearingDeg);
@@ -431,6 +441,9 @@ private:
         cfg.siteValid             = haveLat && haveLon;
         cfg.siteElevationM        = rf("SiteElevationM", cfg.siteElevationM);
         cfg.wrapLimitDeg          = rf("WrapLimitDeg", cfg.wrapLimitDeg);
+        cfg.satMinAltDeg          = rf("SatMinAltDeg",  cfg.satMinAltDeg);
+        cfg.satMaxAltDeg          = rf("SatMaxAltDeg",  cfg.satMaxAltDeg);
+        cfg.satMaxRateDeg         = rf("SatMaxRateDeg", cfg.satMaxRateDeg);
         cfg.keepOutStartDeg       = rf("KeepOutStartDeg", cfg.keepOutStartDeg);
         cfg.keepOutEndDeg         = rf("KeepOutEndDeg",   cfg.keepOutEndDeg);
         cfg.observerBearingDeg    = rf("ObserverBearingDeg", cfg.observerBearingDeg);

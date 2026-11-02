@@ -46,6 +46,22 @@ inline double LocalSiderealHours() {
 // Alt/az for an equatorial coordinate at the configured site and the
 // current time. Azimuth is degrees true, measured from north through
 // east, matching what the mount reports.
+// The other way, for the emulator's alt-az drive (phase 116).
+inline void AltAzToRADecNow(double altDeg, double azDeg,
+                            double& raHours, double& decDeg) {
+    const double D2R = 3.14159265358979 / 180.0;
+    const double lat = RigConfig::Get().siteLatDeg * D2R;
+    const double a = altDeg * D2R, z = azDeg * D2R;
+    const double sd = std::sin(a) * std::sin(lat)
+                    + std::cos(a) * std::cos(lat) * std::cos(z);
+    const double d = std::asin(sd > 1.0 ? 1.0 : (sd < -1.0 ? -1.0 : sd));
+    const double ha = std::atan2(-std::sin(z) * std::cos(a),
+                                 std::sin(a) * std::cos(lat)
+                                 - std::cos(a) * std::sin(lat) * std::cos(z));
+    decDeg = d / D2R;
+    raHours = NormDeg360((LocalSiderealHours() * 15.0) - ha / D2R) / 15.0;
+}
+
 inline void RADecToAltAzNow(double raHours, double decDeg,
                             double& altDeg, double& azDeg) {
     const double D2R = 3.14159265358979 / 180.0;

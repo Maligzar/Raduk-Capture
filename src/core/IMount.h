@@ -152,6 +152,11 @@ public:
                               double /*arcsecPerSec*/) { return false; }
     virtual bool SupportsVariableRate() const { return false; }
 
+    // Phase 116: on a real alt-az fork the axes ARE azimuth and altitude,
+    // and this does nothing. The emulator treats them as RA and Dec,
+    // which every jog test relies on, so whoever flies a pass has to say.
+    virtual void DriveAltAzAxes(bool /*on*/) {}
+
     // ── Sync ───────────────────────────────────────────────────
     virtual bool SyncRADec(double raHours, double decDegrees) = 0;
 

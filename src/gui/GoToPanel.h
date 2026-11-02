@@ -38,6 +38,7 @@
 #include "../sky/PushTo.h"
 #include "../sky/MosaicPlan.h"
 #include "../sky/MosaicRunner.h"
+#include "../core/SatDesk.h"
 #include <chrono>
 #include "../sky/PointingModel.h"
 #include "../core/IMount.h"
@@ -474,12 +475,37 @@ public:
     // the sky-map-click GoTo flow relies on m_onGoToComplete to arm the
     // post-slew acquisition sequence, and the panel is hidden by default.
     // main.cpp calls this every readout tick when the panel is not visible.
-    void TickSlewStatus() { UpdateSlewStatus(); }
+    void TickSlewStatus() { UpdateSlewStatus(); SatTick(); }
+
+    // ── Phase 116: satellite passes ────────────────────────────
+    raduk::core::SatDesk& Satellites() { return m_sat; }
+
+    // Whatever may veto a pass the panel cannot see for itself: a
+    // sequence running, the cord. Returns why not, or empty.
+    void SetSatPreflight(std::function<std::string(const raduk::sky::SatPassInfo&)> cb) {
+        m_satPreflight = std::move(cb);
+    }
+
+    // Escape, a jog, the stop button. Does not return until the axes
+    // have been told to stop.
+    void StopSatellite(const char* why) {
+        if (m_sat.Tracking()) m_sat.StopTrack(why);
+    }
+
+    static raduk::sky::SatPassLimits SatLimits() {
+        const auto& r = raduk::core::RigConfig::Get();
+        raduk::sky::SatPassLimits l;
+        l.minAltDeg  = r.satMinAltDeg;
+        l.maxAltDeg  = r.satMaxAltDeg;
+        l.maxRateDeg = r.satMaxRateDeg;
+        return l;
+    }
 
     // Call every ~2s to refresh planet positions and list altitude
     void Tick() {
         RefreshSky();
         UpdateSlewStatus();
+        SatTick();
         UpdateAlignmentState();
 
         // Apply any sync results posted from the solver worker thread
@@ -967,6 +993,9 @@ private:
         ID_TAB_MAIN        = 2020,  // Phase 14: tab control
         ID_LIST_TONIGHT    = 2021,  // Phase 14: tonight's planner list
         ID_BTN_GOTO_TONIGHT= 2022,  // Phase 14: GoTo selected from planner
+        ID_LIST_PASSES     = 2023,  // Phase 116
+        ID_BTN_PASS_UPDATE = 2024,
+        ID_BTN_PASS_TRACK  = 2025,
         ID_LBL_TONIGHT_HDR = 2023,  // Phase 14: header label
         ID_BTN_SURVEY      = 2030,  // Phase 13: start/stop sky survey
         ID_LBL_SURVEY      = 2031,  // Phase 13: survey progress label
@@ -1312,12 +1341,26 @@ private:
 
         // ── Tab 1: Tonight ──
         int ty = tabTop;
+        const int passTopY = ty;
         place(m_lblTonightHdr, x, ty, cw, SH);        ty += SH + 4;
         int tonightListH = h - ty - (BH + 4) - 12;
         if (tonightListH < m_fontPx * 6) tonightListH = m_fontPx * 6;
         place(m_listTonight, x, ty, cw, tonightListH);
         ty += tonightListH + 4;
         place(m_btnGoToTonight, x, ty, cw, BH + 4);
+
+        // Phase 116: the same stretch of panel as the Tonight tab.
+        {
+            int py = passTopY;
+            place(m_lblPassHdr, x, py, cw, SH);      py += SH + 4;
+            const int foot = 2 * (BH + 8) + SH + 8;
+            int lh = h - 8 - py - foot;
+            if (lh < 100) lh = 100;
+            place(m_listPasses, x, py, cw, lh);      py += lh + 4;
+            place(m_btnPassUpdate, x, py, cw, BH + 4); py += BH + 8;
+            place(m_btnPassTrack,  x, py, cw, BH + 4); py += BH + 8;
+            place(m_lblPassState,  x, py, cw, SH);
+        }
 
         ScaleListColumns(cw);
 
@@ -1430,6 +1473,111 @@ private:
         setVis(m_btnGoToTonight,   t);
         setVis(m_lblTonightHdr,    t);
         if (t) PopulateTonightList();
+        // Tab 2: Satellite passes
+        bool p = (tab == 2);
+        setVis(m_lblPassHdr,  p);
+        setVis(m_listPasses,  p);
+        setVis(m_btnPassUpdate, p);
+        setVis(m_btnPassTrack,  p);
+        setVis(m_lblPassState,  p);
+        if (p && m_sat.Rows().empty() && !m_sat.Busy())
+            m_sat.Refresh(SiteObserver(), SatLimits(), false);
+    }
+
+    // Drained from both ticks, so the log and the list keep moving with
+    // the panel hidden: a pass does not wait for anyone to open it.
+    void SatTick() {
+        if (m_onLog)
+            for (const auto& s : m_sat.TakeMessages()) m_onLog(s);
+        if (m_sat.TakeFresh()) PopulatePasses();
+        if (m_lblPassState) {
+            const std::string st = m_sat.Busy() ? "Working out passes..."
+                                                : m_sat.Status();
+            if (st != m_passStateShown) {
+                m_passStateShown = st;
+                wchar_t w[200];
+                MultiByteToWideChar(CP_UTF8, 0, st.c_str(), -1, w, 200);
+                SetWindowTextW(m_lblPassState, w);
+            }
+        }
+        const bool on = m_sat.Tracking();
+        if (on != m_passTrackShown && m_btnPassTrack) {
+            m_passTrackShown = on;
+            SetWindowTextW(m_btnPassTrack, on ? L"STOP TRACKING"
+                                              : L"TRACK SELECTED PASS");
+        }
+    }
+
+    void PopulatePassesIfShown(int tab) {
+        if (tab == 2 && m_passRows.empty()) PopulatePasses();
+    }
+
+    void PopulatePasses() {
+        if (!m_listPasses) return;
+        ListView_DeleteAllItems(m_listPasses);
+        m_passRows = m_sat.Rows();
+        if (m_passRows.size() > 200) m_passRows.resize(200);
+        auto cell = [&](int row, int col, const wchar_t* text) {
+            LVITEMW li = {};
+            li.iSubItem = col;
+            li.pszText  = const_cast<wchar_t*>(text);
+            if (col == 0) {
+                li.mask  = LVIF_TEXT;
+                li.iItem = row;
+                SendMessageW(m_listPasses, LVM_INSERTITEMW, 0, (LPARAM)&li);
+            } else {
+                SendMessageW(m_listPasses, LVM_SETITEMTEXTW, row, (LPARAM)&li);
+            }
+        };
+        int row = 0;
+        for (const auto& r : m_passRows) {
+            // Local time, off the Julian date.
+            const double unix = (r.pass.riseJd - 2440587.5) * 86400.0;
+            const time_t tt = (time_t)unix;
+            struct tm lt;
+            localtime_s(&lt, &tt);
+            wchar_t name[64], when[16], peak[16], rate[16], lit[8];
+            MultiByteToWideChar(CP_UTF8, 0, r.name.c_str(), -1, name, 64);
+            swprintf(when, 16, L"%02d:%02d", lt.tm_hour, lt.tm_min);
+            swprintf(peak, 16, L"%.0f\xB0", r.pass.peakAlt);
+            swprintf(rate, 16, L"%.2f", r.pass.peakAzRate);
+            swprintf(lit, 8, L"%ls", r.pass.visible ? L"yes" : L"no");
+            cell(row, 0, when);
+            cell(row, 1, name);
+            cell(row, 2, peak);
+            cell(row, 3, rate);
+            cell(row, 4, lit);
+            ++row;
+        }
+    }
+
+    void ToggleSatTrack() {
+        if (m_sat.Tracking()) { m_sat.StopTrack("stopped by the operator"); return; }
+        const int sel = ListView_GetNextItem(m_listPasses, -1, LVNI_SELECTED);
+        if (sel < 0 || sel >= (int)m_passRows.size()) {
+            SetStatus(L"Pick a pass first");
+            return;
+        }
+        const auto& r = m_passRows[sel];
+        auto decline = [&](const std::string& why) {
+            if (m_onLog) m_onLog("Pass not started: " + why);
+            wchar_t w[200];
+            MultiByteToWideChar(CP_UTF8, 0, why.c_str(), -1, w, 200);
+            if (m_lblPassState) SetWindowTextW(m_lblPassState, w);
+            m_passStateShown.clear();
+        };
+        if (m_mosaic.Running()) { decline("a mosaic is running"); return; }
+        if (m_satPreflight) {
+            const std::string why = m_satPreflight(r.pass);
+            if (!why.empty()) { decline(why); return; }
+        }
+        const auto lim = SatLimits();
+        const double age = raduk::sky::ElementsAgeDays(
+                               r.tle, raduk::sky::PreciseJdNow());
+        if (m_onLog)
+            m_onLog(raduk::sky::DescribePass(r.name.c_str(), r.pass, age, lim));
+        if (const char* why = m_sat.StartTrack(m_mount, r, SiteObserver(), lim))
+            decline(why);
     }
 
     // ── Phase 13: Sky Survey ────────────────────────────────────
@@ -1792,6 +1940,8 @@ private:
             SendMessageW(m_tabCtrl, TCM_INSERTITEMW, 0, (LPARAM)&ti);
             ti.pszText = const_cast<wchar_t*>(L"Tonight");
             SendMessageW(m_tabCtrl, TCM_INSERTITEMW, 1, (LPARAM)&ti);
+            ti.pszText = const_cast<wchar_t*>(L"Passes");
+            SendMessageW(m_tabCtrl, TCM_INSERTITEMW, 2, (LPARAM)&ti);
         }
         y += 30;
 
@@ -1931,6 +2081,33 @@ private:
         tonightY += tonightListH + 4;
         m_btnGoToTonight = Button(L"GOTO SELECTED OBJECT", x, tonightY, w, BH+4,
                                   ID_BTN_GOTO_TONIGHT);
+
+        // Phase 116: the Passes tab.
+        m_lblPassHdr = Label(L"Next 24 hours from this site", x, tonightY, w, SH);
+        m_listPasses = CreateWindowExW(WS_EX_CLIENTEDGE, WC_LISTVIEWW, L"",
+            WS_CHILD | WS_VSCROLL | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
+            x, tonightY, w, 200, m_hwnd, (HMENU)(INT_PTR)ID_LIST_PASSES,
+            GetModuleHandle(nullptr), nullptr);
+        if (m_listPasses) {
+            ListView_SetExtendedListViewStyle(m_listPasses,
+                LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+            SetWindowTheme(m_listPasses, L"", L"");
+            auto addCol = [&](const wchar_t* text, int width, int col) {
+                LVCOLUMNW lvc = {};
+                lvc.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+                lvc.cx = width; lvc.pszText = const_cast<wchar_t*>(text);
+                lvc.iSubItem = col;
+                SendMessageW(m_listPasses, LVM_INSERTCOLUMNW, col, (LPARAM)&lvc);
+            };
+            addCol(L"Rises",  48, 0);
+            addCol(L"Satellite", 170, 1);
+            addCol(L"Peak",   44, 2);
+            addCol(L"Az \xB0/s", 56, 3);
+            addCol(L"Lit",    36, 4);
+        }
+        m_btnPassUpdate = Button(L"UPDATE ELEMENTS", x, tonightY, w, BH+4, ID_BTN_PASS_UPDATE);
+        m_btnPassTrack  = Button(L"TRACK SELECTED PASS", x, tonightY, w, BH+4, ID_BTN_PASS_TRACK);
+        m_lblPassState  = Label(L"", x, tonightY, w, SH);
 
         // P3.3: everything above was created at whatever coordinates
         // the creation code happened to compute. This is what actually
@@ -2516,6 +2693,8 @@ private:
                     return 0;
                 }
                 if (id == ID_BTN_STOP) {
+                    // Before the axes, or its next rate undoes them.
+                    self->StopSatellite("the stop button");
                     if (self->m_mount && self->m_mount->IsConnected()) {
                         self->m_mount->CancelGoTo();
                         self->m_mount->StopSlew(0);
@@ -2530,6 +2709,15 @@ private:
                     char buf[128] = {};
                     WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, buf, 128, nullptr, nullptr);
                     self->PopulateList(buf);
+                    return 0;
+                }
+                // Phase 116
+                if (id == ID_BTN_PASS_UPDATE) {
+                    self->m_sat.Refresh(SiteObserver(), SatLimits(), true);
+                    return 0;
+                }
+                if (id == ID_BTN_PASS_TRACK) {
+                    self->ToggleSatTrack();
                     return 0;
                 }
                 // Phase 14: GoTo from tonight planner
@@ -2597,6 +2785,7 @@ private:
                         && hdr->code == TCN_SELCHANGE) {
                     int tab = TabCtrl_GetCurSel(self->m_tabCtrl);
                     self->ShowTab(tab);
+                    self->PopulatePassesIfShown(tab);
                 }
                 // Single click on GoTo list → action popup
                 if (hdr->hwndFrom == self->m_listObjects
@@ -2723,6 +2912,16 @@ private:
     HWND m_listTonight    = nullptr;
     HWND m_btnGoToTonight = nullptr;
     HWND m_lblTonightHdr  = nullptr;
+    HWND m_lblPassHdr     = nullptr;
+    HWND m_listPasses     = nullptr;
+    HWND m_btnPassUpdate  = nullptr;
+    HWND m_btnPassTrack   = nullptr;
+    HWND m_lblPassState   = nullptr;
+    std::string m_passStateShown;
+    bool m_passTrackShown = false;
+    std::vector<raduk::core::SatPassRow> m_passRows;
+    std::function<std::string(const raduk::sky::SatPassInfo&)> m_satPreflight;
+    raduk::core::SatDesk m_sat;
     int  m_activeTab      = 0;
     std::vector<PlannerEntry> m_plannerItems;
 

@@ -1685,6 +1685,33 @@ static int RunApp(bool useEmulator) {
             usbMgr.SetCapturing(false);
         });
 
+    // ── Phase 116: satellite passes ────────────────────────────
+    //
+    // The pass thread only posts: recording belongs to this thread.
+    gotoPanel.Satellites().SetCaptureHandlers(
+        [&]() { PostMessageW(window.Handle(), WM_USER + 12, 0, 0); },
+        [&]() { PostMessageW(window.Handle(), WM_USER + 13, 0, 0); });
+    gotoPanel.SetSatPreflight(
+        [&](const raduk::sky::SatPassInfo& p) -> std::string {
+            if (autorun.Running()) return "a sequence of runs is going";
+            if (capturer.IsRecording()) return "already recording";
+            // Rise, peak and set: a pass is an arc, and these three bound
+            // it well enough to catch a wall.
+            const auto& rigc = raduk::core::RigConfig::Get();
+            if (rigc.KeepOutSet()) {
+                for (double a : {p.riseAz, p.peakAz, p.setAz})
+                    if (raduk::core::BearingInArc(a, rigc.keepOutStartDeg,
+                                                  rigc.keepOutEndDeg))
+                        return "that pass crosses the keep-out sector";
+            }
+            const double after = cordWrap.CumulativeDeg() + p.azTravelDeg;
+            if (std::fabs(after) >= cordWrap.Limit())
+                return "that pass would wrap the cord";
+            // The correction thread steers this same mount.
+            tracker.Reset();
+            return "";
+        });
+
     gotoPanel.SetProfileAutoLoadCallback([&](const std::string& targetName) {
         // Find best matching profile by name
         int bestIdx = -1;
@@ -3553,6 +3580,7 @@ static int RunApp(bool useEmulator) {
         if (mountProxy.IsConnected()) {
             mountProxy.StopSlew(0);
             mountProxy.StopSlew(1);
+            gotoPanel.StopSatellite("disconnecting");
             mountProxy.Disconnect();
         }
         // Forget the backend without destroying it -- the tracker
@@ -4350,6 +4378,9 @@ static int RunApp(bool useEmulator) {
     // otherwise the guide loop restarts the mount within 250-500ms of the
     // user pressing STOP.
     auto doEmergencyStop = [&]() {
+        // First, and it waits: anything below that stops the axes would
+        // otherwise be undone by this thread's next rate.
+        gotoPanel.StopSatellite("emergency stop");
         autorun.Abort("emergency stop");
         if (capturer.IsRecording()) {
             capturer.StopRecording(false);  // emergency stop - do not auto-stack
@@ -5229,6 +5260,8 @@ static int RunApp(bool useEmulator) {
         if (!mount) return;
         if (pressed) {
             if (!mount->IsConnected()) return;
+            // Phase 116: a hand on the mount ends a satellite pass.
+            gotoPanel.StopSatellite("a jog");
             // Phase 93: a rate, not an index.
             //
             // SlewFixed takes one of nine presets, and this app has
@@ -5261,6 +5294,27 @@ static int RunApp(bool useEmulator) {
     // WM_USER+1  — drain APEX WebSocket command queue
     // WM_USER+10 — GoTo settle timer expired → start centroid acquisition
     window.SetUserMessageHandler([&](UINT msg) {
+        if (msg == WM_USER + 12) {
+            derotWindowSec = 0.0;
+            {
+                CaptureConfig mc = capturer.Config();
+                mc.derotationStopSec = 0.0;
+                capturer.SetConfig(mc);
+            }
+            if (!capturer.IsRecording() &&
+                capturer.StartRecording(roiWidth, roiHeight, roiBits)) {
+                usbMgr.SetCapturing(true);
+                slog.Capture("Satellite pass recording");
+            }
+            return;
+        }
+        if (msg == WM_USER + 13) {
+            if (capturer.IsRecording()) {
+                capturer.StopRecording();
+                usbMgr.SetCapturing(false);
+            }
+            return;
+        }
         if (msg == WM_USER + 11) {
             // Phase 39: framing shot elapsed — put the camera back.
             if (framing.active.exchange(false) && cam.IsOpen()) {
@@ -7039,6 +7093,7 @@ static int RunApp(bool useEmulator) {
 
     // ── Cleanup ────────────────────────────────────────────────
     Log("\nShutting down...\n");
+    gotoPanel.StopSatellite("closing");
     slog.System("Shutdown");
 
     // ── Session summary ────────────────────────────────────────

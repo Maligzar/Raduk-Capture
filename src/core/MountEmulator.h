@@ -193,6 +193,7 @@ public:
         return true;
     }
     bool SupportsVariableRate() const override { return true; }
+    void DriveAltAzAxes(bool on) override { m_altAzAxes.store(on); }
 
     bool SlewFixed(int axis, int direction, int rate) override {
         std::lock_guard<std::mutex> lk(m_mutex);
@@ -330,7 +331,17 @@ private:
                     }
                 } else {
                     // Sidereal drift when tracking is OFF
-                    if (m_tracking == OFF) {
+                    // Phase 116: while a pass is flown the axes are azimuth
+                    // and altitude, as they are on the real fork. Everything
+                    // else here treats them as RA and Dec.
+                    const bool altAzDrive = m_altAzAxes.load();
+                    if (altAzDrive) {
+                        double alt = 0.0, az = 0.0;
+                        RADecToAltAzNow(m_raHours, m_decDeg, alt, az);
+                        az  += m_slewAsRA  * 0.1 / 3600.0;
+                        alt += m_slewAsDec * 0.1 / 3600.0;
+                        AltAzToRADecNow(alt, az, m_raHours, m_decDeg);
+                    } else if (m_tracking == OFF) {
                         m_raHours -= SIDEREAL_DEG_PER_TICK / 15.0;
                     } else {
                         // Phase 52: tracking ON = mount compensates, but not
@@ -344,7 +355,9 @@ private:
                     // tick; sign comes from the stored signed rate.
                     // A variable rate, when one is set, otherwise the
                     // preset. Both already carry their sign.
-                    if (m_slewAsRA != 0.0) {
+                    if (altAzDrive) {
+                        // Done above.
+                    } else if (m_slewAsRA != 0.0) {
                         m_raHours += ((m_slewAsRA * 0.1) / 3600.0) / 15.0;
                     } else if (m_slewRateRA != 0) {
                         // MAGNITUDE into the table, sign applied after.
@@ -361,7 +374,9 @@ private:
                         if (m_slewRateRA < 0) as = -as;
                         m_raHours += (as / 3600.0) / 15.0;
                     }
-                    if (m_slewAsDec != 0.0) {
+                    if (altAzDrive) {
+                        // Done above.
+                    } else if (m_slewAsDec != 0.0) {
                         m_decDeg += (m_slewAsDec * 0.1) / 3600.0;
                     } else if (m_slewRateDec != 0) {
                         // Magnitude in, sign after -- see the RA case.
@@ -413,6 +428,7 @@ private:
     double      m_raHours  = 5.5833;
     double      m_decDeg   = -5.3833;
     TrackingMode m_tracking = ALT_AZ;
+    std::atomic<bool> m_altAzAxes{false};
 
     // GoTo state
     double      m_gotoRA  = 0.0;

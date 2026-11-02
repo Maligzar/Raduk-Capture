@@ -120,7 +120,7 @@ recall, click-to-recentre, a push-to assistant, ROI following, surface lock,
 lunar and solar mosaics, a derotation limit, and Autorun sequences that hold
 for the seeing and rank their runs.
 
-Not built yet: satellite pass prediction and high-rate mount control,
+Not built yet: steering a satellite pass from the image,
 multi-star FWHM and Bahtinov focus aids, multi-session statistics, image
 annotation, stellar photometry and AVI output. A polar-alignment assistant
 is backlogged rather than queued: the mount is alt-az and there is no wedge,

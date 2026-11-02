@@ -2502,7 +2502,11 @@ dashboard, and no image annotation overlay on the preview. **Sensor analysis
 and the smart histogram do exist** — the Gr/Gb split, per-channel headroom in
 stops, and which channel is limiting the exposure. **So does solar and lunar
 framing**: the GoTo panel reports how a target fits the frame after a slew,
-and `Ctrl+Shift+M` runs a mosaic across it.
+and `Ctrl+Shift+M` runs a mosaic across it. **Lunar features** are in the
+GoTo search too: type `Copernicus` and slew to `Moon - Copernicus`. There are
+99, and the log says whether each one is lit, past the limb, or how long until
+sunrise there. The Moon and its features are pointed at from your site, so set
+the site first: without it a lunar slew can be a degree off.
 
 **ADC alignment tool — built, and dark.** This is the one entry that is
 neither "exists" nor "missing". The alignment window is built and tested
@@ -2603,7 +2607,8 @@ A capture recorded before v2.1 has no record, and recall says so.
 
 **The current version is v3.0**; the title bar reads `3.0.0`. v2.0 and v3.0
 match their tags, and v2.1 to v2.4 have no tag of their own. Rows marked
-`pre-2.1` shipped before v2.1 under no number of their own. This
+`pre-2.1` shipped before v2.1 under no number of their own, and rows
+marked `3.0+` shipped after 3.0.0 without changing the number. This
 table says what shipped, not what has been proven;
 [`docs/PHASE-STATUS.md`](docs/PHASE-STATUS.md) says that. Elsewhere in this file, labels from v1.2.4 to v1.2.7 date
 when a behaviour changed. They were never declared in `src/Version.h`,
@@ -2740,6 +2745,7 @@ order.
 | v3.0 | 112 | Camera controls review: typed values, sliders show the camera, AE hold, light ladder |
 | v3.0 | 113 | Autorun, `[RUNS]` |
 | v3.0 | 114 | Seeing-aware runs: hold for the sky, rank the runs |
+| 3.0+ | 115 | Lunar feature targeting, and parallax on every lunar slew |
 
 ---
 

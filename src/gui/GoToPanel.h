@@ -62,7 +62,28 @@ public:
     void SetMount(raduk::core::IMount* mount) { m_mount = mount; }
 
     // Observer location for altitude sorting (set via SetLocation from RigConfig)
-    void SetLocation(double lat, double lon) { m_lat = lat; m_lon = lon; }
+    void SetLocation(double lat, double lon) {
+        m_lat = lat; m_lon = lon;
+        RefreshSky();
+    }
+
+    // Phase 115: the catalogue is reported from the site, because the
+    // Moon's position depends on where you stand by up to a degree.
+    // Read fresh each time: the site can arrive after startup.
+    void RefreshSky() {
+        m_catalog.SetObserver(SiteObserver());
+        m_catalog.UpdatePlanets();
+    }
+
+    static raduk::sky::LunarObserver SiteObserver() {
+        const auto& r = raduk::core::RigConfig::Get();
+        raduk::sky::LunarObserver o;
+        o.latDeg = r.siteLatDeg;
+        o.lonDeg = r.siteLonDeg;
+        o.elevM  = r.siteElevationM;
+        o.set    = r.SiteIsSet();
+        return o;
+    }
 
     // Called when GoTo is issued — main.cpp uses this to auto-load
     // the matching camera profile (e.g. GoTo Jupiter → load Jupiter profile)
@@ -343,6 +364,7 @@ public:
     // Search catalog by name (case-insensitive), slew to first match.
     // Used by APEX remote commands and sky map auto-GoTo.
     void RequestGoToByName(const std::string& name) {
+        RefreshSky();
         auto results = m_catalog.Search(name.c_str());
         if (results.empty()) {
             printf("[GoToPanel] RequestGoToByName: '%s' not found in catalog\n",
@@ -363,7 +385,7 @@ public:
     // is a position it has since left.
     bool LookupNow(const std::string& name, double& raH, double& decDeg) {
         if (name.empty()) return false;
-        m_catalog.UpdatePlanets();
+        RefreshSky();
         for (const auto& obj : m_catalog.Objects()) {
             if (_stricmp(obj.name.c_str(), name.c_str()) == 0) {
                 raH = obj.ra; decDeg = obj.dec;
@@ -456,7 +478,7 @@ public:
 
     // Call every ~2s to refresh planet positions and list altitude
     void Tick() {
-        m_catalog.UpdatePlanets();
+        RefreshSky();
         UpdateSlewStatus();
         UpdateAlignmentState();
 
@@ -560,7 +582,10 @@ public:
     // half-starting: every reason it can decline is reported, because
     // a mosaic that silently does not begin looks exactly like one
     // that is about to.
-    bool StartMosaic(const std::string& name) {
+    bool StartMosaic(const std::string& requested) {
+        // A place on the Moon has no disc of its own; the mosaic is of
+        // the Moon it is on.
+        const std::string name = IsLunarFeature(requested) ? "Moon" : requested;
         auto decline = [&](const char* why) {
             if (m_onLog) {
                 char b[200];
@@ -2107,6 +2132,37 @@ private:
             if (m_onLog) m_onLog(cb);
         }
         ReportFraming(name);
+        ReportLunarFeature(name);
+    }
+
+    bool IsLunarFeature(const std::string& name) const {
+        for (const auto& o : m_catalog.Objects())
+            if (o.name == name) return o.isLunarFeature();
+        return false;
+    }
+
+    // ── Phase 115: is it lit, and can it be seen ────────────────
+    //
+    // Down the log for the reasons ReportFraming gives. It goes after
+    // the slew and does not refuse one: the terminator may be an hour
+    // away, and whether to wait is the operator's call.
+    void ReportLunarFeature(const std::string& name) {
+        if (!m_onLog) return;
+        for (const auto& o : m_catalog.Objects()) {
+            if (o.name != name || !o.isLunarFeature()) continue;
+            const auto site = SiteObserver();
+            const auto view = raduk::sky::LunarViewAt(
+                                  raduk::sky::CurrentJD(), site);
+            const auto spot = raduk::sky::LunarSpotAt(
+                                  view, o.lunarLatDeg, o.lunarLonDeg);
+            m_onLog(raduk::sky::DescribeLunarSpot(
+                        name.c_str(), spot, view, o.lunarLonDeg,
+                        o.lunarSizeKm));
+            if (!site.set)
+                m_onLog("No site set: that slew is up to a degree off, "
+                        "which is several frames.");
+            return;
+        }
     }
 
     // ── Phase 97.4: say whether it fits, before the slew lands ──

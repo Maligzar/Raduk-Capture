@@ -14,6 +14,8 @@
 
 #include <string>
 #include "LunarSolarSize.h"
+#include "LunarGeometry.h"
+#include "LunarFeatures.h"
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -33,8 +35,14 @@ struct SkyObject {
     float       magnitude;  // visual magnitude
     std::string notes;      // e.g. "Great Red Spot visible"
 
+    // Phase 115: a place on the Moon, type "Lunar". Selenographic, +E.
+    double      lunarLatDeg = 0.0;
+    double      lunarLonDeg = 0.0;
+    double      lunarSizeKm = 0.0;
+
     // For sorting/display
     bool isPlanet() const { return type == "Planet"; }
+    bool isLunarFeature() const { return type == "Lunar"; }
 };
 
 // ── Julian Date helpers ────────────────────────────────────────
@@ -352,56 +360,18 @@ inline void SunRADec(double jd, double& ra_h, double& dec_deg) {
     PrecessDateToJ2000(jd, ra_h, dec_deg); // of-date → J2000 (app standard)
 }
 
-// ── Moon position (Meeus Ch.47, simplified ~0.1°) ─────────────────
-// Also returns phase angle (0=new, 0.5=full, 1=new)
+// ── Moon position ──────────────────────────────────────────────
+// Phase 115: the series moved to LunarGeometry.h and is now the whole
+// of Meeus Ch.47. This answers for the CENTRE OF THE EARTH, which is up
+// to a degree from where the Moon is seen. Anything that points the
+// telescope wants LunarViewAt with the site. Phase is
+// 0=new, 0.25=first quarter, 0.5=full.
 inline void MoonRADec(double jd, double& ra_h, double& dec_deg,
                       double& phaseAngle) {
-    double T  = JD_to_T(jd);
-    // Fundamental arguments (deg)
-    double Lp = NormDeg(218.3164477 + 481267.88123421 * T); // mean long Moon
-    double D  = NormDeg(297.8501921 + 445267.1114034  * T); // mean elongation
-    double M  = NormDeg(357.5291092 +  35999.0502909  * T); // Sun mean anomaly
-    double Mp = NormDeg(134.9633964 + 477198.8675055  * T); // Moon mean anomaly
-    double F  = NormDeg( 93.2720950 + 483202.0175233  * T); // lat argument
-
-    double Lr = Rad(Lp), Dr = Rad(D), Mr = Rad(M), Mpr = Rad(Mp), Fr = Rad(F);
-
-    // Longitude corrections (arcsec → deg)
-    double dL = 6288774*sin(Mpr)
-              + 1274027*sin(2*Dr-Mpr)
-              +  658314*sin(2*Dr)
-              +  213618*sin(2*Mpr)
-              -  185116*sin(Mr)
-              -  114332*sin(2*Fr)
-              +   58793*sin(2*Dr-2*Mpr)
-              +   57066*sin(2*Dr-Mr-Mpr)
-              +   53322*sin(2*Dr+Mpr)
-              +   45758*sin(2*Dr-Mr);
-    double lon = NormDeg(Lp + dL / 1000000.0);
-
-    // Latitude corrections (arcsec → deg)
-    double dB = 5128122*sin(Fr)
-              +  280602*sin(Mpr+Fr)
-              +  277693*sin(Mpr-Fr)
-              +  173237*sin(2*Dr-Fr)
-              +   55413*sin(2*Dr-Mpr+Fr)
-              +   46271*sin(2*Dr-Mpr-Fr)
-              +   32573*sin(2*Dr+Fr);
-    double lat = dB / 1000000.0;
-
-    // Convert ecliptic → equatorial
-    double eps = Rad(23.439291 - 0.013004 * T);
-    double lonR = Rad(lon), latR = Rad(lat);
-    ra_h    = NormDeg(Deg(atan2(sin(lonR)*cos(eps) - tan(latR)*sin(eps),
-                                cos(lonR)))) / 15.0;
-    dec_deg = Deg(asin(sin(latR)*cos(eps) + cos(latR)*sin(eps)*sin(lonR)));
-    PrecessDateToJ2000(jd, ra_h, dec_deg); // of-date → J2000 (app standard)
-
-    // Phase: elongation of Moon from Sun
-    double sunRA, sunDec;
-    SunRADec(jd, sunRA, sunDec);
-    double elong = NormDeg(lon - (sunRA * 15.0)); // approx ecliptic elongation
-    phaseAngle = elong / 360.0; // 0=new, 0.25=first quarter, 0.5=full
+    const LunarView v = LunarViewAt(jd, LunarObserver{});
+    ra_h       = v.raHours;
+    dec_deg    = v.decDeg;
+    phaseAngle = LunarPhaseFraction(jd);
 }
 
 
@@ -673,17 +643,29 @@ public:
         return results;
     }
 
+    // Phase 115: where the telescope stands. The Moon and everything on
+    // it are reported as seen from here, and the planets are far enough
+    // away not to care. Left unset it is the geocentre, which is what
+    // the sky map's own catalogue wants.
+    void SetObserver(const LunarObserver& o) { m_observer = o; }
+
     // Update planet positions for current time
     void UpdatePlanets(double jd = 0) {
         if (jd == 0) jd = CurrentJD();
+        const LunarView moon = LunarViewAt(jd, m_observer);
         for (auto& obj : m_objects) {
             if (obj.type == "Sun") {
                 SunRADec(jd, obj.ra, obj.dec);
             } else if (obj.type == "Moon") {
-                double phase;
-                MoonRADec(jd, obj.ra, obj.dec, phase);
+                obj.ra  = moon.raHours;
+                obj.dec = moon.decDeg;
                 // Store phase in magnitude field (reused as scratch — not displayed)
-                obj.magnitude = (float)phase;
+                obj.magnitude = (float)LunarPhaseFraction(jd);
+            } else if (obj.isLunarFeature()) {
+                const LunarSpot s = LunarSpotAt(moon, obj.lunarLatDeg,
+                                                obj.lunarLonDeg);
+                obj.ra  = s.raHours;
+                obj.dec = s.decDeg;
             } else if (obj.isPlanet()) {
                 // Find planet entry
                 for (const auto& p : kPlanets) {
@@ -722,6 +704,7 @@ public:
 
 private:
     std::vector<SkyObject> m_objects;
+    LunarObserver          m_observer;
 
     void BuildCatalog() {
         // Sun
@@ -730,6 +713,25 @@ private:
         // Moon
         { SkyObject obj; obj.name="Moon"; obj.type="Moon";
           obj.ra=0; obj.dec=0; obj.magnitude=-12.7f; m_objects.push_back(obj); }
+
+        // Phase 115: places on the Moon. The name leads with "Moon" so
+        // the tracking rate and the camera profile both resolve the way
+        // they do for the Moon itself, and searching for the crater
+        // finds it. Magnitude 99 keeps them out of the sky map, the
+        // Tonight list and the unfiltered GoTo list: a hundred entries
+        // all at one position is not a sky.
+        for (const auto& f : kLunarFeatures) {
+            SkyObject obj;
+            obj.name = std::string("Moon - ") + f.name;
+            obj.type = "Lunar";
+            obj.ra = 0; obj.dec = 0;       // updated by UpdatePlanets()
+            obj.magnitude = 99.0f;
+            obj.notes = f.kind;
+            obj.lunarLatDeg = f.latDeg;
+            obj.lunarLonDeg = f.lonDeg;
+            obj.lunarSizeKm = f.sizeKm;
+            m_objects.push_back(obj);
+        }
 
         // Planets — positions computed at runtime via UpdatePlanets()
         for (const auto& p : kPlanets) {

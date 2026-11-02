@@ -1115,3 +1115,16 @@ For contrast, so this list is not read as "nothing works":
     rests on. Stack the best and worst runs of a sequence and see whether
     the order agrees with the results. 80% is a starting figure.
 
+38. **Lunar features and the corrected Moon** (phase 115). Emulator first:
+    type `Copernicus` in the GoTo search, select `Moon - Copernicus` and slew.
+    The log should give its size and its lighting, the Moon profile should
+    load, and `Ctrl+Shift+M` should start a mosaic of the whole Moon. The
+    emulator's craters are not the real ones, so that is all it can show. On
+    the Moon, after a star alignment: GoTo `Moon` and see that the disc
+    centre is near the frame, because before this phase it could miss the
+    disc. Then slew to a lit crater well inside the limb, and note how far
+    it lands from the centre. Do that for three craters across the disc,
+    which separates a pointing error from a fault in the geometry. Near the
+    terminator, see whether the Sun figure in the log matches the shadows. The
+    20 and 50 degree relief bands are starting figures.
+

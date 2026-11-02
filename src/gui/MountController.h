@@ -981,7 +981,7 @@ private:
             self = reinterpret_cast<MountController*>(
                 GetWindowLongPtr(hwnd, GWLP_USERDATA));
         }
-        if (!self) return DefWindowProc(hwnd, msg, wParam, lParam);
+        if (!self) return DefWindowProcW(hwnd, msg, wParam, lParam);
 
         switch (msg) {
         case WM_TIMER:
@@ -1016,6 +1016,28 @@ private:
             SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT));
             HBRUSH hBg = Theme::Brush(Theme::Rgb::DEEP);
             return (LRESULT)hBg;
+        }
+
+        // Phase 120: a stock button paints system white whatever it is
+        // told, here as on the control panel. STOP keeps its red.
+        case WM_DRAWITEM: {
+            auto* dis = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
+            if (!dis || dis->CtlType != ODT_BUTTON) break;
+            HDC hdc = dis->hDC;
+            RECT r = dis->rcItem;
+            const bool down = (dis->itemState & ODS_SELECTED) != 0;
+            const bool stop = (int)dis->CtlID == ID_BTN_STOP;
+            FillRect(hdc, &r, Theme::Brush(stop ? Theme::Rgb::ACCENT4
+                                         : down ? Theme::Rgb::BORDER : Theme::Rgb::PANEL));
+            FrameRect(hdc, &r, Theme::Brush(Theme::Rgb::BORDER));
+            wchar_t text[48] = {};
+            GetWindowTextW(dis->hwndItem, text, 48);
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, Theme::NV(stop ? Theme::Rgb::BG_VOID : Theme::Rgb::TEXT));
+            HGDIOBJ old = SelectObject(hdc, (HFONT)SendMessageW(dis->hwndItem, WM_GETFONT, 0, 0));
+            DrawTextW(hdc, text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            SelectObject(hdc, old);
+            return TRUE;
         }
 
         case WM_CTLCOLORBTN: {
@@ -1071,13 +1093,13 @@ private:
             KillTimer(hwnd, TIMER_READOUT);
             return 0;
         }
-        return DefWindowProc(hwnd, msg, wParam, lParam);
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
 
     // ── Helpers ───────────────────────────────────────────────
     HWND MakeBtn(const wchar_t* label, int x, int y, int w, int h, int id) {
         return CreateWindowExW(0, L"BUTTON", label,
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_FLAT,
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,      // phase 120
             x, y, w, h, m_hwnd,
             (HMENU)(intptr_t)id, GetModuleHandle(nullptr), nullptr);
     }

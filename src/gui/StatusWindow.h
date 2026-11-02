@@ -212,7 +212,23 @@ private:
             SetBkMode(hdc, TRANSPARENT);
             SetTextColor(hdc, labelClr);
             RECT tr = { x + 4, y, x + w - 4, y + h };
-            DrawTextA(hdc, label, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            // An ellipsis, so a long line cannot run into the next
+            // column: the real Space Mono is wider than the substitute.
+            const UINT fmt = DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS;
+            // Over the fill the text goes dark, split at the bar's edge,
+            // or light text on a bright bar cannot be read.
+            const int edge = x + (int)(w * (pct > 100.0f ? 100.0f : pct) / 100.0f);
+            int saved = SaveDC(hdc);
+            IntersectClipRect(hdc, edge, y, x + w, y + h);
+            DrawTextA(hdc, label, -1, &tr, fmt);
+            RestoreDC(hdc, saved);
+            if (pct > 0.0f) {
+                saved = SaveDC(hdc);
+                IntersectClipRect(hdc, x, y, edge, y + h);
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::BG_VOID));
+                DrawTextA(hdc, label, -1, &tr, fmt);
+                RestoreDC(hdc, saved);
+            }
             SelectObject(hdc, old);
             DeleteObject(f);
         }

@@ -58,8 +58,10 @@ class ToolbarStrip {
 public:
     ToolbarStrip() = default;
     ~ToolbarStrip() {
+        if (m_viewHwnd) { DestroyWindow(m_viewHwnd); m_viewHwnd = nullptr; }
         if (m_hwnd) { DestroyWindow(m_hwnd); m_hwnd = nullptr; }
         if (m_font) { DeleteObject(m_font);  m_font = nullptr; }
+        if (m_fontIcon) { DeleteObject(m_fontIcon); m_fontIcon = nullptr; }
         if (m_fontActive) { DeleteObject(m_fontActive); m_fontActive = nullptr; }
     }
 
@@ -79,13 +81,20 @@ public:
         RegisterClassExW(&wc); // ignore already-registered error
 
         RECT cr; GetClientRect(mainHwnd, &cr);
-        int w = cr.right - panelWidth;
-        int h = TOOLBAR_HEIGHT;
+        int w = TOOLBAR_RAIL_W;
+        int h = cr.bottom;
 
         m_hwnd = CreateWindowExW(
             0, L"RadukToolbarStrip", L"",
             WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
             0, 0, w, h,
+            mainHwnd, nullptr, GetModuleHandle(nullptr), this);
+        // Phase 120: the view controls, floated over the image. A sibling
+        // on top: the preview has WS_CLIPSIBLINGS, so it paints round this.
+        m_viewHwnd = CreateWindowExW(
+            0, L"RadukToolbarStrip", L"",
+            WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+            0, 0, ViewStripWidth(), kViewBtnH,
             mainHwnd, nullptr, GetModuleHandle(nullptr), this);
 
         if (!m_hwnd) {
@@ -94,34 +103,52 @@ public:
         }
 
         // Font: Space Mono 9pt for inactive, bold for active
-        m_font = CreateFontW(-Theme::Type::MICRO, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        m_font = CreateFontW(-Theme::Type::BODY, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                               DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                               CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
                               L"Space Mono");
         if (!m_font)
             m_font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
 
-        m_fontActive = CreateFontW(-Theme::Type::MICRO, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        m_fontActive = CreateFontW(-Theme::Type::BODY, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                     DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
                                     L"Space Mono");
         if (!m_fontActive) m_fontActive = m_font;
+        m_fontIcon = CreateFontW(-24, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                 CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                 L"Segoe MDL2 Assets");
 
         BuildButtons();
-        PlaceButtons(w);
+        PlaceButtons(h);
         printf("[ToolbarStrip] Created (%dx%d)\n", w, h);
         return true;
     }
 
     // Reposition and resize when main window resizes
-    void SnapToMainWindow() {
+    void SnapToMainWindow(int notifH = 0) {
         if (!m_hwnd || !m_mainHwnd) return;
         RECT cr; GetClientRect(m_mainHwnd, &cr);
-        int w = cr.right - m_panelWidth;
-        SetWindowPos(m_hwnd, HWND_TOP, 0, 0, w, TOOLBAR_HEIGHT,
+        SetWindowPos(m_hwnd, nullptr, 0, 0, TOOLBAR_RAIL_W, cr.bottom,
                      SWP_NOZORDER | SWP_NOACTIVATE);
-        PlaceButtons(w);
+        PlaceButtons(cr.bottom);
+        if (m_viewHwnd)
+            SetWindowPos(m_viewHwnd, HWND_TOP, TOOLBAR_RAIL_W + Theme::Space::SM,
+                         TOOLBAR_HEIGHT + notifH + Theme::Space::SM,
+                         ViewStripWidth(), kViewBtnH, SWP_NOACTIVATE);
     }
+
+    // Phase 120: the control panel owns the buttons on its tabs, and
+    // rebuilds them, so it hands the handles here. State lives here, so
+    // a button coming back from a hidden tab shows the truth at once.
+    void Adopt(int id, HWND h) {
+        const int i = Index(id);
+        if (i < 0 || i >= kToolbarButtons) return;
+        m_btn[i] = h;
+        if (h) SetWindowTheme(h, L"", L"");
+    }
+    void DrawAdopted(const DRAWITEMSTRUCT* dis) { DrawButton(dis); }
 
     HWND Handle() const { return m_hwnd; }
 
@@ -234,9 +261,9 @@ public:
         Toggle(ID_TB_GOTO,    L"GOTO",                gotoVisible);
         Toggle(ID_TB_RETICLE, m_reticleLabel.c_str(), reticleVisible);
         Toggle(ID_TB_CLIP,    L"CLIP",                clipVisible);
-        Toggle(ID_TB_HELP,    L"?",                   helpVisible);
+        Toggle(ID_TB_HELP,    L"HELP",                helpVisible);
         Toggle(ID_TB_AI,      L"AI",                  aiVisible);
-        Toggle(ID_TB_GHOST,   L"GH",                  ghostActive);
+        Toggle(ID_TB_GHOST,   L"GHOST",               ghostActive);
     }
 
     // Handle WM_COMMAND forwarded from main window — returns true if consumed
@@ -295,43 +322,57 @@ private:
     // redraw per tick would flash.
     void Show(int id, const wchar_t* label, State s) {
         const int i = Index(id);
-        if (!m_btn[i] || (m_state[i] == s && m_text[i] == label)) return;
+        if (m_state[i] == s && m_text[i] == label) return;
+        // Stored even with no button: it may be on a tab not showing.
         m_state[i] = s;
         m_text[i]  = label;
-        InvalidateRect(m_btn[i], nullptr, FALSE);
+        if (m_btn[i]) InvalidateRect(m_btn[i], nullptr, FALSE);
     }
 
     void BuildButtons() {
-        for (const ToolbarRow& row : kToolbarRows) {
-            for (int i = 0; i < row.count; i++) {
-                const ToolbarItem& d = row.items[i];
-                HWND btn = CreateWindowExW(
-                    0, L"BUTTON", d.label,
-                    WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-                    0, 0, d.width, kToolbarBtnH,
-                    m_hwnd, (HMENU)(intptr_t)d.id,
-                    GetModuleHandle(nullptr), nullptr);
-                if (btn) SetWindowTheme(btn, L"", L"");
-                m_btn[Index(d.id)]  = btn;
-                m_text[Index(d.id)] = d.label;
-            }
-        }
+        auto make = [&](const ToolbarItem& d, HWND host) {
+            HWND btn = CreateWindowExW(
+                0, L"BUTTON", d.label,
+                WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+                0, 0, 10, 10,
+                host, (HMENU)(intptr_t)d.id,
+                GetModuleHandle(nullptr), nullptr);
+            if (btn) SetWindowTheme(btn, L"", L"");
+            m_btn[Index(d.id)] = btn;
+        };
+        for (const ToolbarItem& d : kRailItems) make(d, m_hwnd);
+        for (const ToolbarItem& d : kViewItems) make(d, m_viewHwnd);
+        auto text = [&](const ToolbarItem& d) { m_text[Index(d.id)] = d.label; };
+        for (const ToolbarItem& d : kRailItems)   text(d);
+        for (const ToolbarItem& d : kViewItems)   text(d);
+        for (const ToolbarItem& d : kCameraItems) text(d);
+        for (const ToolbarItem& d : kMountItems)  text(d);
     }
 
     // Moved rather than recreated, so a resize keeps every button's
     // state and there is nothing to repaint from scratch.
-    void PlaceButtons(int stripW) {
-        for (int r = 0; r < 2; r++) {
-            const ToolbarRow& row = kToolbarRows[r];
-            int x[16] = {};
-            PlaceToolbarRow(row, stripW, x);
-            for (int i = 0; i < row.count; i++) {
-                HWND btn = m_btn[Index(row.items[i].id)];
-                if (btn) SetWindowPos(btn, nullptr, x[i], kToolbarRowY[r],
-                                      row.items[i].width, kToolbarBtnH,
-                                      SWP_NOZORDER | SWP_NOACTIVATE);
-            }
+    void PlaceButtons(int railH) {
+        const int n = ItemCount(kRailItems);
+        for (int i = 0; i < n; i++) {
+            HWND btn = m_btn[Index(kRailItems[i].id)];
+            if (btn) SetWindowPos(btn, nullptr, 2, RailY(i, n, railH),
+                                  TOOLBAR_RAIL_W - 4, kRailBtnH,
+                                  SWP_NOZORDER | SWP_NOACTIVATE);
         }
+        int x = 0;
+        for (const ToolbarItem& d : kViewItems) {
+            const int w = ItemTextWidth(d.longest);
+            HWND btn = m_btn[Index(d.id)];
+            if (btn) SetWindowPos(btn, nullptr, x, 0, w, kViewBtnH,
+                                  SWP_NOZORDER | SWP_NOACTIVATE);
+            x += w + kViewPad;
+        }
+    }
+
+    static wchar_t GlyphOf(int id) {
+        for (const ToolbarItem& d : kRailItems)
+            if (d.id == id) return d.glyph;
+        return 0;
     }
 
     // Composited on the far side of the night transform, as Theme's
@@ -378,8 +419,23 @@ private:
                                              : Theme::NV(Theme::Rgb::TEXT));
         HFONT old = (HFONT)SelectObject(hdc,
             s == State::Active ? m_fontActive : m_font);
-        DrawTextW(hdc, m_text[i].c_str(), -1, &r,
-                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        const wchar_t glyph = GlyphOf((int)dis->CtlID);
+        if (glyph && m_fontIcon) {
+            // Icon over its word: a rail of bare pictures is a thing to
+            // learn, and this one is read at 2am.
+            RECT ir = r, tr = r;
+            ir.bottom = r.top + (r.bottom - r.top) * 62 / 100;
+            ir.top += Theme::Space::XS;
+            tr.top = ir.bottom;
+            tr.bottom -= Theme::Space::XS;
+            DrawTextW(hdc, m_text[i].c_str(), -1, &tr,
+                      DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+            SelectObject(hdc, m_fontIcon);
+            DrawTextW(hdc, &glyph, 1, &ir, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        } else {
+            DrawTextW(hdc, m_text[i].c_str(), -1, &r,
+                      DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        }
         SelectObject(hdc, old);
     }
 
@@ -413,10 +469,12 @@ private:
                 if (self) self->HandleCommand(wParam);
                 return 0;
         }
-        return DefWindowProc(hwnd, msg, wParam, lParam);
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
 
     HWND  m_hwnd       = nullptr;
+    HWND  m_viewHwnd   = nullptr;
+    HFONT m_fontIcon   = nullptr;
     HWND  m_mainHwnd   = nullptr;
     HFONT m_font       = nullptr;
     HFONT m_fontActive = nullptr;

@@ -135,4 +135,6 @@ for each phase is in [docs/PHASE-STATUS.md](docs/PHASE-STATUS.md).
 ## License
 
 Copyright 2026 Kenneth C Wood Jr. PolyForm Noncommercial 1.0.0 — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
+
+Barlow Condensed and Space Mono are bundled under the SIL Open Font License 1.1. Their notices are in [assets/fonts](assets/fonts).
 property of Suzhou ZWO Co., Ltd. under their own terms.

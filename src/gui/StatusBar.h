@@ -6,6 +6,8 @@
 //        mount RA/DEC + tracking, active profile name.
 // ============================================================
 
+#include "BundledFonts.h"
+#include "ToolbarLayout.h"
 #include "Theme.h"
 #include <d2d1.h>
 #include <dwrite.h>
@@ -16,7 +18,7 @@
 
 namespace raduk::gui {
 
-static constexpr int STATUS_BAR_HEIGHT = 32;
+static constexpr int STATUS_BAR_HEIGHT = TOOLBAR_HEIGHT;
 
 // Font size for the bottom bar, and the factor every hardcoded field
 // width is multiplied by. The two have to move together: Space Mono is
@@ -32,7 +34,7 @@ static constexpr int STATUS_BAR_HEIGHT = 32;
 // about 880 DIPs, and the run wants ~1050 with the mount connected --
 // so the field widths cannot be trusted to fit and something has to
 // give way gracefully rather than overprint.
-static constexpr float STATUS_FONT_PX = 13.0f;
+static constexpr float STATUS_FONT_PX = 14.0f;
 static constexpr float STATUS_W_SCALE = STATUS_FONT_PX / 10.0f;
 
 class StatusBar {
@@ -76,13 +78,16 @@ public:
         if (FAILED(hr)) return false;
 
         hr = m_dw->CreateTextFormat(
-            L"Space Mono", nullptr,
+            raduk::gui::Fonts::FamilyFor(L"Space Mono"), raduk::gui::Fonts::CollectionFor(L"Space Mono"),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL,
             STATUS_FONT_PX, L"en-us", &m_font);
         if (FAILED(hr)) return false;
 
         m_font->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+        // A strip is one line. Wrapped, the end of the mount field
+        // dropped below it and out of the window.
+        m_font->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
         m_font->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 
         printf("[StatusBar] Initialized\n");
@@ -204,54 +209,54 @@ public:
         DrawText(buf, x, y, 35.0f * STATUS_W_SCALE, h, modeBrush);
         x += 38.0f  * STATUS_W_SCALE;
 
-        DrawSep(x, y, h); x += 18.0f * STATUS_W_SCALE;
+        DrawSep(x, y, h); x += 9.0f * STATUS_W_SCALE;
 
         // ── FPS ────────────────────────────────────────────────
         ID2D1SolidColorBrush* fpsBrush = (m_fps > 30) ? m_accentBrush : m_amberBrush;
         swprintf(buf, 32, L"%.1f FPS", m_fps);
-        DrawText(buf, x, y, 70.0f * STATUS_W_SCALE, h, fpsBrush);
-        x += 74.0f  * STATUS_W_SCALE;
+        DrawText(buf, x, y, 62.0f * STATUS_W_SCALE, h, fpsBrush);
+        x += 66.0f  * STATUS_W_SCALE;
 
         // ── Drops ──────────────────────────────────────────────
         ID2D1SolidColorBrush* dropBrush = (m_drops == 0) ? m_dimBrush : m_amberBrush;
         swprintf(buf, 32, L"DROPS: %d", m_drops);
-        DrawText(buf, x, y, 80.0f * STATUS_W_SCALE, h, dropBrush);
-        x += 84.0f  * STATUS_W_SCALE;
+        DrawText(buf, x, y, 70.0f * STATUS_W_SCALE, h, dropBrush);
+        x += 74.0f  * STATUS_W_SCALE;
 
-        DrawSep(x, y, h); x += 18.0f * STATUS_W_SCALE;
+        DrawSep(x, y, h); x += 9.0f * STATUS_W_SCALE;
 
         // ── Resolution ─────────────────────────────────────────
         const wchar_t* fmt = (m_bitDepth == 16) ? L"%dx%d RAW16" : L"%dx%d RAW8";
         swprintf(buf, 64, fmt, m_roiW, m_roiH);
-        DrawText(buf, x, y, 110.0f * STATUS_W_SCALE, h, m_textBrush);
-        x += 114.0f * STATUS_W_SCALE;
+        DrawText(buf, x, y, 96.0f * STATUS_W_SCALE, h, m_textBrush);
+        x += 100.0f * STATUS_W_SCALE;
 
         // ── Sensor temp ────────────────────────────────────────
         swprintf(buf, 32, L"%.1f\xB0""C", m_sensorTemp);
         DrawText(buf, x, y, 55.0f * STATUS_W_SCALE, h, m_dimBrush);
         x += 59.0f  * STATUS_W_SCALE;
 
-        DrawSep(x, y, h); x += 18.0f * STATUS_W_SCALE;
+        DrawSep(x, y, h); x += 9.0f * STATUS_W_SCALE;
 
         // ── EAF ────────────────────────────────────────────────
         if (m_eafPos >= 0) {
             ID2D1SolidColorBrush* eafBrush = m_eafMoving ? m_amberBrush : m_textBrush;
             swprintf(buf, 64, L"EAF: %d  %.1f\xB0""C%s",
                 m_eafPos, m_eafTemp, m_eafMoving ? L" [MOVING]" : L"");
-            DrawText(buf, x, y, 160.0f * STATUS_W_SCALE, h, eafBrush);
-            x += 164.0f * STATUS_W_SCALE;
+            DrawText(buf, x, y, 146.0f * STATUS_W_SCALE, h, eafBrush);
+            x += 150.0f * STATUS_W_SCALE;
 
-            DrawSep(x, y, h); x += 18.0f * STATUS_W_SCALE;
+            DrawSep(x, y, h); x += 9.0f * STATUS_W_SCALE;
         }
 
         // ── Mount ──────────────────────────────────────────────
         if (m_mountConn) {
-            swprintf(buf, 128, L"RA: %hs  DEC: %hs  TRK: %hs",
+            swprintf(buf, 128, L"RA: %hs  DEC: %hs  %hs",
                 m_ra.c_str(), m_dec.c_str(), m_tracking.c_str());
-            DrawText(buf, x, y, 320.0f * STATUS_W_SCALE, h, m_textBrush);
-            x += 324.0f * STATUS_W_SCALE;
+            DrawText(buf, x, y, 290.0f * STATUS_W_SCALE, h, m_textBrush);
+            x += 294.0f * STATUS_W_SCALE;
 
-            DrawSep(x, y, h); x += 18.0f * STATUS_W_SCALE;
+            DrawSep(x, y, h); x += 9.0f * STATUS_W_SCALE;
         }
 
         // ── Profile (right-aligned) ────────────────────────────
@@ -307,6 +312,62 @@ private:
     // Right edge the left-to-right run may not cross. Set per Draw, since
     // it depends on the bar width and whether a profile label is shown.
     float       m_rightLimit  = 1e9f;
+};
+
+// Phase 120: the strip across the top, in a window of its own. It used
+// to be drawn into the preview's render target every frame, in the one
+// path phases 91 and 93 worked to empty, for figures that change a few
+// times a second.
+class StatusStripWindow {
+public:
+    bool Create(HWND parent) {
+        WNDCLASSEXW wc = {};
+        wc.cbSize        = sizeof(wc);
+        wc.lpfnWndProc   = DefWindowProcW;
+        wc.hInstance     = GetModuleHandle(nullptr);
+        wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+        wc.lpszClassName = L"RadukStatusStrip";
+        RegisterClassExW(&wc);
+        m_hwnd = CreateWindowExW(0, L"RadukStatusStrip", L"",
+            WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+            TOOLBAR_RAIL_W, 0, 100, STATUS_BAR_HEIGHT, parent, nullptr,
+            GetModuleHandle(nullptr), nullptr);
+        if (!m_hwnd) return false;
+        if (FAILED(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &m_factory)))
+            return false;
+        return SUCCEEDED(m_factory->CreateHwndRenderTarget(
+            D2D1::RenderTargetProperties(),
+            D2D1::HwndRenderTargetProperties(m_hwnd, D2D1::SizeU(100, STATUS_BAR_HEIGHT)),
+            &m_rt));
+    }
+
+    ID2D1HwndRenderTarget* Target() const { return m_rt; }
+
+    void Place(int width) {
+        if (!m_hwnd || width <= 0) return;
+        m_w = width;
+        SetWindowPos(m_hwnd, nullptr, TOOLBAR_RAIL_W, 0, width, STATUS_BAR_HEIGHT,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        if (m_rt) m_rt->Resize(D2D1::SizeU(width, STATUS_BAR_HEIGHT));
+    }
+
+    void Render(StatusBar& bar) {
+        if (!m_rt) return;
+        m_rt->BeginDraw();
+        bar.Draw(m_w, STATUS_BAR_HEIGHT);
+        m_rt->EndDraw();
+    }
+
+    void Release() {
+        if (m_rt)      { m_rt->Release();      m_rt = nullptr; }
+        if (m_factory) { m_factory->Release(); m_factory = nullptr; }
+    }
+
+private:
+    HWND m_hwnd = nullptr;
+    ID2D1Factory* m_factory = nullptr;
+    ID2D1HwndRenderTarget* m_rt = nullptr;
+    int m_w = 100;
 };
 
 } // namespace raduk::gui

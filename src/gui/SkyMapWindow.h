@@ -30,6 +30,7 @@
 #define NOMINMAX
 #endif
 
+#include "BundledFonts.h"
 #include "Theme.h"
 #include <windows.h>
 #include <d2d1.h>
@@ -1090,21 +1091,21 @@ private:
         if (m_titleFormat)  { m_titleFormat->Release();  m_titleFormat  = nullptr; }
         if (m_siteFormat)   { m_siteFormat->Release();   m_siteFormat   = nullptr; }
 
-        m_dwrite->CreateTextFormat(L"Barlow Condensed", nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(L"Barlow Condensed"), raduk::gui::Fonts::CollectionFor(L"Barlow Condensed"),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px, L"en-us", &m_labelFormat);
         // The status line stays the smallest of the three: it is read
         // once, not scanned, and at full size it competes with the sky.
-        m_dwrite->CreateTextFormat(L"Space Mono", nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(L"Space Mono"), raduk::gui::Fonts::CollectionFor(L"Space Mono"),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px * 0.8f, L"en-us", &m_statusFormat);
-        m_dwrite->CreateTextFormat(L"Barlow Condensed", nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(L"Barlow Condensed"), raduk::gui::Fonts::CollectionFor(L"Barlow Condensed"),
             DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px * 1.08f, L"en-us", &m_titleFormat);
         // The site block is monospace and near full size: it is a column
         // of digits to be read off and typed in somewhere else, which is
         // the one thing on this window that wants figures lining up.
-        m_dwrite->CreateTextFormat(L"Space Mono", nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(L"Space Mono"), raduk::gui::Fonts::CollectionFor(L"Space Mono"),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px * 0.95f, L"en-us", &m_siteFormat);
     }
@@ -1141,7 +1142,7 @@ private:
             self = reinterpret_cast<SkyMapWindow*>(
                        GetWindowLongPtr(hwnd, GWLP_USERDATA));
         }
-        if (!self) return DefWindowProc(hwnd, msg, wParam, lParam);
+        if (!self) return DefWindowProcW(hwnd, msg, wParam, lParam);
 
         switch (msg) {
             case WM_PAINT: {
@@ -1358,7 +1359,7 @@ private:
                 self->ReleaseD2D();
                 return 0;
         }
-        return DefWindowProc(hwnd, msg, wParam, lParam);
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
 
     // ── Members ────────────────────────────────────────────────

@@ -1399,6 +1399,13 @@ static int RunApp(bool useEmulator) {
     // ── Toolbar strip (Win32 native buttons above preview) ─────
     raduk::gui::ToolbarStrip toolbar;
     toolbar.Create(window.Handle(), PANEL_WIDTH);
+    toolbar.SnapToMainWindow();
+    // Phase 120: the panel's Camera and Mount tabs hold buttons the
+    // toolbar's logic still drives.
+    controls.SetStripHooks(
+        [&](int id, HWND h) { toolbar.Adopt(id, h); },
+        [&](const DRAWITEMSTRUCT* d) { toolbar.DrawAdopted(d); },
+        [&](int id) { toolbar.HandleCommand((WPARAM)id); });
 
     // ── GoTo Panel (Phase 6) ───────────────────────────────────
     raduk::gui::GoToPanel gotoPanel;
@@ -2092,8 +2099,8 @@ static int RunApp(bool useEmulator) {
     //
     // Found by the same enumeration D3 uses, so a window added later
     // is covered without being registered anywhere. Re-applied on
-    // every night-vision toggle, because the list and tab colours
-    // follow the mode even though the title bars do not.
+    // every night-vision toggle, because the title bars, lists and
+    // tabs all follow the mode.
     auto styleChrome = [&]() {
         for (HWND h : ourWindows()) {
             raduk::gui::Theme::DarkTitleBar(h);
@@ -2921,7 +2928,10 @@ static int RunApp(bool useEmulator) {
 
     // ── Status bar ─────────────────────────────────────────────
     StatusBar statusBar;
-    statusBar.Init(window.RenderTarget(), window.DWriteFactory());
+    raduk::gui::StatusStripWindow statusStrip;      // Phase 120
+    statusStrip.Create(window.Handle());
+    statusStrip.Place(window.PreviewWidth());
+    statusBar.Init(statusStrip.Target(), window.DWriteFactory());
     statusBar.SetEmulatorMode(useEmulator);
     statusBar.SetProfile("Jupiter");
 
@@ -2972,9 +2982,10 @@ static int RunApp(bool useEmulator) {
     // ── Wire handlers ──────────────────────────────────────────
     window.SetMoveHandler([&]() {
         controls.OnMainWindowMoved();
-        toolbar.SnapToMainWindow();
         notifBar.SnapToMainWindow();
         window.SetNotifBarHeight(notifBar.Height());
+        toolbar.SnapToMainWindow(notifBar.Height());
+        statusStrip.Place(window.PreviewWidth());
     });
 
     // ── Phase 47: click to recentre ───────────────────────
@@ -6119,7 +6130,7 @@ static int RunApp(bool useEmulator) {
 
         int clientW = window.ClientWidth();
         int clientH = window.ClientHeight();
-        int statusH = window.IsFullscreen() ? 0 : STATUS_BAR_HEIGHT;
+        int statusH = 0;     // phase 120: the strip is its own window now
 
         // Preview dimensions come from the preview child window client size.
         // D2D renders into that child — its bounds ARE the preview area.
@@ -6182,8 +6193,14 @@ static int RunApp(bool useEmulator) {
         histWindow.Update(lastAnalysis);
         if (lastAnalysis.valid) sharpWindow.Push(lastAnalysis.sharpnessPct);
 
-        if (!window.IsFullscreen())
-            statusBar.Draw(previewW, windowH);
+        // A few times a second: nothing on it changes faster.
+        {
+            static auto lastStrip = PClock::now();
+            if (PClock::now() - lastStrip > std::chrono::milliseconds(200)) {
+                lastStrip = PClock::now();
+                statusStrip.Render(statusBar);
+            }
+        }
 
         const auto tAfterPanels = PClock::now();
         preview.EndFrame();
@@ -7166,6 +7183,7 @@ static int RunApp(bool useEmulator) {
     tracker.Reset();
     analyzer.Stop();
     statusBar.Release();
+    statusStrip.Release();
     preview.Release();
     capture.Stop();
     if (mount && mount->IsConnected()) { mount->StopSlew(0); mount->StopSlew(1); mount->Disconnect(); }
@@ -7187,6 +7205,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // to appear off-center, the status bar text to be misaligned, and the
     // reticle to not bisect the image correctly.
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    // Phase 119.1: before any window, because each one caches its fonts.
+    raduk::gui::Fonts::LoadBundled();
 
 #ifdef RADUK_EMULATOR
     const char* MUTEX_NAME = "RadukCapture_Emulator_SingleInstance";

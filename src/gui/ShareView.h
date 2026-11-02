@@ -39,6 +39,7 @@
 #include <vector>
 #include <chrono>
 #include <algorithm>
+#include "BundledFonts.h"
 #include "Theme.h"
 #include "AudienceLayout.h"
 
@@ -302,7 +303,7 @@ private:
         if (m_bigFit && std::fabs(px - m_bigFitPx) < 0.5f) return m_bigFit;
         if (m_bigFit) { m_bigFit->Release(); m_bigFit = nullptr; }
         if (!m_dwrite) return m_bigFormat;
-        m_dwrite->CreateTextFormat(Theme::FONT_LABEL, nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(Theme::FONT_LABEL), raduk::gui::Fonts::CollectionFor(Theme::FONT_LABEL),
             DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px, L"en-us", &m_bigFit);
         m_bigFitPx = px;
@@ -330,10 +331,10 @@ private:
         if (m_smallFormat) { m_smallFormat->Release(); m_smallFormat = nullptr; }
         if (m_microFormat) { m_microFormat->Release(); m_microFormat = nullptr; }
 
-        m_dwrite->CreateTextFormat(Theme::FONT_LABEL, nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(Theme::FONT_LABEL), raduk::gui::Fonts::CollectionFor(Theme::FONT_LABEL),
             DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px, L"en-us", &m_bigFormat);
-        m_dwrite->CreateTextFormat(Theme::FONT_DATA, nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(Theme::FONT_DATA), raduk::gui::Fonts::CollectionFor(Theme::FONT_DATA),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL,
             Theme::Type::Scaled(m_bodyPx, Theme::Type::S_BODY),
@@ -342,7 +343,7 @@ private:
         // are NOT for the audience -- one is instructions for the
         // owner, the other is a state light. They take the smallest
         // step so they stay out of the photograph.
-        m_dwrite->CreateTextFormat(Theme::FONT_DATA, nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(Theme::FONT_DATA), raduk::gui::Fonts::CollectionFor(Theme::FONT_DATA),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL,
             Theme::Type::Scaled(m_bodyPx, Theme::Type::S_MICRO),

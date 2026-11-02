@@ -867,13 +867,26 @@ namespace Theme {
 
     // Dark title bar. Attribute 20 is DWMWA_USE_IMMERSIVE_DARK_MODE;
     // 19 is what it was called before 20H1, and setting both covers
-    // either. Not night-vision dependent: this app is dark whatever
-    // mode it is in, and a white title bar was never right.
+    // either.
+    //
+    // Phase 119.2: Windows 11 also lets the caption, its text and the
+    // border be coloured, so they now follow night vision. Dark was not
+    // enough: every caption was a bright white line above a red window.
+    // Older builds refuse attributes 34 to 36 and keep plain dark. Call
+    // again on a toggle.
     inline void DarkTitleBar(HWND h) {
         if (!h) return;
         BOOL dark = TRUE;
         DwmSetWindowAttribute(h, 20, &dark, sizeof(dark));
         DwmSetWindowAttribute(h, 19, &dark, sizeof(dark));
+        const DWORD round  = 2;                    // DWMWCP_ROUND
+        const COLORREF cap = NV(Rgb::PANEL);
+        const COLORREF txt = NV(Rgb::TEXT);
+        const COLORREF edge = NV(Rgb::BORDER);
+        DwmSetWindowAttribute(h, 33, &round, sizeof(round));
+        DwmSetWindowAttribute(h, 34, &edge, sizeof(edge));
+        DwmSetWindowAttribute(h, 35, &cap, sizeof(cap));
+        DwmSetWindowAttribute(h, 36, &txt, sizeof(txt));
     }
 
     // Re-tint the stock controls under a window, following the current

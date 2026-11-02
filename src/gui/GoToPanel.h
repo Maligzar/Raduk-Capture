@@ -2749,7 +2749,7 @@ private:
         } else {
             self = reinterpret_cast<GoToPanel*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
         }
-        if (!self) return DefWindowProc(hwnd, msg, wParam, lParam);
+        if (!self) return DefWindowProcW(hwnd, msg, wParam, lParam);
 
         switch (msg) {
             case WM_CTLCOLORSTATIC:
@@ -2979,7 +2979,7 @@ private:
                 ShowWindow(hwnd, SW_HIDE);
                 return 0;
         }
-        return DefWindowProc(hwnd, msg, wParam, lParam);
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
 
     // ── Members ────────────────────────────────────────────────

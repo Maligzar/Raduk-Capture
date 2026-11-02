@@ -28,6 +28,7 @@
 #include <dwrite.h>
 #include <algorithm>
 #include <vector>
+#include "BundledFonts.h"
 #include "Theme.h"
 #include "TemperatureDraw.h"
 
@@ -157,7 +158,7 @@ private:
         if (!m_dwrite) return;
         if (m_font) { m_font->Release(); m_font = nullptr; }
         const float size = (std::max)(11.0f, (std::min)(30.0f, (float)m_h / 14.0f));
-        m_dwrite->CreateTextFormat(L"Space Mono", nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(L"Space Mono"), raduk::gui::Fonts::CollectionFor(L"Space Mono"),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, size, L"en-us", &m_font);
         if (m_font) m_font->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);

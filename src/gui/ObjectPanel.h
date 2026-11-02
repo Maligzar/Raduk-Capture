@@ -45,6 +45,7 @@
 #include <cstdio>
 #include <chrono>
 #include <algorithm>
+#include "BundledFonts.h"
 #include "Theme.h"
 #include "AudienceLayout.h"
 #include "../core/ObjectKnowledgeDB.h"
@@ -504,7 +505,7 @@ private:
 
         auto mk = [&](const wchar_t* face, DWRITE_FONT_WEIGHT w, float size,
                       IDWriteTextFormat** out) {
-            m_dwrite->CreateTextFormat(face, nullptr, w, DWRITE_FONT_STYLE_NORMAL,
+            m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(face), raduk::gui::Fonts::CollectionFor(face), w, DWRITE_FONT_STYLE_NORMAL,
                 DWRITE_FONT_STRETCH_NORMAL, size, L"en-us", out);
         };
         namespace T = Theme::Type;
@@ -568,7 +569,7 @@ private:
             return m_fBodyFit;
         if (m_fBodyFit) { m_fBodyFit->Release(); m_fBodyFit = nullptr; }
         if (!m_dwrite) return m_fBody;
-        m_dwrite->CreateTextFormat(Theme::FONT_LABEL, nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(Theme::FONT_LABEL), raduk::gui::Fonts::CollectionFor(Theme::FONT_LABEL),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px, L"en-us", &m_fBodyFit);
         m_fBodyFitPx = px;

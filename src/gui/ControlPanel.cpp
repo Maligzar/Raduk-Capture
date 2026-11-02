@@ -5,6 +5,8 @@
 // Two-column camera sliders, tighter row heights throughout.
 // ============================================================
 
+#include "ButtonIcons.h"
+#include "ToolbarLayout.h"
 #include "ControlPanel.h"
 #include "../core/ExposureScale.h"
 #include "../core/CameraEntry.h"
@@ -30,6 +32,9 @@ static constexpr wchar_t PANEL_CLASS_NAME[] = L"RadukControlPanel";
 
 namespace raduk::gui {
 
+// Phase 120: the panel tabs. Clear of ID_BTN_* and ID_TB_*.
+static constexpr int kTabFirstId = 3100;
+
 ControlPanel::~ControlPanel() {
     if (m_panelHwnd) { DestroyWindow(m_panelHwnd); m_panelHwnd = nullptr; }
 }
@@ -46,7 +51,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
     } else {
         self = reinterpret_cast<ControlPanel*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
     }
-    if (!self) return DefWindowProc(hwnd, msg, wParam, lParam);
+    if (!self) return DefWindowProcW(hwnd, msg, wParam, lParam);
 
     switch (msg) {
         case WM_MOUSEACTIVATE:
@@ -147,6 +152,12 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
         case WM_DRAWITEM: {
             auto* dis = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
             if (!dis) break;
+
+            // Phase 120: a toolbar button living on a tab.
+            if ((int)dis->CtlID >= ID_TB_FIRST && (int)dis->CtlID <= ID_TB_LAST) {
+                if (self->m_stripDraw) self->m_stripDraw(dis);
+                return TRUE;
+            }
 
             // ── Section header owner-draw ──────────────────────
             if (self->m_sectionHeaders.count(dis->hwndItem)) {
@@ -372,11 +383,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                                    : (state == 1) ? L"AE ADV" : L"AE OFF";
                 SetBkMode(hdc, TRANSPARENT);
                 SetTextColor(hdc, fg);
-                // 96.4b: off the ramp. Wants Theme::Type::BODY (13);
-                // left at 12 because growing a label inside a button
-                // whose width is a literal can clip it, and nobody
-                // here can look at the result. See clear-night 17.
-                HFONT f = CreateFontW(-12, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                HFONT f = CreateFontW(-Theme::Type::BODY, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
                 HFONT old = f ? (HFONT)SelectObject(hdc, f) : nullptr;
@@ -436,6 +443,67 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 if (oldf) SelectObject(hdc, oldf);
                 if (f)    DeleteObject(f);
                 if (dis->itemState & ODS_FOCUS) DrawFocusRect(hdc, &r);
+                return TRUE;
+            }
+
+            // ── Phase 119.4: every other button ────────────────
+            //
+            // A stock button paints COLOR_BTNFACE whatever it is told,
+            // which is the white block on a black panel, and the one
+            // thing night vision could not reach. Pressed and disabled
+            // read from fill and text weight, so both survive it.
+            if (dis->CtlType == ODT_BUTTON) {
+                HDC  hdc = dis->hDC;
+                RECT r   = dis->rcItem;
+                const bool down = (dis->itemState & ODS_SELECTED) != 0;
+                const bool off  = (dis->itemState & ODS_DISABLED) != 0;
+                FillRect(hdc, &r, Theme::Brush(down ? Theme::Rgb::BORDER : Theme::Rgb::PANEL));
+                FrameRect(hdc, &r, Theme::Brush(Theme::Rgb::BORDER));
+
+                // The open tab: shape, not hue, so it survives the dark.
+                if ((int)dis->CtlID == kTabFirstId + self->m_tab) {
+                    RECT bar = {r.left, r.bottom - 3, r.right, r.bottom};
+                    FillRect(hdc, &bar, Theme::Brush(Theme::Rgb::ACCENT));
+                }
+
+                wchar_t text[64] = {};
+                const int n = GetWindowTextW(dis->hwndItem, text, 64);
+                wchar_t icon = IconForLabel(text);
+                SetBkMode(hdc, TRANSPARENT);
+                SetTextColor(hdc, Theme::NV(off ? Theme::Rgb::TEXT_DIM : Theme::Rgb::TEXT));
+
+                HFONT labelFont = (HFONT)SendMessageW(dis->hwndItem, WM_GETFONT, 0, 0);
+                HFONT oldf = (HFONT)SelectObject(hdc, labelFont);
+                SIZE sz = {};
+                GetTextExtentPoint32W(hdc, text, n, &sz);
+
+                // Icon and word centred together, so a row of buttons
+                // keeps its rhythm whatever the words are.
+                // In a narrow button the word wins: "SA..." with an icon
+                // says less than SAVE without one.
+                if (sz.cx + Theme::Type::TITLE + Theme::Space::XS * 3 > r.right - r.left)
+                    icon = 0;
+                const int iconW = icon ? Theme::Type::TITLE + Theme::Space::XS : 0;
+                int cx = r.left + ((r.right - r.left) - sz.cx - iconW) / 2;
+                if (cx < r.left + Theme::Space::XS) cx = r.left + Theme::Space::XS;
+                if (icon) {
+                    HFONT g = CreateFontW(-Theme::Type::STRONG, 0, 0, 0, FW_NORMAL, FALSE, FALSE,
+                        FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe MDL2 Assets");
+                    SelectObject(hdc, g);
+                    RECT ir = {cx, r.top, cx + Theme::Type::TITLE, r.bottom};
+                    DrawTextW(hdc, &icon, 1, &ir, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    SelectObject(hdc, labelFont);
+                    DeleteObject(g);
+                }
+                RECT tr = {cx + iconW, r.top, r.right - Theme::Space::XS, r.bottom};
+                DrawTextW(hdc, text, n, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                SelectObject(hdc, oldf);
+                if (dis->itemState & ODS_FOCUS) {
+                    RECT fr = r;
+                    InflateRect(&fr, -2, -2);
+                    DrawFocusRect(hdc, &fr);
+                }
                 return TRUE;
             }
             break;
@@ -603,7 +671,23 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
             };
             break;
         }
+        case WM_APP + 41:
+            // Posted, because a tab's click arrives inside the button
+            // this rebuild would destroy.
+            if (self) self->SetTab((int)wParam);
+            return 0;
         case WM_COMMAND:
+            if (self) {
+                const int cid = LOWORD(wParam);
+                if (cid >= kTabFirstId && cid < kTabFirstId + 4) {
+                    PostMessageW(hwnd, WM_APP + 41, cid - kTabFirstId, 0);
+                    return 0;
+                }
+                if (cid >= ID_TB_FIRST && cid <= ID_TB_LAST) {
+                    if (self->m_stripCommand) self->m_stripCommand(cid);
+                    return 0;
+                }
+            }
             if (self->HandleCommand(wParam, lParam)) return 0;
             break;
         case WM_HSCROLL:
@@ -627,7 +711,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
             return 1;
         }
     }
-    return DefWindowProc(hwnd, msg, wParam, lParam);
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
 // ── Create ────────────────────────────────────────────────────
@@ -1884,7 +1968,7 @@ HWND ControlPanel::MakeSlider(int x, int y, int w, int h,
 
 HWND ControlPanel::MakeButton(const wchar_t* text, int x, int y, int w, int h, int id) {
     return CreateWindowExW(0, L"BUTTON", text,
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,      // phase 119.4
         x, y, w, h, m_panelHwnd,
         (HMENU)(INT_PTR)id, GetModuleHandle(nullptr), nullptr);
 }
@@ -2243,19 +2327,24 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     const int x  = 10;
     const int w  = clientW - 10 - scrollW; // right edge = before scrollbar
     const int w2 = (w - 4) / 2;
-    const int SH = 13;
-    const int BH = 20;
+    // Phase 119: 13 and 20 were set against a substitute font. With real
+    // Barlow Condensed a 13 px row cut the tails off p, g and y. Then the
+    // owner asked for larger text, with the room the tabs freed: the
+    // panel's type is STRONG now, and every fixed column below grew by
+    // the same third.
+    const int SH = 21;
+    const int BH = 30;
     // Phase 98: 14 was shorter than a trackbar's own thumb wants, and
     // the rows sat on a 17 px pitch -- three pixels of clear space
     // between one slider and the next, six of them stacked. A
     // near-miss grabbed the neighbour. 20 px on a 24 px pitch is a
     // real target; the panel scrolls, so the extra height costs
     // nothing but scroll.
-    const int SL = 20;
+    const int SL = 26;
 
     int y = 4;
     wchar_t secBuf[64];
-    const int HD = 22;  // section header height — taller for circle icon
+    const int HD = 28;  // section header height — taller for circle icon
 
     auto sec = [&](const char* title) {
         if (y > 4) y += 3;
@@ -2270,6 +2359,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     };
 
     auto secC = [&](const char* title, Section s) {
+        if (TabOf(s) != m_tab) return;
         if (y > 4) y += 3;
         bool collapsed = IsCollapsed(s);
         // Store title + collapse state in label text for WM_DRAWITEM
@@ -2286,7 +2376,30 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         y += HD + 2;
     };
 
+    // Phase 120: the tabs, and a row of the buttons ToolbarStrip drives.
+    {
+        static const wchar_t* kTabs[4] = {L"CAMERA", L"FOCUS", L"MOUNT", L"OUTPUT"};
+        const int tw = (w - 3 * 2) / 4;
+        for (int i = 0; i < 4; i++)
+            MakeButton(kTabs[i], x + i * (tw + 2), y, tw, BH + 6, kTabFirstId + i);
+        y += BH + 6 + Theme::Space::SM;
+    }
+    auto stripRow = [&](const ToolbarItem* items, int n) {
+        const int bw = (w - (n - 1) * 2) / n;
+        for (int i = 0; i < n; i++) {
+            HWND b = MakeButton(items[i].label, x + i * (bw + 2), y, bw, BH, items[i].id);
+            if (m_stripAdopt) m_stripAdopt(items[i].id, b);
+        }
+        y += BH + 4;
+    };
+    if (m_stripAdopt) {
+        for (const ToolbarItem& d : kCameraItems) m_stripAdopt(d.id, nullptr);
+        for (const ToolbarItem& d : kMountItems)  m_stripAdopt(d.id, nullptr);
+    }
+
     // IMAGE section — zoom and fullscreen only
+    if (m_tab == 0) stripRow(kCameraItems, ItemCount(kCameraItems));
+    if (m_tab == 2) stripRow(kMountItems, ItemCount(kMountItems));
     secC("IMAGE", Section::Image);
     if (!IsCollapsed(Section::Image)) {
     {
@@ -2304,8 +2417,8 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         y += BH + 2;
 
         // Manual offset slider: range 0-40, center 20 = 0px offset
-        TagControl(MakeLabel(L"Manual:", x, y, 50, SH), Section::Image);
-        m_sliderRGBManual = MakeSlider(x+52, y, w-52, SL, 0, 40, 20, ID_SLIDER_RGB_MANUAL);
+        TagControl(MakeLabel(L"Manual:", x, y, 66, SH), Section::Image);
+        m_sliderRGBManual = MakeSlider(x+68, y, w-68, SL, 0, 40, 20, ID_SLIDER_RGB_MANUAL);
         y += SL + 3;
     }
     // FX + Night Vision buttons — side by side
@@ -2340,7 +2453,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // because finding a black point is a feel-it-out operation -- you
     // drag until the background goes black without eating the target.
     {
-        const int LW = 42, VW = 0;
+        const int LW = 56, VW = 0;
         TagControl(MakeLabel(L"Black", x, y, LW, SH), Section::Image);
         m_sliderBlack = MakeSlider(x+LW+2, y, w-LW-2, SL, 0, 251, 0,
                                    ID_SLIDER_BLACK);
@@ -2364,8 +2477,8 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     secC("CAMERA", Section::Camera);
     if (!IsCollapsed(Section::Camera)) {
     // Every row ends in a box the width of exposure's. Phase 112.
-    const int LBLW = 58;   // left label column width
-    const int EDW  = 54;   // wide enough for "60.000" plus a caret
+    const int LBLW = 76;   // left label column width
+    const int EDW  = 68;   // wide enough for "60.000" plus a caret
     auto makeSliderRow = [&](const wchar_t* lbl, int lo, int hi, int val, int id,
                               int editId, HWND& slider, HWND& edit,
                               const wchar_t* initTxt) {
@@ -2437,8 +2550,8 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
 
     // WB row — two half-width sliders, tighter geometry
     {
-        const int WBLW = 46;  // "WB Red" / "WB Blue" label width
-        const int WBEW = 38;  // box width; three digits and a caret
+        const int WBLW = 64;  // "WB Red" / "WB Blue" label width
+        const int WBEW = 50;  // box width; three digits and a caret
         int hw = (w - 4) / 2;
         TagControl(MakeLabel(L"WB Red",  x,      y, WBLW, SH), Section::Camera);
         m_sliderWBR = MakeSlider(x+WBLW, y, hw-WBLW-WBEW-1, SL, 0, 100, 52, ID_SLIDER_WBR);
@@ -2469,9 +2582,9 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // ── FOCUSER ───────────────────────────────────────────────────
     secC("FOCUSER", Section::EAF);
     if (!IsCollapsed(Section::EAF)) {
-    m_lblFocusPos = MakeValueLabel(L"0", x, y, w, 28, ID_LBL_FOCUS_POS);
+    m_lblFocusPos = MakeValueLabel(L"0", x, y, w, 36, ID_LBL_FOCUS_POS);
     TagControl(m_lblFocusPos, Section::EAF);
-    y += 30;
+    y += 40;
     {
         int bW5 = (w - 4) / 5;
         m_btnFocusIn5000  = MakeButton(L"\u00AB\u00AB", x,           y, bW5, BH, ID_BTN_FOCUS_IN5000);
@@ -2487,9 +2600,9 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         m_btnFocusOut1000 = MakeButton(L"1K >",  x+(bW5+1)*4, y, bW5, BH, ID_BTN_FOCUS_OUT1000);
         y += BH + 1;
     }
-    TagControl(MakeLabel(L"TEMP:", x, y, 34, SH), Section::EAF);
-    m_lblFocusTemp = MakeValueLabel(L"--\u00B0C", x+36, y, 50, SH, ID_LBL_FOCUS_TEMP);
-    m_btnFocusGoto = MakeButton(L"GO TO", x+w-52, y-2, 52, BH, ID_BTN_FOCUS_GOTO);
+    TagControl(MakeLabel(L"TEMP:", x, y, 46, SH), Section::EAF);
+    m_lblFocusTemp = MakeValueLabel(L"--\u00B0C", x+48, y, 70, SH, ID_LBL_FOCUS_TEMP);
+    m_btnFocusGoto = MakeButton(L"GO TO", x+w-96, y-2, 96, BH, ID_BTN_FOCUS_GOTO);
     y += BH + 2;
 
     m_btnAutofocus = MakeButton(L"AUTO FOCUS", x, y, w, BH+2, ID_BTN_AUTOFOCUS);
@@ -2548,7 +2661,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // Left column: Az / Alt / RA / Dec / HA  (5 rows × (SH+1))
     // Right block starts at x + coordW + 6, width = w - coordW - 6
 
-    const int LBLC  = 26;          // coordinate label column width
+    const int LBLC  = 38;          // coordinate label column width
     const int VALC  = w - LBLC - 4; // value column fills remaining width
     const int ROWH  = SH + 2;
 
@@ -2600,22 +2713,22 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
 
     // ── Tracking status label + PLANET LOCK / SKYMAP ──────────
     // Row: TRK [status]   [●SKYMAP LOCKED]   [PLANET LOCK btn]
-    const int lockIndW = w - 64 - 90 - 4;
-    TagControl(MakeLabel(L"TRK", x, y, 22, SH), Section::Mount);
-    m_lblMountTrack = MakeValueLabel(L"OFF", x+24, y, 40, SH, ID_LBL_MOUNT_TRACK);
+    const int lockIndW = w - 100 - 124 - 4;
+    TagControl(MakeLabel(L"TRK", x, y, 30, SH), Section::Mount);
+    m_lblMountTrack = MakeValueLabel(L"OFF", x+32, y, 66, SH, ID_LBL_MOUNT_TRACK);
     TagControl(m_lblMountTrack, Section::Mount);
-    m_lblSkyMapLock = MakeLabel(L"", x+64, y, lockIndW, SH, ID_LBL_SKYMAP_LOCK);
+    m_lblSkyMapLock = MakeLabel(L"", x+100, y, lockIndW, SH, ID_LBL_SKYMAP_LOCK);
     TagControl(m_lblSkyMapLock, Section::Mount);
-    m_lblMountControl = MakeLabel(L"", x+70, y, w-70-90, SH, ID_LBL_MOUNT_CONTROL);
+    m_lblMountControl = MakeLabel(L"", x+100, y, w-100-124, SH, ID_LBL_MOUNT_CONTROL);
     TagControl(m_lblMountControl, Section::Mount);
     m_btnSync = CreateWindowExW(0, L"BUTTON", L"PLANET LOCK",
         WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-        x+w-90, y-2, 90, BH, m_panelHwnd,
+        x+w-124, y-2, 124, BH, m_panelHwnd,
         (HMENU)(INT_PTR)ID_BTN_SYNC, GetModuleHandle(nullptr), nullptr);
     SetWindowTheme(m_btnSync, L"", L"");
     y += BH + 1;
 
-    m_lblSkyMapTarget = MakeValueLabel(L"", x+w-90, y, 90, SH, ID_LBL_SKYMAP_TARGET);
+    m_lblSkyMapTarget = MakeValueLabel(L"", x+w-124, y, 124, SH, ID_LBL_SKYMAP_TARGET);
     TagControl(m_lblSkyMapTarget, Section::Mount);
     y += SH + 2;
 
@@ -2625,11 +2738,11 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     }
 
     // ── GoTo target + plate solve ──────────────────────────────
-    TagControl(MakeLabel(L"TGT:", x, y, 28, SH), Section::Mount);
-    m_editGoToTarget = MakeEditBox(L"Jupiter", x+32, y-2, w-32-60, BH, ID_EDIT_GOTO_TARGET);
+    TagControl(MakeLabel(L"TGT:", x, y, 38, SH), Section::Mount);
+    m_editGoToTarget = MakeEditBox(L"Jupiter", x+42, y-2, w-42-98, BH, ID_EDIT_GOTO_TARGET);
     SetWindowLong(m_editGoToTarget, GWL_STYLE,
         GetWindowLong(m_editGoToTarget, GWL_STYLE) & ~ES_NUMBER);
-    m_btnGoToFind = MakeButton(L"GOTO", x+w-56, y-2, 56, BH, ID_BTN_GOTO_FIND);
+    m_btnGoToFind = MakeButton(L"GOTO", x+w-92, y-2, 92, BH, ID_BTN_GOTO_FIND);
     y += BH + 3;
 
     m_btnSolveSync = MakeButton(L"POINT SOLVE \u2192 SYNC", x, y, w, BH, ID_BTN_SOLVE_SYNC);
@@ -2650,9 +2763,9 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // won every time. One header makes that overlap visible instead of
     // hiding it behind two collapsed ones.
     {
-        const int BTN_W  = 48;
+        const int BTN_W  = 84;
         const int BTN_GAP = 2;
-        const int LBL_W  = 42;
+        const int LBL_W  = 58;
         const int btnsTotalW = BTN_W * 3 + BTN_GAP * 2;
         TagControl(MakeLabel(L"Target:", x, y, LBL_W, SH), Section::Capture);
         int cbX = x + LBL_W + 2;
@@ -2667,18 +2780,18 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
                     Section::Capture);
         y += BH + 3;
     }
-    TagControl(MakeLabel(L"Prefix:", x, y, 42, SH), Section::Capture);
-    m_editFilePrefix = MakeEditBox(L"Jupiter", x+44, y-2, w-44-22, BH, ID_EDIT_FILE_PREFIX);
+    TagControl(MakeLabel(L"Prefix:", x, y, 58, SH), Section::Capture);
+    m_editFilePrefix = MakeEditBox(L"Jupiter", x+60, y-2, w-60-36, BH, ID_EDIT_FILE_PREFIX);
     SetWindowLong(m_editFilePrefix, GWL_STYLE,
         GetWindowLong(m_editFilePrefix, GWL_STYLE) & ~ES_NUMBER);
-    m_btnBrowseDir = MakeButton(L"...", x+w-20, y-2, 20, BH, ID_BTN_BROWSE_DIR);
+    m_btnBrowseDir = MakeButton(L"...", x+w-32, y-2, 32, BH, ID_BTN_BROWSE_DIR);
     y += BH + 1;
 
     // Frame type dropdown — Light / Dark / Flat / Bias, and beside it the
     // file format, on the same row so CAPTURE does not grow.
     {
-        int lblW = 32;
-        const int fmtW = 54;
+        int lblW = 58;
+        const int fmtW = 76;
         TagControl(MakeLabel(L"Type:", x, y, lblW, SH), Section::Capture);
         m_comboFrameType = CreateWindowExW(0, L"COMBOBOX", L"",
             WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
@@ -2717,34 +2830,29 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     {
         m_radioFrames = CreateWindowExW(0, L"BUTTON", L"Frames:",
             WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP,
-            x, y, 50, SH, m_panelHwnd,
+            x, y, 76, SH, m_panelHwnd,
             (HMENU)(INT_PTR)ID_RADIO_FRAMES, GetModuleHandle(nullptr), nullptr);
-        m_editLimitFrames = MakeEditBox(L"1000", x+52, y-1, 52, BH-2, ID_EDIT_LIMIT_FRAMES);
+        m_editLimitFrames = MakeEditBox(L"1000", x+80, y-1, 70, BH-2, ID_EDIT_LIMIT_FRAMES);
         m_radioTime = CreateWindowExW(0, L"BUTTON", L"Sec:",
             WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-            x+110, y, 34, SH, m_panelHwnd,
+            x+162, y, 56, SH, m_panelHwnd,
             (HMENU)(INT_PTR)ID_RADIO_TIME, GetModuleHandle(nullptr), nullptr);
-        m_editLimitTime = MakeEditBox(L"60", x+146, y-1, w-146, BH-2, ID_EDIT_LIMIT_TIME);
+        m_editLimitTime = MakeEditBox(L"60", x+222, y-1, w-222, BH-2, ID_EDIT_LIMIT_TIME);
         SendMessage(m_radioFrames, BM_SETCHECK, BST_CHECKED, 0);
         y += BH + 2;
     }
     // Quality gate row
     {
-        TagControl(MakeLabel(L"MIN SEEING:", x, y, 72, SH), Section::Default);
-        m_editGateThreshold = MakeEditBox(L"0.0", x+74, y-1, 38, BH-2, ID_EDIT_GATE_THRESHOLD);
-        TagControl(MakeLabel(L"/10", x+114, y, 22, SH), Section::Default);
+        TagControl(MakeLabel(L"MIN SEEING:", x, y, 100, SH), Section::Default);
+        m_editGateThreshold = MakeEditBox(L"0.0", x+104, y-1, 56, BH-2, ID_EDIT_GATE_THRESHOLD);
+        TagControl(MakeLabel(L"/10", x+164, y, 34, SH), Section::Default);
         m_btnGateEnable = CreateWindowExW(0, L"BUTTON", L"GATE",
             WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-            x+140, y, 46, SH, m_panelHwnd,
+            x+206, y, 70, SH, m_panelHwnd,
             (HMENU)(INT_PTR)ID_BTN_GATE_ENABLE, GetModuleHandle(nullptr), nullptr);
         SetWindowTheme(m_btnGateEnable, L"", L"");
         y += BH + 2;
     }
-    m_btnRecord = MakeButton(L"\u25BA  RECORD", x, y, w, BH+8, ID_BTN_RECORD);
-    SetWindowLongW(m_btnRecord, GWL_STYLE,
-        GetWindowLongW(m_btnRecord, GWL_STYLE) & ~BS_PUSHBUTTON | BS_OWNERDRAW);
-    SetWindowTheme(m_btnRecord, L"", L"");
-    y += BH + 10;
 
     // ── Phase 98: the recording timer ──────────────────────────
     //
@@ -2798,6 +2906,18 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     TagControls({ m_lblMountRA, m_lblMountDec,
                   m_lblMountTrack, m_lblMountControl }, Section::Mount);
 
+    // Phase 120: RECORD is on every tab, at the foot of the panel, so
+    // it is found in the same place with any tab open.
+    {
+        RECT pc = {};
+        GetClientRect(m_panelHwnd, &pc);
+        const int foot = (int)pc.bottom - (BH + 8) - Theme::Space::SM;
+        const int ry = (foot > y + Theme::Space::SM) ? foot : y + Theme::Space::SM;
+        m_btnRecord = MakeButton(L"\u25BA  RECORD", x, ry, w, BH+8, ID_BTN_RECORD);
+        SetWindowTheme(m_btnRecord, L"", L"");
+        y = ry + BH + 10;
+    }
+
     m_contentBottom = y + 4;
     int totalH = m_contentBottom + GdiStripHeight() + 8;  // controls + dynamic GDI strip
 
@@ -2832,19 +2952,10 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     UpdatePlanetLockUI();
 
     // Apply fonts to all newly created controls
-    // ── 96.4b: the two fonts that are NOT safe to move from here ──
-    //
-    // These go to child controls by WM_SETFONT, and every child's
-    // position on this panel is a literal pixel offset. Growing the
-    // text inside a static whose rect was sized to fit clips it, and
-    // growing a header shifts nothing but can overlap the row above.
-    // Both want Theme::Type::BODY (13).
-    //
-    // Measured, which is why this is a statement and not a worry:
-    // ControlPanel.cpp has SIX measured-text calls in 2424 lines. It
-    // lays out by hard offsets, not by measurement. 96.2 said that
-    // work belongs where the result can be looked at, and this is it.
-    HFONT hPanelFont = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    // Moved to Type::BODY with the taller rows above (phase 119). The
+    // layout is still literal offsets, not measured, so a long label in
+    // a fixed column can clip: that one is judged at a screen.
+    HFONT hPanelFont = CreateFontW(-Theme::Type::STRONG, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
         DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
     if (hPanelFont) {
@@ -2854,7 +2965,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
             return TRUE;
         }, (LPARAM)hPanelFont);
     }
-    HFONT hHdrFont = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12,
+    HFONT hHdrFont = CreateFontW(-Theme::Type::STRONG,
                                  0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
         ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
         DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");

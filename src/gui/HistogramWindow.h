@@ -30,6 +30,8 @@
 #include <dwrite.h>
 #include <algorithm>
 #include <cstdio>
+#include "WindowChrome.h"
+#include "BundledFonts.h"
 #include "Theme.h"
 #include "HistogramDraw.h"
 #include "../core/FrameAnalyzer.h"
@@ -70,6 +72,12 @@ public:
         }
 
         if (!InitD2D()) { DestroyWindow(m_hwnd); m_hwnd = nullptr; return false; }
+        // Phase 119.3: the pilot for the app's own title bar.
+        {
+            chrome::Flags f;
+            f.minimize = false;
+            m_chrome.Attach(m_hwnd, f);
+        }
         // Shown at startup, not hidden behind a shortcut. These are
         // telemetry for a screen of their own: a readout you have to
         // remember to open is a readout you will not be looking at
@@ -80,6 +88,7 @@ public:
     }
 
     void Destroy() {
+        m_chrome.Release();
         ReleaseD2D();
         if (m_hwnd) { DestroyWindow(m_hwnd); m_hwnd = nullptr; }
     }
@@ -178,7 +187,7 @@ private:
         if (!m_dwrite) return;
         if (m_font) { m_font->Release(); m_font = nullptr; }
         const float size = (std::max)(11.0f, (std::min)(42.0f, (float)m_h / 22.0f));
-        m_dwrite->CreateTextFormat(L"Space Mono", nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(L"Space Mono"), raduk::gui::Fonts::CollectionFor(L"Space Mono"),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, size, L"en-us", &m_font);
         if (m_font) m_font->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
@@ -211,7 +220,8 @@ private:
         m_rt->BeginDraw();
         m_rt->Clear(Theme::NVf(D2D1::ColorF(0.016f, 0.031f, 0.059f, 1.0f)));
 
-        const float w = (float)m_w, h = (float)m_h;
+        const float top = (float)m_chrome.CaptionHeight();
+        const float w = (float)m_w, h = (float)m_h - top;
         // Three bar rows, then three single-line readouts under them:
         // the seeing score, the exposure headroom and the Gr/Gb split.
         // The rows take what is left after a margin and those three
@@ -235,8 +245,9 @@ private:
         const float labW = fs * 1.3f;
         const float pctW = fs * 4.2f;
         histogram::Draw(m_rt, m_font, br, m_analysis, m_valid,
-                        0.0f, 0.0f, w, h, rowH, labW, pctW);
+                        0.0f, top, w, h, rowH, labW, pctW);
 
+        m_chrome.Draw(m_rt, m_dwrite, m_w);
         m_rt->EndDraw();
     }
 
@@ -252,6 +263,10 @@ private:
                 GetWindowLongPtrW(hwnd, GWLP_USERDATA));
         }
         if (!self) return DefWindowProcW(hwnd, msg, wp, lp);
+
+        LRESULT chromeResult = 0;
+        if (self->m_chrome.Filter(hwnd, msg, wp, lp, chromeResult))
+            return chromeResult;
 
         switch (msg) {
             case WM_PAINT: {
@@ -296,6 +311,7 @@ private:
     HWND                    m_hwnd    = nullptr;
     ID2D1Factory*           m_factory = nullptr;
     IDWriteFactory*         m_dwrite  = nullptr;
+    WindowChrome            m_chrome;
     ID2D1HwndRenderTarget*  m_rt      = nullptr;
     IDWriteTextFormat*      m_font    = nullptr;
     ID2D1SolidColorBrush*   m_bgBrush = nullptr;

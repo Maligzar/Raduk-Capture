@@ -151,7 +151,7 @@ public:
             D2D1_SIZE_U sz = m_renderTarget->GetPixelSize();
             if (sz.width > 0) return (int)sz.width;
         }
-        int pw = m_clientWidth - 580;  // render target reservation
+        int pw = m_clientWidth - 580 - TOOLBAR_RAIL_W;  // render target reservation
         return pw > 100 ? pw : 100;
     }
     // Phase 45: the reticle drag works in fractions of the preview, so
@@ -161,7 +161,7 @@ public:
             D2D1_SIZE_U sz = m_renderTarget->GetPixelSize();
             if (sz.height > 0) return (int)sz.height;
         }
-        int ph = m_clientHeight - TOOLBAR_HEIGHT - 30;   // toolbar + status bar
+        int ph = m_clientHeight - TOOLBAR_HEIGHT;   // status strip
         return ph > 100 ? ph : 100;
     }
     float DpiScale() const { return m_dpiScale; }

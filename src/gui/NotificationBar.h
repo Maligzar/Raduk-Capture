@@ -82,12 +82,12 @@ public:
         RegisterClassExW(&wc);
 
         RECT cr; GetClientRect(mainHwnd, &cr);
-        int barW = cr.right - panelWidth;
+        int barW = cr.right - panelWidth - TOOLBAR_RAIL_W;
 
         m_hwnd = CreateWindowExW(
             0, L"RadukNotifBar", L"",
             WS_CHILD | WS_CLIPSIBLINGS,   // NOT WS_VISIBLE — hidden initially
-            0, TOOLBAR_HEIGHT, barW, 0,   // height=0 → invisible but exists
+            TOOLBAR_RAIL_W, TOOLBAR_HEIGHT, barW, 0,   // height=0 → invisible but exists
             mainHwnd, nullptr, GetModuleHandle(nullptr), this);
 
         if (!m_hwnd) {
@@ -141,9 +141,9 @@ public:
     void SnapToMainWindow() {
         if (!m_hwnd || !m_mainHwnd) return;
         RECT cr; GetClientRect(m_mainHwnd, &cr);
-        int barW = cr.right - m_panelWidth;
+        int barW = cr.right - m_panelWidth - TOOLBAR_RAIL_W;
         int barH = IsVisible() ? NOTIF_HEIGHT : 0;
-        SetWindowPos(m_hwnd, nullptr, 0, TOOLBAR_HEIGHT, barW, barH,
+        SetWindowPos(m_hwnd, nullptr, TOOLBAR_RAIL_W, TOOLBAR_HEIGHT, barW, barH,
                      SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
@@ -157,9 +157,9 @@ private:
 
         // Resize to visible height
         RECT cr; GetClientRect(m_mainHwnd, &cr);
-        int barW = cr.right - m_panelWidth;
+        int barW = cr.right - m_panelWidth - TOOLBAR_RAIL_W;
         SetWindowPos(m_hwnd, HWND_TOP,
-                     0, TOOLBAR_HEIGHT, barW, NOTIF_HEIGHT,
+                     TOOLBAR_RAIL_W, TOOLBAR_HEIGHT, barW, NOTIF_HEIGHT,
                      SWP_NOACTIVATE);
         ShowWindow(m_hwnd, SW_SHOWNA);
         InvalidateRect(m_hwnd, nullptr, TRUE);
@@ -182,9 +182,9 @@ private:
         ShowWindow(m_hwnd, SW_HIDE);
         // Collapse height to 0
         RECT cr; GetClientRect(m_mainHwnd, &cr);
-        int barW = cr.right - m_panelWidth;
+        int barW = cr.right - m_panelWidth - TOOLBAR_RAIL_W;
         SetWindowPos(m_hwnd, nullptr,
-                     0, TOOLBAR_HEIGHT, barW, 0,
+                     TOOLBAR_RAIL_W, TOOLBAR_HEIGHT, barW, 0,
                      SWP_NOZORDER | SWP_NOACTIVATE);
         if (m_onDismiss) m_onDismiss();
     }

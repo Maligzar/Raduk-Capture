@@ -31,7 +31,7 @@ static constexpr int HOTKEY_GATHER_WINDOWS = 0xBEE1;
 static constexpr int HOTKEY_SAVE_LAYOUT    = 0xBEE2;
 
 static int CalcPreviewW(int clientW) {
-    int previewW = clientW - PREVIEW_PANEL_RESERVED;
+    int previewW = clientW - PREVIEW_PANEL_RESERVED - raduk::gui::TOOLBAR_RAIL_W;
     if (previewW < 100) previewW = 100;
     return previewW;
 }
@@ -132,7 +132,8 @@ bool Window::Create(const wchar_t* title, int width, int height) {
         m_previewHwnd = CreateWindowExW(
             0, L"RadukPreviewWindow", L"",
             WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-            0, TOOLBAR_HEIGHT_PX + m_notifBarH, previewW, previewH - m_notifBarH,
+            raduk::gui::TOOLBAR_RAIL_W, TOOLBAR_HEIGHT_PX + m_notifBarH,
+            previewW, previewH - m_notifBarH,
             m_hwnd, nullptr, GetModuleHandle(nullptr), nullptr);
         // Back-pointer so the child proc can reach this instance.
         if (m_previewHwnd)
@@ -734,7 +735,7 @@ void Window::OnResize(int width, int height) {
 
     // Resize the preview child window first
     if (m_previewHwnd) {
-        SetWindowPos(m_previewHwnd, nullptr, 0, topOffset,
+        SetWindowPos(m_previewHwnd, nullptr, raduk::gui::TOOLBAR_RAIL_W, topOffset,
                      previewW, previewH, SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
@@ -760,7 +761,7 @@ LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
         self = reinterpret_cast<Window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
     }
     if (self) return self->HandleMessage(msg, wParam, lParam);
-    return DefWindowProc(hwnd, msg, wParam, lParam);
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
 LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -962,7 +963,7 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             return 0;
         }
     }
-    return DefWindowProc(m_hwnd, msg, wParam, lParam);
+    return DefWindowProcW(m_hwnd, msg, wParam, lParam);
 }
 
 } // namespace raduk::gui

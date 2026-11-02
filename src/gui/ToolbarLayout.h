@@ -58,104 +58,96 @@ static constexpr int kToolbarMargin = 6;   // strip edge to first button
 static constexpr int kToolbarPad    = 4;   // between buttons
 static constexpr int kToolbarGroup  = 8;   // extra, between groups in a row
 static constexpr int kToolbarSplit  = 12;  // least between left and right
-static constexpr int kToolbarRowY[2] = { 3, 31 };
-static constexpr int TOOLBAR_HEIGHT = 58;
+// Phase 120: the strip across the top is now the status strip, and the
+// buttons live in the rail. The name stays because everything that sits
+// below the strip already asks it.
+static constexpr int TOOLBAR_HEIGHT = 32;
+static constexpr int TOOLBAR_RAIL_W = 64;
 
 // The narrowest strip there can be: WM_GETMINMAXINFO holds the preview
 // to 600 px, which is 20 past the panel's 560 once the scrollbar gap is
 // counted, and the strip spans everything left of the panel.
 static constexpr int kToolbarMinWidth = 620;
 
-// The monospace face's advance at Type::MICRO, rounded up, and the
+// The monospace face's advance at Type::BODY, rounded up, and the
 // least room a label needs beyond its text.
-static constexpr int kToolbarCharW  = 7;
+static constexpr int kToolbarCharW  = 8;
 static constexpr int kToolbarTextIn = 8;
 
 struct ToolbarItem {
     int            id;
     const wchar_t* label;    // what it says at rest
     const wchar_t* longest;  // the widest thing it ever says
-    int            width;
-    bool           groupGap; // starts a new group
+    wchar_t        glyph;    // Segoe MDL2 Assets, or 0 for words alone
 };
 
-// Grouped by what the operator is doing rather than by the order the
-// buttons were added. Acquire and capture format on top; what the
-// screen shows and everything that opens something else below.
-static constexpr ToolbarItem kToolbarRow0[] = {
-    { ID_TB_CENTROID, L"CENTROID",   L"CENTROID",       66, false },
-    { ID_TB_LOCK,     L"LOCK",       L"LOCK CAL\u2026", 74, false },
-    { ID_TB_ROI,      L"ROI",        L"ROI",            34, false },
-    { ID_TB_FOLLOW,   L"FOLLOW",     L"FOLLOW",         52, true  },
-    { ID_TB_DEROT,    L"DEROT WARN", L"DEROT WARN",     80, false },
-    // right
-    { ID_TB_RES_FULL, L"FULL",       L"FULL",           38, false },
-    { ID_TB_RES_1920, L"1920",       L"1920",           38, false },
-    { ID_TB_RES_1280, L"1280",       L"1280",           38, false },
-    { ID_TB_RES_640,  L"640",        L"640",            32, false },
-    { ID_TB_BIT8,     L"8b",         L"8b",             26, true  },
-    { ID_TB_BIT16,    L"16b",        L"16b",            32, false },
-};
-static constexpr ToolbarItem kToolbarRow1[] = {
-    { ID_TB_COLOR,    L"COLOR",      L"COLOR",          44, false },
-    { ID_TB_RETICLE,  L"RETICLE",    L"RETICLE",        58, false },
-    { ID_TB_CLIP,     L"CLIP",       L"CLIP",           36, false },
-    { ID_TB_FRAME,    L"FRAME",      L"FRAME",          44, false },
-    { ID_TB_GHOST,    L"GH",         L"GH",             26, false },
-    { ID_TB_MAP,      L"MAP",        L"MAP",            30, true  },
-    { ID_TB_GOTO,     L"GOTO",       L"GOTO",           38, false },
-    { ID_TB_RUNS,     L"RUNS",       L"RUNS",           38, false },
-    // right
-    { ID_TB_HW,       L"HW OFF",     L"HW OFF",         50, false },
-    { ID_TB_AI,       L"AI",         L"AI",             24, false },
-    { ID_TB_DASH,     L"DASH",       L"DASH",           38, false },
-    { ID_TB_STACK,    L"STACK",      L"STACK",          44, false },
-    { ID_TB_HELP,     L"?",          L"?",              24, false },
-    { ID_TB_EXIT,     L"EXIT",       L"EXIT",           38, true  },
-};
+// Phase 120: one home for each control. The toolbar's two rows mixed
+// four jobs, so they went where the job is.
 
-struct ToolbarRow {
-    const ToolbarItem* items;
-    int count;
-    int firstRight;   // index of the first right-aligned button
+// What opens something else, or leaves: the rail down the left edge.
+static constexpr ToolbarItem kRailItems[] = {
+    { ID_TB_MAP,   L"MAP",    L"MAP",    L'\xE909' },
+    { ID_TB_GOTO,  L"GOTO",   L"GOTO",   L'\xE707' },
+    { ID_TB_RUNS,  L"RUNS",   L"RUNS",   L'\xE8EE' },
+    { ID_TB_STACK, L"STACK",  L"STACK",  L'\xE81E' },
+    { ID_TB_DASH,  L"DASH",   L"DASH",   L'\xE9D9' },
+    { ID_TB_AI,    L"AI",     L"AI",     L'\xE8BD' },
+    { ID_TB_HW,    L"HW OFF", L"HW OFF", L'\xE950' },
+    { ID_TB_HELP,  L"HELP",   L"HELP",   L'\xE9CE' },
+    { ID_TB_EXIT,  L"EXIT",   L"EXIT",   L'\xE7E8' },   // always last, at the foot
 };
-static constexpr ToolbarRow kToolbarRows[2] = {
-    { kToolbarRow0, (int)(sizeof(kToolbarRow0) / sizeof(kToolbarRow0[0])), 5 },
-    { kToolbarRow1, (int)(sizeof(kToolbarRow1) / sizeof(kToolbarRow1[0])), 8 },
+// What changes how the image is shown: over the image.
+static constexpr ToolbarItem kViewItems[] = {
+    { ID_TB_COLOR,   L"COLOR",   L"COLOR",   0 },
+    { ID_TB_RETICLE, L"RETICLE", L"RETICLE", 0 },
+    { ID_TB_CLIP,    L"CLIP",    L"CLIP",    0 },
+    { ID_TB_GHOST,   L"GHOST",   L"GHOST",   0 },
+};
+// In the panel's Camera tab.
+static constexpr ToolbarItem kCameraItems[] = {
+    { ID_TB_RES_FULL, L"FULL",  L"FULL",  0 },
+    { ID_TB_RES_1920, L"1920",  L"1920",  0 },
+    { ID_TB_RES_1280, L"1280",  L"1280",  0 },
+    { ID_TB_RES_640,  L"640",   L"640",   0 },
+    { ID_TB_BIT8,     L"8b",    L"8b",    0 },
+    { ID_TB_BIT16,    L"16b",   L"16b",   0 },
+    { ID_TB_FRAME,    L"FRAME", L"FRAME", 0 },
+};
+// In the panel's Mount tab.
+static constexpr ToolbarItem kMountItems[] = {
+    { ID_TB_CENTROID, L"CENTROID", L"CENTROID",       0 },
+    { ID_TB_LOCK,     L"LOCK",     L"LOCK CAL\u2026", 0 },
+    { ID_TB_ROI,      L"ROI",      L"ROI",            0 },
+    { ID_TB_FOLLOW,   L"FOLLOW",   L"FOLLOW",         0 },
+    { ID_TB_DEROT,    L"DEROT WARN", L"DEROT WARN",   0 },
 };
 
-// Left and right edges of each button in one row. The right group is
-// anchored to the strip's right edge, but never closer to the left
-// group than kToolbarSplit: in a window too narrow to hold a row the
-// buttons run off the end rather than landing on each other.
-inline void PlaceToolbarRow(const ToolbarRow& row, int stripW, int* outX) {
-    int x = kToolbarMargin;
-    for (int i = 0; i < row.firstRight; i++) {
-        if (i > 0 && row.items[i].groupGap) x += kToolbarGroup;
-        outX[i] = x;
-        x += row.items[i].width + kToolbarPad;
-    }
-    const int leftEnd = x - kToolbarPad;
+template <int N>
+constexpr int ItemCount(const ToolbarItem (&)[N]) { return N; }
 
-    int rightW = 0;
-    for (int i = row.firstRight; i < row.count; i++) {
-        if (i > row.firstRight) {
-            rightW += kToolbarPad;
-            if (row.items[i].groupGap) rightW += kToolbarGroup;
-        }
-        rightW += row.items[i].width;
-    }
+static constexpr int kRailBtnH  = 56;
+static constexpr int kRailGap   = 2;
+static constexpr int kRailTop   = 6;
+static constexpr int kViewBtnH  = 28;
+static constexpr int kViewPad   = 2;
 
-    x = stripW - kToolbarMargin - rightW;
-    if (x < leftEnd + kToolbarSplit) x = leftEnd + kToolbarSplit;
-    for (int i = row.firstRight; i < row.count; i++) {
-        if (i > row.firstRight) {
-            x += kToolbarPad;
-            if (row.items[i].groupGap) x += kToolbarGroup;
-        }
-        outX[i] = x;
-        x += row.items[i].width;
-    }
+// Where a rail button goes. Exit stands apart at the foot, so a slip
+// off AI or HELP cannot land on it.
+inline int RailY(int index, int count, int railH) {
+    if (index == count - 1) return railH - kRailBtnH - kRailTop;
+    return kRailTop + index * (kRailBtnH + kRailGap);
+}
+
+inline int ItemTextWidth(const wchar_t* s) {
+    int n = 0;
+    while (s[n]) ++n;
+    return n * kToolbarCharW + kToolbarTextIn;
+}
+
+inline int ViewStripWidth() {
+    int w = 0;
+    for (const ToolbarItem& d : kViewItems) w += ItemTextWidth(d.longest) + kViewPad;
+    return w - kViewPad;
 }
 
 // "[HW] 3/3" is pinned by tests/hardware_link.cpp and the log and the

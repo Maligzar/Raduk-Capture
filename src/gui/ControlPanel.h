@@ -76,6 +76,16 @@ public:
         if (IsCollapsed(Section::Camera)) ToggleCollapse(Section::Camera);
     }
 
+    // Phase 120: the buttons on the tabs that ToolbarStrip still drives.
+    void SetStripHooks(std::function<void(int, HWND)> adopt,
+                       std::function<void(const DRAWITEMSTRUCT*)> draw,
+                       std::function<void(int)> command) {
+        m_stripAdopt   = std::move(adopt);
+        m_stripDraw    = std::move(draw);
+        m_stripCommand = std::move(command);
+        RebuildControls(PANEL_WIDTH, true);
+    }
+
     // Called each render tick with latest frame analysis.
     // Point the TELESCOPE card's GoTo box at an object.
     //
@@ -595,6 +605,9 @@ private:
     // Collapse state. Every collapsible section starts COLLAPSED - see
     // InitCollapsed(), called from Create().
     std::unordered_map<Section, bool> m_collapsed;
+    std::function<void(int, HWND)> m_stripAdopt;
+    std::function<void(const DRAWITEMSTRUCT*)> m_stripDraw;
+    std::function<void(int)> m_stripCommand;
     void InitCollapsed() {
         for (Section s : { Section::Image,
                            Section::Camera, Section::EAF, Section::Mount,
@@ -638,9 +651,24 @@ private:
     // because the two are only meaningful together.
     std::string m_notesProfile;
     std::unordered_map<HWND, Section> m_headerSection;
-    bool IsCollapsed(Section s) const {
-        auto it = m_collapsed.find(s);
-        return it != m_collapsed.end() && it->second;
+    // Phase 120: the sections became tabs. A section in the current tab
+    // is open and the rest are absent, which is what collapsed already
+    // meant to everything that builds or reads them.
+    static int TabOf(Section s) {
+        switch (s) {
+            case Section::Image: case Section::Camera: return 0;
+            case Section::EAF:                         return 1;
+            case Section::Mount:                       return 2;
+            default:                                   return 3;
+        }
+    }
+    bool IsCollapsed(Section s) const { return TabOf(s) != m_tab; }
+    int  m_tab = 0;
+    void SetTab(int tab) {
+        if (tab == m_tab) return;
+        m_tab = tab;
+        m_scrollY = 0;
+        RebuildControls(PANEL_WIDTH, true);
     }
     // There is no GDI-painted strip any more.
     //
@@ -659,6 +687,9 @@ private:
     // clearer there than removing the term.
     int GdiStripHeight() const { return 0; }
     void ToggleCollapse(Section s) {
+        // Anything asking for a section means show me it.
+        if (TabOf(s) != m_tab) SetTab(TabOf(s));
+        return;
         // Preserve scroll position so panel doesn't jump to top on collapse
         int savedScroll = m_scrollY;
         m_collapsed[s] = !IsCollapsed(s);

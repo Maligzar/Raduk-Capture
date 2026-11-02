@@ -7,6 +7,10 @@ hold regardless: `rig.ini` carries the real site and `WsToken`, so nothing
 is ever packaged from that folder. The licence question in section 6 is
 answered: PolyForm Noncommercial stays.
 
+**v3.0 went out as a source release through phase 114, with no installer or
+binaries.** Everything below is still parked. The 2.5.0 in this plan is out
+of date, and the next packaged version needs its own number.
+
 P5.4's remaining halves. The paths half shipped on 2026-10-26. Chosen on
 2026-11-01 because Distribution carries 15% of the comparison's weight at
 a score of 1, and it is the largest gap that needs neither sky nor new

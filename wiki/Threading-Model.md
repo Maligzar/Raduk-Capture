@@ -1,6 +1,7 @@
 # Threading Model
 
-Six threads, each with a single owner and a single job. The design goal is
+Six main threads, each with a single owner and a single job, plus the
+smaller ones listed under the table. The design goal is
 that the capture thread never blocks on anything — not a mutex, not disk
 I/O, not a serial port.
 
@@ -44,14 +45,18 @@ I/O, not a serial port.
 | Thread | Owner | Priority | Cadence | Job |
 |--------|-------|----------|---------|-----|
 | Main / GUI | `Window::Run()` | Normal | ~30–40 fps | Message pump, D2D render, panel, readouts, callbacks |
-| Capture | `CaptureThread` | Real-time, optionally CPU-pinned | As fast as the sensor delivers | `ASIGetVideoData()` → timestamp → ring slot |
-| Writer | `CaptureManager::WriterLoop()` | Normal | As fast as the disk allows | Drain `WriteBuffer` → `SERWriter` |
+| Capture | `CaptureThread` | Time-critical, optionally CPU-pinned | As fast as the sensor delivers | Frame → timestamp → frame sink (recording, ROI following) → ring slot |
+| Writer | `CaptureManager::WriterLoop()` | Above normal | As fast as the disk allows | Drain `WriteBuffer` → `CaptureWriter` (SER or FITS) |
 | Analyzer | `FrameAnalyzer::Run()` | Below normal | ~2 Hz effective | Histograms, sharpness, seeing, centroid |
-| Correction | `CentroidTracker::Run()` | Normal | 250 ms (locked) / 500 ms (centering) | Solve pixel error → `PulseGuide` |
+| Correction | `CentroidTracker::Run()` | Above normal | 250 ms (locked) / 500 ms (centering) | Solve pixel error → `PulseGuide` |
 | Autofocus | `AutofocusRoutine::ScanThread()` | Normal | On demand | EAF sweep, sample averaging, parabola fit |
 | WebSocket | `WebSocketServer` | Normal | 500 ms broadcast | Accept clients, broadcast telemetry, receive commands |
 
-Plus `SiteLocator` which uses a short-lived `std::async` for the Windows
+Plus `PreviewStreamer` for dashboard pictures, `LeobenClient` for weather, the
+NexStar poll and watchdog threads, and on-demand threads for ASTAP,
+AutoStakkert, the assistant and the status window's drive scan.
+
+`SiteLocator` uses a short-lived `std::async` for the Windows
 Location query, so a denied or hanging consent prompt never blocks startup.
 
 ---
@@ -64,7 +69,14 @@ directly costs frames.
 
 **What it does, per frame:** acquire a slot, call `ASIGetVideoData()` with
 a timeout derived from the current exposure, stamp it with a QPC
-microsecond timestamp and a monotonic frame number, commit the slot.
+microsecond timestamp and a monotonic frame number, run the frame sink,
+commit the slot.
+
+**Recording happens here.** The frame sink is called for every frame, before
+the ring commit, and submits it to the `WriteBuffer`. Recording used to run
+from the render loop, which took one frame per pass and topped out near
+62 fps. The ring now serves only the preview and analyzer, which may skip
+frames. Anything added to the sink must not block.
 
 **Statistics it maintains** (`CaptureStats`, all atomic, safe to read from
 any thread):
@@ -90,10 +102,10 @@ recovered sets a fault flag the UI can report.
 
 Owned by `CaptureManager`, started at `StartRecording()` and joined at
 `StopRecording()`. It drains the `WriteBuffer` sequentially and writes to
-the `SERWriter`.
+the active `CaptureWriter`, `SERWriter` or `FITSWriter`.
 
 **It scores frames itself.** Since Phase 76 the writer thread computes each
-frame's sharpness rather than trusting the live hint from the render loop.
+frame's sharpness rather than trusting a live hint.
 But it has no idea where the planet is, and measuring the frame centre
 reads background noise whenever the planet is off centre — so the producer
 passes `cropCX`/`cropCY` from the analyzer's last known centroid. The
@@ -102,7 +114,7 @@ position still places the measurement well.
 
 **Pause does not close the file.** `Pause()` makes `SubmitFrame()` skip
 incoming frames while the writer keeps draining whatever is already
-buffered, so the SER stays open and valid.
+buffered, so the file stays open and valid.
 
 ---
 

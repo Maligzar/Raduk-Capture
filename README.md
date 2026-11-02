@@ -100,7 +100,7 @@ app also loads as reference context for the AI assistant.
 - [RadukCapture-Help.md](RadukCapture-Help.md) — operator reference and
   first-night walkthrough, also the AI assistant's app knowledge.
 - [RadukCapture-Architecture.md](RadukCapture-Architecture.md) —
-  architecture and build plan, with the phase roadmap.
+  how it is built, what has been done, and what is planned.
 - [docs/](docs) — code reviews, security review, tracking findings, phase
   plans, and the clear-night checklist.
 
@@ -115,18 +115,22 @@ a four-shape reticle (crosshair, circle, collimation rings, framing box) that
 can be moved, sized and rotated, and a framing shot that boosts gain and
 exposure for five seconds then restores them.
 
-Not built yet, in rough priority order: framing recall (returning to a
-previous session's framing), a push-to assistant, focus aids beyond
-autofocus (FWHM, Bahtinov), and AVI/FITS output. Click-to-recentre
-shipped on 2026-10-18 — `Ctrl`+click the preview and the mount puts
-that spot in the middle, through the measured guide calibration. A
-polar-alignment assistant is backlogged rather than queued: the mount
-is alt-az and there is no wedge, so the procedure does not apply. Calibration
-frames exist as a preview aid only — the recording stays raw. Full
-stacking is deliberately out of scope — AutoStakkert does
-that better. See **What is not built yet** in
-[RadukCapture-Help.md](RadukCapture-Help.md) and the phase table in
-[RadukCapture-Architecture.md](RadukCapture-Architecture.md).
+Built more recently, and mostly unproven on the sky: FITS output, framing
+recall, click-to-recentre, a push-to assistant, ROI following, surface lock,
+lunar and solar mosaics, a derotation limit, and Autorun sequences that hold
+for the seeing and rank their runs.
+
+Not built yet: satellite pass prediction and high-rate mount control,
+multi-star FWHM and Bahtinov focus aids, multi-session statistics, image
+annotation, stellar photometry and AVI output. A polar-alignment assistant
+is backlogged rather than queued: the mount is alt-az and there is no wedge,
+so the procedure does not apply. Calibration frames exist as a preview aid
+only — the recording stays raw. Full stacking is deliberately out of scope
+— AutoStakkert does that better.
+
+What has been done and what is planned is in sections 12 and 13 of
+[RadukCapture-Architecture.md](RadukCapture-Architecture.md). The evidence
+for each phase is in [docs/PHASE-STATUS.md](docs/PHASE-STATUS.md).
 
 ## License
 

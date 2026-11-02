@@ -266,11 +266,12 @@ display is not the cause and the cause is exposure, focus, or the sky. If it
 lists something, name it and say which key turns it off — do not send them
 hunting through the camera sliders for a fault that is not there.
 
-**Do not promise what is not built.** There is no dark-frame subtraction, no
-flat-field correction, no FITS or AVI output, no polar-alignment assistant, no
-Bahtinov or FWHM focus aid, and no click-to-recentre. The section "What is not
-built yet" is the list. Say it plainly and say what to do instead — darks
-belong in the stacker afterwards, not here.
+**Do not promise what is not built.** There is no AVI output, no
+polar-alignment assistant, no Bahtinov or multi-star FWHM focus aid, no image
+annotation and no stellar photometry. Dark and flat correction exist but only
+change the preview, so darks for the final image still belong in the stacker.
+The section "What is not built yet" is the list. Say it plainly and say what
+to do instead.
 
 **Selecting a target sets the camera up.** Picking an object on the map or
 in GoTo loads that target's profile: gain, exposure, resolution, bit depth,
@@ -2470,23 +2471,25 @@ exist and are applied to what you see, but the recorded SER stays raw — see
 [Dark and flat frames](#dark-and-flat-frames). For the final image, take
 darks and flats in your stacker.
 
-**Output formats.** SER only, plus PNG snapshots. No AVI, and no FITS — the
-plate solver reads FITS but nothing here writes it.
+**Output formats.** No AVI. Recordings are SER or a FITS cube, and snapshots
+are PNG.
 
 **Focus aids beyond autofocus.** No multi-star FWHM score and no Bahtinov
-mask assistant. Autofocus plus the sharpness readout is what there is.
+mask assistant. **Single-star HFD and FWHM do exist**, on the sharpness
+readout.
 
 **Polar alignment assistant.** Nothing guides a polar align. The align
 helper covers mount orientation and the keep-out sector, which is a
 different job.
 
-**Alignment and framing helpers.** No push-to assistant, and no "go to
-previous image" framing recall yet — that one is designed but not built.
-**Click-to-recentre does exist**: `Ctrl`+click the preview and the mount
-puts that spot in the middle — see [Centring by
-clicking](#centring-by-clicking). So do the reticle (four shapes, movable,
-sizeable, rotatable) and the framing shot — see the **Reticle** and
-**Framing shot** sections.
+**Alignment and framing helpers.** All of these exist, so do not deny them.
+`Ctrl`+click the preview and the mount puts that spot in the middle — see
+[Centring by clicking](#centring-by-clicking). The GoTo panel's `PUSH-TO`
+button repeats a plate solve and says which way to push the scope. `Shift+G`
+returns to a past capture's framing — see [Going back to a previous
+capture](#going-back-to-a-previous-capture-shiftg-v21). So do the reticle
+(four shapes, movable, sizeable, rotatable) and the framing shot — see the
+**Reticle** and **Framing shot** sections.
 
 **Display extras.** Nothing outstanding here worth listing. The
 multi-monitor workspace exists and remembers where every window goes — see
@@ -2495,10 +2498,11 @@ night vision across the whole interface, the single-channel R/G/B view and
 the display stretch — see [Display stretch](#display-stretch).
 
 **Analysis extras.** No stellar photometry, no multi-session statistics
-dashboard, no solar/lunar framing assistant, and no image annotation overlay
-on the preview. **Sensor analysis and the smart histogram do exist** — the
-Gr/Gb split, per-channel headroom in stops, and which channel is limiting
-the exposure.
+dashboard, and no image annotation overlay on the preview. **Sensor analysis
+and the smart histogram do exist** — the Gr/Gb split, per-channel headroom in
+stops, and which channel is limiting the exposure. **So does solar and lunar
+framing**: the GoTo panel reports how a target fits the frame after a slew,
+and `Ctrl+Shift+M` runs a mosaic across it.
 
 **ADC alignment tool — built, and dark.** This is the one entry that is
 neither "exists" nor "missing". The alignment window is built and tested
@@ -2597,9 +2601,11 @@ A capture recorded before v2.1 has no record, and recall says so.
 
 ## Phase History
 
-**The current version is v2.1**; the title bar reads `2.1.0`. v2.0
-matches the `v2.0` tag; v2.1 adds phase 48, the observation record and
-framing recall, and has no tag of its own yet. Elsewhere in this file, labels from v1.2.4 to v1.2.7 date
+**The current version is v3.0**; the title bar reads `3.0.0`. v2.0 and v3.0
+match their tags, and v2.1 to v2.4 have no tag of their own. Rows marked
+`pre-2.1` shipped before v2.1 under no number of their own. This
+table says what shipped, not what has been proven;
+[`docs/PHASE-STATUS.md`](docs/PHASE-STATUS.md) says that. Elsewhere in this file, labels from v1.2.4 to v1.2.7 date
 when a behaviour changed. They were never declared in `src/Version.h`,
 which stayed at 1.2.3 from 2026-10-13 until it was set to 2.0.0 on
 2026-10-25, but they are kept because they still put the changes in
@@ -2702,11 +2708,39 @@ order.
 | v1.2.3 | 37 | Display stretch (`L`), and the histogram shows the real R/G/B channels for the first time |
 | v1.2.3 | 45 | Reticle moves, sizes and rotates (Ctrl+drag, Ctrl+wheel, Shift+wheel) |
 | v1.2.3 | 26 | Night vision reddens the whole interface, not just the preview |
+| pre-2.1 | 89 | Share view for a second screen (`Shift+V`) |
+| pre-2.1 | 90 | A second sky map (`Shift+M`) |
+| pre-2.1 | 91 | The emulator gets a field of view, up to the full sensor |
+| pre-2.1 | 92 | Object panel, on the knowledge database |
+| pre-2.1 | 46 | `[HW]` connects or disconnects all hardware; `MountProxy` |
+| pre-2.1 | 47 | `Ctrl`+click recentres on the guide calibration |
 | v2.1 | 48 | Observation record beside every capture; `Shift+G` recalls a past capture's framing |
 | v2.2 | B3 | The browser dashboard shows the telescope's view, about twice a second |
 | v2.3 | — | `[DASH]` opens the browser dashboard already signed in |
 | v2.4 | — | The dashboard from any device on the home network, staying connected; weather and sky from Leoben into the ADC, the status window, the observation record and the assistant |
+| v3.0 | 30 | Push-to assistant in the GoTo panel |
+| v3.0 | 47b | Coordinates under the cursor and a direction rose, from a plate solve |
+| v3.0 | 93 | Variable-rate slewing; the preview only produces pixels when the frame changed |
+| v3.0 | 94 | Emulator stars, planet sizes from the ephemeris, and a Moon with a terminator |
+| v3.0 | 31/32 | Single-star HFD and FWHM |
+| v3.0 | 96 | Visual system built to survive night vision |
+| v3.0 | 97 | Lunar and solar sizes, tracking rates, framing report, mosaics (`Ctrl+Shift+M`) |
+| v3.0 | 98 | Camera panel review: log exposure slider, typed exposure, AE fixes, recording timer wired |
+| v3.0 | 99, 100 | Dead code sweep, docking deleted, exposure rails enforced |
+| v3.0 | 101 | Panels keep their saved open or closed state |
+| v3.0 | 102 | POINT SOLVE → SYNC and PLANET LOCK wired; emergency stop disengages the lock |
+| v3.0 | 103, 104 | Object panel and share view text stay inside their windows |
+| v3.0 | 105 | The recording timer counts on frame-limited runs |
+| v3.0 | 106 | FITS cube output, `[STACK]`, `Shift+K` |
+| v3.0 | 107 | ROI following, `[FOLLOW]` |
+| v3.0 | 108 | Derotation limit, `[DEROT]`, WinJUPOS file names |
+| v3.0 | 109 | Surface lock for a target that fills the frame |
+| v3.0 | 110 | Plate scale check on every solve |
+| v3.0 | 111 | The toolbar's two rows |
+| v3.0 | 112 | Camera controls review: typed values, sliders show the camera, AE hold, light ladder |
+| v3.0 | 113 | Autorun, `[RUNS]` |
+| v3.0 | 114 | Seeing-aware runs: hold for the sky, rank the runs |
 
 ---
 
-*RadukCapture Help v2.4 — Updated after each release*
+*RadukCapture Help v3.0 — Updated after each release*

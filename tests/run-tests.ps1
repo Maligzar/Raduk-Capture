@@ -60,6 +60,7 @@ $Tests = @(
     @{ Name = "audience_layout"; Sources = @() }
     @{ Name = "operator_palette"; Sources = @() }
     @{ Name = "lunar_framing";   Sources = @() }
+    @{ Name = "lunar_features";  Sources = @() }
     @{ Name = "mosaic_run";      Sources = @() }
     @{ Name = "camera_panel";    Sources = @() }
     @{ Name = "camera_controls"; Sources = @() }

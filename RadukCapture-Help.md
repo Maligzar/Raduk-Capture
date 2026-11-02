@@ -2502,7 +2502,11 @@ dashboard, and no image annotation overlay on the preview. **Sensor analysis
 and the smart histogram do exist** — the Gr/Gb split, per-channel headroom in
 stops, and which channel is limiting the exposure. **So does solar and lunar
 framing**: the GoTo panel reports how a target fits the frame after a slew,
-and `Ctrl+Shift+M` runs a mosaic across it.
+and `Ctrl+Shift+M` runs a mosaic across it. **Lunar features** are in the
+GoTo search too: type `Copernicus` and slew to `Moon - Copernicus`. There are
+99, and the log says whether each one is lit, past the limb, or how long until
+sunrise there. The Moon and its features are pointed at from your site, so set
+the site first: without it a lunar slew can be a degree off.
 
 **ADC alignment tool — built, and dark.** This is the one entry that is
 neither "exists" nor "missing". The alignment window is built and tested
@@ -2726,6 +2730,7 @@ order.
 | 2.4+ | 31/32 | Single-star HFD and FWHM |
 | 2.4+ | 96 | Visual system built to survive night vision |
 | 2.4+ | 97 | Lunar and solar sizes, tracking rates, framing report, mosaics (`Ctrl+Shift+M`) |
+| 2.4+ | 115 | Lunar feature targeting, and parallax on every lunar slew |
 | 2.4+ | 98 | Camera panel review: log exposure slider, typed exposure, AE fixes, recording timer wired |
 | 2.4+ | 99, 100 | Dead code sweep, docking deleted, exposure rails enforced |
 | 2.4+ | 101 | Panels keep their saved open or closed state |

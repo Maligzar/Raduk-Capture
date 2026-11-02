@@ -2605,10 +2605,10 @@ A capture recorded before v2.1 has no record, and recall says so.
 
 ## Phase History
 
-**The current version is v2.4**; the title bar reads `2.4.0`. v2.0
-matches the `v2.0` tag, and no later version has a tag of its own. Rows
-marked `2.4+` shipped after 2.4.0 was set, without changing the number, and
-rows marked `pre-2.1` shipped before v2.1 under no number of their own. This
+**The current version is v3.0**; the title bar reads `3.0.0`. v2.0 and v3.0
+match their tags, and v2.1 to v2.4 have no tag of their own. Rows marked
+`pre-2.1` shipped before v2.1 under no number of their own, and rows
+marked `3.0+` shipped after 3.0.0 without changing the number. This
 table says what shipped, not what has been proven;
 [`docs/PHASE-STATUS.md`](docs/PHASE-STATUS.md) says that. Elsewhere in this file, labels from v1.2.4 to v1.2.7 date
 when a behaviour changed. They were never declared in `src/Version.h`,
@@ -2723,30 +2723,30 @@ order.
 | v2.2 | B3 | The browser dashboard shows the telescope's view, about twice a second |
 | v2.3 | — | `[DASH]` opens the browser dashboard already signed in |
 | v2.4 | — | The dashboard from any device on the home network, staying connected; weather and sky from Leoben into the ADC, the status window, the observation record and the assistant |
-| 2.4+ | 30 | Push-to assistant in the GoTo panel |
-| 2.4+ | 47b | Coordinates under the cursor and a direction rose, from a plate solve |
-| 2.4+ | 93 | Variable-rate slewing; the preview only produces pixels when the frame changed |
-| 2.4+ | 94 | Emulator stars, planet sizes from the ephemeris, and a Moon with a terminator |
-| 2.4+ | 31/32 | Single-star HFD and FWHM |
-| 2.4+ | 96 | Visual system built to survive night vision |
-| 2.4+ | 97 | Lunar and solar sizes, tracking rates, framing report, mosaics (`Ctrl+Shift+M`) |
-| 2.4+ | 115 | Lunar feature targeting, and parallax on every lunar slew |
-| 2.4+ | 98 | Camera panel review: log exposure slider, typed exposure, AE fixes, recording timer wired |
-| 2.4+ | 99, 100 | Dead code sweep, docking deleted, exposure rails enforced |
-| 2.4+ | 101 | Panels keep their saved open or closed state |
-| 2.4+ | 102 | POINT SOLVE → SYNC and PLANET LOCK wired; emergency stop disengages the lock |
-| 2.4+ | 103, 104 | Object panel and share view text stay inside their windows |
-| 2.4+ | 105 | The recording timer counts on frame-limited runs |
-| 2.4+ | 106 | FITS cube output, `[STACK]`, `Shift+K` |
-| 2.4+ | 107 | ROI following, `[FOLLOW]` |
-| 2.4+ | 108 | Derotation limit, `[DEROT]`, WinJUPOS file names |
-| 2.4+ | 109 | Surface lock for a target that fills the frame |
-| 2.4+ | 110 | Plate scale check on every solve |
-| 2.4+ | 111 | The toolbar's two rows |
-| 2.4+ | 112 | Camera controls review: typed values, sliders show the camera, AE hold, light ladder |
-| 2.4+ | 113 | Autorun, `[RUNS]` |
-| 2.4+ | 114 | Seeing-aware runs: hold for the sky, rank the runs |
+| v3.0 | 30 | Push-to assistant in the GoTo panel |
+| v3.0 | 47b | Coordinates under the cursor and a direction rose, from a plate solve |
+| v3.0 | 93 | Variable-rate slewing; the preview only produces pixels when the frame changed |
+| v3.0 | 94 | Emulator stars, planet sizes from the ephemeris, and a Moon with a terminator |
+| v3.0 | 31/32 | Single-star HFD and FWHM |
+| v3.0 | 96 | Visual system built to survive night vision |
+| v3.0 | 97 | Lunar and solar sizes, tracking rates, framing report, mosaics (`Ctrl+Shift+M`) |
+| v3.0 | 98 | Camera panel review: log exposure slider, typed exposure, AE fixes, recording timer wired |
+| v3.0 | 99, 100 | Dead code sweep, docking deleted, exposure rails enforced |
+| v3.0 | 101 | Panels keep their saved open or closed state |
+| v3.0 | 102 | POINT SOLVE → SYNC and PLANET LOCK wired; emergency stop disengages the lock |
+| v3.0 | 103, 104 | Object panel and share view text stay inside their windows |
+| v3.0 | 105 | The recording timer counts on frame-limited runs |
+| v3.0 | 106 | FITS cube output, `[STACK]`, `Shift+K` |
+| v3.0 | 107 | ROI following, `[FOLLOW]` |
+| v3.0 | 108 | Derotation limit, `[DEROT]`, WinJUPOS file names |
+| v3.0 | 109 | Surface lock for a target that fills the frame |
+| v3.0 | 110 | Plate scale check on every solve |
+| v3.0 | 111 | The toolbar's two rows |
+| v3.0 | 112 | Camera controls review: typed values, sliders show the camera, AE hold, light ladder |
+| v3.0 | 113 | Autorun, `[RUNS]` |
+| v3.0 | 114 | Seeing-aware runs: hold for the sky, rank the runs |
+| 3.0+ | 115 | Lunar feature targeting, and parallax on every lunar slew |
 
 ---
 
-*RadukCapture Help v2.4 — Updated after each release*
+*RadukCapture Help v3.0 — Updated after each release*

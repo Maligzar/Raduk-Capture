@@ -160,7 +160,7 @@ never verified, and the fix costs no code.
 
 | Item | State |
 |------|-------|
-| Installer and first release (the rest of phase 20 and P5.4) | Parked by the owner, 2026-11-01 |
+| Installer and binary downloads (the rest of phase 20 and P5.4) | Parked by the owner, 2026-11-01. v3.0 is a source release |
 | Polar alignment (16) | Backlogged until a wedge and probably a new mount |
 | Live stacking preview (17) | Dropped, superseded by the quick-look stacker |
 | OBS / RTSP streaming (7) | Dropped |
@@ -309,7 +309,8 @@ Condensed from the help file's phase history. The full table is in
 | v2.1 | Phase 48: an observation record beside every capture, and `Shift+G` framing recall |
 | v2.2 | B3: the browser dashboard shows the telescope's view, a small JPEG about twice a second; every dashboard socket gets a 500 ms send timeout |
 | v2.3 | `[DASH]` on the toolbar opens the browser dashboard with the access token already in it, and it connects by itself |
-| v2.4 | **The current version, and phases 89 to 114 shipped without changing the number.** The dashboard from any device on the home network (`WsLan`, `WsLanOpen`), and it stays connected; weather and sky from Leoben into the ADC, the status window, the observation record and the assistant. No tag yet |
+| v2.4 | The dashboard from any device on the home network (`WsLan`, `WsLanOpen`), and it stays connected; weather and sky from Leoben into the ADC, the status window, the observation record and the assistant. No tag yet |
+| v3.0 | **The current version.** Matches the `v3.0` tag, a source release through phase 114: FITS output, ROI following, surface lock, the derotation limit, lunar and solar mosaics, push-to, the pixel readout, Autorun with seeing-aware runs, the camera controls review, the visual system and the two-row toolbar |
 
 ### Two version boundaries that invalidate old numbers
 

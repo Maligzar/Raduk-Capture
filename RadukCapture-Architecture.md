@@ -1,7 +1,7 @@
 # RadukCapture: Architecture and Roadmap
 
 Planetary capture software for the ZWO ASI678MC, ZWO EAF and Celestron 8SE.
-Version 2.4.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 114.
+Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 114.
 
 This file describes how the application is built, what exists, and what is
 left to do. It was rewritten because its old build plan had stopped at about
@@ -617,7 +617,7 @@ cheapest way to shrink the status file's debt.
 
 | Item | State | Comes back if |
 |---|---|---|
-| Installer and first release (P5.4 remainder, 20) | Parked by the owner | A release is wanted: [`docs/Plan-Installer-And-Release-PARKED.md`](docs/Plan-Installer-And-Release-PARKED.md) |
+| Installer and binary downloads (P5.4 remainder, 20) | Parked by the owner. v3.0 is a source release | A release is wanted: [`docs/Plan-Installer-And-Release-PARKED.md`](docs/Plan-Installer-And-Release-PARKED.md) |
 | Second camera brand | Unranked: hardware breadth no longer drives the order | A second camera is wanted. The `ICamera` seam exists and no second backend has tested it |
 | 94.4, 94.5 solvable emulator field | Backlogged | Solve paths need indoor exercise enough to justify a catalog to about mag 14 |
 | P4.1 Xbox controller | Backlogged | A controller and adapter exist. There is no Bluetooth on this machine |
@@ -630,4 +630,4 @@ cheapest way to shrink the status file's debt.
 
 ---
 
-*RadukCapture 2.4.0*
+*RadukCapture 3.0.0*

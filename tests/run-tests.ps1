@@ -62,6 +62,8 @@ $Tests = @(
     @{ Name = "lunar_framing";   Sources = @() }
     @{ Name = "lunar_features";  Sources = @() }
     @{ Name = "satellite_passes"; Sources = @() }
+    @{ Name = "satellite_image_lock"; Sources = @() }
+    @{ Name = "satellite_plan";   Sources = @() }
     @{ Name = "mosaic_run";      Sources = @() }
     @{ Name = "camera_panel";    Sources = @() }
     @{ Name = "camera_controls"; Sources = @() }

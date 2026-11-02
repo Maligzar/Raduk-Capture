@@ -114,6 +114,7 @@ public:
         m_nearSince = -1.0;
         m_lostSince = -1.0;
         m_abort = false;
+        m_fault = false;
         m_reason.clear();
         m_errDeg = 0.0;
         m_peakErrDeg = 0.0;
@@ -139,7 +140,7 @@ public:
         case Phase::Slewing:
             if (!m_issued) { m_issued = true; o.goTo = true; return o; }
             if (now >= m_cfg.endSec) {
-                Finish(o, Phase::Failed, "the pass ended before the slew did");
+                FinishHarmless(o, "the pass ended before the slew did");
                 break;
             }
             if (in > m_cfg.slewTimeoutSec) {
@@ -154,7 +155,7 @@ public:
         case Phase::Holding:
             if (now < m_cfg.startSec) break;
             if (now >= m_cfg.endSec) {
-                Finish(o, Phase::Failed, "the pass was over");
+                FinishHarmless(o, "the pass was over");
                 break;
             }
             o.trackingOff = true;
@@ -179,6 +180,11 @@ public:
                m_phase == Phase::Acquiring || m_phase == Phase::Tracking;
     }
     const std::string& Reason() const { return m_reason; }
+
+    // Phase 118. A failure that says something about the telescope, as
+    // against one that only cost this pass. A night plan stops on the
+    // first kind: the next pass would meet the same fault, unattended.
+    bool TelescopeFault() const { return m_fault; }
     double ErrorDeg() const { return m_errDeg; }         // on the sky
     double PeakErrorDeg() const { return m_peakErrDeg; } // once on target
     bool Saturated() const { return m_saturated; }
@@ -195,6 +201,13 @@ private:
         if (m_capturing) { o.endCapture = true; m_capturing = false; }
         m_phase = p;
         if (why) m_reason = why;
+        m_fault = p == Phase::Failed && !m_harmless;
+    }
+
+    void FinishHarmless(Output& o, const char* why) {
+        m_harmless = true;
+        Finish(o, Phase::Failed, why);
+        m_harmless = false;
     }
 
     static double Wrap(double d) {
@@ -273,7 +286,7 @@ private:
                 m_nearSince = -1.0;
                 if (!m_saturated &&
                     now - m_entered > m_cfg.acquireLimitSec) {
-                    Finish(o, Phase::Failed, "never caught the satellite");
+                    FinishHarmless(o, "never caught the satellite");
                 }
             }
             return;
@@ -300,6 +313,7 @@ private:
     double m_errDeg = 0.0, m_peakErrDeg = 0.0;
     bool   m_issued = false, m_sawSlew = false;
     bool   m_capturing = false, m_abort = false, m_saturated = false;
+    bool   m_fault = false, m_harmless = false;
     std::string m_reason;
 };
 

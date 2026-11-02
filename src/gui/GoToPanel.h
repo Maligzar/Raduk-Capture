@@ -489,6 +489,12 @@ public:
     // Escape, a jog, the stop button. Does not return until the axes
     // have been told to stop.
     void StopSatellite(const char* why) {
+        // The plan first, so nothing starts in the gap this leaves.
+        if (m_plan.Running()) {
+            m_plan.Abort(why);
+            if (m_onLog) m_onLog(std::string("Satellite plan stopped: ") +
+                                 (why ? why : "stopped"));
+        }
         if (m_sat.Tracking()) m_sat.StopTrack(why);
     }
 
@@ -996,6 +1002,8 @@ private:
         ID_LIST_PASSES     = 2023,  // Phase 116
         ID_BTN_PASS_UPDATE = 2024,
         ID_BTN_PASS_TRACK  = 2025,
+        ID_BTN_PASS_PLAN   = 2026,
+        ID_BTN_PASS_RUN    = 2027,
         ID_LBL_TONIGHT_HDR = 2023,  // Phase 14: header label
         ID_BTN_SURVEY      = 2030,  // Phase 13: start/stop sky survey
         ID_LBL_SURVEY      = 2031,  // Phase 13: survey progress label
@@ -1353,11 +1361,13 @@ private:
         {
             int py = passTopY;
             place(m_lblPassHdr, x, py, cw, SH);      py += SH + 4;
-            const int foot = 2 * (BH + 8) + SH + 8;
+            const int foot = 4 * (BH + 8) + SH + 8;
             int lh = h - 8 - py - foot;
             if (lh < 100) lh = 100;
             place(m_listPasses, x, py, cw, lh);      py += lh + 4;
             place(m_btnPassUpdate, x, py, cw, BH + 4); py += BH + 8;
+            place(m_btnPassPlan,   x, py, cw, BH + 4); py += BH + 8;
+            place(m_btnPassRun,    x, py, cw, BH + 4); py += BH + 8;
             place(m_btnPassTrack,  x, py, cw, BH + 4); py += BH + 8;
             place(m_lblPassState,  x, py, cw, SH);
         }
@@ -1479,6 +1489,8 @@ private:
         setVis(m_listPasses,  p);
         setVis(m_btnPassUpdate, p);
         setVis(m_btnPassTrack,  p);
+        setVis(m_btnPassPlan,   p);
+        setVis(m_btnPassRun,    p);
         setVis(m_lblPassState,  p);
         if (p && m_sat.Rows().empty() && !m_sat.Busy())
             m_sat.Refresh(SiteObserver(), SatLimits(), false);
@@ -1490,6 +1502,7 @@ private:
         if (m_onLog)
             for (const auto& s : m_sat.TakeMessages()) m_onLog(s);
         if (m_sat.TakeFresh()) PopulatePasses();
+        PlanTick();
         if (m_lblPassState) {
             const std::string st = m_sat.Busy() ? "Working out passes..."
                                                 : m_sat.Status();
@@ -1499,6 +1512,11 @@ private:
                 MultiByteToWideChar(CP_UTF8, 0, st.c_str(), -1, w, 200);
                 SetWindowTextW(m_lblPassState, w);
             }
+        }
+        if (m_plan.Running() != m_planShown && m_btnPassRun) {
+            m_planShown = m_plan.Running();
+            SetWindowTextW(m_btnPassRun, m_planShown ? L"STOP THE PLAN"
+                                                     : L"RUN THE PLAN");
         }
         const bool on = m_sat.Tracking();
         if (on != m_passTrackShown && m_btnPassTrack) {
@@ -1551,25 +1569,124 @@ private:
         }
     }
 
+    // ── Phase 118: the night's queue ───────────────────────────
+    //
+    static raduk::core::SatPlanOptions SatPlanSettings() {
+        const auto& r = raduk::core::RigConfig::Get();
+        raduk::core::SatPlanOptions o;
+        o.slewDegPerSec = r.satSlewDegPerSec;
+        o.settleSec     = r.satSettleSec;
+        o.marginSec     = r.satBufferSec;
+        return o;
+    }
+
+    // The ticked rows are the plan. PLAN THE NIGHT ticks the best set
+    // from now on; after that they are the operator's to change.
+    std::vector<int> TickedPasses() const {
+        std::vector<int> out;
+        for (int i = 0; i < (int)m_passRows.size(); ++i)
+            if (ListView_GetCheckState(m_listPasses, i)) out.push_back(i);
+        return out;
+    }
+
+    void PlanTheNight() {
+        double alt = 45.0, az = 180.0;
+        MountAltAzCached(alt, az);
+        const raduk::core::SatPlanOptions o = SatPlanSettings();
+        const auto plan = raduk::core::BuildSatPlan(
+            m_passRows, raduk::sky::PreciseJdNow(), alt, az, o);
+        for (int i = 0; i < (int)m_passRows.size(); ++i)
+            ListView_SetCheckState(m_listPasses, i, FALSE);
+        for (int i : plan) ListView_SetCheckState(m_listPasses, i, TRUE);
+        if (m_onLog) {
+            char b[120];
+            snprintf(b, sizeof(b), "Satellite plan: %d passes from now on.",
+                     (int)plan.size());
+            m_onLog(b);
+        }
+    }
+
+    void ToggleSatPlan() {
+        if (m_plan.Running()) { StopSatellite("stopped by the operator"); return; }
+        const auto plan = TickedPasses();
+        if (plan.empty()) { ShowPassNote("Tick some passes, or press PLAN THE NIGHT"); return; }
+        const raduk::core::SatPlanOptions o = SatPlanSettings();
+        const int clash = raduk::core::FirstSatConflict(m_passRows, plan, o);
+        if (clash >= 0) {
+            ShowPassNote(m_passRows[plan[clash]].name +
+                         " starts too soon after the one before it");
+            return;
+        }
+        m_planRows = m_passRows;
+        m_plan.Begin(m_planRows, plan, o);
+        if (m_onLog) {
+            char b[120];
+            snprintf(b, sizeof(b), "Satellite plan running: %d passes.",
+                     m_plan.Total());
+            m_onLog(b);
+        }
+    }
+
+    // Runs on the UI thread at the tick's pace, which is ample: the plan
+    // starts each pass a minute or more ahead.
+    void PlanTick() {
+        if (!m_plan.Running()) return;
+        const bool flying = m_sat.Tracking();
+        const auto outcome = flying ? raduk::core::SatOutcome::None
+                                    : m_sat.TakeOutcome();
+        double alt = 45.0, az = 180.0;
+        MountAltAzCached(alt, az);
+        const auto s = m_plan.Tick(raduk::sky::PreciseJdNow(), alt, az,
+                                   flying, outcome);
+        using Step = raduk::core::SatPlanRunner::Step;
+        if (s.kind == Step::Start) {
+            const auto& r = m_planRows[s.index];
+            if (!StartPass(r)) m_plan.Refused();
+        } else if (s.kind == Step::Finished && m_onLog) {
+            char b[200];
+            snprintf(b, sizeof(b), "Satellite plan finished: %d of %d captured"
+                     "%s%s.", m_plan.Captured(), m_plan.Total(),
+                     m_plan.Why().empty() ? "" : ", ", m_plan.Why().c_str());
+            m_onLog(b);
+        }
+    }
+
+    // GetRADec answers from the poll thread's cache. GetAltAz is a serial
+    // round trip, and this is the UI thread.
+    void MountAltAzCached(double& alt, double& az) {
+        double ra = 0.0, dec = 0.0;
+        if (m_mount && m_mount->IsConnected() && m_mount->GetRADec(ra, dec))
+            raduk::core::RADecToAltAzNow(ra, dec, alt, az);
+    }
+
+    void ShowPassNote(const std::string& why) {
+        wchar_t w[200];
+        MultiByteToWideChar(CP_UTF8, 0, why.c_str(), -1, w, 200);
+        if (m_lblPassState) SetWindowTextW(m_lblPassState, w);
+        m_passStateShown.clear();
+    }
+
     void ToggleSatTrack() {
+        if (m_plan.Running()) { ShowPassNote("The plan is running"); return; }
         if (m_sat.Tracking()) { m_sat.StopTrack("stopped by the operator"); return; }
         const int sel = ListView_GetNextItem(m_listPasses, -1, LVNI_SELECTED);
         if (sel < 0 || sel >= (int)m_passRows.size()) {
             SetStatus(L"Pick a pass first");
             return;
         }
-        const auto& r = m_passRows[sel];
+        StartPass(m_passRows[sel]);
+    }
+
+    bool StartPass(const raduk::core::SatPassRow& r) {
         auto decline = [&](const std::string& why) {
             if (m_onLog) m_onLog("Pass not started: " + why);
-            wchar_t w[200];
-            MultiByteToWideChar(CP_UTF8, 0, why.c_str(), -1, w, 200);
-            if (m_lblPassState) SetWindowTextW(m_lblPassState, w);
-            m_passStateShown.clear();
+            ShowPassNote(why);
+            return false;
         };
-        if (m_mosaic.Running()) { decline("a mosaic is running"); return; }
+        if (m_mosaic.Running()) return decline("a mosaic is running");
         if (m_satPreflight) {
             const std::string why = m_satPreflight(r.pass);
-            if (!why.empty()) { decline(why); return; }
+            if (!why.empty()) return decline(why);
         }
         const auto lim = SatLimits();
         const double age = raduk::sky::ElementsAgeDays(
@@ -1577,7 +1694,11 @@ private:
         if (m_onLog)
             m_onLog(raduk::sky::DescribePass(r.name.c_str(), r.pass, age, lim));
         if (const char* why = m_sat.StartTrack(m_mount, r, SiteObserver(), lim))
-            decline(why);
+            return decline(why);
+        // So the capture is filed under what it is of.
+        m_currentTarget = r.name;
+        if (m_onTargetChanged) m_onTargetChanged(r.name);
+        return true;
     }
 
     // ── Phase 13: Sky Survey ────────────────────────────────────
@@ -2090,7 +2211,7 @@ private:
             GetModuleHandle(nullptr), nullptr);
         if (m_listPasses) {
             ListView_SetExtendedListViewStyle(m_listPasses,
-                LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+                LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_CHECKBOXES);
             SetWindowTheme(m_listPasses, L"", L"");
             auto addCol = [&](const wchar_t* text, int width, int col) {
                 LVCOLUMNW lvc = {};
@@ -2099,7 +2220,7 @@ private:
                 lvc.iSubItem = col;
                 SendMessageW(m_listPasses, LVM_INSERTCOLUMNW, col, (LPARAM)&lvc);
             };
-            addCol(L"Rises",  48, 0);
+            addCol(L"Rises",  66, 0);
             addCol(L"Satellite", 170, 1);
             addCol(L"Peak",   44, 2);
             addCol(L"Az \xB0/s", 56, 3);
@@ -2107,6 +2228,8 @@ private:
         }
         m_btnPassUpdate = Button(L"UPDATE ELEMENTS", x, tonightY, w, BH+4, ID_BTN_PASS_UPDATE);
         m_btnPassTrack  = Button(L"TRACK SELECTED PASS", x, tonightY, w, BH+4, ID_BTN_PASS_TRACK);
+        m_btnPassPlan   = Button(L"PLAN THE NIGHT", x, tonightY, w, BH+4, ID_BTN_PASS_PLAN);
+        m_btnPassRun    = Button(L"RUN THE PLAN", x, tonightY, w, BH+4, ID_BTN_PASS_RUN);
         m_lblPassState  = Label(L"", x, tonightY, w, SH);
 
         // P3.3: everything above was created at whatever coordinates
@@ -2720,6 +2843,14 @@ private:
                     self->ToggleSatTrack();
                     return 0;
                 }
+                if (id == ID_BTN_PASS_PLAN) {
+                    self->PlanTheNight();
+                    return 0;
+                }
+                if (id == ID_BTN_PASS_RUN) {
+                    self->ToggleSatPlan();
+                    return 0;
+                }
                 // Phase 14: GoTo from tonight planner
                 if (id == ID_BTN_GOTO_TONIGHT) {
                     int sel = ListView_GetNextItem(self->m_listTonight, -1, LVNI_SELECTED);
@@ -2916,6 +3047,11 @@ private:
     HWND m_listPasses     = nullptr;
     HWND m_btnPassUpdate  = nullptr;
     HWND m_btnPassTrack   = nullptr;
+    HWND m_btnPassPlan    = nullptr;
+    HWND m_btnPassRun     = nullptr;
+    raduk::core::SatPlanRunner m_plan;
+    std::vector<raduk::core::SatPassRow> m_planRows;
+    bool m_planShown = false;
     HWND m_lblPassState   = nullptr;
     std::string m_passStateShown;
     bool m_passTrackShown = false;

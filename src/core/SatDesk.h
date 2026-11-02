@@ -42,18 +42,14 @@
 
 #include "IMount.h"
 #include "Paths.h"
+#include "SatImageLock.h"
+#include "SatPlan.h"
 #include "SatTracker.h"
 #include "../sky/SatPass.h"
 
 #pragma comment(lib, "winhttp.lib")
 
 namespace raduk::core {
-
-struct SatPassRow {
-    std::string name;
-    raduk::sky::Tle tle;
-    raduk::sky::SatPassInfo pass;
-};
 
 class SatDesk {
 public:
@@ -71,6 +67,32 @@ public:
                             std::function<void()> end) {
         m_begin = std::move(begin);
         m_end   = std::move(end);
+    }
+
+    // Phase 117. The tap belongs to the capture thread's sink, so it
+    // outlives this and is only pointed at.
+    void SetFrameTap(SatFrameTap* tap) { m_tap = tap; }
+
+    void SetImageCalibration(bool valid, const GuideResponse& r,
+                             float altCalDeg, float rateArcsecPerSec) {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_calValid = valid;
+        m_calResp  = r;
+        m_calAlt   = altCalDeg;
+        m_calRate  = rateArcsecPerSec;
+    }
+
+    // Slide the prediction along its own track. Nearly all of what a
+    // stale element set or a wrong PC clock gets wrong is timing, so
+    // this one number brings the satellite onto the sensor, which is
+    // what the image lock needs before it can do anything.
+    void NudgeTime(double seconds) {
+        if (!m_trackRunning.load()) return;
+        const double t = m_timeOffset.load() + seconds;
+        m_timeOffset.store(t);
+        char b[64];
+        snprintf(b, sizeof(b), "Satellite: time offset %+.1f s", t);
+        Say(b);
     }
 
     static std::string ElementsPath() {
@@ -118,6 +140,9 @@ public:
     // ── Tracking ───────────────────────────────────────────────
     bool Tracking() const { return m_trackRunning.load(); }
 
+    // How the last pass ended, once.
+    SatOutcome TakeOutcome() { return m_outcome.exchange(SatOutcome::None); }
+
     // nullptr on success, or why not.
     const char* StartTrack(IMount* mount, const SatPassRow& row,
                            const raduk::sky::LunarObserver& site,
@@ -136,6 +161,8 @@ public:
         if (m_trackThread.joinable()) m_trackThread.join();
 
         m_stop.store(false);
+        m_timeOffset.store(0.0);
+        m_outcome.store(SatOutcome::None);
         m_trackRunning.store(true);
         m_trackThread = std::thread([this, mount, row, site, lim]() {
             TrackLoop(mount, row, site, lim);
@@ -301,6 +328,21 @@ private:
         tr.Configure(c);
         tr.Start(secNow());
 
+        SatImageLock lock;
+        {
+            std::lock_guard<std::mutex> lk(m_mutex);
+            if (m_calValid) lock.Configure(m_calResp, m_calAlt, m_calRate);
+        }
+        if (!lock.Calibrated())
+            Say("Satellite: no guide calibration, so this flies on prediction "
+                "alone. Calibrate on a planet or the Moon first.");
+        if (m_tap) m_tap->Arm(lock.Calibrated());
+        bool wasLocked = false;
+
+        // Phase 118: the number a night plan is built on.
+        double fromAlt = 0.0, fromAz = 0.0, slewBegan = 0.0;
+        const bool haveFrom = mount->GetAltAz(fromAlt, fromAz);
+
         bool capturing = false;
         auto send = [&](int axis, double rate) {
             mount->SlewVariable(axis, rate >= 0.0 ? 0 : 1,
@@ -318,7 +360,8 @@ private:
             }
 
             // Aim at where it will be when the command takes effect.
-            const double jd = PreciseJdNow() + 0.1 / 86400.0;
+            const double jd = PreciseJdNow()
+                            + (0.1 + m_timeOffset.load()) / 86400.0;
             const SatRates q = SatRatesAt(sat, jd, site);
             SatTracker::Sky sky;
             sky.ok = q.ok; sky.altDeg = q.altDeg; sky.azDeg = q.azDeg;
@@ -334,13 +377,43 @@ private:
                 ok = mount->GetAltAz(alt, az);
 
             const double now = secNow();
+
+            // Phase 117: the image moves the aim, and only the aim. The
+            // tracker's stops all judge what is left.
+            if (phase == SatTracker::Phase::Tracking) {
+                float fx = 0.0f, fy = 0.0f;
+                int fw = 0, fh = 0;
+                const bool fix = m_tap && m_tap->Take(fx, fy, fw, fh);
+                lock.Update(now, fix, fx, fy, fw, fh, (float)alt);
+                const bool locked = lock.Locked(now);
+                if (locked != wasLocked) {
+                    wasLocked = locked;
+                    Say(locked ? "Satellite: image lock." : "Satellite: image lost.");
+                }
+                sky.azDeg  += lock.BiasAzDeg();
+                sky.altDeg += lock.BiasAltDeg();
+            }
+
             const SatTracker::Output o = tr.Tick(now, sky, ok, alt, az, slewing);
 
             if (o.goTo) {
                 const SatLook l = SatLookAt(sat, base, site);
                 mount->GoToRADec(l.raHours, l.decDeg);
+                slewBegan = now;
                 Say("Satellite: slewing to where the window opens.");
                 SetStatus("Slewing to the start of the pass");
+            }
+            if (phase == SatTracker::Phase::Slewing &&
+                tr.State() == SatTracker::Phase::Holding && haveFrom) {
+                const double deg = (std::max)(
+                    std::fabs(WrapDeg180(row.pass.startAz - fromAz)),
+                    std::fabs(row.pass.startAlt - fromAlt));
+                const double sec = now - slewBegan;
+                char b[120];
+                snprintf(b, sizeof(b), "Satellite: slew of %.0f deg took %.0f s "
+                         "(SatSlewDegPerSec %.1f here).", deg, sec,
+                         sec > 0.0 ? deg / sec : 0.0);
+                Say(b);
             }
             if (o.trackingOff) {
                 mount->SetTrackingMode(IMount::OFF);
@@ -367,9 +440,10 @@ private:
                 if (phase == SatTracker::Phase::Holding)
                     snprintf(b, sizeof(b), "Waiting: moves in %.0f s", -now);
                 else if (tr.Running() && phase != SatTracker::Phase::Slewing)
-                    snprintf(b, sizeof(b), "%s  error %.2f deg%s",
+                    snprintf(b, sizeof(b), "%s  error %.2f deg%s%s",
                              phase == SatTracker::Phase::Tracking
                                  ? "Tracking" : "Closing in", tr.ErrorDeg(),
+                             wasLocked ? "  image lock" : "",
                              tr.Saturated() ? "  at the mount's limit" : "");
                 else b[0] = 0;
                 if (b[0]) SetStatus(b);
@@ -386,8 +460,13 @@ private:
             mount->StopSlew(1);
         }
         if (capturing && m_end) m_end();
+        if (m_tap) m_tap->Arm(false);
         mount->DriveAltAzAxes(false);
         mount->SetTrackingMode(restore);
+
+        m_outcome.store(tr.State() == SatTracker::Phase::Complete ? SatOutcome::Complete
+                      : tr.State() == SatTracker::Phase::Aborted  ? SatOutcome::Stopped
+                      : tr.TelescopeFault() ? SatOutcome::Fault : SatOutcome::Lost);
 
         char b[220];
         const char* how = tr.State() == SatTracker::Phase::Complete ? "complete"
@@ -407,6 +486,12 @@ private:
     std::thread m_worker, m_trackThread;
     std::atomic<bool> m_busy{false}, m_fresh{false};
     std::atomic<bool> m_stop{false}, m_trackRunning{false};
+    std::atomic<double> m_timeOffset{0.0};
+    std::atomic<SatOutcome> m_outcome{SatOutcome::None};
+    SatFrameTap*  m_tap = nullptr;
+    bool          m_calValid = false;
+    GuideResponse m_calResp;
+    float         m_calAlt = -1.0f, m_calRate = 7.5f;
     std::function<void()> m_begin, m_end;
 };
 

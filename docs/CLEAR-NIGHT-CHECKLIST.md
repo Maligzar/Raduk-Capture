@@ -1150,3 +1150,27 @@ For contrast, so this list is not read as "nothing works":
     second wrong is 28' at 500 km, four frames. Only then try a bright pass
     at night, at the full sensor, and note how far from the frame it runs.
 
+40. **The satellite image lock** (phase 117). After item 39, and with a guide
+    calibration taken that night on the Moon or a planet: the log says so if
+    there is none. Fly a bright pass with no Moon near its path. When it is
+    moving, hold `Ctrl+[` or `Ctrl+]` to slide it along its track until it
+    crosses the frame. The status should gain `image lock`, the log should say
+    so, and it should walk to the centre over about eight seconds. If it swings
+    from side to side instead, the delay is longer than the gain allows, so
+    note how fast it swings. If it runs off the frame, the calibration's
+    direction is wrong. Note the offset you needed: it says how good the
+    clock and elements were.
+
+41. **A night plan** (phase 118). Emulator first: on the Passes tab press PLAN
+    THE NIGHT. Rows should tick, none overlapping, and the log should give the
+    count. Untick one and tick a neighbour that clashes, then press RUN THE
+    PLAN: it should refuse and name the pass. Fix that, run it, and leave it:
+    it should sit idle, slew about a minute early, fly, and go on to the next.
+    The button should read STOP THE PLAN. Press Escape during a gap and again
+    during a pass on another run: both should end the plan. On the real mount,
+    only after items 39 and 40, and start with two passes. See that a capture
+    is filed under each satellite's name. Read the log's slew lines and put the
+    real speed in `SatSlewDegPerSec`, then set `SatSettleSec` and
+    `SatBufferSec` to what this tube needs. The whole night is unattended slewing, so
+    stay with it the first time.
+

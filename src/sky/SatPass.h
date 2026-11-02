@@ -157,6 +157,8 @@ struct SatPassInfo {
     // The part this rig should try.
     bool   trackable = false;
     double trackStartJd = 0.0, trackEndJd = 0.0;
+    double startAlt = 0.0, startAz = 0.0;    // where the window opens
+    double endAlt = 0.0, endAz = 0.0;        // and where it leaves the tube
     double peakAzRate = 0.0;         // deg/s, within the window
     double peakAltRate = 0.0;
     double peakSkyRate = 0.0;
@@ -185,6 +187,8 @@ inline void MeasurePass(const Sgp4& s, const LunarObserver& o,
             if (!band) continue;
             inWindow = true;
             p.trackStartJd = t;
+            p.startAlt = r.altDeg;
+            p.startAz  = r.azDeg;
             lastAz = r.azDeg;
         } else if (!band) {
             // Only the first stretch: going back to the far side of a
@@ -195,6 +199,8 @@ inline void MeasurePass(const Sgp4& s, const LunarObserver& o,
             continue;
         }
         p.trackEndJd = t;
+        p.endAlt = r.altDeg;
+        p.endAz  = r.azDeg;
         const double az = std::fabs(r.azRate), alt = std::fabs(r.altRate);
         const double sky = std::hypot(az * std::cos(DegToRad(r.altDeg)), alt);
         if (az  > p.peakAzRate)  p.peakAzRate  = az;

@@ -1308,8 +1308,11 @@ static int RunApp(bool useEmulator) {
     // that is already talking to the camera.
     raduk::core::RoiFollowLink roiFollow;
     roiFollow.SetMover([&cam](int x, int y) { return cam.SetStartPos(x, y); });
-    capture.SetFrameSink([&capturer, &roiFollow](const raduk::core::FrameSlot* slot) {
+    raduk::core::SatFrameTap satTap;       // Phase 117
+    capture.SetFrameSink([&capturer, &roiFollow, &satTap](const raduk::core::FrameSlot* slot) {
         capturer.SubmitFromCaptureThread(slot);
+        satTap.OnFrame(slot->data, (int)slot->width, (int)slot->height,
+                       (int)slot->bitDepth);
         roiFollow.OnFrame(slot->data, (int)slot->width, (int)slot->height,
                           (int)slot->bitDepth);
     });
@@ -1691,6 +1694,7 @@ static int RunApp(bool useEmulator) {
     gotoPanel.Satellites().SetCaptureHandlers(
         [&]() { PostMessageW(window.Handle(), WM_USER + 12, 0, 0); },
         [&]() { PostMessageW(window.Handle(), WM_USER + 13, 0, 0); });
+    gotoPanel.Satellites().SetFrameTap(&satTap);
     gotoPanel.SetSatPreflight(
         [&](const raduk::sky::SatPassInfo& p) -> std::string {
             if (autorun.Running()) return "a sequence of runs is going";
@@ -1707,6 +1711,16 @@ static int RunApp(bool useEmulator) {
             const double after = cordWrap.CumulativeDeg() + p.azTravelDeg;
             if (std::fabs(after) >= cordWrap.Limit())
                 return "that pass would wrap the cord";
+            // Phase 117: read before the reset below.
+            {
+                const auto cal = tracker.Calibration();
+                raduk::core::GuideResponse r;
+                r.exPerMs = cal.exPerMs; r.eyPerMs = cal.eyPerMs;
+                r.nxPerMs = cal.nxPerMs; r.nyPerMs = cal.nyPerMs;
+                gotoPanel.Satellites().SetImageCalibration(
+                    tracker.HasCalibration(), r, cal.altDeg,
+                    raduk::core::RigConfig::Get().guideRateArcsecPerSec);
+            }
             // The correction thread steers this same mount.
             tracker.Reset();
             return "";
@@ -4840,6 +4854,11 @@ static int RunApp(bool useEmulator) {
             return;
         }
         gotoPanel.StartMosaic(target);
+    });
+
+    // Phase 117: slide a satellite along its track while it is flown.
+    window.SetSatNudgeHandler([&](int dir) {
+        gotoPanel.Satellites().NudgeTime(dir * 0.1);
     });
 
     window.SetShareViewToggleHandler([&]() {

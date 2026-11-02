@@ -309,6 +309,15 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
     }
 
     switch (wParam) {
+            // Phase 117: earlier or later along a satellite's track. Held
+            // keys repeat, because several tenths is the usual correction.
+            case VK_OEM_4:
+            case VK_OEM_6:
+                if ((GetKeyState(VK_CONTROL) & 0x8000) != 0 && m_onSatNudge) {
+                    m_onSatNudge(wParam == VK_OEM_6 ? 1 : -1);
+                    return true;
+                }
+                break;
         case VK_ESCAPE:
             // Phase 71 (review): ESC always stops the mount, including
             // in fullscreen. It used to exit fullscreen *instead*, which

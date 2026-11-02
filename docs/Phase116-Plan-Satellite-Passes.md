@@ -75,7 +75,5 @@ run. In order of worry:
    is 4' to 8' out and a second of PC clock is 28' at 500 km, so open-loop
    pointing may well miss.
 
-**Not built, and the obvious next piece:** closing the loop on the image. ROI
-following is on the wrong side of a 5 Hz mount loop for this, and a time offset
-nudged by hand would take out most of the along-track error. Rockets need their
-own prediction. SDP4 is not built.
+Closing the loop on the image is phase 117. Rockets need their own prediction,
+and SDP4 is not built.

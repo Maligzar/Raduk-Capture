@@ -86,7 +86,21 @@ public:
         m_mountRA    = raH;
         m_mountDec   = decDeg;
         m_mountValid = valid;
+        // Phase 121: while a pass flies, a zoomed map keeps the scope in
+        // view. Without it a pass carries the scope off the window and
+        // the map shows sky the telescope has left.
+        if (m_followMount && valid && m_zoom > 1.01f) {
+            double alt = 0.0, az = 0.0;
+            RADecToAltAz(raH, decDeg, LST(), OBS_LAT, alt, az);
+            if (alt > 0.0) {
+                m_centerAlt = (float)alt;
+                m_centerAz  = (float)az;
+            }
+        }
     }
+
+    // Set each tick from whether a pass or a followed target is flying.
+    void SetFollowMount(bool on) { m_followMount = on; }
 
     void SetMount(raduk::core::IMount* mount) { m_mount = mount; }
 
@@ -1382,6 +1396,7 @@ private:
     HWND   m_hwnd  = nullptr;
     bool            m_fullscreen = false;
     WINDOWPLACEMENT m_savedPlacement = {};
+    bool   m_followMount = false;
     int    m_w     = 600;
     int    m_h     = 600;
 

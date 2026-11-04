@@ -1011,6 +1011,8 @@ private:
         ID_BTN_PASS_TRACK  = 2025,
         ID_BTN_PASS_PLAN   = 2026,
         ID_BTN_PASS_RUN    = 2027,
+        ID_EDIT_JPL_TARGET = 2028,  // Phase 121
+        ID_BTN_FOLLOW      = 2029,
         ID_LBL_TONIGHT_HDR = 2023,  // Phase 14: header label
         ID_BTN_SURVEY      = 2030,  // Phase 13: start/stop sky survey
         ID_LBL_SURVEY      = 2031,  // Phase 13: survey progress label
@@ -1368,7 +1370,7 @@ private:
         {
             int py = passTopY;
             place(m_lblPassHdr, x, py, cw, SH);      py += SH + 4;
-            const int foot = 4 * (BH + 8) + SH + 8;
+            const int foot = 5 * (BH + 8) + SH + 8;
             int lh = h - 8 - py - foot;
             if (lh < 100) lh = 100;
             place(m_listPasses, x, py, cw, lh);      py += lh + 4;
@@ -1376,6 +1378,12 @@ private:
             place(m_btnPassPlan,   x, py, cw, BH + 4); py += BH + 8;
             place(m_btnPassRun,    x, py, cw, BH + 4); py += BH + 8;
             place(m_btnPassTrack,  x, py, cw, BH + 4); py += BH + 8;
+            {
+                const int fw = m_fontPx * 7;
+                place(m_editTarget, x, py, cw - fw - 4, BH + 4);
+                place(m_btnFollow, x + cw - fw, py, fw, BH + 4);
+                py += BH + 8;
+            }
             place(m_lblPassState,  x, py, cw, SH);
         }
 
@@ -1498,6 +1506,8 @@ private:
         setVis(m_btnPassTrack,  p);
         setVis(m_btnPassPlan,   p);
         setVis(m_btnPassRun,    p);
+        setVis(m_editTarget,    p);
+        setVis(m_btnFollow,     p);
         setVis(m_lblPassState,  p);
         if (p && m_sat.Rows().empty() && !m_sat.Busy())
             m_sat.Refresh(SiteObserver(), SatLimits(), false);
@@ -1510,6 +1520,7 @@ private:
             for (const auto& s : m_sat.TakeMessages()) m_onLog(s);
         if (m_sat.TakeFresh()) PopulatePasses();
         PlanTick();
+        FollowTick();
         if (m_lblPassState) {
             const std::string st = m_sat.Busy() ? "Working out passes..."
                                                 : m_sat.Status();
@@ -1664,6 +1675,63 @@ private:
         double ra = 0.0, dec = 0.0;
         if (m_mount && m_mount->IsConnected() && m_mount->GetRADec(ra, dec))
             raduk::core::RADecToAltAzNow(ra, dec, alt, az);
+    }
+
+    // ── Phase 121: follow anything JPL Horizons predicts ───────
+    void RequestFollow() {
+        if (m_sat.Tracking()) { m_sat.StopTrack("stopped by the operator"); return; }
+        if (m_plan.Running()) { ShowPassNote("The plan is running"); return; }
+        wchar_t w[96] = {};
+        GetWindowTextW(m_editTarget, w, 96);
+        char a[96] = {};
+        WideCharToMultiByte(CP_UTF8, 0, w, -1, a, 96, nullptr, nullptr);
+        std::string target(a);
+        while (!target.empty() && target.back() == ' ') target.pop_back();
+        if (target.empty()) { ShowPassNote("Type a JPL target first"); return; }
+        if (m_sat.Fetching()) return;
+        m_sat.FetchTarget(target);
+        ShowPassNote("Asking JPL Horizons...");
+        if (m_onLog) m_onLog("Target: asking JPL Horizons for " + target + ".");
+    }
+
+    void FollowTick() {
+        auto e = m_sat.TakeFetched();
+        if (!e) return;
+        if (!e->ok) {
+            if (m_onLog) m_onLog("Target not followed: " + e->why);
+            ShowPassNote(e->why);
+            return;
+        }
+        const auto lim = SatLimits();
+        const auto site = SiteObserver();
+        const raduk::sky::SatPassInfo w = raduk::sky::EphemWindow(
+            *e, site, raduk::sky::PreciseJdNow() + 30.0 / 86400.0, lim);
+        if (!w.trackable) {
+            ShowPassNote(e->name + " is not in the tracking band in the next 12 hours");
+            if (m_onLog) m_onLog("Target not followed: " + e->name +
+                                 " is not in the tracking band in the next 12 hours.");
+            return;
+        }
+        if (m_onLog) {
+            char b[240];
+            snprintf(b, sizeof(b), "%s: in the band for %.0f min from now+%.0f min, "
+                     "peak %.0f deg at %.0f km, sky rate up to %.3f deg/s.",
+                     e->name.c_str(), (w.trackEndJd - w.trackStartJd) * 1440.0,
+                     (w.trackStartJd - raduk::sky::PreciseJdNow()) * 1440.0,
+                     w.peakAlt, w.peakRangeKm, w.peakSkyRate);
+            m_onLog(b);
+        }
+        if (m_mosaic.Running()) { ShowPassNote("A mosaic is running"); return; }
+        if (m_satPreflight) {
+            const std::string why = m_satPreflight(w);
+            if (!why.empty()) { ShowPassNote(why); return; }
+        }
+        if (const char* why = m_sat.StartFollow(m_mount, e, w, site, lim)) {
+            ShowPassNote(why);
+            return;
+        }
+        m_currentTarget = e->name;
+        if (m_onTargetChanged) m_onTargetChanged(e->name);
     }
 
     void ShowPassNote(const std::string& why) {
@@ -2237,6 +2305,11 @@ private:
         m_btnPassTrack  = Button(L"TRACK SELECTED PASS", x, tonightY, w, BH+4, ID_BTN_PASS_TRACK);
         m_btnPassPlan   = Button(L"PLAN THE NIGHT", x, tonightY, w, BH+4, ID_BTN_PASS_PLAN);
         m_btnPassRun    = Button(L"RUN THE PLAN", x, tonightY, w, BH+4, ID_BTN_PASS_RUN);
+        // Phase 121: anything JPL Horizons predicts.
+        m_editTarget = Edit(L"", x, tonightY, w, BH, ID_EDIT_JPL_TARGET);
+        SendMessageW(m_editTarget, EM_SETCUEBANNER, TRUE,
+                     (LPARAM)L"JPL target, e.g. 99942; or C/2023 A3");
+        m_btnFollow  = Button(L"FOLLOW", x, tonightY, w, BH+4, ID_BTN_FOLLOW);
         m_lblPassState  = Label(L"", x, tonightY, w, SH);
 
         // P3.3: everything above was created at whatever coordinates
@@ -2858,6 +2931,10 @@ private:
                     self->ToggleSatPlan();
                     return 0;
                 }
+                if (id == ID_BTN_FOLLOW) {
+                    self->RequestFollow();
+                    return 0;
+                }
                 // Phase 14: GoTo from tonight planner
                 if (id == ID_BTN_GOTO_TONIGHT) {
                     int sel = ListView_GetNextItem(self->m_listTonight, -1, LVNI_SELECTED);
@@ -3056,6 +3133,8 @@ private:
     HWND m_btnPassTrack   = nullptr;
     HWND m_btnPassPlan    = nullptr;
     HWND m_btnPassRun     = nullptr;
+    HWND m_editTarget     = nullptr;
+    HWND m_btnFollow      = nullptr;
     raduk::core::SatPlanRunner m_plan;
     std::vector<raduk::core::SatPassRow> m_planRows;
     bool m_planShown = false;

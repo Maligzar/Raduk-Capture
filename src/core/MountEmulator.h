@@ -325,9 +325,23 @@ private:
                         m_slewing = false;
                         printf("[MountEmulator] GoTo complete (sim pointing error 45\"/25\")\n");
                     } else {
-                        double step = std::min(GOTO_DEG_PER_TICK, dist);
-                        m_raHours += (dRADeg / dist) * step / 15.0;
-                        m_decDeg  += (dDec   / dist) * step;
+                        // Along the axes, as the real fork slews: both
+                        // move at once, each at most GOTO_DEG_PER_TICK.
+                        // A straight line in RA and Dec could swing a
+                        // long slew under the horizon, which a real
+                        // alt-az mount never does: its altitude runs
+                        // from one end to the other and no lower.
+                        double alt = 0.0, az = 0.0, gAlt = 0.0, gAz = 0.0;
+                        RADecToAltAzNow(m_raHours, m_decDeg, alt, az);
+                        RADecToAltAzNow(m_gotoRA, m_gotoDec, gAlt, gAz);
+                        const double dAz  = ShortestTurnDeg(az, gAz);
+                        const double dAlt = gAlt - alt;
+                        auto stepOf = [&](double d) {
+                            return d > GOTO_DEG_PER_TICK ? GOTO_DEG_PER_TICK
+                                 : (d < -GOTO_DEG_PER_TICK ? -GOTO_DEG_PER_TICK : d);
+                        };
+                        AltAzToRADecNow(alt + stepOf(dAlt), az + stepOf(dAz),
+                                        m_raHours, m_decDeg);
                     }
                 } else {
                     // Sidereal drift when tracking is OFF

@@ -34,6 +34,7 @@
 #include <deque>
 #include <fstream>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -45,6 +46,7 @@
 #include "SatImageLock.h"
 #include "SatPlan.h"
 #include "SatTracker.h"
+#include "../sky/Ephemeris.h"
 #include "../sky/SatPass.h"
 
 #pragma comment(lib, "winhttp.lib")
@@ -60,6 +62,7 @@ public:
     ~SatDesk() {
         StopTrack("closing");
         if (m_worker.joinable()) m_worker.join();
+        if (m_fetchThread.joinable()) m_fetchThread.join();
     }
 
     // Called with what a person should read. Any thread.
@@ -143,10 +146,81 @@ public:
     // How the last pass ended, once.
     SatOutcome TakeOutcome() { return m_outcome.exchange(SatOutcome::None); }
 
+    // Phase 121: what the flying thread needs, whatever predicts it.
+    struct TrackSource {
+        std::string what;                     // for the log
+        std::function<raduk::sky::SatLook(double)>  look;
+        std::function<raduk::sky::SatRates(double)> rates;
+        raduk::sky::SatPassInfo window;
+    };
+
     // nullptr on success, or why not.
     const char* StartTrack(IMount* mount, const SatPassRow& row,
                            const raduk::sky::LunarObserver& site,
                            const raduk::sky::SatPassLimits& lim) {
+        auto sat = std::make_shared<raduk::sky::Sgp4>();
+        if (!sat->Init(row.tle)) return "those elements will not propagate";
+        TrackSource s;
+        s.what = "Satellite";
+        s.look  = [sat, site](double jd) { return raduk::sky::SatLookAt(*sat, jd, site); };
+        s.rates = [sat, site](double jd) { return raduk::sky::SatRatesAt(*sat, jd, site); };
+        s.window = row.pass;
+        return Launch(mount, s, site, lim);
+    }
+
+    // Phase 121: a JPL table instead of elements.
+    const char* StartFollow(IMount* mount, std::shared_ptr<raduk::sky::Ephemeris> e,
+                            const raduk::sky::SatPassInfo& window,
+                            const raduk::sky::LunarObserver& site,
+                            const raduk::sky::SatPassLimits& lim) {
+        if (!e || !e->ok) return "no table to follow";
+        TrackSource s;
+        s.what = e->name.empty() ? std::string("Target") : e->name;
+        s.look  = [e, site](double jd) { return raduk::sky::EphemLookAt(*e, jd, site); };
+        s.rates = [e, site](double jd) { return raduk::sky::EphemRatesAt(*e, jd, site); };
+        s.window = window;
+        return Launch(mount, s, site, lim);
+    }
+
+    // Phase 121: fetch a table from JPL Horizons, off this thread. The
+    // request names the target and the time and nothing else: positions
+    // come back from the centre of the Earth, and the site is applied
+    // here.
+    void FetchTarget(const std::string& target) {
+        if (m_fetching.exchange(true)) return;
+        if (m_fetchThread.joinable()) m_fetchThread.join();
+        m_fetchThread = std::thread([this, target]() {
+            const double now = raduk::sky::PreciseJdNow();
+            std::string body;
+            const std::string path = raduk::sky::HorizonsVectorsPath(target, now - 0.005, now + 0.5);
+            const std::wstring wpath(path.begin(), path.end());
+            auto e = std::make_shared<raduk::sky::Ephemeris>();
+            if (!HttpGet(L"ssd.jpl.nasa.gov", wpath.c_str(), body)) {
+                e->why = "could not reach JPL Horizons";
+            } else {
+                *e = raduk::sky::ParseHorizonsVectors(body);
+            }
+            {
+                std::lock_guard<std::mutex> lk(m_mutex);
+                m_fetched = e;
+            }
+            m_fetching.store(false);
+        });
+    }
+    bool Fetching() const { return m_fetching.load(); }
+
+    // The last fetched table, once.
+    std::shared_ptr<raduk::sky::Ephemeris> TakeFetched() {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        auto e = m_fetched;
+        m_fetched.reset();
+        return e;
+    }
+
+    const char* Launch(IMount* mount, const TrackSource& src,
+                       const raduk::sky::LunarObserver& site,
+                       const raduk::sky::SatPassLimits& lim) {
+        const auto& window = src.window;
         if (m_trackRunning.load()) return "a pass is already being tracked";
         if (!mount || !mount->IsConnected()) return "no mount";
         if (!mount->SupportsVariableRate())
@@ -154,8 +228,8 @@ public:
         if (mount->GetTrackingMode() != IMount::ALT_AZ)
             return "this needs the mount in alt-az";
         if (!site.set) return "no site set";
-        if (!row.pass.trackable) return "no part of that pass is in the band";
-        const double left = (row.pass.trackEndJd - raduk::sky::PreciseJdNow())
+        if (!window.trackable) return "no part of that pass is in the band";
+        const double left = (window.trackEndJd - raduk::sky::PreciseJdNow())
                           * 86400.0;
         if (left < 10.0) return "that pass is over";
         if (m_trackThread.joinable()) m_trackThread.join();
@@ -164,8 +238,8 @@ public:
         m_timeOffset.store(0.0);
         m_outcome.store(SatOutcome::None);
         m_trackRunning.store(true);
-        m_trackThread = std::thread([this, mount, row, site, lim]() {
-            TrackLoop(mount, row, site, lim);
+        m_trackThread = std::thread([this, mount, src, site, lim]() {
+            TrackLoop(mount, src, site, lim);
             m_trackRunning.store(false);
         });
         return nullptr;
@@ -307,20 +381,21 @@ private:
         m_rows = std::move(rows);
     }
 
-    void TrackLoop(IMount* mount, const SatPassRow& row,
+    void TrackLoop(IMount* mount, const TrackSource& src,
                    const raduk::sky::LunarObserver& site,
                    const raduk::sky::SatPassLimits& lim) {
         using namespace raduk::sky;
-        Sgp4 sat;
-        if (!sat.Init(row.tle)) { Say("Those elements will not propagate."); return; }
+        (void)site;
+        const SatPassInfo& win = src.window;
+        auto say = [&](const char* s) { Say(src.what + ": " + s); };
 
         const IMount::TrackingMode restore = mount->GetTrackingMode();
-        const double base = row.pass.trackStartJd;
+        const double base = win.trackStartJd;
         auto secNow = [&]() { return (PreciseJdNow() - base) * 86400.0; };
 
         SatTracker::Config c;
         c.startSec = 0.0;
-        c.endSec   = (row.pass.trackEndJd - base) * 86400.0;
+        c.endSec   = (win.trackEndJd - base) * 86400.0;
         c.minAltDeg = lim.minAltDeg;
         c.maxAltDeg = lim.maxAltDeg;
         c.maxRateDeg = lim.maxRateDeg;
@@ -334,7 +409,7 @@ private:
             if (m_calValid) lock.Configure(m_calResp, m_calAlt, m_calRate);
         }
         if (!lock.Calibrated())
-            Say("Satellite: no guide calibration, so this flies on prediction "
+            say("no guide calibration, so this flies on prediction "
                 "alone. Calibrate on a planet or the Moon first.");
         if (m_tap) m_tap->Arm(lock.Calibrated());
         bool wasLocked = false;
@@ -362,7 +437,7 @@ private:
             // Aim at where it will be when the command takes effect.
             const double jd = PreciseJdNow()
                             + (0.1 + m_timeOffset.load()) / 86400.0;
-            const SatRates q = SatRatesAt(sat, jd, site);
+            const SatRates q = src.rates(jd);
             SatTracker::Sky sky;
             sky.ok = q.ok; sky.altDeg = q.altDeg; sky.azDeg = q.azDeg;
             sky.altRate = q.altRate; sky.azRate = q.azRate;
@@ -388,7 +463,7 @@ private:
                 const bool locked = lock.Locked(now);
                 if (locked != wasLocked) {
                     wasLocked = locked;
-                    Say(locked ? "Satellite: image lock." : "Satellite: image lost.");
+                    say(locked ? "image lock." : "image lost.");
                 }
                 sky.azDeg  += lock.BiasAzDeg();
                 sky.altDeg += lock.BiasAltDeg();
@@ -397,28 +472,28 @@ private:
             const SatTracker::Output o = tr.Tick(now, sky, ok, alt, az, slewing);
 
             if (o.goTo) {
-                const SatLook l = SatLookAt(sat, base, site);
+                const SatLook l = src.look(base);
                 mount->GoToRADec(l.raHours, l.decDeg);
                 slewBegan = now;
-                Say("Satellite: slewing to where the window opens.");
+                say("slewing to where the window opens.");
                 SetStatus("Slewing to the start of the pass");
             }
             if (phase == SatTracker::Phase::Slewing &&
                 tr.State() == SatTracker::Phase::Holding && haveFrom) {
                 const double deg = (std::max)(
-                    std::fabs(WrapDeg180(row.pass.startAz - fromAz)),
-                    std::fabs(row.pass.startAlt - fromAlt));
+                    std::fabs(WrapDeg180(win.startAz - fromAz)),
+                    std::fabs(win.startAlt - fromAlt));
                 const double sec = now - slewBegan;
                 char b[120];
-                snprintf(b, sizeof(b), "Satellite: slew of %.0f deg took %.0f s "
-                         "(SatSlewDegPerSec %.1f here).", deg, sec,
+                snprintf(b, sizeof(b), "%s: slew of %.0f deg took %.0f s "
+                         "(SatSlewDegPerSec %.1f here).", src.what.c_str(), deg, sec,
                          sec > 0.0 ? deg / sec : 0.0);
                 Say(b);
             }
             if (o.trackingOff) {
                 mount->SetTrackingMode(IMount::OFF);
                 mount->DriveAltAzAxes(true);
-                Say("Satellite: moving.");
+                say("moving.");
             }
             if (o.rates) {
                 send(0, o.azRate);
@@ -427,7 +502,7 @@ private:
             if (o.beginCapture) {
                 capturing = true;
                 if (m_begin) m_begin();
-                Say("Satellite: on target, recording.");
+                say("on target, recording.");
             }
             if (o.endCapture) {
                 capturing = false;
@@ -472,8 +547,8 @@ private:
         const char* how = tr.State() == SatTracker::Phase::Complete ? "complete"
                         : tr.State() == SatTracker::Phase::Aborted  ? "stopped"
                         : "FAILED";
-        snprintf(b, sizeof(b), "Satellite pass %s%s%s. Worst error on target "
-                 "%.2f deg.", how, tr.Reason().empty() ? "" : ": ",
+        snprintf(b, sizeof(b), "%s %s%s%s. Worst error on target "
+                 "%.2f deg.", src.what.c_str(), how, tr.Reason().empty() ? "" : ": ",
                  tr.Reason().c_str(), tr.PeakErrorDeg());
         Say(b);
         SetStatus(b);
@@ -487,6 +562,9 @@ private:
     std::atomic<bool> m_busy{false}, m_fresh{false};
     std::atomic<bool> m_stop{false}, m_trackRunning{false};
     std::atomic<double> m_timeOffset{0.0};
+    std::thread m_fetchThread;
+    std::atomic<bool> m_fetching{false};
+    std::shared_ptr<raduk::sky::Ephemeris> m_fetched;
     std::atomic<SatOutcome> m_outcome{SatOutcome::None};
     SatFrameTap*  m_tap = nullptr;
     bool          m_calValid = false;

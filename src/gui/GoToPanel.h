@@ -926,6 +926,25 @@ public:
 
                 ReportPlateScale(result, w);
 
+                // Phase 123: before it is kept, ask the map what it would
+                // have predicted here and grade it against this solve.
+                {
+                    raduk::sky::PointingEntry pe;
+                    pe.az_deg = az; pe.alt_deg = alt;
+                    pe.ra_expected = hintRA; pe.dec_expected = hintDec;
+                    pe.ra_actual = result.ra; pe.dec_actual = result.dec;
+                    raduk::sky::PointingObs o = raduk::sky::PointingModel::ToObs(pe);
+                    o.t = (double)std::time(nullptr);
+                    std::string line, verdict;
+                    {
+                        std::lock_guard<std::mutex> lk(m_scoreMutex);
+                        EnsureScoreLocked();
+                        line = m_pointingScore.Observe(o);
+                        verdict = m_pointingScore.Verdict();
+                    }
+                    if (m_onLog) { m_onLog(line); m_onLog(verdict); }
+                }
+
                 // Record to pointing model
                 m_pointingModel.Record(
                     hintRA, hintDec,
@@ -970,20 +989,21 @@ public:
     // Total historical entries in pointing model
     int PointingModelSize() const { return m_pointingModel.EntryCount(); }
 
-    // Apply pointing model correction to a GoTo target
-    // Returns true if a correction was available and applied
-    bool ApplyPointingCorrection(double az_deg, double alt_deg,
-                                  double& ra_h, double& dec_deg) const {
-        double dRA = 0.0, dDec = 0.0;
-        if (!m_pointingModel.GetCorrection(az_deg, alt_deg, dRA, dDec))
-            return false;
-        ra_h    += dRA;
-        dec_deg += dDec;
-        printf("[GoToPanel] PointingCorrection: dRA=%.4fh dDec=%.4f° "
-               "(from %d nearby pts)\n",
-               dRA, dDec,
-               m_pointingModel.NearbyCount(az_deg, alt_deg));
-        return true;
+    // Phase 123: the map's prediction at az/alt, as sky arcseconds of
+    // truth minus reported. Tonight's map or every night's.
+    bool PredictPointing(double az_deg, double alt_deg, bool tonight,
+                         double& eastArcsec, double& northArcsec) {
+        std::lock_guard<std::mutex> lk(m_scoreMutex);
+        EnsureScoreLocked();
+        return m_pointingScore.Predict(az_deg, alt_deg, (double)std::time(nullptr),
+            tonight ? raduk::sky::PointingScore::Tonight : raduk::sky::PointingScore::All,
+            eastArcsec, northArcsec);
+    }
+
+    std::string PointingVerdict() {
+        std::lock_guard<std::mutex> lk(m_scoreMutex);
+        EnsureScoreLocked();
+        return m_pointingScore.Verdict();
     }
 
 private:
@@ -2467,44 +2487,42 @@ private:
         // Do this BEFORE the slew so camera is ready when mount arrives
         if (m_onProfileAutoLoad) m_onProfileAutoLoad(name);
 
-        // Phase 6.6: the accumulated pointing map, REPORTED and not
-        // applied. It records every plate-solved error and can already
-        // compute a correction, and wiring that into the commanded
-        // coordinates was the obvious next step -- but it is wrong twice
-        // over, and both reasons need sky time to settle rather than a
-        // guess here:
+        // Phase 6.6 left two problems with applying the pointing map,
+        // and phase 123 settles them:
         //
-        //  1. SIGN. GetCorrection returns (actual - expected), i.e.
-        //     truth minus what the mount claimed. A GoTo drives until
-        //     the mount's REPORTED position equals the target, which
-        //     leaves the telescope that error away from it. The fix is
-        //     therefore to command target MINUS the error;
-        //     ApplyPointingCorrection adds it, which would double the
-        //     error rather than remove it.
+        //  1. SIGN. The map holds truth minus reported. A GoTo drives
+        //     until the REPORTED position is the target, leaving the
+        //     telescope that error away, so the command is target MINUS
+        //     the error. The old ApplyPointingCorrection added it.
         //
-        //  2. THE DATA IS ALREADY SPENT. AutoSolveOnLock calls
-        //     SyncRADec with the solved position immediately before
-        //     recording it, so the mount's model is corrected at that
-        //     point and the error just recorded no longer exists.
-        //     Applying it later would reintroduce an error the mount
-        //     does not have.
+        //  2. A SYNC MAY SPEND THE DATA. Every lock syncs, so an error
+        //     from last night may no longer exist. Whether it does is
+        //     measured: each solve first grades what the map would have
+        //     predicted there (PointingScore) against the error the
+        //     mount really had at that moment, after every sync so far.
+        //     If syncs spend the data, the score shows the map hurting.
         //
-        // Doing this properly means either recording without syncing,
-        // so the map is the only correction, or recording post-sync
-        // residuals, which measure what the sync failed to fix. Which
-        // of those is right is a measurement, not a decision. Until
-        // then the prediction is shown so the map is at least visible,
-        // and the slew is left alone.
-        double predRA = 0.0, predDec = 0.0;
+        // So the prediction is always reported, and applied only when
+        // the owner sets PointingMapApply after the log's verdict says
+        // a map helps on this mount.
+        double predE = 0.0, predN = 0.0;
         double tAlt = 0.0, tAz = 0.0;
-        bool corrected = false;
+        bool predicted = false, applied = false;
+        const double targetRA = ra_h, targetDec = dec_deg;
+        const int applyMode = raduk::core::RigConfig::Get().pointingMapApply;
         if (raduk::core::RigConfig::Get().SiteIsSet()) {
             raduk::core::RADecToAltAzNow(ra_h, dec_deg, tAlt, tAz);
             // Below the horizon there is nothing to correct for, and
             // the map has no entries there anyway.
             if (tAlt > 0.0)
-                corrected = m_pointingModel.GetCorrection(tAz, tAlt,
-                                                          predRA, predDec);
+                predicted = PredictPointing(tAz, tAlt, applyMode == 2, predE, predN);
+        }
+        // Capped at a degree so a corrupt map cannot send the mount
+        // anywhere strange; a real error that size wants a realignment.
+        if (predicted && applyMode != 0 &&
+            std::sqrt(predE * predE + predN * predN) < 3600.0) {
+            raduk::sky::CorrectedCommand(targetRA, targetDec, predE, predN, ra_h, dec_deg);
+            applied = true;
         }
         char buf[256];
         sprintf_s(buf, "Loading %s profile → slewing to %s (%.4fh, %.4f°)...",
@@ -2523,17 +2541,13 @@ private:
         }
         m_mount->GoToRADec(ra_h, dec_deg);
         m_lastSlewing = true;
-        if (corrected) {
-            // Reported so the map is visible and can be judged against
-            // what the mount actually does, which is the evidence needed
-            // to settle the two problems above.
-            char cb[200];
-            sprintf_s(cb, "Pointing model predicts %+.1f\" RA, %+.1f\" Dec "
-                          "here (from %d nearby points) - NOT applied, see "
-                          "Phase 6.6 note",
-                      predRA  * 15.0 * 3600.0,
-                      predDec * 3600.0,
-                      m_pointingModel.NearbyCount(tAz, tAlt));
+        if (predicted) {
+            char cb[220];
+            sprintf_s(cb, "Pointing map (%s) predicts %+.0f\" east, %+.0f\" north here - %s",
+                      applyMode == 2 ? "tonight" : "all nights", predE, predN,
+                      applied ? "applied to the slew"
+                              : (applyMode ? "not applied, over the 1 degree cap"
+                                           : "not applied (PointingMapApply=0)"));
             if (m_onLog) m_onLog(cb);
         }
         ReportFraming(name);
@@ -3229,6 +3243,16 @@ private:
     // Phase 6.6: auto solve+sync on Stage 3 lock
     std::atomic<bool>           m_autoSolving{false};
     raduk::sky::PointingModel   m_pointingModel;
+    // Phase 123: graded on every solve. Filled from the CSV on first
+    // use by replaying each past solve, so the verdict covers them all.
+    raduk::sky::PointingScore   m_pointingScore;
+    bool                        m_scoreLoaded = false;
+    std::mutex                  m_scoreMutex;
+    void EnsureScoreLocked() {
+        if (m_scoreLoaded) return;
+        m_scoreLoaded = true;
+        for (const auto& o : m_pointingModel.Observations()) m_pointingScore.Observe(o);
+    }
     std::function<void(bool, const std::string&, double, const std::string&)>
                                 m_onAutoSolveComplete;
 

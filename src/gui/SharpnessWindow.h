@@ -29,6 +29,7 @@
 #include <dwrite.h>
 #include <algorithm>
 #include <vector>
+#include "WindowChrome.h"
 #include "BundledFonts.h"
 #include "Theme.h"
 #include "SharpnessDraw.h"
@@ -69,6 +70,11 @@ public:
 
         m_samples.reserve(HISTORY);
         if (!InitD2D()) { DestroyWindow(m_hwnd); m_hwnd = nullptr; return false; }
+        {
+            chrome::Flags f;
+            f.minimize = false;
+            m_chrome.Attach(m_hwnd, f);
+        }
         // Shown at startup, not hidden behind a shortcut. These are
         // telemetry for a screen of their own: a readout you have to
         // remember to open is a readout you will not be looking at
@@ -79,6 +85,7 @@ public:
     }
 
     void Destroy() {
+        m_chrome.Release();
         ReleaseD2D();
         if (m_hwnd) { DestroyWindow(m_hwnd); m_hwnd = nullptr; }
     }
@@ -210,6 +217,7 @@ private:
         sharpness::Brushes br;
         br.green = m_green; br.amber = m_amber; br.red = m_red; br.dim = m_dim;
 
+        const float top    = (float)m_chrome.CaptionHeight();
         const float pad    = 10.0f;
         const float labelW = m_font->GetFontSize() * 6.0f;
         // Thin bars with no gap: a wide window should spend its width on
@@ -217,9 +225,11 @@ private:
         // apart anyway.
         sharpness::Draw(m_rt, m_font, br,
                         m_samples.data(), (int)m_samples.size(),
-                        pad, pad, (float)m_w - pad * 2.0f, (float)m_h - pad * 2.0f,
+                        pad, top + pad, (float)m_w - pad * 2.0f,
+                        (float)m_h - top - pad * 2.0f,
                         labelW, 1.0f, 0.0f, /*gridlines*/ true);
 
+        m_chrome.Draw(m_rt, m_dwrite, m_w);
         m_rt->EndDraw();
     }
 
@@ -235,6 +245,10 @@ private:
                 GetWindowLongPtrW(hwnd, GWLP_USERDATA));
         }
         if (!self) return DefWindowProcW(hwnd, msg, wp, lp);
+
+        LRESULT chromeResult = 0;
+        if (self->m_chrome.Filter(hwnd, msg, wp, lp, chromeResult))
+            return chromeResult;
 
         switch (msg) {
             case WM_PAINT: {
@@ -267,6 +281,7 @@ private:
     HWND                    m_hwnd    = nullptr;
     ID2D1Factory*           m_factory = nullptr;
     IDWriteFactory*         m_dwrite  = nullptr;
+    WindowChrome            m_chrome;
     ID2D1HwndRenderTarget*  m_rt      = nullptr;
     IDWriteTextFormat*      m_font    = nullptr;
     ID2D1SolidColorBrush*   m_green = nullptr;

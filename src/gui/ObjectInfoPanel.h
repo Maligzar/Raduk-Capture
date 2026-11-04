@@ -39,6 +39,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include "WindowChrome.h"
 #include "Theme.h"
 #include <string>
 #include <functional>
@@ -75,6 +76,15 @@ public:
 
         if (!m_hwnd) return false;
         CreateControls();
+        {
+            chrome::Flags cf;
+            cf.minimize = false;
+            cf.maximize = false;
+            cf.resizable = false;
+            WindowChrome::InstallOptions io;
+            io.shiftChildren = true;
+            WindowChrome::Install(m_hwnd, cf, io);
+        }
         printf("[ObjectInfoPanel] Created\n");
         return true;
     }
@@ -171,17 +181,17 @@ private:
             GetModuleHandle(nullptr), nullptr);
 
         // Fonts
-        HFONT hdrFont = CreateFontW(/*96.4b: off-ramp, wants STRONG (16)*/-14, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        HFONT hdrFont = CreateFontW(-Theme::Type::STRONG, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
         if (!hdrFont) hdrFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
 
-        HFONT bodyFont = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT bodyFont = CreateFontW(-Theme::Type::BODY, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, FIXED_PITCH | FF_MODERN, L"Courier New");
         if (!bodyFont) bodyFont = (HFONT)GetStockObject(SYSTEM_FIXED_FONT);
 
-        HFONT uiFont = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT uiFont = CreateFontW(-Theme::Type::BODY, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
         if (!uiFont) uiFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);

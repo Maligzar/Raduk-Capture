@@ -21,6 +21,7 @@
 #define NOMINMAX
 #endif
 
+#include "WindowChrome.h"
 #include "Theme.h"
 #include <windows.h>
 #include <string>
@@ -411,8 +412,20 @@ private:
         if (oldUi)   DeleteObject(oldUi);
     }
 
+    bool m_chromeOn = false;
     void OnResize(int cw, int ch) {
         if (!m_editContent || !m_editSearch || !m_btnClear) return;
+        if (!m_chromeOn) {
+            m_chromeOn = true;
+            chrome::Flags cf;
+            cf.maximize = false;
+            WindowChrome::Install(m_hwnd, cf, {});
+            RECT rc;
+            GetClientRect(m_hwnd, &rc);
+            cw = rc.right; ch = rc.bottom;
+        }
+        const int top = WindowChrome::CaptionFor(m_hwnd);
+        ch -= top;
         MakeFonts(cw, ch);
 
         // The search row grows with its font, or a 30px filter box
@@ -423,12 +436,12 @@ private:
         const int btnW  = m_fontPx * 5;
 
         if (m_lblSearch)
-            SetWindowPos(m_lblSearch, nullptr, PAD, PAD, lblW, SH, SWP_NOZORDER);
-        SetWindowPos(m_editSearch,  nullptr, PAD + lblW, PAD,
+            SetWindowPos(m_lblSearch, nullptr, PAD, top + PAD, lblW, SH, SWP_NOZORDER);
+        SetWindowPos(m_editSearch,  nullptr, PAD + lblW, top + PAD,
                      cw - PAD*3 - lblW - btnW, SH, SWP_NOZORDER);
-        SetWindowPos(m_btnClear,    nullptr, cw - PAD - btnW, PAD,
+        SetWindowPos(m_btnClear,    nullptr, cw - PAD - btnW, top + PAD,
                      btnW, SH, SWP_NOZORDER);
-        SetWindowPos(m_editContent, nullptr, PAD, SH + PAD*2,
+        SetWindowPos(m_editContent, nullptr, PAD, top + SH + PAD*2,
                      cw - PAD*2, ch - SH - PAD*3, SWP_NOZORDER);
     }
 

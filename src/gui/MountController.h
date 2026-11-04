@@ -8,6 +8,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include "WindowChrome.h"
 #include "Theme.h"
 #include "core/SkyConditions.h"
 #include <windows.h>
@@ -110,6 +111,18 @@ public:
         if (!m_hwnd) return false;
 
         BuildControls();
+        {
+            chrome::Flags cf;
+            cf.minimize = false;
+            cf.maximize = false;
+            cf.resizable = false;
+            WindowChrome::InstallOptions io;
+            io.shiftChildren = true;
+            io.font = CreateFontW(-Theme::Type::STRONG, 0, 0, 0, FW_NORMAL, FALSE, FALSE,
+                FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, Theme::FONT_LABEL);
+            WindowChrome::Install(m_hwnd, cf, io);
+        }
         UpdateRateButtons();
         SetTimer(m_hwnd, TIMER_READOUT, 500, nullptr);
         return true;
@@ -180,8 +193,8 @@ private:
     // caption is not 32px, which on a five-monitor desk is likely.
     //
     // Layout ends with the motion plot at y=300..356; MARGIN below it.
-    static constexpr int CLIENT_W = 210;
-    static constexpr int CLIENT_H = 364;
+    static constexpr int CLIENT_W = 270;
+    static constexpr int CLIENT_H = 400;
     static constexpr int MARGIN = 8;
     static constexpr int TIMER_READOUT = 1;
 
@@ -506,7 +519,7 @@ private:
             popup, (HMENU)(INT_PTR)ID_ALIGN_LIST,
             GetModuleHandle(nullptr), nullptr);
 
-        HFONT fnt = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT fnt = CreateFontW(-Theme::Type::BODY, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, FIXED_PITCH | FF_MODERN, L"Consolas");
         if (fnt) SendMessageW(list, WM_SETFONT, (WPARAM)fnt, TRUE);
@@ -522,7 +535,7 @@ private:
         }
         SendMessageW(list, LB_SETCURSEL, 0, 0);
 
-        HFONT ufnt = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT ufnt = CreateFontW(-Theme::Type::BODY, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
         HWND ok = CreateWindowExW(0, L"BUTTON", L"\u2713  Align Here",
@@ -602,9 +615,9 @@ private:
         int y = 28;
 
         // RA/Dec readout
-        m_lblRA  = MakeLbl(L"RA  --h --m --s",  x, y, w,    16, ID_LBL_RA);  y += 18;
-        m_lblDec = MakeLbl(L"Dec --\u00B0 --' --\"", x, y, w, 16, ID_LBL_DEC); y += 18;
-        m_lblTrk = MakeLbl(L"TRK: OFF",           x, y, w/2, 16, ID_LBL_TRK); y += 20;
+        m_lblRA  = MakeLbl(L"RA  --h --m --s",  x, y, w,    21, ID_LBL_RA);  y += 22;
+        m_lblDec = MakeLbl(L"Dec --\u00B0 --' --\"", x, y, w, 21, ID_LBL_DEC); y += 22;
+        m_lblTrk = MakeLbl(L"TRK: OFF",           x, y, w/2, 21, ID_LBL_TRK); y += 24;
 
         // ── What the pointing costs ───────────────────────────
         //
@@ -621,7 +634,7 @@ private:
         // a line of digits does not.
         m_canvasSky = CreateWindowExW(
             0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_OWNERDRAW,
-            x, y, w, 54, m_hwnd, (HMENU)(INT_PTR)ID_CANVAS_SKY,
+            x, y, w, 68, m_hwnd, (HMENU)(INT_PTR)ID_CANVAS_SKY,
             GetModuleHandleW(nullptr), nullptr);
         SetWindowSubclass(m_canvasSky, SkyProc, 1, (DWORD_PTR)this);
         y += 58;
@@ -799,18 +812,18 @@ private:
         // Text beside the lamp.
         SetBkMode(dc, TRANSPARENT);
         const int tx = cx + d/2 + 10;
-        HFONT big = CreateFontW(/*96.4b: off-ramp, wants STRONG (16)*/-15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        HFONT big = CreateFontW(-Theme::Type::TITLE, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                 DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                                 CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                                 DEFAULT_PITCH, L"Barlow Condensed");
         HGDIOBJ of = SelectObject(dc, big);
         SetTextColor(dc, lit);
-        RECT tr = { tx, 4, rc.right - 2, 4 + 18 };
+        RECT tr = { tx, 2, rc.right - 2, 2 + 24 };
         DrawTextA(dc, name, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         SelectObject(dc, of);
         DeleteObject(big);
 
-        HFONT sm = CreateFontW(/*96.4b: off-ramp, wants BODY (13)*/-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT sm = CreateFontW(-Theme::Type::BODY, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                                CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                                DEFAULT_PITCH, L"Space Mono");
@@ -822,12 +835,12 @@ private:
                      m_sky.altitudeDeg, m_sky.airmass);
         else
             snprintf(line, sizeof(line), "mount has not reported");
-        RECT lr = { tx, 22, rc.right - 2, 22 + 16 };
+        RECT lr = { tx, 26, rc.right - 2, 26 + 19 };
         DrawTextA(dc, line, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
         if (m_sky.valid) {
             snprintf(line, sizeof(line), "seeing x%.2f vs zenith", m_sky.seeingFactor);
-            RECT sr = { tx, 36, rc.right - 2, 36 + 16 };
+            RECT sr = { tx, 45, rc.right - 2, 45 + 19 };
             DrawTextA(dc, line, -1, &sr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
         SelectObject(dc, of);

@@ -207,3 +207,27 @@ read "Exoosure". `SH` and `BH` went to 17 and 24 and the panel's text to
 beside the word from `ButtonIcons.h`. Each glyph was rendered and looked at, and
 DARK, MOUNT CTRL and browse keep words alone because no honest icon existed.
 No hover state yet: owner-draw has none without subclassing. Not seen on screen.
+
+**119.3, second batch.** `WindowChrome::DrawGdi` is the GDI twin of `Draw`.
+Sharpness, Temperature and Status are on the bar, so all four telemetry windows
+match. Status moves its viewport origin below the bar, so its rows are unchanged.
+Then the rest, at the owner's word.
+
+**119.3, all windows.** `WindowChrome::Install` hooks a GDI window with a subclass,
+so its proc is unchanged. Fixed layouts (mount, object info, the four dialogs)
+have their children moved below the bar and the window grown to fit. GoTo, Help
+and the assistant add `CaptionFor` in their own layout. The sky map, object panel
+and share view translate their render target, and the sky map's mouse positions
+take the same offset. ADC moves its viewport as Status does.
+
+**The main window keeps the Windows bar,** coloured by 119.2. Everything in it is
+placed against its top edge, so a custom bar means moving all of it, for a bar that
+already matches in tone.
+
+**Readability pass.** Dialogs set no font and showed the system default; they now
+use `Type::STRONG`. Mount window: 210 to 270 wide, text at 16, lamp text at 20 and
+13. Object info: 16 and 13. GoTo: smallest text 12 to 15. Image overlays: readouts
+13 to 15, bar labels 11 to 12. Help and the assistant already scale with the window.
+
+Not seen on screen. Mount's rate row and the alignment popup are untouched, and
+the sky map's confirm popup and tooltips keep their sizes.

@@ -222,6 +222,32 @@ void Window::ToggleFullscreen() {
     }
 }
 
+// ── While Windows holds the thread ─────────────────────────────
+//
+// Dragging or sizing any window, holding a scroll bar or opening a menu
+// runs Windows' own message loop until the mouse lets go, and the loop
+// below stops with it. That froze the preview, and it froze more than
+// the preview: this loop also feeds the mount's runaway watchdog, so a
+// drag held past its 8 seconds would have emergency-stopped a slewing
+// mount.
+//
+// Those inner loops still dispatch thread timers, so a timer keeps the
+// work going. It only acts once the loop has been away for a few frames,
+// so in normal running it does nothing and nothing is drawn twice.
+namespace {
+    std::function<void()>* g_render = nullptr;
+    DWORD g_lastPass = 0;
+    bool  g_inRender = false;
+
+    void CALLBACK RenderWhileHeld(HWND, UINT, UINT_PTR, DWORD) {
+        if (!g_render || g_inRender) return;
+        if (GetTickCount() - g_lastPass < 40) return;
+        g_inRender = true;
+        (*g_render)();
+        g_inRender = false;
+    }
+}
+
 void Window::Run(std::function<void()> onRender) {
     // Ask Windows for 1 ms timer resolution for the life of the loop.
     //
@@ -238,9 +264,18 @@ void Window::Run(std::function<void()> onRender) {
     timeBeginPeriod(1);
 
     MSG msg = {};
+    g_render = &onRender;
+    g_lastPass = GetTickCount();
+    const UINT_PTR heldTimer = SetTimer(nullptr, 0, 16, RenderWhileHeld);
+    auto leave = [&]() {
+        if (heldTimer) KillTimer(nullptr, heldTimer);
+        g_render = nullptr;
+        timeEndPeriod(1);
+    };
     while (true) {
+        g_lastPass = GetTickCount();
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-            if (msg.message == WM_QUIT) { timeEndPeriod(1); return; }
+            if (msg.message == WM_QUIT) { leave(); return; }
             // Phase 60: route hotkeys before dispatch so they work
             // whichever of our windows or controls holds focus. A
             // consumed key is not dispatched. TranslateMessage still
@@ -250,8 +285,13 @@ void Window::Run(std::function<void()> onRender) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-        if (!m_hwnd) { timeEndPeriod(1); return; }
-        if (onRender && m_renderTarget) onRender();
+        if (!m_hwnd) { leave(); return; }
+        if (onRender && m_renderTarget) {
+            g_inRender = true;
+            onRender();
+            g_inRender = false;
+        }
+        g_lastPass = GetTickCount();
         Sleep(1);
     }
 }

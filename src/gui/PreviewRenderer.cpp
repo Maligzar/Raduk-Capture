@@ -109,7 +109,7 @@ bool PreviewRenderer::Init(ID2D1HwndRenderTarget* renderTarget,
     hr = m_dwriteFactory->CreateTextFormat(
         raduk::gui::Fonts::FamilyFor(Theme::FONT_DATA), raduk::gui::Fonts::CollectionFor(Theme::FONT_DATA),
         DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
-        DWRITE_FONT_STRETCH_NORMAL, 13.0f, L"en-us", &m_hudFont);
+        DWRITE_FONT_STRETCH_NORMAL, 15.0f, L"en-us", &m_hudFont);
     if (FAILED(hr)) return false;
     hr = m_dwriteFactory->CreateTextFormat(
         raduk::gui::Fonts::FamilyFor(Theme::FONT_BANNER), raduk::gui::Fonts::CollectionFor(Theme::FONT_BANNER),
@@ -120,7 +120,7 @@ bool PreviewRenderer::Init(ID2D1HwndRenderTarget* renderTarget,
     hr = m_dwriteFactory->CreateTextFormat(
         raduk::gui::Fonts::FamilyFor(Theme::FONT_DATA), raduk::gui::Fonts::CollectionFor(Theme::FONT_DATA),
         DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
-        DWRITE_FONT_STRETCH_NORMAL, 11.0f, L"en-us", &m_barFont);
+        DWRITE_FONT_STRETCH_NORMAL, 12.0f, L"en-us", &m_barFont);
     if (FAILED(hr)) return false;
 
     printf("[PreviewRenderer] Initialized\n");

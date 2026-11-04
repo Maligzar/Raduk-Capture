@@ -46,6 +46,7 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include "WindowChrome.h"
 #include "Theme.h"
 #include "core/SkyConditions.h"
 
@@ -131,12 +132,18 @@ public:
         BOOL dark = TRUE;
         DwmSetWindowAttribute(m_hwnd, 20, &dark, sizeof(dark));
         DwmSetWindowAttribute(m_hwnd, 19, &dark, sizeof(dark));
+        {
+            chrome::Flags f;
+            f.minimize = false;
+            m_chrome.Attach(m_hwnd, f);
+        }
         ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
         StartDriveScanner();
         return true;
     }
 
     void Destroy() {
+        m_chrome.Release();
         StopDriveScanner();
         if (m_hwnd) { DestroyWindow(m_hwnd); m_hwnd = nullptr; }
     }
@@ -189,6 +196,8 @@ private:
                            OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                            CLEARTYPE_QUALITY, DEFAULT_PITCH, face);
     }
+
+    WindowChrome m_chrome;
 
     static void Fill(HDC hdc, int x, int y, int w, int h, COLORREF c) {
         RECT r = { x, y, x + w, y + h };
@@ -628,12 +637,24 @@ private:
         }
         if (!self) return DefWindowProcW(hwnd, msg, wp, lp);
 
+        LRESULT chromeResult = 0;
+        if (self->m_chrome.Filter(hwnd, msg, wp, lp, chromeResult))
+            return chromeResult;
+
         switch (msg) {
             case WM_PAINT: {
                 PAINTSTRUCT ps;
                 HDC hdc = BeginPaint(hwnd, &ps);
                 RECT cr; GetClientRect(hwnd, &cr);
-                self->Draw(hdc, cr);
+                // The bar, then the body with its origin moved below it,
+                // so none of the row arithmetic has to know.
+                const int top = self->m_chrome.CaptionHeight();
+                self->m_chrome.DrawGdi(hdc, cr.right);
+                POINT was;
+                SetViewportOrgEx(hdc, 0, top, &was);
+                RECT body = {0, 0, cr.right, cr.bottom - top};
+                self->Draw(hdc, body);
+                SetViewportOrgEx(hdc, was.x, was.y, nullptr);
                 EndPaint(hwnd, &ps);
                 return 0;
             }

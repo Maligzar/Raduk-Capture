@@ -43,6 +43,7 @@
 #include "../sky/PointingModel.h"
 #include "../core/IMount.h"
 #include "../core/FrameSlot.h"
+#include "WindowChrome.h"
 #include "Theme.h"
 #include "../core/SkyMath.h"
 
@@ -162,6 +163,12 @@ public:
         if (!m_hwnd) return false;
 
         BuildControls(w - 20, h);
+        {
+            chrome::Flags cf;
+            cf.minimize = false;
+            cf.maximize = false;
+            WindowChrome::Install(m_hwnd, cf, {});
+        }
         m_catalog.UpdatePlanets();
         PopulateList("");
 
@@ -1259,8 +1266,8 @@ private:
         // until the fixed furniture fits. Twelve is the floor, below
         // which this stops being readable at all and the window is
         // simply too short for its contents.
-        int px = h / 46;
-        if (px < 12) px = 12;
+        int px = h / 40;
+        if (px < 15) px = 15;
         if (px > 24) px = 24;
         while (px > 12 && FixedStackHeight(px) > h) px--;
         ApplyFontPx(px);
@@ -1275,7 +1282,7 @@ private:
         };
 
         // ── Tab 0: GoTo ──
-        int y = 4;
+        int y = 4 + WindowChrome::CaptionFor(m_hwnd);
         place(m_tabCtrl, x, y, cw, TABH);
         y += TABH + 4;
 

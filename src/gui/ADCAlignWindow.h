@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cmath>
 #include <vector>
+#include "WindowChrome.h"
 #include "Theme.h"
 #include "core/ADCAlignment.h"
 
@@ -60,6 +61,11 @@ public:
         BOOL dark = TRUE;
         DwmSetWindowAttribute(m_hwnd, 20, &dark, sizeof(dark));
         DwmSetWindowAttribute(m_hwnd, 19, &dark, sizeof(dark));
+        {
+            chrome::Flags cf;
+            cf.minimize = false;
+            m_chrome.Attach(m_hwnd, cf);
+        }
 
         // Unlike the other telemetry windows this one starts hidden.
         // It is a job you do once at the start of a session, not
@@ -395,12 +401,22 @@ private:
         }
         if (!self) return DefWindowProcW(hwnd, msg, wp, lp);
 
+        LRESULT chromeResult = 0;
+        if (self->m_chrome.Filter(hwnd, msg, wp, lp, chromeResult))
+            return chromeResult;
+
         switch (msg) {
             case WM_PAINT: {
                 PAINTSTRUCT ps;
                 HDC hdc = BeginPaint(hwnd, &ps);
                 RECT cr; GetClientRect(hwnd, &cr);
-                self->Draw(hdc, cr);
+                const int top = self->m_chrome.CaptionHeight();
+                self->m_chrome.DrawGdi(hdc, cr.right);
+                POINT was;
+                SetViewportOrgEx(hdc, 0, top, &was);
+                RECT body = {0, 0, cr.right, cr.bottom - top};
+                self->Draw(hdc, body);
+                SetViewportOrgEx(hdc, was.x, was.y, nullptr);
                 EndPaint(hwnd, &ps);
                 return 0;
             }
@@ -421,6 +437,7 @@ private:
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
 
+    WindowChrome m_chrome;
     HWND               m_hwnd = nullptr;
     Data               m_data;
     std::vector<float> m_trend;

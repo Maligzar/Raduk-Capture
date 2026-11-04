@@ -17,6 +17,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include "WindowChrome.h"
 #include "Theme.h"
 #include <string>
 #include <vector>
@@ -267,11 +268,20 @@ private:
             DeleteObject(oldInput);
     }
 
+    bool m_chromeOn = false;
     void OnResize(int cw, int ch) {
-        ApplyFonts(ch);
+        if (!m_chromeOn) {
+            m_chromeOn = true;
+            WindowChrome::Install(m_hwnd, chrome::Flags{}, {});
+            RECT rc;
+            GetClientRect(m_hwnd, &rc);
+            cw = rc.right; ch = rc.bottom;
+        }
+        const int top = WindowChrome::CaptionFor(m_hwnd);
+        ApplyFonts(ch - top);
         const int PAD = Pad(), BH = RowH(), IH = RowH();
         if (m_editHistory) SetWindowPos(m_editHistory, nullptr,
-            PAD, PAD, cw-PAD*2, ch-IH-BH-PAD*4, SWP_NOZORDER);
+            PAD, top + PAD, cw-PAD*2, ch-top-IH-BH-PAD*4, SWP_NOZORDER);
         int inputY = ch - IH - BH - PAD*2;
         if (m_editInput) SetWindowPos(m_editInput, nullptr,
             PAD, inputY, cw-PAD*2, IH, SWP_NOZORDER);

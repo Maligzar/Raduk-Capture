@@ -22,6 +22,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include "WindowChrome.h"
 #include "Theme.h"
 #include "core/RigConfig.h"
 #include <windows.h>
@@ -325,6 +326,22 @@ inline bool ShowReadinessDialog(
     };
     SetWindowSubclass(dlg, Sub::Proc, 1, (DWORD_PTR)&refresh);
     SetTimer(dlg, TIMER_ID, 2000, nullptr);   // poll while it is open
+
+    {
+        // Phase 119: the app's bar, and a real font: these set none and
+        // showed the system default.
+        chrome::Flags cf;
+        cf.minimize = false;
+        cf.maximize = false;
+        cf.resizable = false;
+        WindowChrome::InstallOptions io;
+        io.shiftChildren = true;
+        static HFONT font = CreateFontW(-Theme::Type::STRONG, 0, 0, 0, FW_NORMAL, FALSE,
+            FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, Theme::FONT_LABEL);
+        io.font = font;
+        WindowChrome::Install(dlg, cf, io);
+    }
 
     if (owner) EnableWindow(owner, FALSE);
     if (panel) EnableWindow(panel, FALSE);

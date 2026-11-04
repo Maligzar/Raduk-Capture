@@ -40,6 +40,7 @@
 #include <chrono>
 #include <algorithm>
 #include "BundledFonts.h"
+#include "WindowChrome.h"
 #include "Theme.h"
 #include "AudienceLayout.h"
 
@@ -104,6 +105,11 @@ public:
             x, y, w, h,
             parent, nullptr, GetModuleHandleW(nullptr), this);
         if (!m_hwnd) return false;
+        {
+            chrome::Flags cf;
+            cf.minimize = false;
+            m_chrome.Attach(m_hwnd, cf);
+        }
 
         if (!InitD2D()) { DestroyWindow(m_hwnd); m_hwnd = nullptr; return false; }
 
@@ -246,11 +252,11 @@ private:
             return false;
 
         RECT rc; GetClientRect(m_hwnd, &rc);
-        m_w = rc.right; m_h = rc.bottom;
+        m_w = rc.right; m_h = rc.bottom - m_chrome.CaptionHeight();
 
         HRESULT hr = factory->CreateHwndRenderTarget(
             D2D1::RenderTargetProperties(),
-            D2D1::HwndRenderTargetProperties(m_hwnd, D2D1::SizeU(m_w, m_h)),
+            D2D1::HwndRenderTargetProperties(m_hwnd, D2D1::SizeU(rc.right, rc.bottom)),
             &m_rt);
         factory->Release();
         if (FAILED(hr)) return false;
@@ -387,6 +393,8 @@ private:
     void Draw() {
         if (!m_rt) return;
         m_rt->BeginDraw();
+        m_rt->SetTransform(D2D1::Matrix3x2F::Translation(
+            0.0f, (float)m_chrome.CaptionHeight()));
         m_rt->Clear(Theme::NVf(D2D1::ColorF(0.0f, 0.0f, 0.0f)));
 
         if (m_haveFrame && m_bitmap) {
@@ -405,6 +413,8 @@ private:
         if (m_showCaption) DrawCaption();
         DrawHint();
 
+        m_rt->SetTransform(D2D1::Matrix3x2F::Identity());
+        m_chrome.Draw(m_rt, m_dwrite, m_w);
         HRESULT hr = m_rt->EndDraw();
         if (hr == D2DERR_RECREATE_TARGET) { ReleaseD2D(); InitD2D(); }
     }
@@ -746,7 +756,8 @@ private:
     }
 
     void OnResize(int w, int h) {
-        m_w = w; m_h = h;
+        // m_h is what there is to draw in: the target spans the bar too.
+        m_w = w; m_h = h - m_chrome.CaptionHeight();
         if (m_rt) m_rt->Resize(D2D1::SizeU(w, h));
         MakeFonts();
         Redraw();
@@ -764,6 +775,10 @@ private:
             return DefWindowProcW(hwnd, msg, wp, lp);
         }
         if (!self) return DefWindowProcW(hwnd, msg, wp, lp);
+
+        LRESULT chromeResult = 0;
+        if (self->m_chrome.Filter(hwnd, msg, wp, lp, chromeResult))
+            return chromeResult;
 
         switch (msg) {
             case WM_SIZE:
@@ -837,6 +852,7 @@ private:
     }
 
     HWND                   m_hwnd   = nullptr;
+    WindowChrome m_chrome;
     ID2D1HwndRenderTarget* m_rt     = nullptr;
     IDWriteFactory*        m_dwrite = nullptr;
     IDWriteTextFormat*     m_bigFormat   = nullptr;

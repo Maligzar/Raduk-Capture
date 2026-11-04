@@ -47,7 +47,8 @@ enum ToolbarCmd : int {
     ID_TB_FOLLOW    = 3022,   // Phase 107: move the ROI to hold the target
     ID_TB_DEROT     = 3023,   // Phase 108: warn or stop at the derotation window
     ID_TB_RUNS      = 3024,   // Phase 113: a sequence of runs
-    ID_TB_LAST      = 3024,
+    ID_TB_STATS     = 3025,   // Phase 124: every session, in the browser
+    ID_TB_LAST      = 3025,
 };
 
 static constexpr int kToolbarButtons = ID_TB_LAST - ID_TB_FIRST + 1;
@@ -90,6 +91,7 @@ static constexpr ToolbarItem kRailItems[] = {
     { ID_TB_GOTO,  L"GOTO",   L"GOTO",   L'\xE707' },
     { ID_TB_RUNS,  L"RUNS",   L"RUNS",   L'\xE8EE' },
     { ID_TB_STACK, L"STACK",  L"STACK",  L'\xE81E' },
+    { ID_TB_STATS, L"STATS",  L"STATS",  L'\xE9D2' },
     { ID_TB_DASH,  L"DASH",   L"DASH",   L'\xE9D9' },
     { ID_TB_AI,    L"AI",     L"AI",     L'\xE8BD' },
     { ID_TB_HW,    L"HW OFF", L"HW OFF", L'\xE950' },

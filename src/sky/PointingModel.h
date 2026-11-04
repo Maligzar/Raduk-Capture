@@ -76,7 +76,14 @@ public:
         // Ensure data directory exists
         std::wstring wdir(dataDir.begin(), dataDir.end());
         CreateDirectoryW(wdir.c_str(), nullptr);
+        // Phase 124: the emulator keeps its own file. Its solves are of
+        // a simulated sky, and phase 123's score must only ever grade
+        // the real mount.
+#ifdef RADUK_EMULATOR
+        m_csvPath = dataDir + "\\pointing_model_emu.csv";
+#else
         m_csvPath = dataDir + "\\pointing_model.csv";
+#endif
         LoadFromCSV();
     }
 

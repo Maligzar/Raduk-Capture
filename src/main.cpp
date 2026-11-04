@@ -74,6 +74,7 @@
 #include "core/HardwareLink.h" // phase 46: what the [HW] button shows and says
 #include "core/RoiFollower.h"
 #include "core/DashboardLaunch.h" // [DASH]: open the dashboard with its token
+#include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
 #pragma comment(lib, "shlwapi.lib")
 #include "gui/ShareView.h"
@@ -5132,6 +5133,42 @@ static int RunApp(bool useEmulator) {
         else           notifBar.NotifyWarn(L"Dashboard opened, but there is no usable WsToken to give it");
     };
     toolbar.SetDashCallback([&]() { doDashboard(); });
+
+    // [STATS]: phase 124. Read every session log, capture record and
+    // pointing file, write one page, open it in the browser. A few
+    // hundred small files read in well under a second, so this runs on
+    // the UI thread rather than adding a thread to look after.
+    toolbar.SetStatsCallback([&]() {
+        using namespace raduk::core;
+        const ULONGLONG t0 = GetTickCount64();
+        const SessionStats st = LoadSessionStats(
+            Paths::Logs(), controls.GetOutputDir().empty() ? Paths::Captures() : controls.GetOutputDir(),
+            Paths::Data() + "\\pointing_model.csv", Paths::Data() + "\\pointing_model_emu.csv");
+        SYSTEMTIME lt; GetLocalTime(&lt);
+        char when[32];
+        snprintf(when, sizeof(when), "%04d-%02d-%02d %02d:%02d",
+                 lt.wYear, lt.wMonth, lt.wDay, lt.wHour, lt.wMinute);
+        const std::string path = Paths::EnsureSub("data") + "\\session_stats.html";
+        {
+            std::ofstream f(path, std::ios::binary | std::ios::trunc);
+            f << RenderSessionStatsHtml(st, when);
+            if (!f) {
+                Log("[STATS] Could not write %s\n", path.c_str());
+                notifBar.NotifyWarn(L"Could not write the session statistics page");
+                return;
+            }
+        }
+        Log("[STATS] %d logs, %d records: rig %d sessions over %zu nights, emulator %d (%llu ms)\n",
+            st.logsRead, st.records, st.rig.sessions, st.rig.nights.size(), st.emu.sessions,
+            (unsigned long long)(GetTickCount64() - t0));
+        const HINSTANCE r = ShellExecuteW(nullptr, L"open", toWide(path).c_str(),
+                                          nullptr, nullptr, SW_SHOWNORMAL);
+        if ((INT_PTR)r <= 32) {
+            Log("[STATS] ShellExecute %d: %s\n", (int)(INT_PTR)r, path.c_str());
+            notifBar.NotifyWarn(L"Session statistics written to data\\session_stats.html, "
+                                L"but no browser opened it");
+        }
+    });
     toolbar.SetFollowOn(raduk::core::RigConfig::Get().roiFollow);
     toolbar.SetFollowCallback([&]() {
         auto& rig = raduk::core::RigConfig::Get();

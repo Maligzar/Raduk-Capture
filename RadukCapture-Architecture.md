@@ -1,7 +1,7 @@
 # RadukCapture: Architecture and Roadmap
 
 Planetary capture software for the ZWO ASI678MC, ZWO EAF and Celestron 8SE.
-Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 121.
+Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 122.
 
 This file describes how the application is built, what exists, and what is
 left to do. It was rewritten because its old build plan had stopped at about
@@ -543,7 +543,7 @@ The largest debt in the project, and it costs little code. In order:
 3. **Clear-night item 14, click to recentre.**
 4. **Clear-night item 15,** which settles the pixel readout's row order.
 5. **Clear-night item 18, the first lunar mosaic.**
-6. **Real-camera unknowns from recent work,** checklist 31 to 42: whether
+6. **Real-camera unknowns from recent work,** checklist 31 to 43: whether
    `ASISetStartPos` applies during capture and how many frames it takes,
    surface lock on a real Moon, whether the camera lists gamma, the light
    ladder's knees, whether `centroidValid` holds on a full-frame Moon, whether
@@ -576,7 +576,7 @@ cheapest way to shrink the status file's debt.
 
 | Item | Note |
 |---|---|
-| **Rockets without a trajectory** | Phase 121 follows anything JPL Horizons predicts. A rocket in flight has no table, so it needs tracking from the image alone |
+| **Fast targets on the sky** | Phases 116 to 122 are built: satellites, a night plan, JPL targets and image-only tracking. What they owe now is the sky, checklist 39 to 43 |
 | GoTo map learning, correcting half (6.6) | Auto solve and sync ships. The pointing map reports and does not correct, and the correcting half is the half that helps |
 
 ### 13.4 Smaller bench work

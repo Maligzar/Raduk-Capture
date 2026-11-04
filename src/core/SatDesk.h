@@ -43,6 +43,7 @@
 
 #include "IMount.h"
 #include "Paths.h"
+#include "MotionLock.h"
 #include "SatImageLock.h"
 #include "SatPlan.h"
 #include "SatTracker.h"
@@ -152,7 +153,29 @@ public:
         std::function<raduk::sky::SatLook(double)>  look;
         std::function<raduk::sky::SatRates(double)> rates;
         raduk::sky::SatPassInfo window;
+        // Phase 122: no prediction at all; the image is the source.
+        bool imageDriven = false;
     };
+
+    // Phase 122: follow whatever is in the frame, from the image alone.
+    // For a rocket, or anything whose prediction has failed.
+    static constexpr double kMotionMaxSec = 900.0;
+    const char* StartMotion(IMount* mount, const raduk::sky::LunarObserver& site,
+                            const raduk::sky::SatPassLimits& lim) {
+        {
+            std::lock_guard<std::mutex> lk(m_mutex);
+            if (!m_calValid) return "this needs tonight's guide calibration";
+        }
+        if (!m_tap) return "no frames to follow";
+        TrackSource s;
+        s.what = "Moving target";
+        s.imageDriven = true;
+        const double now = raduk::sky::PreciseJdNow();
+        s.window.trackable = true;
+        s.window.trackStartJd = now;
+        s.window.trackEndJd = now + kMotionMaxSec / 86400.0;
+        return Launch(mount, s, site, lim);
+    }
 
     // nullptr on success, or why not.
     const char* StartTrack(IMount* mount, const SatPassRow& row,
@@ -390,6 +413,36 @@ private:
         auto say = [&](const char* s) { Say(src.what + ": " + s); };
 
         const IMount::TrackingMode restore = mount->GetTrackingMode();
+
+        // Phase 122: the image as the source. Prime it on a few fixes
+        // first, while nothing has moved: if there is nothing in the frame
+        // the mount is never told to do anything.
+        MotionLock motion;
+        if (src.imageDriven) {
+            {
+                std::lock_guard<std::mutex> lk(m_mutex);
+                motion.Configure(m_calResp, m_calAlt, m_calRate);
+            }
+            if (m_tap) m_tap->Arm(true);
+            const auto t0 = std::chrono::steady_clock::now();
+            while (!motion.Ready() && !m_stop.load() &&
+                   std::chrono::steady_clock::now() - t0 < std::chrono::milliseconds(1500)) {
+                const double s = (PreciseJdNow() - win.trackStartJd) * 86400.0;
+                double alt = 0.0, az = 0.0, age = 0.0;
+                float fx = 0, fy = 0; int fw = 0, fh = 0;
+                const bool okm = mount->GetAltAz(alt, az);
+                const bool fix = okm && m_tap && m_tap->TakeTimed(fx, fy, fw, fh, age);
+                if (okm) motion.Update(s, alt, az, fix, s - age, fx, fy, fw, fh);
+                std::this_thread::sleep_for(std::chrono::milliseconds(kTickMs / 2));
+            }
+            if (!motion.Ready()) {
+                if (m_tap) m_tap->Arm(false);
+                say("nothing bright enough in the frame to follow. Nothing moved.");
+                SetStatus("Nothing to follow");
+                m_outcome.store(SatOutcome::Lost);
+                return;
+            }
+        }
         const double base = win.trackStartJd;
         auto secNow = [&]() { return (PreciseJdNow() - base) * 86400.0; };
 
@@ -399,6 +452,7 @@ private:
         c.minAltDeg = lim.minAltDeg;
         c.maxAltDeg = lim.maxAltDeg;
         c.maxRateDeg = lim.maxRateDeg;
+        c.skipSlew = src.imageDriven;
         SatTracker tr;
         tr.Configure(c);
         tr.Start(secNow());
@@ -434,28 +488,44 @@ private:
                 tr.Abort(why.c_str());
             }
 
-            // Aim at where it will be when the command takes effect.
-            const double jd = PreciseJdNow()
-                            + (0.1 + m_timeOffset.load()) / 86400.0;
-            const SatRates q = src.rates(jd);
-            SatTracker::Sky sky;
-            sky.ok = q.ok; sky.altDeg = q.altDeg; sky.azDeg = q.azDeg;
-            sky.altRate = q.altRate; sky.azRate = q.azRate;
-
+            // Where it is now, and the rate it will have when the command
+            // takes effect. Phase 122 found these had been one point 0.1 s
+            // ahead: the error was then measured against the future, and
+            // the correction held the mount 0.1 s in front of the target,
+            // 0.08 degrees on the ISS. Position from now, rate from ahead.
             const auto phase = tr.State();
             double alt = 0.0, az = 0.0;
             bool ok = true, slewing = false;
             if (phase == SatTracker::Phase::Slewing)
                 slewing = mount->IsSlewing();
-            else if (phase == SatTracker::Phase::Acquiring ||
+            else if (src.imageDriven ||
+                     phase == SatTracker::Phase::Acquiring ||
                      phase == SatTracker::Phase::Tracking)
                 ok = mount->GetAltAz(alt, az);
 
             const double now = secNow();
 
+            SatTracker::Sky sky;
+            if (src.imageDriven) {
+                double age = 0.0;
+                float fx = 0, fy = 0; int fw = 0, fh = 0;
+                const bool fix = ok && m_tap && m_tap->TakeTimed(fx, fy, fw, fh, age);
+                if (ok) motion.Update(now, alt, az, fix, now - age, fx, fy, fw, fh);
+                if (motion.Lost(now)) tr.Abort("lost the target in the image");
+                sky = motion.SkyAt(now);
+                const SatTracker::Sky ahead = motion.SkyAt(now + 0.1);
+                sky.azRate = ahead.azRate; sky.altRate = ahead.altRate;
+            } else {
+            const double jd = PreciseJdNow() + m_timeOffset.load() / 86400.0;
+            const SatRates q  = src.rates(jd);
+            const SatRates qa = src.rates(jd + 0.1 / 86400.0);
+            sky.ok = q.ok && qa.ok; sky.altDeg = q.altDeg; sky.azDeg = q.azDeg;
+            sky.altRate = qa.altRate; sky.azRate = qa.azRate;
+            }
+
             // Phase 117: the image moves the aim, and only the aim. The
             // tracker's stops all judge what is left.
-            if (phase == SatTracker::Phase::Tracking) {
+            if (phase == SatTracker::Phase::Tracking && !src.imageDriven) {
                 float fx = 0.0f, fy = 0.0f;
                 int fw = 0, fh = 0;
                 const bool fix = m_tap && m_tap->Take(fx, fy, fw, fh);

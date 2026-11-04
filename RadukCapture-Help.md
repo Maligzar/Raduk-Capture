@@ -2523,7 +2523,14 @@ pass and the status reads `image lock`.
 tick the best set from now on: it leaves out any it cannot slew to in time, and
 prefers more targets, then higher and sunlit ones. RUN THE PLAN then flies them
 in turn. A missed pass is skipped. A fault in the mount, or Escape, ends the
-whole plan. Every target uses the same camera settings. This has
+whole plan. Every target uses the same camera settings.
+
+**Anything JPL predicts.** Type a target into the box under the plan buttons:
+an asteroid number with a semicolon (`99942;`), a comet (`C/2023 A3`) or a
+spacecraft ID, and press FOLLOW. The app fetches 12 hours of positions from JPL
+Horizons and flies the first stretch in the tracking band as it would a
+satellite pass. Only the target's name and the time are sent, never your site.
+This has
 not been tried on a real mount, so read item 39 of the clear-night checklist
 first.
 
@@ -2768,6 +2775,7 @@ order.
 | 3.0+ | 116 | Satellite passes and high-rate mount control, on the Passes tab |
 | 3.0+ | 117 | Image lock on a satellite pass, and a time nudge |
 | 3.0+ | 118 | A night plan of satellites, run in turn |
+| 3.0+ | 121 | Follow anything JPL Horizons predicts: asteroids, comets, spacecraft |
 
 ---
 

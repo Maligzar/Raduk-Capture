@@ -1174,3 +1174,11 @@ For contrast, so this list is not read as "nothing works":
     `SatBufferSec` to what this tube needs. The whole night is unattended slewing, so
     stay with it the first time.
 
+42. **Following a JPL target** (phase 121). Indoors: type `99942;` on the
+    Passes tab and press FOLLOW. The log should name Apophis and say it is not
+    in the band, since it is far off now. Type a nonsense name: the log should
+    quote JPL's reply. On the sky, after item 39: pick a bright comet or the
+    ISS by its JPL ID (`-125544`), FOLLOW it, and see it land in the frame. The
+    ISS is the hard case, because the table's UTC tags lag about 0.06 degrees
+    on it. Anything slower should sit well inside the frame.
+

@@ -6439,6 +6439,9 @@ static int RunApp(bool useEmulator) {
             else
                 gotoPanel.TickSlewStatus();
 
+            // Phase 121: maps follow the scope while a pass is flown.
+            for (auto* m : kMaps) m->SetFollowMount(gotoPanel.Satellites().Tracking());
+
             // Sky maps — update mount crosshair and redraw
             for (auto* m : kMaps)
                 if (m->IsVisible()) m->Tick();

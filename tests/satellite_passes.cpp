@@ -84,11 +84,13 @@ static RunResult Fly(const Sgp4& s, const SatPassInfo& p, FakeMount m,
     int goToAt = -1, tick = 0;
     double residualSum = 0; int residualN = 0;
     while (now < c.endSec + 10.0 && tick < 40000) {
-        const double jd = t0 + (now + 0.1) / 86400.0;
-        const SatRates q = SatRatesAt(s, jd, kPalomar);
+        // As SatDesk does: position now, rate 0.1 s ahead.
+        const double jd = t0 + now / 86400.0;
+        const SatRates q  = SatRatesAt(s, jd, kPalomar);
+        const SatRates qa = SatRatesAt(s, jd + 0.1 / 86400.0, kPalomar);
         SatTracker::Sky sky;
-        sky.ok = q.ok; sky.altDeg = q.altDeg; sky.azDeg = q.azDeg;
-        sky.altRate = q.altRate; sky.azRate = q.azRate;
+        sky.ok = q.ok && qa.ok; sky.altDeg = q.altDeg; sky.azDeg = q.azDeg;
+        sky.altRate = qa.altRate; sky.azRate = qa.azRate;
 
         bool ok = true;
         double a = m.alt, z = m.az;

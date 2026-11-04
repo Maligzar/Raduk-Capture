@@ -82,6 +82,9 @@ public:
         double staleSec    = 2.0;
         double slewTimeoutSec = 120.0;
         double slewMinSec  = 1.5;
+        // Phase 122: the object is already in frame, so there is nowhere
+        // to slew to: start holding, and move at startSec.
+        bool   skipSlew    = false;
     };
 
     struct Sky {
@@ -103,7 +106,7 @@ public:
     void Configure(const Config& c) { m_cfg = c; m_phase = Phase::Idle; }
 
     void Start(double nowSec) {
-        m_phase = Phase::Slewing;
+        m_phase = m_cfg.skipSlew ? Phase::Holding : Phase::Slewing;
         m_entered = nowSec;
         m_issued = false;
         m_sawSlew = false;

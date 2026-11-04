@@ -1013,6 +1013,7 @@ private:
         ID_BTN_PASS_RUN    = 2027,
         ID_EDIT_JPL_TARGET = 2028,  // Phase 121
         ID_BTN_FOLLOW      = 2029,
+        ID_BTN_MOTION      = 2030,  // Phase 122
         ID_LBL_TONIGHT_HDR = 2023,  // Phase 14: header label
         ID_BTN_SURVEY      = 2030,  // Phase 13: start/stop sky survey
         ID_LBL_SURVEY      = 2031,  // Phase 13: survey progress label
@@ -1370,7 +1371,7 @@ private:
         {
             int py = passTopY;
             place(m_lblPassHdr, x, py, cw, SH);      py += SH + 4;
-            const int foot = 5 * (BH + 8) + SH + 8;
+            const int foot = 6 * (BH + 8) + SH + 8;
             int lh = h - 8 - py - foot;
             if (lh < 100) lh = 100;
             place(m_listPasses, x, py, cw, lh);      py += lh + 4;
@@ -1382,6 +1383,8 @@ private:
                 const int fw = m_fontPx * 7;
                 place(m_editTarget, x, py, cw - fw - 4, BH + 4);
                 place(m_btnFollow, x + cw - fw, py, fw, BH + 4);
+                py += BH + 8;
+                place(m_btnMotion, x, py, cw, BH + 4);
                 py += BH + 8;
             }
             place(m_lblPassState,  x, py, cw, SH);
@@ -1508,6 +1511,7 @@ private:
         setVis(m_btnPassRun,    p);
         setVis(m_editTarget,    p);
         setVis(m_btnFollow,     p);
+        setVis(m_btnMotion,     p);
         setVis(m_lblPassState,  p);
         if (p && m_sat.Rows().empty() && !m_sat.Busy())
             m_sat.Refresh(SiteObserver(), SatLimits(), false);
@@ -1692,6 +1696,25 @@ private:
         m_sat.FetchTarget(target);
         ShowPassNote("Asking JPL Horizons...");
         if (m_onLog) m_onLog("Target: asking JPL Horizons for " + target + ".");
+    }
+
+    // Phase 122. The preflight runs first because it is what hands over
+    // tonight's guide calibration, and this cannot work without one.
+    void RequestMotion() {
+        if (m_sat.Tracking()) { m_sat.StopTrack("stopped by the operator"); return; }
+        if (m_plan.Running()) { ShowPassNote("The plan is running"); return; }
+        if (m_mosaic.Running()) { ShowPassNote("A mosaic is running"); return; }
+        raduk::sky::SatPassInfo none;
+        if (m_satPreflight) {
+            const std::string why = m_satPreflight(none);
+            if (!why.empty()) { ShowPassNote(why); return; }
+        }
+        if (const char* why = m_sat.StartMotion(m_mount, SiteObserver(), SatLimits())) {
+            ShowPassNote(why);
+            if (m_onLog) m_onLog(std::string("Not following: ") + why);
+            return;
+        }
+        if (m_onLog) m_onLog("Moving target: following what is in the frame.");
     }
 
     void FollowTick() {
@@ -2310,6 +2333,8 @@ private:
         SendMessageW(m_editTarget, EM_SETCUEBANNER, TRUE,
                      (LPARAM)L"JPL target, e.g. 99942; or C/2023 A3");
         m_btnFollow  = Button(L"FOLLOW", x, tonightY, w, BH+4, ID_BTN_FOLLOW);
+        // Phase 122: whatever is in the frame, from the image alone.
+        m_btnMotion  = Button(L"TRACK WHAT IS IN FRAME", x, tonightY, w, BH+4, ID_BTN_MOTION);
         m_lblPassState  = Label(L"", x, tonightY, w, SH);
 
         // P3.3: everything above was created at whatever coordinates
@@ -2935,6 +2960,10 @@ private:
                     self->RequestFollow();
                     return 0;
                 }
+                if (id == ID_BTN_MOTION) {
+                    self->RequestMotion();
+                    return 0;
+                }
                 // Phase 14: GoTo from tonight planner
                 if (id == ID_BTN_GOTO_TONIGHT) {
                     int sel = ListView_GetNextItem(self->m_listTonight, -1, LVNI_SELECTED);
@@ -3135,6 +3164,7 @@ private:
     HWND m_btnPassRun     = nullptr;
     HWND m_editTarget     = nullptr;
     HWND m_btnFollow      = nullptr;
+    HWND m_btnMotion      = nullptr;
     raduk::core::SatPlanRunner m_plan;
     std::vector<raduk::core::SatPassRow> m_planRows;
     bool m_planShown = false;

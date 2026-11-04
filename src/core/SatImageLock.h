@@ -138,6 +138,7 @@ public:
     void OnFrame(const uint8_t* data, int width, int height, int bitDepth) {
         if (!m_armed.load(std::memory_order_relaxed)) return;
         const auto now = std::chrono::steady_clock::now();
+        m_frameAt = now;
         if (now - m_last < std::chrono::milliseconds(kPeriodMs)) return;
         m_last = now;
         float x = 0.0f, y = 0.0f;
@@ -145,6 +146,21 @@ public:
         std::lock_guard<std::mutex> lk(m_mutex);
         m_fresh = ok;
         m_x = x; m_y = y; m_w = width; m_h = height;
+        m_fixAt = m_frameAt;
+    }
+
+    // Phase 122: the same, and how long ago its frame arrived.
+    bool TakeTimed(float& x, float& y, int& w, int& h, double& ageSec) {
+        std::chrono::steady_clock::time_point at;
+        {
+            std::lock_guard<std::mutex> lk(m_mutex);
+            if (!m_fresh) return false;
+            m_fresh = false;
+            x = m_x; y = m_y; w = m_w; h = m_h;
+            at = m_fixAt;
+        }
+        ageSec = std::chrono::duration<double>(std::chrono::steady_clock::now() - at).count();
+        return true;
     }
 
     // True once for each new centroid.
@@ -158,7 +174,7 @@ public:
 
 private:
     std::atomic<bool> m_armed{false};
-    std::chrono::steady_clock::time_point m_last{};
+    std::chrono::steady_clock::time_point m_last{}, m_frameAt{}, m_fixAt{};
     std::mutex m_mutex;
     bool  m_fresh = false;
     float m_x = 0.0f, m_y = 0.0f;

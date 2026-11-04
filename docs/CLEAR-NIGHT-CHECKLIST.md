@@ -1182,3 +1182,11 @@ For contrast, so this list is not read as "nothing works":
     ISS is the hard case, because the table's UTC tags lag about 0.06 degrees
     on it. Anything slower should sit well inside the frame.
 
+43. **Tracking from the image alone** (phase 122). After items 39 and 40, with
+    tonight's guide calibration. Indoors first: with nothing bright in frame,
+    press TRACK WHAT IS IN FRAME. The log should say there is nothing to follow,
+    and the mount must not move. On the sky, practise on something predictable:
+    put a bright satellite in frame by hand or by a pass, press the button, and
+    watch it hold. Cover the objective for a second: it should coast. Cover it
+    for longer: it should stop. Only then a rocket.
+

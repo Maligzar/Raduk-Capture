@@ -2530,6 +2530,11 @@ an asteroid number with a semicolon (`99942;`), a comet (`C/2023 A3`) or a
 spacecraft ID, and press FOLLOW. The app fetches 12 hours of positions from JPL
 Horizons and flies the first stretch in the tracking band as it would a
 satellite pass. Only the target's name and the time are sent, never your site.
+
+**Anything in the frame.** For a rocket, or anything with no prediction, bring
+it into the frame and press TRACK WHAT IS IN FRAME. The app follows it from the
+image alone, using tonight's guide calibration, and records once it is held. If
+it is lost for more than two seconds the mount stops.
 This has
 not been tried on a real mount, so read item 39 of the clear-night checklist
 first.
@@ -2776,6 +2781,7 @@ order.
 | 3.0+ | 117 | Image lock on a satellite pass, and a time nudge |
 | 3.0+ | 118 | A night plan of satellites, run in turn |
 | 3.0+ | 121 | Follow anything JPL Horizons predicts: asteroids, comets, spacecraft |
+| 3.0+ | 122 | Track whatever is in the frame, from the image alone |
 
 ---
 

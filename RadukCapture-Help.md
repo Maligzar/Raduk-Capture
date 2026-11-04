@@ -2508,6 +2508,25 @@ GoTo search too: type `Copernicus` and slew to `Moon - Copernicus`. There are
 sunrise there. The Moon and its features are pointed at from your site, so set
 the site first: without it a lunar slew can be a degree off.
 
+**Satellite passes.** The Passes tab in the GoTo panel lists the next 24 hours
+of passes from your site. UPDATE ELEMENTS fetches fresh orbits from CelesTrak.
+TRACK SELECTED PASS slews to where the window opens, waits, follows the
+satellite at up to 3 degrees a second, and records while it is on target.
+Escape, any jog, or the stop button ends it at once. Tracking stops at 80
+degrees, because the azimuth axis cannot follow near the zenith. Keep the PC
+clock and the elements fresh. If the satellite is not on the sensor, `Ctrl+[`
+and `Ctrl+]` slide the prediction 0.1 s earlier or later along its track. Once
+it is, and if you took a guide calibration that night, the image steers the
+pass and the status reads `image lock`.
+
+**A night of satellites.** Tick the passes you want, or press PLAN THE NIGHT to
+tick the best set from now on: it leaves out any it cannot slew to in time, and
+prefers more targets, then higher and sunlit ones. RUN THE PLAN then flies them
+in turn. A missed pass is skipped. A fault in the mount, or Escape, ends the
+whole plan. Every target uses the same camera settings. This has
+not been tried on a real mount, so read item 39 of the clear-night checklist
+first.
+
 **ADC alignment tool — built, and dark.** This is the one entry that is
 neither "exists" nor "missing". The alignment window is built and tested
 (`Shift+A`), and it stays dark until *ADC fitted* is ticked on the READY
@@ -2746,6 +2765,9 @@ order.
 | v3.0 | 113 | Autorun, `[RUNS]` |
 | v3.0 | 114 | Seeing-aware runs: hold for the sky, rank the runs |
 | 3.0+ | 115 | Lunar feature targeting, and parallax on every lunar slew |
+| 3.0+ | 116 | Satellite passes and high-rate mount control, on the Passes tab |
+| 3.0+ | 117 | Image lock on a satellite pass, and a time nudge |
+| 3.0+ | 118 | A night plan of satellites, run in turn |
 
 ---
 

@@ -31,7 +31,7 @@ static constexpr int HOTKEY_GATHER_WINDOWS = 0xBEE1;
 static constexpr int HOTKEY_SAVE_LAYOUT    = 0xBEE2;
 
 static int CalcPreviewW(int clientW) {
-    int previewW = clientW - PREVIEW_PANEL_RESERVED;
+    int previewW = clientW - PREVIEW_PANEL_RESERVED - raduk::gui::TOOLBAR_RAIL_W;
     if (previewW < 100) previewW = 100;
     return previewW;
 }
@@ -132,7 +132,8 @@ bool Window::Create(const wchar_t* title, int width, int height) {
         m_previewHwnd = CreateWindowExW(
             0, L"RadukPreviewWindow", L"",
             WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-            0, TOOLBAR_HEIGHT_PX + m_notifBarH, previewW, previewH - m_notifBarH,
+            raduk::gui::TOOLBAR_RAIL_W, TOOLBAR_HEIGHT_PX + m_notifBarH,
+            previewW, previewH - m_notifBarH,
             m_hwnd, nullptr, GetModuleHandle(nullptr), nullptr);
         // Back-pointer so the child proc can reach this instance.
         if (m_previewHwnd)
@@ -221,6 +222,32 @@ void Window::ToggleFullscreen() {
     }
 }
 
+// ── While Windows holds the thread ─────────────────────────────
+//
+// Dragging or sizing any window, holding a scroll bar or opening a menu
+// runs Windows' own message loop until the mouse lets go, and the loop
+// below stops with it. That froze the preview, and it froze more than
+// the preview: this loop also feeds the mount's runaway watchdog, so a
+// drag held past its 8 seconds would have emergency-stopped a slewing
+// mount.
+//
+// Those inner loops still dispatch thread timers, so a timer keeps the
+// work going. It only acts once the loop has been away for a few frames,
+// so in normal running it does nothing and nothing is drawn twice.
+namespace {
+    std::function<void()>* g_render = nullptr;
+    DWORD g_lastPass = 0;
+    bool  g_inRender = false;
+
+    void CALLBACK RenderWhileHeld(HWND, UINT, UINT_PTR, DWORD) {
+        if (!g_render || g_inRender) return;
+        if (GetTickCount() - g_lastPass < 40) return;
+        g_inRender = true;
+        (*g_render)();
+        g_inRender = false;
+    }
+}
+
 void Window::Run(std::function<void()> onRender) {
     // Ask Windows for 1 ms timer resolution for the life of the loop.
     //
@@ -237,9 +264,18 @@ void Window::Run(std::function<void()> onRender) {
     timeBeginPeriod(1);
 
     MSG msg = {};
+    g_render = &onRender;
+    g_lastPass = GetTickCount();
+    const UINT_PTR heldTimer = SetTimer(nullptr, 0, 16, RenderWhileHeld);
+    auto leave = [&]() {
+        if (heldTimer) KillTimer(nullptr, heldTimer);
+        g_render = nullptr;
+        timeEndPeriod(1);
+    };
     while (true) {
+        g_lastPass = GetTickCount();
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-            if (msg.message == WM_QUIT) { timeEndPeriod(1); return; }
+            if (msg.message == WM_QUIT) { leave(); return; }
             // Phase 60: route hotkeys before dispatch so they work
             // whichever of our windows or controls holds focus. A
             // consumed key is not dispatched. TranslateMessage still
@@ -249,8 +285,13 @@ void Window::Run(std::function<void()> onRender) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-        if (!m_hwnd) { timeEndPeriod(1); return; }
-        if (onRender && m_renderTarget) onRender();
+        if (!m_hwnd) { leave(); return; }
+        if (onRender && m_renderTarget) {
+            g_inRender = true;
+            onRender();
+            g_inRender = false;
+        }
+        g_lastPass = GetTickCount();
         Sleep(1);
     }
 }
@@ -309,6 +350,15 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
     }
 
     switch (wParam) {
+            // Phase 117: earlier or later along a satellite's track. Held
+            // keys repeat, because several tenths is the usual correction.
+            case VK_OEM_4:
+            case VK_OEM_6:
+                if ((GetKeyState(VK_CONTROL) & 0x8000) != 0 && m_onSatNudge) {
+                    m_onSatNudge(wParam == VK_OEM_6 ? 1 : -1);
+                    return true;
+                }
+                break;
         case VK_ESCAPE:
             // Phase 71 (review): ESC always stops the mount, including
             // in fullscreen. It used to exit fullscreen *instead*, which
@@ -725,7 +775,7 @@ void Window::OnResize(int width, int height) {
 
     // Resize the preview child window first
     if (m_previewHwnd) {
-        SetWindowPos(m_previewHwnd, nullptr, 0, topOffset,
+        SetWindowPos(m_previewHwnd, nullptr, raduk::gui::TOOLBAR_RAIL_W, topOffset,
                      previewW, previewH, SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
@@ -751,7 +801,7 @@ LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
         self = reinterpret_cast<Window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
     }
     if (self) return self->HandleMessage(msg, wParam, lParam);
-    return DefWindowProc(hwnd, msg, wParam, lParam);
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
 LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -953,7 +1003,7 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             return 0;
         }
     }
-    return DefWindowProc(m_hwnd, msg, wParam, lParam);
+    return DefWindowProcW(m_hwnd, msg, wParam, lParam);
 }
 
 } // namespace raduk::gui

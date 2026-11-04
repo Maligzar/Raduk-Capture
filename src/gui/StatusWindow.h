@@ -46,6 +46,7 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include "WindowChrome.h"
 #include "Theme.h"
 #include "core/SkyConditions.h"
 
@@ -131,12 +132,18 @@ public:
         BOOL dark = TRUE;
         DwmSetWindowAttribute(m_hwnd, 20, &dark, sizeof(dark));
         DwmSetWindowAttribute(m_hwnd, 19, &dark, sizeof(dark));
+        {
+            chrome::Flags f;
+            f.minimize = false;
+            m_chrome.Attach(m_hwnd, f);
+        }
         ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
         StartDriveScanner();
         return true;
     }
 
     void Destroy() {
+        m_chrome.Release();
         StopDriveScanner();
         if (m_hwnd) { DestroyWindow(m_hwnd); m_hwnd = nullptr; }
     }
@@ -190,6 +197,8 @@ private:
                            CLEARTYPE_QUALITY, DEFAULT_PITCH, face);
     }
 
+    WindowChrome m_chrome;
+
     static void Fill(HDC hdc, int x, int y, int w, int h, COLORREF c) {
         RECT r = { x, y, x + w, y + h };
         HBRUSH b = Theme::Brush(c);
@@ -212,7 +221,23 @@ private:
             SetBkMode(hdc, TRANSPARENT);
             SetTextColor(hdc, labelClr);
             RECT tr = { x + 4, y, x + w - 4, y + h };
-            DrawTextA(hdc, label, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            // An ellipsis, so a long line cannot run into the next
+            // column: the real Space Mono is wider than the substitute.
+            const UINT fmt = DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS;
+            // Over the fill the text goes dark, split at the bar's edge,
+            // or light text on a bright bar cannot be read.
+            const int edge = x + (int)(w * (pct > 100.0f ? 100.0f : pct) / 100.0f);
+            int saved = SaveDC(hdc);
+            IntersectClipRect(hdc, edge, y, x + w, y + h);
+            DrawTextA(hdc, label, -1, &tr, fmt);
+            RestoreDC(hdc, saved);
+            if (pct > 0.0f) {
+                saved = SaveDC(hdc);
+                IntersectClipRect(hdc, x, y, edge, y + h);
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::BG_VOID));
+                DrawTextA(hdc, label, -1, &tr, fmt);
+                RestoreDC(hdc, saved);
+            }
             SelectObject(hdc, old);
             DeleteObject(f);
         }
@@ -612,12 +637,24 @@ private:
         }
         if (!self) return DefWindowProcW(hwnd, msg, wp, lp);
 
+        LRESULT chromeResult = 0;
+        if (self->m_chrome.Filter(hwnd, msg, wp, lp, chromeResult))
+            return chromeResult;
+
         switch (msg) {
             case WM_PAINT: {
                 PAINTSTRUCT ps;
                 HDC hdc = BeginPaint(hwnd, &ps);
                 RECT cr; GetClientRect(hwnd, &cr);
-                self->Draw(hdc, cr);
+                // The bar, then the body with its origin moved below it,
+                // so none of the row arithmetic has to know.
+                const int top = self->m_chrome.CaptionHeight();
+                self->m_chrome.DrawGdi(hdc, cr.right);
+                POINT was;
+                SetViewportOrgEx(hdc, 0, top, &was);
+                RECT body = {0, 0, cr.right, cr.bottom - top};
+                self->Draw(hdc, body);
+                SetViewportOrgEx(hdc, was.x, was.y, nullptr);
                 EndPaint(hwnd, &ps);
                 return 0;
             }

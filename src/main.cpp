@@ -1308,8 +1308,11 @@ static int RunApp(bool useEmulator) {
     // that is already talking to the camera.
     raduk::core::RoiFollowLink roiFollow;
     roiFollow.SetMover([&cam](int x, int y) { return cam.SetStartPos(x, y); });
-    capture.SetFrameSink([&capturer, &roiFollow](const raduk::core::FrameSlot* slot) {
+    raduk::core::SatFrameTap satTap;       // Phase 117
+    capture.SetFrameSink([&capturer, &roiFollow, &satTap](const raduk::core::FrameSlot* slot) {
         capturer.SubmitFromCaptureThread(slot);
+        satTap.OnFrame(slot->data, (int)slot->width, (int)slot->height,
+                       (int)slot->bitDepth);
         roiFollow.OnFrame(slot->data, (int)slot->width, (int)slot->height,
                           (int)slot->bitDepth);
     });
@@ -1396,6 +1399,13 @@ static int RunApp(bool useEmulator) {
     // ── Toolbar strip (Win32 native buttons above preview) ─────
     raduk::gui::ToolbarStrip toolbar;
     toolbar.Create(window.Handle(), PANEL_WIDTH);
+    toolbar.SnapToMainWindow();
+    // Phase 120: the panel's Camera and Mount tabs hold buttons the
+    // toolbar's logic still drives.
+    controls.SetStripHooks(
+        [&](int id, HWND h) { toolbar.Adopt(id, h); },
+        [&](const DRAWITEMSTRUCT* d) { toolbar.DrawAdopted(d); },
+        [&](int id) { toolbar.HandleCommand((WPARAM)id); });
 
     // ── GoTo Panel (Phase 6) ───────────────────────────────────
     raduk::gui::GoToPanel gotoPanel;
@@ -1683,6 +1693,44 @@ static int RunApp(bool useEmulator) {
             // for each panel exactly as it would for a manual run.
             capturer.StopRecording();
             usbMgr.SetCapturing(false);
+        });
+
+    // ── Phase 116: satellite passes ────────────────────────────
+    //
+    // The pass thread only posts: recording belongs to this thread.
+    gotoPanel.Satellites().SetCaptureHandlers(
+        [&]() { PostMessageW(window.Handle(), WM_USER + 12, 0, 0); },
+        [&]() { PostMessageW(window.Handle(), WM_USER + 13, 0, 0); });
+    gotoPanel.Satellites().SetFrameTap(&satTap);
+    gotoPanel.SetSatPreflight(
+        [&](const raduk::sky::SatPassInfo& p) -> std::string {
+            if (autorun.Running()) return "a sequence of runs is going";
+            if (capturer.IsRecording()) return "already recording";
+            // Rise, peak and set: a pass is an arc, and these three bound
+            // it well enough to catch a wall.
+            const auto& rigc = raduk::core::RigConfig::Get();
+            if (rigc.KeepOutSet()) {
+                for (double a : {p.riseAz, p.peakAz, p.setAz})
+                    if (raduk::core::BearingInArc(a, rigc.keepOutStartDeg,
+                                                  rigc.keepOutEndDeg))
+                        return "that pass crosses the keep-out sector";
+            }
+            const double after = cordWrap.CumulativeDeg() + p.azTravelDeg;
+            if (std::fabs(after) >= cordWrap.Limit())
+                return "that pass would wrap the cord";
+            // Phase 117: read before the reset below.
+            {
+                const auto cal = tracker.Calibration();
+                raduk::core::GuideResponse r;
+                r.exPerMs = cal.exPerMs; r.eyPerMs = cal.eyPerMs;
+                r.nxPerMs = cal.nxPerMs; r.nyPerMs = cal.nyPerMs;
+                gotoPanel.Satellites().SetImageCalibration(
+                    tracker.HasCalibration(), r, cal.altDeg,
+                    raduk::core::RigConfig::Get().guideRateArcsecPerSec);
+            }
+            // The correction thread steers this same mount.
+            tracker.Reset();
+            return "";
         });
 
     gotoPanel.SetProfileAutoLoadCallback([&](const std::string& targetName) {
@@ -2051,8 +2099,8 @@ static int RunApp(bool useEmulator) {
     //
     // Found by the same enumeration D3 uses, so a window added later
     // is covered without being registered anywhere. Re-applied on
-    // every night-vision toggle, because the list and tab colours
-    // follow the mode even though the title bars do not.
+    // every night-vision toggle, because the title bars, lists and
+    // tabs all follow the mode.
     auto styleChrome = [&]() {
         for (HWND h : ourWindows()) {
             raduk::gui::Theme::DarkTitleBar(h);
@@ -2880,7 +2928,10 @@ static int RunApp(bool useEmulator) {
 
     // ── Status bar ─────────────────────────────────────────────
     StatusBar statusBar;
-    statusBar.Init(window.RenderTarget(), window.DWriteFactory());
+    raduk::gui::StatusStripWindow statusStrip;      // Phase 120
+    statusStrip.Create(window.Handle());
+    statusStrip.Place(window.PreviewWidth());
+    statusBar.Init(statusStrip.Target(), window.DWriteFactory());
     statusBar.SetEmulatorMode(useEmulator);
     statusBar.SetProfile("Jupiter");
 
@@ -2931,9 +2982,10 @@ static int RunApp(bool useEmulator) {
     // ── Wire handlers ──────────────────────────────────────────
     window.SetMoveHandler([&]() {
         controls.OnMainWindowMoved();
-        toolbar.SnapToMainWindow();
         notifBar.SnapToMainWindow();
         window.SetNotifBarHeight(notifBar.Height());
+        toolbar.SnapToMainWindow(notifBar.Height());
+        statusStrip.Place(window.PreviewWidth());
     });
 
     // ── Phase 47: click to recentre ───────────────────────
@@ -3553,6 +3605,7 @@ static int RunApp(bool useEmulator) {
         if (mountProxy.IsConnected()) {
             mountProxy.StopSlew(0);
             mountProxy.StopSlew(1);
+            gotoPanel.StopSatellite("disconnecting");
             mountProxy.Disconnect();
         }
         // Forget the backend without destroying it -- the tracker
@@ -4350,6 +4403,9 @@ static int RunApp(bool useEmulator) {
     // otherwise the guide loop restarts the mount within 250-500ms of the
     // user pressing STOP.
     auto doEmergencyStop = [&]() {
+        // First, and it waits: anything below that stops the axes would
+        // otherwise be undone by this thread's next rate.
+        gotoPanel.StopSatellite("emergency stop");
         autorun.Abort("emergency stop");
         if (capturer.IsRecording()) {
             capturer.StopRecording(false);  // emergency stop - do not auto-stack
@@ -4811,6 +4867,11 @@ static int RunApp(bool useEmulator) {
         gotoPanel.StartMosaic(target);
     });
 
+    // Phase 117: slide a satellite along its track while it is flown.
+    window.SetSatNudgeHandler([&](int dir) {
+        gotoPanel.Satellites().NudgeTime(dir * 0.1);
+    });
+
     window.SetShareViewToggleHandler([&]() {
         shareView.Toggle();
         Log("[SHARE] view %s\n", shareView.IsVisible() ? "on" : "off");
@@ -5229,6 +5290,8 @@ static int RunApp(bool useEmulator) {
         if (!mount) return;
         if (pressed) {
             if (!mount->IsConnected()) return;
+            // Phase 116: a hand on the mount ends a satellite pass.
+            gotoPanel.StopSatellite("a jog");
             // Phase 93: a rate, not an index.
             //
             // SlewFixed takes one of nine presets, and this app has
@@ -5261,6 +5324,27 @@ static int RunApp(bool useEmulator) {
     // WM_USER+1  — drain APEX WebSocket command queue
     // WM_USER+10 — GoTo settle timer expired → start centroid acquisition
     window.SetUserMessageHandler([&](UINT msg) {
+        if (msg == WM_USER + 12) {
+            derotWindowSec = 0.0;
+            {
+                CaptureConfig mc = capturer.Config();
+                mc.derotationStopSec = 0.0;
+                capturer.SetConfig(mc);
+            }
+            if (!capturer.IsRecording() &&
+                capturer.StartRecording(roiWidth, roiHeight, roiBits)) {
+                usbMgr.SetCapturing(true);
+                slog.Capture("Satellite pass recording");
+            }
+            return;
+        }
+        if (msg == WM_USER + 13) {
+            if (capturer.IsRecording()) {
+                capturer.StopRecording();
+                usbMgr.SetCapturing(false);
+            }
+            return;
+        }
         if (msg == WM_USER + 11) {
             // Phase 39: framing shot elapsed — put the camera back.
             if (framing.active.exchange(false) && cam.IsOpen()) {
@@ -6046,7 +6130,7 @@ static int RunApp(bool useEmulator) {
 
         int clientW = window.ClientWidth();
         int clientH = window.ClientHeight();
-        int statusH = window.IsFullscreen() ? 0 : STATUS_BAR_HEIGHT;
+        int statusH = 0;     // phase 120: the strip is its own window now
 
         // Preview dimensions come from the preview child window client size.
         // D2D renders into that child — its bounds ARE the preview area.
@@ -6109,8 +6193,14 @@ static int RunApp(bool useEmulator) {
         histWindow.Update(lastAnalysis);
         if (lastAnalysis.valid) sharpWindow.Push(lastAnalysis.sharpnessPct);
 
-        if (!window.IsFullscreen())
-            statusBar.Draw(previewW, windowH);
+        // A few times a second: nothing on it changes faster.
+        {
+            static auto lastStrip = PClock::now();
+            if (PClock::now() - lastStrip > std::chrono::milliseconds(200)) {
+                lastStrip = PClock::now();
+                statusStrip.Render(statusBar);
+            }
+        }
 
         const auto tAfterPanels = PClock::now();
         preview.EndFrame();
@@ -7039,6 +7129,7 @@ static int RunApp(bool useEmulator) {
 
     // ── Cleanup ────────────────────────────────────────────────
     Log("\nShutting down...\n");
+    gotoPanel.StopSatellite("closing");
     slog.System("Shutdown");
 
     // ── Session summary ────────────────────────────────────────
@@ -7092,6 +7183,7 @@ static int RunApp(bool useEmulator) {
     tracker.Reset();
     analyzer.Stop();
     statusBar.Release();
+    statusStrip.Release();
     preview.Release();
     capture.Stop();
     if (mount && mount->IsConnected()) { mount->StopSlew(0); mount->StopSlew(1); mount->Disconnect(); }
@@ -7113,6 +7205,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // to appear off-center, the status bar text to be misaligned, and the
     // reticle to not bisect the image correctly.
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    // Phase 119.1: before any window, because each one caches its fonts.
+    raduk::gui::Fonts::LoadBundled();
 
 #ifdef RADUK_EMULATOR
     const char* MUTEX_NAME = "RadukCapture_Emulator_SingleInstance";

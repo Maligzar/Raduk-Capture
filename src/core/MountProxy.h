@@ -168,6 +168,10 @@ public:
         IMount* b = Backend();
         return b ? b->SlewVariable(axis, direction, arcsecPerSec) : false;
     }
+    void DriveAltAzAxes(bool on) override {
+        auto b = Backend();
+        if (b) b->DriveAltAzAxes(on);
+    }
     bool SupportsVariableRate() const override {
         IMount* b = Backend();
         return b ? b->SupportsVariableRate() : false;

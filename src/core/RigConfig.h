@@ -263,6 +263,19 @@ struct RigConfig {
 
     double wrapLimitDeg = 360.0;
 
+    // Phase 116: where the tube may go while it flies a satellite pass.
+    // The ceiling keeps the camera off the base and the azimuth axis out
+    // of the keyhole. Starting figures, until someone has looked.
+    double satMinAltDeg  = 15.0;
+    double satMaxAltDeg  = 80.0;
+    double satMaxRateDeg = 3.0;
+
+    // Phase 118: what a changeover between passes costs. A slew's speed
+    // is a guess until measured, and every pass logs what it really took.
+    double satSlewDegPerSec = 2.4;
+    double satSettleSec     = 15.0;
+    double satBufferSec     = 20.0;
+
     std::string mountPort;
 
     // Pin an exact ASCOM telescope ProgID, skipping discovery.
@@ -361,6 +374,12 @@ struct RigConfig {
         wf("GuideRateArcsecPerSec", guideRateArcsecPerSec);
         wf("SiteElevationM", siteElevationM);
         wf("WrapLimitDeg", wrapLimitDeg);
+        wf("SatMinAltDeg",  satMinAltDeg);
+        wf("SatMaxAltDeg",  satMaxAltDeg);
+        wf("SatMaxRateDeg", satMaxRateDeg);
+        wf("SatSlewDegPerSec", satSlewDegPerSec);
+        wf("SatSettleSec",     satSettleSec);
+        wf("SatBufferSec",     satBufferSec);
         wf("KeepOutStartDeg", keepOutStartDeg);
         wf("KeepOutEndDeg",   keepOutEndDeg);
         wf("ObserverBearingDeg", observerBearingDeg);
@@ -431,6 +450,12 @@ private:
         cfg.siteValid             = haveLat && haveLon;
         cfg.siteElevationM        = rf("SiteElevationM", cfg.siteElevationM);
         cfg.wrapLimitDeg          = rf("WrapLimitDeg", cfg.wrapLimitDeg);
+        cfg.satMinAltDeg          = rf("SatMinAltDeg",  cfg.satMinAltDeg);
+        cfg.satMaxAltDeg          = rf("SatMaxAltDeg",  cfg.satMaxAltDeg);
+        cfg.satMaxRateDeg         = rf("SatMaxRateDeg", cfg.satMaxRateDeg);
+        cfg.satSlewDegPerSec      = rf("SatSlewDegPerSec", cfg.satSlewDegPerSec);
+        cfg.satSettleSec          = rf("SatSettleSec",     cfg.satSettleSec);
+        cfg.satBufferSec          = rf("SatBufferSec",     cfg.satBufferSec);
         cfg.keepOutStartDeg       = rf("KeepOutStartDeg", cfg.keepOutStartDeg);
         cfg.keepOutEndDeg         = rf("KeepOutEndDeg",   cfg.keepOutEndDeg);
         cfg.observerBearingDeg    = rf("ObserverBearingDeg", cfg.observerBearingDeg);

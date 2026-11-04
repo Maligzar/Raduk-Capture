@@ -120,7 +120,7 @@ recall, click-to-recentre, a push-to assistant, ROI following, surface lock,
 lunar and solar mosaics, a derotation limit, and Autorun sequences that hold
 for the seeing and rank their runs.
 
-Not built yet: satellite pass prediction and high-rate mount control,
+Not built yet: rocket tracking,
 multi-star FWHM and Bahtinov focus aids, multi-session statistics, image
 annotation, stellar photometry and AVI output. A polar-alignment assistant
 is backlogged rather than queued: the mount is alt-az and there is no wedge,
@@ -135,4 +135,6 @@ for each phase is in [docs/PHASE-STATUS.md](docs/PHASE-STATUS.md).
 ## License
 
 Copyright 2026 Kenneth C Wood Jr. PolyForm Noncommercial 1.0.0 — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
+
+Barlow Condensed and Space Mono are bundled under the SIL Open Font License 1.1. Their notices are in [assets/fonts](assets/fonts).
 property of Suzhou ZWO Co., Ltd. under their own terms.

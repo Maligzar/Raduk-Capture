@@ -30,6 +30,8 @@
 #define NOMINMAX
 #endif
 
+#include "BundledFonts.h"
+#include "WindowChrome.h"
 #include "Theme.h"
 #include <windows.h>
 #include <d2d1.h>
@@ -132,6 +134,11 @@ public:
             x, y, w, h,
             parent, nullptr, GetModuleHandle(nullptr), this);
         if (!m_hwnd) return false;
+        {
+            chrome::Flags cf;
+            cf.minimize = false;
+            m_chrome.Attach(m_hwnd, cf);
+        }
 
         if (!InitD2D()) { DestroyWindow(m_hwnd); m_hwnd = nullptr; return false; }
 
@@ -395,6 +402,8 @@ private:
         if (!m_rt) return;
 
         m_rt->BeginDraw();
+        m_rt->SetTransform(D2D1::Matrix3x2F::Translation(
+            0.0f, (float)m_chrome.CaptionHeight()));
         m_rt->Clear(Theme::NVf(D2D1::ColorF(0.016f, 0.031f, 0.063f))); // deep space blue
 
         float cx = m_w * 0.5f;
@@ -746,6 +755,8 @@ private:
         if (m_confirmActive)
             DrawConfirmPopup();
 
+        m_rt->SetTransform(D2D1::Matrix3x2F::Identity());
+        m_chrome.Draw(m_rt, m_dwrite, m_w);
         HRESULT hr = m_rt->EndDraw();
         if (hr == D2DERR_RECREATE_TARGET) { ReleaseD2D(); InitD2D(); }
     }
@@ -1048,12 +1059,12 @@ private:
             return false;
 
         RECT rc; GetClientRect(m_hwnd, &rc);
-        m_w = rc.right; m_h = rc.bottom;
+        m_w = rc.right; m_h = rc.bottom - m_chrome.CaptionHeight();
 
         HRESULT hr = factory->CreateHwndRenderTarget(
             D2D1::RenderTargetProperties(),
             D2D1::HwndRenderTargetProperties(m_hwnd,
-                D2D1::SizeU(m_w, m_h)),
+                D2D1::SizeU(rc.right, rc.bottom)),
             &m_rt);
         factory->Release();
         if (FAILED(hr)) return false;
@@ -1090,21 +1101,21 @@ private:
         if (m_titleFormat)  { m_titleFormat->Release();  m_titleFormat  = nullptr; }
         if (m_siteFormat)   { m_siteFormat->Release();   m_siteFormat   = nullptr; }
 
-        m_dwrite->CreateTextFormat(L"Barlow Condensed", nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(L"Barlow Condensed"), raduk::gui::Fonts::CollectionFor(L"Barlow Condensed"),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px, L"en-us", &m_labelFormat);
         // The status line stays the smallest of the three: it is read
         // once, not scanned, and at full size it competes with the sky.
-        m_dwrite->CreateTextFormat(L"Space Mono", nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(L"Space Mono"), raduk::gui::Fonts::CollectionFor(L"Space Mono"),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px * 0.8f, L"en-us", &m_statusFormat);
-        m_dwrite->CreateTextFormat(L"Barlow Condensed", nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(L"Barlow Condensed"), raduk::gui::Fonts::CollectionFor(L"Barlow Condensed"),
             DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px * 1.08f, L"en-us", &m_titleFormat);
         // The site block is monospace and near full size: it is a column
         // of digits to be read off and typed in somewhere else, which is
         // the one thing on this window that wants figures lining up.
-        m_dwrite->CreateTextFormat(L"Space Mono", nullptr,
+        m_dwrite->CreateTextFormat(raduk::gui::Fonts::FamilyFor(L"Space Mono"), raduk::gui::Fonts::CollectionFor(L"Space Mono"),
             DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL, px * 0.95f, L"en-us", &m_siteFormat);
     }
@@ -1122,7 +1133,8 @@ private:
     }
 
     void OnResize(int w, int h) {
-        m_w = w; m_h = h;
+        // m_h is what there is to draw in: the target spans the bar too.
+        m_w = w; m_h = h - m_chrome.CaptionHeight();
         if (m_rt) m_rt->Resize(D2D1::SizeU(w, h));
         MakeFonts();
         BuildObjectList();
@@ -1141,7 +1153,11 @@ private:
             self = reinterpret_cast<SkyMapWindow*>(
                        GetWindowLongPtr(hwnd, GWLP_USERDATA));
         }
-        if (!self) return DefWindowProc(hwnd, msg, wParam, lParam);
+        if (!self) return DefWindowProcW(hwnd, msg, wParam, lParam);
+
+        LRESULT chromeResult = 0;
+        if (self->m_chrome.Filter(hwnd, msg, wParam, lParam, chromeResult))
+            return chromeResult;
 
         switch (msg) {
             case WM_PAINT: {
@@ -1192,7 +1208,7 @@ private:
 
             case WM_MOUSEWHEEL: {
                 float mx = (float)LOWORD(lParam);
-                float my = (float)HIWORD(lParam);
+                float my = (float)HIWORD(lParam) - (float)self->m_chrome.CaptionHeight();
                 int   delta = GET_WHEEL_DELTA_WPARAM(wParam);
                 // Zoom toward mouse position
                 float oldZoom = self->m_zoom;
@@ -1209,6 +1225,7 @@ private:
                 if (self->m_zoom != oldZoom && oldZoom > 1.0f) {
                     POINT pt = {(LONG)LOWORD(lParam), (LONG)HIWORD(lParam)};
                     ScreenToClient(hwnd, &pt);
+                    pt.y -= self->m_chrome.CaptionHeight();
                     float mxc = (float)pt.x, myc = (float)pt.y;
                     float mAlt, mAz;
                     // Use old zoom to find what's under mouse
@@ -1240,7 +1257,7 @@ private:
             }
             case WM_RBUTTONDOWN: {
                 float mx = (float)LOWORD(lParam);
-                float my = (float)HIWORD(lParam);
+                float my = (float)HIWORD(lParam) - (float)self->m_chrome.CaptionHeight();
                 // Dismiss any confirm popup first
                 self->m_confirmActive = false;
                 // Check if right-click landed on an object
@@ -1263,7 +1280,7 @@ private:
             }
             case WM_MOUSEMOVE: {
                 float mx = (float)LOWORD(lParam);
-                float my = (float)HIWORD(lParam);
+                float my = (float)HIWORD(lParam) - (float)self->m_chrome.CaptionHeight();
 
                 if (self->m_dragging) {
                     // Pan: move centre so drag-start point follows mouse
@@ -1295,7 +1312,7 @@ private:
             }
             case WM_LBUTTONDOWN: {
                 float mx = (float)LOWORD(lParam);
-                float my = (float)HIWORD(lParam);
+                float my = (float)HIWORD(lParam) - (float)self->m_chrome.CaptionHeight();
 
                 // If popup is showing, check button hits first
                 if (self->m_confirmActive) {
@@ -1358,7 +1375,7 @@ private:
                 self->ReleaseD2D();
                 return 0;
         }
-        return DefWindowProc(hwnd, msg, wParam, lParam);
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
 
     // ── Members ────────────────────────────────────────────────
@@ -1369,6 +1386,7 @@ private:
     int    m_h     = 600;
 
     // D2D
+    WindowChrome m_chrome;
     ID2D1HwndRenderTarget* m_rt           = nullptr;
     IDWriteFactory*        m_dwrite       = nullptr;
     float                  m_fontPx       = 0.0f;

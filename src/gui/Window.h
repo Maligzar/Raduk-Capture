@@ -48,6 +48,7 @@ public:
     void SetRGBAlignHandler(std::function<void()> h)          { m_onRGBAlign           = h; }
     void SetSkyMap2ToggleHandler(std::function<void()> h)     { m_onSkyMap2Toggle      = h; }  // Shift+M
     void SetMosaicToggleHandler(std::function<void()> h)      { m_onMosaicToggle       = h; }  // Ctrl+Shift+M
+    void SetSatNudgeHandler(std::function<void(int)> h)       { m_onSatNudge           = h; }  // Ctrl+[ and Ctrl+]
     void SetObjectPanelToggleHandler(std::function<void()> h) { m_onObjectPanelToggle  = h; }  // Shift+I
     void SetObjectPanelFullscreenHandler(std::function<void()> h) { m_onObjectPanelFullscreen = h; }
     void SetShareViewToggleHandler(std::function<void()> h)   { m_onShareViewToggle    = h; }  // Shift+V
@@ -150,7 +151,7 @@ public:
             D2D1_SIZE_U sz = m_renderTarget->GetPixelSize();
             if (sz.width > 0) return (int)sz.width;
         }
-        int pw = m_clientWidth - 580;  // render target reservation
+        int pw = m_clientWidth - 580 - TOOLBAR_RAIL_W;  // render target reservation
         return pw > 100 ? pw : 100;
     }
     // Phase 45: the reticle drag works in fractions of the preview, so
@@ -160,7 +161,7 @@ public:
             D2D1_SIZE_U sz = m_renderTarget->GetPixelSize();
             if (sz.height > 0) return (int)sz.height;
         }
-        int ph = m_clientHeight - TOOLBAR_HEIGHT - 30;   // toolbar + status bar
+        int ph = m_clientHeight - TOOLBAR_HEIGHT;   // status strip
         return ph > 100 ? ph : 100;
     }
     float DpiScale() const { return m_dpiScale; }
@@ -234,6 +235,7 @@ private:
     std::function<void()>               m_onRGBAlign;
     std::function<void()>               m_onSkyMap2Toggle;
     std::function<void()>               m_onMosaicToggle;
+    std::function<void(int)>            m_onSatNudge;
     std::function<void()>               m_onObjectPanelToggle;
     std::function<void()>               m_onObjectPanelFullscreen;
     std::function<void()>               m_onShareViewToggle;

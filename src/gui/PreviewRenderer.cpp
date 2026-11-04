@@ -6,6 +6,7 @@
 //   Auto-applies after 2s confirmation delay.
 // ============================================================
 #include "PreviewRenderer.h"
+#include "BundledFonts.h"
 #include "Theme.h"
 #include "HistogramDraw.h"
 #include "SharpnessDraw.h"
@@ -106,20 +107,20 @@ bool PreviewRenderer::Init(ID2D1HwndRenderTarget* renderTarget,
     HRESULT hr;
 
     hr = m_dwriteFactory->CreateTextFormat(
-        Theme::FONT_DATA, nullptr,
+        raduk::gui::Fonts::FamilyFor(Theme::FONT_DATA), raduk::gui::Fonts::CollectionFor(Theme::FONT_DATA),
         DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
-        DWRITE_FONT_STRETCH_NORMAL, 13.0f, L"en-us", &m_hudFont);
+        DWRITE_FONT_STRETCH_NORMAL, 15.0f, L"en-us", &m_hudFont);
     if (FAILED(hr)) return false;
     hr = m_dwriteFactory->CreateTextFormat(
-        Theme::FONT_BANNER, nullptr,
+        raduk::gui::Fonts::FamilyFor(Theme::FONT_BANNER), raduk::gui::Fonts::CollectionFor(Theme::FONT_BANNER),
         DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
         DWRITE_FONT_STRETCH_NORMAL, 15.0f, L"en-us", &m_titleFont);
     if (FAILED(hr)) return false;
     // Smaller font for frame bar buttons
     hr = m_dwriteFactory->CreateTextFormat(
-        Theme::FONT_DATA, nullptr,
+        raduk::gui::Fonts::FamilyFor(Theme::FONT_DATA), raduk::gui::Fonts::CollectionFor(Theme::FONT_DATA),
         DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
-        DWRITE_FONT_STRETCH_NORMAL, 11.0f, L"en-us", &m_barFont);
+        DWRITE_FONT_STRETCH_NORMAL, 12.0f, L"en-us", &m_barFont);
     if (FAILED(hr)) return false;
 
     printf("[PreviewRenderer] Initialized\n");
@@ -967,14 +968,9 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
         const wchar_t* debayerTag =
             m_debayerMode == DebayerMode::Color ? L"COLOR" : L"RAW";
 
-        // Version in the always-visible banner (I control this color, unlike
-        // the OS title bar) so a stale build is obvious at a glance.
-        swprintf(buf, 256, L"RADUKCAPTURE v%s  ASI678MC  %.1f FPS  [%s]",
-                 RADUK_VERSION_W, fps, debayerTag);
-        D2D1_RECT_F titleRect = D2D1::RectF(px+8, 6, px+pw-200, 26);
-        m_titleFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-        m_renderTarget->DrawText(buf, (UINT32)wcslen(buf),
-                                  m_titleFont, titleRect, m_accentBrush);
+        // Phase 120: the banner went to the status strip and the window
+        // title, which already carries the version. Each figure once.
+        (void)debayerTag;
 
         swprintf(buf, 32, L"ZOOM: %s", ZoomLabel());
         D2D1_RECT_F zoomRect = D2D1::RectF(px+pw-140, 6, px+pw-8, 24);
@@ -1082,10 +1078,9 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
         DrawDirectionRose(px, pw, ph);
 
         if (hasFrame && frame) {
-            swprintf(buf, 256, L"LIVE  %ux%u  %s  %.1f FPS  FRAMES: %llu  DROPS: %d",
-                frame->width, frame->height,
-                (frame->bitDepth == 16) ? L"RAW16" : L"RAW8",
-                fps, frameCount, droppedFrames);
+            // The count is the one thing here the strip does not show,
+            // and this line is what you click for the reset popup.
+            swprintf(buf, 256, L"FRAMES: %llu", frameCount);
         } else {
             swprintf(buf, 64, L"WAITING FOR FRAMES...");
         }

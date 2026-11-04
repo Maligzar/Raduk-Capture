@@ -1128,3 +1128,49 @@ For contrast, so this list is not read as "nothing works":
     terminator, see whether the Sun figure in the log matches the shadows. The
     20 and 50 degree relief bands are starting figures.
 
+39. **Flying a satellite pass** (phase 116). This is the first thing in the
+    application that moves both axes fast with no hand on them. Emulator
+    first: on the Passes tab press UPDATE ELEMENTS, select a pass an hour or
+    so out if one suits, and confirm the rows look sensible. To see one fly
+    you need a pass starting soon: press TRACK, and the log should say it is
+    slewing, then the status should count down, then read `Closing in`,
+    `Tracking`, and `complete`. Press Escape during one: it should stop at
+    once and the status should say so. Jog during one: same.
+
+    On the real mount, **in daylight first, with the camera off the tube or
+    the tube balanced and your hand on the power switch.** Pick a low, slow
+    pass, not one near the ceiling. Before the window opens, confirm the
+    slew went to the right part of the sky. As it starts moving, watch which
+    way each axis goes: azimuth should climb clockwise seen from above when
+    the rate is positive. If it runs backwards the 15 degree guard should stop
+    it within seconds, and that stop is the first thing to confirm. Time the
+    log's error line, because it says how long a `z` takes. Listen to the
+    gears at the peak rate. Walk the tube to 80 degrees by hand and see what
+    the camera does: `SatMaxAltDeg` is a guess. Sync the PC clock first: a
+    second wrong is 28' at 500 km, four frames. Only then try a bright pass
+    at night, at the full sensor, and note how far from the frame it runs.
+
+40. **The satellite image lock** (phase 117). After item 39, and with a guide
+    calibration taken that night on the Moon or a planet: the log says so if
+    there is none. Fly a bright pass with no Moon near its path. When it is
+    moving, hold `Ctrl+[` or `Ctrl+]` to slide it along its track until it
+    crosses the frame. The status should gain `image lock`, the log should say
+    so, and it should walk to the centre over about eight seconds. If it swings
+    from side to side instead, the delay is longer than the gain allows, so
+    note how fast it swings. If it runs off the frame, the calibration's
+    direction is wrong. Note the offset you needed: it says how good the
+    clock and elements were.
+
+41. **A night plan** (phase 118). Emulator first: on the Passes tab press PLAN
+    THE NIGHT. Rows should tick, none overlapping, and the log should give the
+    count. Untick one and tick a neighbour that clashes, then press RUN THE
+    PLAN: it should refuse and name the pass. Fix that, run it, and leave it:
+    it should sit idle, slew about a minute early, fly, and go on to the next.
+    The button should read STOP THE PLAN. Press Escape during a gap and again
+    during a pass on another run: both should end the plan. On the real mount,
+    only after items 39 and 40, and start with two passes. See that a capture
+    is filed under each satellite's name. Read the log's slew lines and put the
+    real speed in `SatSlewDegPerSec`, then set `SatSettleSec` and
+    `SatBufferSec` to what this tube needs. The whole night is unattended slewing, so
+    stay with it the first time.
+

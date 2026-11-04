@@ -1390,6 +1390,7 @@ consolidated](#live-sky-debt-consolidated).
 | ~~18~~ | **Phase 118: satellite night plan** - WRITTEN 2026-11-01 | Bench | M | Raised by the owner: an imaging plan from now on, not a target to stay on. [`Phase118-Plan-Satellite-Night.md`](Phase118-Plan-Satellite-Night.md) |
 | ~~21~~ | **Phase 121: Horizons targets** - WRITTEN 2026-11-03 | Bench | M | The top of "next in direction": near-Earth objects, comets and spacecraft, flown from JPL's tables. Rockets with no trajectory need tracking from the image alone. [`Phase121-Plan-Horizons-Targets.md`](Phase121-Plan-Horizons-Targets.md) |
 | ~~22~~ | **Phase 122: image-only tracking** - WRITTEN 2026-11-03 | Bench | M | What 121 left: rockets with no trajectory, and anything whose prediction fails. Found phase 116 aiming 0.1 s ahead. [`Phase122-Plan-Image-Only-Tracking.md`](Phase122-Plan-Image-Only-Tracking.md) |
+| ~~23~~ | **Phase 123: the pointing map, measured** - WRITTEN 2026-11-03 | Bench | M | The correcting half of 6.6. Each solve grades the map before it is kept; applying is a setting, off until the verdict. [`Phase123-Plan-Pointing-Map.md`](Phase123-Plan-Pointing-Map.md) |
 | — | **Xbox controller** (P4.1) | **HELD** | M | No controller, no receiver, no Bluetooth in this machine. Feasibility proven (`8fed05a`); item 1 removes its software prerequisite. Phase 47's click-to-recentre is the other half of the same idea and is in |
 | — | **Rebuild the knowledge database** | Needs network | S | **Demoted: it would not do what was claimed.** `Allen's Star Names` is listed as the mythology source in the builder's docstring and there is **no loader for it**, so a rebuild recovers no mythology for the 670 non-solar objects — that code was never written. The distances it was really wanted for are already in. What is left is Wikipedia summaries for objects that lack one: a 20–30 minute rate-limited fetch for marginal gain |
 | — | **Mythology for the deep sky** | Content | M | The honest version of the item above. 670 narratives have no cultural context and no source is wired up to give them one. This is a content-sourcing decision, not a coding task |
@@ -1533,9 +1534,9 @@ minutes of CPU and should be opted into.
 
 ### Still open, carried from before
 
-- **6.6 GoTo map learning** — auto solve+sync on lock ships; the
-  accumulating pointing map **reports but does not correct**. Half a
-  feature, and the half that is missing is the half that helps.
+- **6.6 GoTo map learning** — phase 123 built the correcting half:
+  every solve grades the map, and `PointingMapApply` applies it. Owes
+  the sky (checklist 44) before anyone turns it on.
 - **Clear-night items 1–12.** Item 13 is discharged (see below).
   Items 1 (`SHARP_CEIL`) and 3 (plate scale) are the two that other
   numbers depend on, and plate scale now matters more than it did:
@@ -1957,7 +1958,7 @@ true the moment a phase was split in two.
 
 | Item | State |
 |---|---|
-| 6.6 GoTo map learning | ◑ Auto solve+sync on lock ships; the accumulating map **reports but does not correct** |
+| 6.6 GoTo map learning | ◑ Built (phase 123): graded on every solve, applied by a setting that is off until the sky says it helps |
 
 ### Backlogged, not queued
 

@@ -177,6 +177,10 @@ struct RigConfig {
     // Phase 114: the bar as a percentage of tonight's best. 0 never waits.
     int         autorunSeeingPct     = 80;
     float       autorunSeeingHoldSec = 180.0f;
+    // Phase 123: correct GoTos from the pointing map. 0 off, 1 the map
+    // from every night, 2 tonight's only. Off until the score in the
+    // log says one helps on this mount.
+    int         pointingMapApply = 0;
 
     bool        autoStackOnStop = false;
     std::string autoStakkertPath;       // blank = probe the usual places
@@ -365,6 +369,7 @@ struct RigConfig {
         wf("AutorunRuns", autorunRuns);
         wf("AutorunGapSec", autorunGapSec);
         wf("AutorunRefocusEvery", autorunRefocusEvery);
+        wf("PointingMapApply", pointingMapApply);
         wf("AutorunMinAltDeg", autorunMinAltDeg);
         wf("AutorunSeeingPct", autorunSeeingPct);
         wf("AutorunSeeingHoldSec", autorunSeeingHoldSec);
@@ -517,6 +522,8 @@ private:
         cfg.autorunRuns           = (int)rf("AutorunRuns", cfg.autorunRuns);
         cfg.autorunGapSec         = (float)rf("AutorunGapSec", cfg.autorunGapSec);
         cfg.autorunRefocusEvery   = (int)rf("AutorunRefocusEvery", cfg.autorunRefocusEvery);
+        cfg.pointingMapApply      = (int)rf("PointingMapApply", cfg.pointingMapApply);
+        if (cfg.pointingMapApply < 0 || cfg.pointingMapApply > 2) cfg.pointingMapApply = 0;
         cfg.autorunMinAltDeg      = (float)rf("AutorunMinAltDeg", cfg.autorunMinAltDeg);
         cfg.autorunSeeingPct      = (int)rf("AutorunSeeingPct", cfg.autorunSeeingPct);
         cfg.autorunSeeingHoldSec  = (float)rf("AutorunSeeingHoldSec", cfg.autorunSeeingHoldSec);

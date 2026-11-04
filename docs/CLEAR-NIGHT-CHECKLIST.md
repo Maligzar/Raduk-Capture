@@ -1190,3 +1190,13 @@ For contrast, so this list is not read as "nothing works":
     watch it hold. Cover the objective for a second: it should coast. Cover it
     for longer: it should stop. Only then a rocket.
 
+44. **Does the pointing map help** (phase 123). Leave `PointingMapApply=0`.
+    Run SKY SURVEY, or let planet locks accumulate; each solve logs two lines,
+    the error and what each map would have left. After 8 or more the verdict
+    names a map or says none helps. Note it. On a second night, check whether
+    the all-nights map still helps after last night's syncs; that answers
+    whether a sync spends the data. Only if the verdict recommends one, set
+    `PointingMapApply` to the number it gives, GoTo a planet, and confirm it
+    lands nearer the centre than before. A map that is applied and makes
+    things worse means the sign is wrong: set it back to 0 and report it.
+

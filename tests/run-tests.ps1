@@ -67,6 +67,7 @@ $Tests = @(
     @{ Name = "window_chrome";    Sources = @() }
     @{ Name = "horizons_targets"; Sources = @() }
     @{ Name = "motion_lock";      Sources = @() }
+    @{ Name = "pointing_score";   Sources = @() }
     @{ Name = "mosaic_run";      Sources = @() }
     @{ Name = "camera_panel";    Sources = @() }
     @{ Name = "camera_controls"; Sources = @() }

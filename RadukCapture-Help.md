@@ -2396,6 +2396,10 @@ it needs.
 ### GoTo misses target
 - Run `POINT SOLVE → SYNC` to correct mount model at current position
 - Ensure StarSense alignment was performed before session
+- After each locked target is plate solved, the log says how far off the mount
+  was and what the pointing map would have left. Once the map has proved
+  itself (the log says "Set PointingMapApply=..."), set that in the rig file and
+  GoTos are corrected from it. It stays off until you do.
 
 ### The picture looks wrong — grey, red, too bright, monochrome
 
@@ -2782,6 +2786,7 @@ order.
 | 3.0+ | 118 | A night plan of satellites, run in turn |
 | 3.0+ | 121 | Follow anything JPL Horizons predicts: asteroids, comets, spacecraft |
 | 3.0+ | 122 | Track whatever is in the frame, from the image alone |
+| 3.0+ | 123 | The pointing map graded on every solve, and applied when it helps |
 
 ---
 

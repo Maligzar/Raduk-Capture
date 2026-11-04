@@ -27,6 +27,7 @@
 #include <fstream>
 #include <cstdio>
 #include "core/Paths.h"
+#include "PointingScore.h"
 #include <cmath>
 #include <algorithm>
 #include <ctime>
@@ -160,40 +161,41 @@ public:
         return n;
     }
 
-    // Estimated correction for a given Az/Alt using nearest neighbours
-    // Returns false if not enough data (< 2 nearby points)
-    bool GetCorrection(double az_deg, double alt_deg,
-                       double& dRA_h, double& dDec_deg,
-                       double radiusDeg = 20.0) const {
-        std::lock_guard<std::mutex> lk(m_mutex);
-        // Collect nearby entries
-        std::vector<const PointingEntry*> nearby;
-        for (auto& e : m_entries) {
-            double daz  = e.az_deg  - az_deg;
-            double dalt = e.alt_deg - alt_deg;
-            if (sqrt(daz*daz + dalt*dalt) <= radiusDeg)
-                nearby.push_back(&e);
-        }
-        if (nearby.size() < 2) return false;
-
-        // Weighted mean correction — closer points get more weight
-        double sumW = 0.0, sumDRA = 0.0, sumDDec = 0.0;
-        for (auto* e : nearby) {
-            double daz  = e->az_deg  - az_deg;
-            double dalt = e->alt_deg - alt_deg;
-            double dist = sqrt(daz*daz + dalt*dalt);
-            if (dist < 0.001) dist = 0.001;
-            double w = 1.0 / (dist * dist);  // inverse-distance-squared weighting
-            sumW    += w;
-            sumDRA  += w * (e->ra_actual  - e->ra_expected);
-            sumDDec += w * (e->dec_actual - e->dec_expected);
-        }
-        dRA_h   = sumDRA  / sumW;
-        dDec_deg = sumDDec / sumW;
-        return true;
-    }
+    // Phase 123 removed GetCorrection. It averaged raw RA hours across
+    // declinations and measured distance with azimuth unwrapped; the
+    // prediction is PointingScore::Predict, on sky arcseconds.
 
     const std::string& CSVPath() const { return m_csvPath; }
+
+    // Phase 123: the history as sky errors, oldest first, for the score.
+    std::vector<PointingObs> Observations() const {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        std::vector<PointingObs> out;
+        out.reserve(m_entries.size());
+        for (const auto& e : m_entries) out.push_back(ToObs(e));
+        return out;
+    }
+
+    static PointingObs ToObs(const PointingEntry& e) {
+        PointingObs o;
+        o.t = TimestampSeconds(e.timestamp);
+        o.azDeg = e.az_deg;
+        o.altDeg = e.alt_deg;
+        SkyErrorArcsec(e.ra_expected, e.dec_expected, e.ra_actual, e.dec_actual,
+                       o.eastArcsec, o.northArcsec);
+        return o;
+    }
+
+    // Local ISO time to seconds. Only differences matter: a night is
+    // split from the next by a gap of hours.
+    static double TimestampSeconds(const std::string& ts) {
+        std::tm tm = {};
+        if (sscanf_s(ts.c_str(), "%d-%d-%dT%d:%d:%d", &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
+                     &tm.tm_hour, &tm.tm_min, &tm.tm_sec) != 6) return 0.0;
+        tm.tm_year -= 1900; tm.tm_mon -= 1; tm.tm_isdst = -1;
+        const std::time_t t = std::mktime(&tm);
+        return t == (std::time_t)-1 ? 0.0 : (double)t;
+    }
 
 private:
     void LoadFromCSV() {

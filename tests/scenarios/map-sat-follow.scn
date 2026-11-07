@@ -1,0 +1,24 @@
+# Phase 131: FOLLOW on a satellite on the sky map. A name with no pass
+# is refused with a reason; the satellite arm-pass picked has its pass
+# flown, the same way TRACK SELECTED PASS flies it. arm-pass moves the
+# satellite clock so that pass opens in 45 s.
+name    Map satellite FOLLOW: refusal, then a pass flown
+timeout 420
+
+expect 30  [SCENARIO] Map satellite
+wait   5
+press  GOTO:PASSES
+wait   5
+press  MAP:FOLLOW SAT NO SUCH SATELLITE
+expect 30  has no pass worth tracking
+arm-pass 45
+expect 5   [SCENARIO] armed
+press  MAP:FOLLOW ARMED SAT
+expect 5   [SATMAP] Following
+expect 10  its pass in
+expect 10  Satellite: slewing
+expect 150 on target, recording.
+absent 1   captures\Jupiter_
+shot   map-follow
+press  GOTO:STOP TRACKING
+wait   5

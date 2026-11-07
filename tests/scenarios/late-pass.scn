@@ -1,0 +1,20 @@
+# Phase 131: a pass whose window opens 5 s after arming, so the slew
+# always lands late and the satellite is already well along. It must be
+# chased and caught, not failed as "check the axis directions", which is
+# a telescope fault and would stop a night plan.
+name    Late pass: the slew lands after the window opens
+timeout 420
+
+expect 30  [SCENARIO] Late pass
+wait   5
+press  GOTO:PASSES
+wait   5
+arm-pass 5
+expect 5   [SCENARIO] armed
+press  GOTO:TRACK SELECTED PASS
+expect 10  Satellite: slewing ahead, to meet it
+expect 150 on target, recording.
+absent 1   check the axis directions
+shot   late-pass
+press  GOTO:STOP TRACKING
+wait   5

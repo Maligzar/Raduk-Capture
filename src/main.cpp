@@ -4870,6 +4870,13 @@ static int RunApp(bool useEmulator) {
     };
     skyMap.SetFollowCallback(followNeo);
     skyMap2.SetFollowCallback(followNeo);
+    // Phase 131: FOLLOW on a satellite flies its next pass.
+    auto followSat = [&](const std::string& name) {
+        Log("[SATMAP] Following %s\n", name.c_str());
+        gotoPanel.FollowSatellite(name);
+    };
+    skyMap.SetSatFollowCallback(followSat);
+    skyMap2.SetSatFollowCallback(followSat);
     auto lastNeoTick = std::chrono::steady_clock::now() - std::chrono::seconds(60);
     int lastNeoShown = -1;
 
@@ -5753,6 +5760,20 @@ static int RunApp(bool useEmulator) {
                 else followNeo(items[0].target, items[0].name);
                 break;
             }
+#ifdef RADUK_EMULATOR
+            // Phase 131: the map's FOLLOW, on the satellite arm-pass chose.
+            if (a.arg == "MAP:FOLLOW ARMED SAT") {
+                if (gotoPanel.ScenarioArmedName().empty())
+                    g_scenario->ActionFailed("arm-pass has not picked a satellite");
+                else followSat(gotoPanel.ScenarioArmedName());
+                break;
+            }
+            // And on one with no pass at all, for the refusal.
+            if (a.arg.rfind("MAP:FOLLOW SAT ", 0) == 0) {
+                followSat(a.arg.substr(15));
+                break;
+            }
+#endif
             if (a.arg.rfind("GOTO:", 0) == 0) {
                 if (!gotoPanel.ScenarioPress(a.arg.substr(5)))
                     g_scenario->ActionFailed("no GoTo panel button called '" + a.arg.substr(5) + "'");

@@ -34,7 +34,9 @@
 //  - An error past hardErrDeg. This is the guard for the case that
 //    cannot be tested indoors: if an axis runs backwards on the real
 //    mount, the error grows at twice the sky rate and this catches it
-//    within a few seconds, at any tracking state.
+//    within a few seconds, at any tracking state. Phase 131: after a
+//    late slew the chase starts far behind, so the limit is also never
+//    less than the starting error plus a third of hardErrDeg.
 //  - An error that stays past lostErrDeg when the mount is not
 //    saturated. It is stalled, or slipping.
 //  - No position from the mount for staleSec.
@@ -104,6 +106,11 @@ public:
     };
 
     void Configure(const Config& c) { m_cfg = c; m_phase = Phase::Idle; }
+    // Phase 131: hold until later in the window. Used when the slew is
+    // aimed ahead, at where the satellite will be when the mount lands.
+    void DelayStart(double startSec) {
+        if (startSec > m_cfg.startSec && startSec < m_cfg.endSec) m_cfg.startSec = startSec;
+    }
 
     void Start(double nowSec) {
         m_phase = m_cfg.skipSlew ? Phase::Holding : Phase::Slewing;
@@ -123,6 +130,7 @@ public:
         m_peakErrDeg = 0.0;
         m_saturated = false;
         m_wasOnTarget = false;
+        m_baseErrDeg = -1.0;
     }
 
     void Abort(const char* why) {
@@ -258,7 +266,16 @@ private:
         const double cosAlt = std::cos(mountAlt * 0.017453292519943295);
         m_errDeg = std::hypot(errAz * cosAlt, errAlt);
 
-        if (m_errDeg > m_cfg.hardErrDeg) {
+        // Phase 131: measured from where the chase began. A slew that
+        // lands after the window opened leaves the satellite already well
+        // ahead, and that is lateness, not a reversed axis; it was failed
+        // as "check the axis directions", a telescope fault that would
+        // also stop a night plan. A reversed axis still shows, as an
+        // error that GROWS, at twice the sky rate.
+        if (m_baseErrDeg < 0.0) m_baseErrDeg = m_errDeg;
+        const double hardLimit = (std::max)(m_cfg.hardErrDeg,
+                                            m_baseErrDeg + m_cfg.hardErrDeg / 3.0);
+        if (m_errDeg > hardLimit) {
             Finish(o, Phase::Failed,
                    "the mount is moving away from the satellite: check the "
                    "axis directions");
@@ -319,6 +336,7 @@ private:
     double m_nearSince = -1.0, m_lostSince = -1.0;
     double m_cmdAz = 0.0, m_cmdAlt = 0.0;
     double m_errDeg = 0.0, m_peakErrDeg = 0.0;
+    double m_baseErrDeg = -1.0;   // phase 131: the error when the chase began
     bool   m_wasOnTarget = false;
     bool   m_issued = false, m_sawSlew = false;
     bool   m_capturing = false, m_abort = false, m_saturated = false;

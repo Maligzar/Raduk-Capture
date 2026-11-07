@@ -1,4 +1,4 @@
-# Phase 131 — from sci-fi template to precision instrument
+# Phase 132 — from sci-fi template to precision instrument
 
 Asked for by the owner on 2026-11-07: take the UI from "looks generic,
 template-built AI" to a custom, polished look across every surface. That
@@ -7,9 +7,9 @@ and polish itself. **Planned, not started.** Nothing below is built. The
 owner asked that no stage begin until it is called for.
 
 **How this relates to phase 96 and 119.** It finishes their open items rather
-than restarting them. 131.3 *is* 96.4b, the type and spacing retrofit that
-needs eyes on a screen, done in the chosen direction. 131.3e takes in 119.5,
-the real Direct2D shadows. 131.3 also settles the open owner decision from
+than restarting them. 132.3 *is* 96.4b, the type and spacing retrofit that
+needs eyes on a screen, done in the chosen direction. 132.3e takes in 119.5,
+the real Direct2D shadows. 132.3 also settles the open owner decision from
 96.4 (`ACCENT3` outranks `ACCENT2` at night), because the accents are reduced.
 
 ## Context
@@ -51,14 +51,14 @@ every window to PNG.
 ## Safety rails, for every stage
 
 - **One stage is one PR,** merged only after the owner has looked at it. `main` is
-  field-ready between stages. Each merge is tagged `ui-131.N`, so the previous build
+  field-ready between stages. Each merge is tagged `ui-132.N`, so the previous build
   is always one checkout away if something looks wrong at the telescope.
 - **Out of bounds:** `PreviewRenderer` drawing, `src/core` capture, tracking, mount,
   and focuser logic, and the WebSocket protocol, except for one additive field in
-  131.10.
+  132.10.
 - **Gates per stage:** bench tests (run here with mingw-w64 and wine as evidence, and
   with MSVC `tests\run-tests.bat` on the rig as the real gate), the full scenario
-  suite, and the visual baseline diff from 131.0. Only the windows the stage names
+  suite, and the visual baseline diff from 132.0. Only the windows the stage names
   may change.
 - **New behaviour gets a `rig.ini` switch** (motion, palette, audio), so it can be
   turned off in the field without a rebuild. Colours are not switched; they revert
@@ -71,19 +71,19 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
 
 | Stage | What | Risk | Size |
 |---|---|---|---|
-| 131.0 | Visual baseline harness: shots of every window, day and night, plus a diff | None, no pixel changes | M |
-| 131.1 | Night vision without green | Low | S |
-| 131.2 | Design language and token export (C++ to CSS), with a specimen page | None, no app pixels change | M |
-| ★131.3 | Instrument palette and type in `Theme.h`, migrated surface by surface | Medium | L, split |
-| 131.4 | Motion: cubic ease-out for arrivals | Low | S |
-| ★131.5 | Hover and press on owner-drawn buttons | Low | M |
-| 131.6 | Focus rings and dark scrollbars | Low | M |
-| ★131.7 | Command palette (Ctrl+K) | Low, additive | L |
-| 131.8 | Optional audio cues (off by default) | None when off | S |
-| ★131.9 | Session stats page rebuilt on shared tokens and embedded fonts | Low | M |
-| ★131.10 | Dashboard written by the app, restyled, opened as an Edge app window | Medium | L, split |
+| 132.0 | Visual baseline harness: shots of every window, day and night, plus a diff | None, no pixel changes | M |
+| 132.1 | Night vision without green | Low | S |
+| 132.2 | Design language and token export (C++ to CSS), with a specimen page | None, no app pixels change | M |
+| ★132.3 | Instrument palette and type in `Theme.h`, migrated surface by surface | Medium | L, split |
+| 132.4 | Motion: cubic ease-out for arrivals | Low | S |
+| ★132.5 | Hover and press on owner-drawn buttons | Low | M |
+| 132.6 | Focus rings and dark scrollbars | Low | M |
+| ★132.7 | Command palette (Ctrl+K) | Low, additive | L |
+| 132.8 | Optional audio cues (off by default) | None when off | S |
+| ★132.9 | Session stats page rebuilt on shared tokens and embedded fonts | Low | M |
+| ★132.10 | Dashboard written by the app, restyled, opened as an Edge app window | Medium | L, split |
 
-### 131.0 Visual baseline harness
+### 132.0 Visual baseline harness
 - New scenario `tests/scenarios/ui-baseline.scn`. It opens every window (GoTo, sky
   map, histogram, sharpness, temperature, status, ADC, help, assistant, dialogs, and
   the object panel) and takes a `shot` of each in day mode, then again in night vision.
@@ -94,7 +94,7 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
 - Gate: `tests/shot_diff.cpp` on synthetic images.
 - Result: every later stage arrives with a diff showing exactly which windows changed.
 
-### 131.1 Night vision without green
+### 132.1 Night vision without green
 - `Theme::NV`/`NVf` (`Theme.h:619,636`) emit `RGB(lum, lum/10, 0)`. The 10% green sits
   near the rods' peak sensitivity. Inferred: it probably carries most of the
   rod-visible light the UI emits. Its stated purpose is cosmetic: stopping the
@@ -106,7 +106,7 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
 - Gate: `tests/operator_palette.cpp` asserts G=B=0 in night mode. Owner check: GoTo
   and the control panel stay readable on a dark night.
 
-### 131.2 Design language and token export
+### 132.2 Design language and token export
 - `docs/design/Instrument-Design-Language.md`: one page. It covers the palette roles
   (surface steps, hairline, label, readout, signal accent, warning, fault), the rule
   that a signal shows as shape plus text first, the label style (small caps,
@@ -124,7 +124,7 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
 - Gate: `tests/web_theme.cpp` checks that every CSS value equals its `Theme.h` token,
   byte for byte.
 
-### 131.3 Instrument palette and type (split by surface)
+### 132.3 Instrument palette and type (split by surface)
 - Swap the token values in `Theme.h` (`ACCENT`, the neutrals, `TEXT`, `TEXT_DIM`, and
   `Rgb::` in step) to the approved specimen. Reduce the four accents to one signal
   accent plus warning and fault. Amber and green stop being decorative and keep only
@@ -134,14 +134,14 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
 - **Night ladder luminances stay put** (`kNightLadder` keys by RGB, so each new day
   value is mapped to its existing night luminance). Night vision looks the same.
   The ladder test proves it.
-- Sub-stages, each its own PR: 131.3a tokens and control panel; 131.3b GoTo and sky
-  map (45 `ColorF` sites in `SkyMapWindow.h`); 131.3c telemetry windows; 131.3d
-  dialogs, help, and assistant; 131.3e audience surfaces (object panel, share view)
+- Sub-stages, each its own PR: 132.3a tokens and control panel; 132.3b GoTo and sky
+  map (45 `ColorF` sites in `SkyMapWindow.h`); 132.3c telemetry windows; 132.3d
+  dialogs, help, and assistant; 132.3e audience surfaces (object panel, share view)
   and 119.5's real Direct2D shadows.
 - Literal colours still outside the tokens get moved onto them as each surface is
   touched, the way 96.4 did it.
 
-### 131.4 Motion
+### 132.4 Motion
 - `Theme::Motion::EaseOut(t) = 1-(1-t)^3` and `SlideIn`, with progress from
   `steady_clock` elapsed time. The timer is killed once motion settles, so nothing
   ticks while idle. Arrivals only; no overshoot.
@@ -150,7 +150,7 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
 - Gate: `tests/visual_tokens.cpp` checks monotonicity, endpoints, and 0 when
   disabled.
 
-### 131.5 Hover and press
+### 132.5 Hover and press
 - Pure state machine `src/gui/ButtonState.h` (idle, hover, pressed, disabled, mapped
   to a ladder step). Subclass the `MakeButton` buttons in `ControlPanel.cpp`, reusing
   the `TrackMouseEvent` pattern from `WindowChrome.h`.
@@ -159,13 +159,13 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
   `Theme::Rgb`, so night vision stays correct.
 - Gate: `tests/button_state.cpp`.
 
-### 131.6 Focus rings and scrollbars
+### 132.6 Focus rings and scrollbars
 - A 1 px inner focus ring at a low ladder step, shown only for keyboard focus
   (`UISF_HIDEFOCUS`). It replaces `DrawFocusRect` in `ControlPanel.cpp`.
 - Stock controls get `SetWindowTheme(L"DarkMode_Explorer")`. Custom-drawn lists (GoTo,
   help, assistant) get a thin owner-painted scrollbar that hides when idle.
 
-### 131.7 Command palette
+### 132.7 Command palette
 - `src/gui/ActionRegistry.h` (id, label, keywords, shortcut, enabled predicate,
   invoke). It is filled from the existing handlers in `Window.h` and the control panel
   callbacks. An accelerator table in `main.cpp` provides Ctrl+K and the most-used
@@ -180,14 +180,14 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
   1 ms. A scenario types in the palette during an emulator recording and asserts
   `droppedFrames` stays at 0.
 
-### 131.8 Audio cues
+### 132.8 Audio cues
 - Record start, record stop, and fault only. `src/gui/ToneSynth.h` synthesizes soft
   sine tones (about 500–900 Hz, 15–20 ms raised-cosine edges, low level) into static
   WAV buffers once. They play through `PlaySound(SND_MEMORY|SND_ASYNC)` on the UI
   thread. `rig.ini` `audio_cues=0` is the default.
 - Gate: `tests/tone_synth.cpp` checks the header, the peak level, and click-free edges.
 
-### 131.9 Session stats page
+### 132.9 Session stats page
 - `SessionStats.h` HTML output drops its private CSS for `WebTheme.h`, with fonts
   embedded and tables in the instrument style (tabular numerals, hairline rules,
   small-caps headers).
@@ -196,19 +196,19 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
 - Gate: the existing session stats tests, plus a check that the page has no `http`
   references.
 
-### 131.10 Dashboard written by the app (split)
-- **131.10a Delivery.** The dashboard HTML becomes a resource embedded in the exe.
+### 132.10 Dashboard written by the app (split)
+- **132.10a Delivery.** The dashboard HTML becomes a resource embedded in the exe.
   On [DASH] the app writes `data\dashboard.html`, injecting `WebTheme` CSS, the fonts,
   and the current night state, then opens it. If `msedge.exe` is found it opens with
   `--app=`, a chromeless window that reads as part of the app and has no address bar
   showing the token. Otherwise it falls back to today's default-browser path
   (`main.cpp:5214`). `DashboardLaunch.h` keeps the tested URL and token-fragment logic.
-- **131.10b Shell restyle.** Remove the scanline, starfield, glow `text-shadow`, and
+- **132.10b Shell restyle.** Remove the scanline, starfield, glow `text-shadow`, and
   the fake loading screen. Header, layout, and tokens move to the instrument language.
-- **131.10c Panels restyle,** in batches by section of the 5,658-line file. Each batch
+- **132.10c Panels restyle,** in batches by section of the 5,658-line file. Each batch
   is a PR with before and after screenshots taken by Playwright (runnable in this
   container) against a recorded telemetry fixture.
-- **131.10d Live night mode.** Add one additive `nightVision` field to the telemetry
+- **132.10d Live night mode.** Add one additive `nightVision` field to the telemetry
   message (`src/net/WsProtocol.h`), and the dashboard follows the app's toggle.
   Older dashboards ignore the field.
 
@@ -219,11 +219,11 @@ the preview frame path. New colour-coded meaning.
 
 ## Verification
 - Here: the mingw-w64 and wine bench tests named in each stage, and Playwright shots
-  of the generated HTML pages (131.2, 131.9, 131.10).
+  of the generated HTML pages (132.2, 132.9, 132.10).
 - On the rig: `tests\run-tests.bat`, `tests\run-scenarios.ps1`, and the `ui-baseline`
   shot diff. Only the windows the stage names may show changes. Then the owner looks,
   day and night.
-- Each stage ships with an "as built" section in `docs/Phase131-Plan-Instrument-UI.md`
+- Each stage ships with an "as built" section in `docs/Phase132-Plan-Instrument-UI.md`
   and an update to `PHASE-STATUS.md`.
 - Work happens on `claude/relaxed-wozniak-j7sldq`, one draft PR per stage. The first
-  PR is 131.0 together with this plan committed as the phase document.
+  PR is 132.0 together with this plan committed as the phase document.

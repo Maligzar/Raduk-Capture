@@ -249,3 +249,76 @@ the preview frame path. New colour-coded meaning.
   and an update to `PHASE-STATUS.md`.
 - One draft PR per stage, each on its own branch cut from `master`. The plan
   merged on its own in #88, so the first stage PR is 132.0 alone.
+
+## As built
+
+### 132.0, 2026-11-07
+
+No pixel of the application changes. Nothing under `src/gui`, `src/main.cpp`
+or `CMakeLists.txt` was touched, so the shipped build is byte for byte what it
+was.
+
+- **`src/core/ShotDiff.h`**, pure C++ with no Windows headers. It parses shot
+  file names, pairs windows by shot and title, compares pixels, draws the heatmap,
+  reads and writes the noise file, judges each window, and writes the contact sheet.
+- **`tools/shotdiff.cpp`**, the Windows half. WIC loads and saves the PNGs, and
+  `FileUrlFromPath` from `DashboardLaunch.h` builds the image links. It is
+  compiled by `tests\ui-baseline.ps1` with `cl`, not by CMake, so the
+  application's build is unchanged.
+- **`tests/scenarios/ui-baseline.scn`** goes to Jupiter, shows GoTo, Help and the
+  assistant, takes a shot named `day`, toggles night vision with `N`, takes one
+  named `night`, and toggles it back.
+- **`tests/ui-baseline.ps1`** has two modes. `-Save` runs the scenario twice on
+  the build before a change. The first run is the reference, and the difference
+  between the two runs is each window's noise floor. Without `-Save` it runs once,
+  compares against the reference, and exits with the number of unexpected windows.
+  `-Expect "Histogram,Sharpness"` names the windows a stage means to change, and
+  `-Open` shows the contact sheet.
+
+**Two things the plan did not foresee.**
+
+- **Two runs of one build differ.** Clocks, the sky map, graphs and the emulated
+  seeing all move between runs, so "any pixel differs" would flag every live
+  window every time. A window now counts as changed only when its differing share
+  is over twice its own noise floor plus 0.1%, or when its size changed. A channel
+  has to move by more than 8 levels to count as different, so dithering and
+  ClearType reflow do not.
+- **The trailing number in a shot's file name is z-order.** It moves between runs,
+  so windows are paired by shot and title. Two windows with the same title are
+  separated by the order of that number, and the size is checked as well.
+
+**Gated.** `tests/shot_diff.cpp` has 44 checks: file names, pairing that ignores
+z-order, the tolerance edge, alpha being ignored, size changes, the noise floor in
+both directions, the expect list, the heatmap, report ordering and escaping, and a
+page that makes no network request. It passes under g++ on Linux. MSVC is still
+owed.
+
+**Run here, end to end.** The CLI was cross-built with mingw-w64 and run under
+wine on synthetic shots with shuffled z-order. It reported:
+
+| Window | Verdict | Changed | Noise |
+|---|---|---|---|
+| day/Gone | MISSING | 100% | 0.000% |
+| day/New | NEW | 100% | 0.000% |
+| day/Status | CHANGED | 9.17% | 0.000% |
+| day/Histogram | changed, expected | 17% | 0.000% |
+| day/Sky_Map | same | 0.99% | 0.99% |
+| night/Histogram | same | 0.000% | 0.000% |
+
+It exited 3, one for each unexpected window. A Playwright render of the contact
+sheet confirmed the layout.
+
+**Not covered.** Modal dialogs (rig setup, site, readiness) are not opened,
+because a modal would stop the scenario. The object panel needs Shift+I, which the
+scenario's `key` step cannot send. Both can be added later, if a stage changes
+those surfaces, by giving the scenario runner a show step. That would mean
+touching `main.cpp`, which this stage avoided.
+
+**Owed on the rig.**
+
+1. `tests\run-tests.bat`, where `shot_diff` is the new suite.
+2. `.\tests\ui-baseline.ps1 -Save` on master. This confirms the scenario passes,
+   that Help and the assistant really start hidden in a fresh sandbox, and that
+   both runs show the same windows.
+3. The same command again without `-Save`. On an unchanged build it should report
+   nothing unexpected, which is the check that the noise floor is wide enough.

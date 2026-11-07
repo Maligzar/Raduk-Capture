@@ -129,6 +129,7 @@ they answer comes up.
 | Harness | Answers |
 |---|---|
 | `manual-autostakkert-launch.cpp` | Does the app's own launch path actually stack a file? Drives `AutoStakkertRunner` exactly as `main.cpp` does. Needs AutoStakkert installed and a recording. |
+| `ui-baseline.ps1` | Phase 132.0. Which windows did a UI change touch? `-Save` on the build before the change takes the reference and each window's noise floor. Then run it on the change with `-Expect "<titles>"`: it exits non-zero for any other window that changed, went missing, or appeared, and `-Open` shows a contact sheet. Needs the emulator build. Its pure half is gated by `shot_diff`. |
 | `manual-doc-truth.ps1` | Do the planning documents still say true things? Unresolvable commit citations, a section heading arguing with its own body, one phase described two ways in two files, dangling cross-references, and source files missing from the code map. Reads prose, so it reports things that are fine and misses things that are not — read each finding before believing it. |
 | `manual-emulator-blur-equivalence.cpp` | Is the retiled defocus blur the *same* blur? Checksums before and after. |
 | `manual-emulator-defocus-cost.cpp` | What does the emulator's defocus cost per frame? |

@@ -1,0 +1,36 @@
+# Phase 132.0: every window this scenario can open, by screenshot, in day
+# mode and then in night vision. Not a pass/fail check on its own: the
+# shots are what tests\ui-baseline.ps1 compares, before and after a UI
+# change, to show which windows the change touched.
+#
+# Jupiter fills the object and info panels with something real. The GoTo
+# panel is shown, not toggled. HELP and AI are toggles, pressed once on
+# the assumption that a fresh sandbox starts with them hidden; the first
+# -Save run on the rig confirms it (the report lists every window it
+# found). The sky map and telemetry windows come up with the workspace.
+# What matters for the diff is that both runs show the SAME windows,
+# which the noise run checks. Modal dialogs are
+# not opened: a modal would stop the scenario, and they are named in the
+# phase document as not covered.
+#
+# Shot names must not contain '_': ShotDiff splits the file name there.
+name    UI baseline: every window, day and night
+timeout 240
+
+expect 30  Started -- EMULATOR
+expect 30  [SCENARIO] UI baseline
+wait   4
+goto   Jupiter
+expect 120 Slew to 'Jupiter' complete
+press  GOTO
+press  HELP
+press  AI
+wait   4
+shot   day
+key    N
+expect 5   [NIGHT] Night Vision ON
+wait   3
+shot   night
+key    N
+expect 5   [NIGHT] Night Vision OFF
+wait   1

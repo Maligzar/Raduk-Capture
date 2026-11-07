@@ -785,10 +785,15 @@ private:
                                              {obj.px, obj.py + s}, {obj.px - s, obj.py} };
                 for (int k = 0; k < 4; ++k)
                     m_rt->DrawLine(p[k], p[(k + 1) % 4], br, 1.6f);
-                if (obj.visible && m_labelFormat) {
+                // Phase 130: always named, like the planets, so someone
+                // passing the screen can read what each diamond is.
+                if (m_labelFormat) {
                     char lbl[96];
                     snprintf(lbl, sizeof(lbl), "%s  %.1f", obj.name.c_str(), obj.mag);
-                    DrawObjectLabel(lbl, obj.px + s + 3, obj.py - 6, 1.0f, 0.7f, 0.3f);
+                    // Below the horizon it is still named, but faded like
+                    // its diamond, so the ones up now stand out.
+                    DrawObjectLabel(lbl, obj.px + s + 3, obj.py - 6, 1.0f, 0.7f, 0.3f,
+                                    obj.visible ? 0.85f : 0.35f);
                 }
             }
             if (neoBr)   neoBr->Release();
@@ -815,8 +820,12 @@ private:
                     m_rt->DrawRectangle(D2D1::RectF(obj.px - s, obj.py - s, obj.px + s, obj.py + s), br, 1.4f);
                 else
                     m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(obj.px, obj.py), s, s), br);
-                if (obj.lit && m_labelFormat)
-                    DrawObjectLabel(obj.name.c_str(), obj.px + s + 3, obj.py - 6, 0.6f, 0.9f, 1.0f);
+                // Every one named; the ones that cannot be seen in a dimmer
+                // grey, so the bright names are still what stands out.
+                if (m_labelFormat) {
+                    if (obj.lit) DrawObjectLabel(obj.name.c_str(), obj.px + s + 3, obj.py - 6, 0.6f, 0.9f, 1.0f);
+                    else         DrawObjectLabel(obj.name.c_str(), obj.px + s + 3, obj.py - 6, 0.42f, 0.5f, 0.58f);
+                }
             }
             if (litBr)  litBr->Release();
             if (darkBr) darkBr->Release();
@@ -958,8 +967,21 @@ private:
         if (!m_rt || !m_siteFormat || !m_labelFormat) return;
         const auto& rig = raduk::core::RigConfig::Get();
 
-        wchar_t body[3][128];
+        wchar_t body[4][128];
         int n = 0;
+
+        // Phase 130: the date and the time to the second, local and UT,
+        // so anyone watching can see how fast the satellites move. The
+        // map redraws every second while satellites are being placed.
+        {
+            SYSTEMTIME lt{}, ut{};
+            GetLocalTime(&lt);
+            GetSystemTime(&ut);
+            static const wchar_t* kDay[7] = { L"Sun", L"Mon", L"Tue", L"Wed", L"Thu", L"Fri", L"Sat" };
+            swprintf(body[n++], 128, L"%s %04d-%02d-%02d  %02d:%02d:%02d   UT %02d:%02d:%02d",
+                     kDay[lt.wDayOfWeek % 7], lt.wYear, lt.wMonth, lt.wDay,
+                     lt.wHour, lt.wMinute, lt.wSecond, ut.wHour, ut.wMinute, ut.wSecond);
+        }
 
         if (!rig.SiteIsSet()) {
             swprintf(body[n++], 128, L"rig.ini carries no site");
@@ -1088,11 +1110,12 @@ private:
         }
     }
 
-    void DrawObjectLabel(const char* name, float x, float y, float r, float g, float b) {
+    void DrawObjectLabel(const char* name, float x, float y, float r, float g, float b,
+                         float a = 0.85f) {
         if (!m_labelFormat) return;
         wchar_t wname[64]; MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, 64);
         ID2D1SolidColorBrush* br = nullptr;
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(r, g, b, 0.85f), &br);
+        m_rt->CreateSolidColorBrush(D2D1::ColorF(r, g, b, a), &br);
         if (br) {
             // Phase 128: 220, not 80. An NEO's label, "2026 VW2  20.5",
             // wrapped onto a second line on a large map and ran into the

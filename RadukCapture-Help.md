@@ -2794,7 +2794,7 @@ order.
 | 3.0+ | 127 | SKY SURVEY works again; satellite recordings are named for the satellite and run the whole pass; a calibration with one dead axis is refused |
 | 3.0+ | 128 | Near-Earth objects on the sky map: orange diamonds with their magnitude and an hour's motion; click one to FOLLOW it. `NeoMagLimit` in rig.ini sets how faint |
 | 3.0+ | 129 | Snapshots save their true colours (red and blue were swapped); Escape in a camera box shows the camera's value again |
-| 3.0+ | 130 | The sky map shows the bright satellites and rocket bodies (squares) live, with a line to where each will be in 30 s; the ones you can see are bright and named. The line under the map counts them and says how many NEOs `NeoMagLimit` let through |
+| 3.0+ | 130 | The sky map shows the bright satellites and rocket bodies (squares) live, with a line to where each will be in 30 s; the ones you can see are bright. Every NEO and satellite is named, and the site panel shows the date and the time to the second (local and UT). The line under the map counts them and says how many NEOs `NeoMagLimit` let through |
 
 ---
 

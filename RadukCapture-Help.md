@@ -2790,6 +2790,7 @@ order.
 | 3.0+ | 123 | The pointing map graded on every solve, and applied when it helps |
 | 3.0+ | 124 | `[STATS]`: every session at once, rig and emulator apart |
 | 3.0+ | 125 | Scenarios: the emulator build tests itself. Fixed PLANET LOCK after a GoTo, recording limits and names from any tab, and Escape leaving the lock lit |
+| 3.0+ | 126 | PLANET LOCK works on a Moon that fills the frame: it guides on the surface itself |
 
 ---
 

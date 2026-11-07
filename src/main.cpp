@@ -5704,7 +5704,11 @@ static int RunApp(bool useEmulator) {
             CreateDirectoryA(dir.c_str(), nullptr);
             CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
             const int n = raduk::gui::ShotAllWindows(toWide(dir), toWide(a.arg));
-            Log("[SCENARIO] shot %s: %d windows\n", a.arg.c_str(), n);
+            // Phase 126: the preview is a swap chain PrintWindow cannot
+            // read, so the picture itself is saved from the renderer.
+            const bool pic = preview.SaveSnapshotPNG(toWide(dir + "\\" + a.arg + "_preview.png"));
+            Log("[SCENARIO] shot %s: %d windows%s\n", a.arg.c_str(), n,
+                pic ? " and the preview" : ", no preview frame yet");
             if (n == 0) g_scenario->ActionFailed("no window could be captured");
             break;
         }
@@ -6050,6 +6054,15 @@ static int RunApp(bool useEmulator) {
                 controls.SetAcquisitionStatus(acq);
             }
 
+            // Phase 126: say once when guiding goes over to the surface,
+            // because "centre" then means "hold the surface where it was".
+            static bool s_surfaceSaid = false;
+            if (stage == raduk::core::AcquisitionStage::Off) s_surfaceSaid = false;
+            else if (freshAnalysis && lastAnalysis.surfaceTracked && !s_surfaceSaid) {
+                s_surfaceSaid = true;
+                Log("[ACQ] The target fills the frame: guiding on the surface itself\n");
+                slog.Mount("Acquisition: the target fills the frame - guiding on the surface");
+            }
             if (stage != raduk::core::AcquisitionStage::Off && freshAnalysis) {
                 if (lastAnalysis.valid && lastAnalysis.centroidValid)
                     // Plus the window's offset, so the tracker sees the

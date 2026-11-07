@@ -426,6 +426,45 @@ void FrameAnalyzer::Run() {
             }
         }
 
+        // ── Phase 126: a target that fills the frame ─────────────
+        //
+        // The centroid above is the centre of the bright pixels. When the
+        // Moon fills the crop every pixel is bright, so it sits at the
+        // middle of the frame whatever the mount does, and phase 51's
+        // calibration measured "North response too small" forever: a
+        // full-frame Moon could never be locked, and surface following
+        // (phase 109), which starts at the lock, never started.
+        //
+        // So on a full frame the position is a remembered patch of the
+        // surface, found again by correlation. It means what a centroid
+        // means -- where the target is, starting from the frame centre --
+        // so calibration, centring and the lock work unchanged: they now
+        // hold the surface where it was when the search began.
+        {
+            const bool filled = FrameIsFilled(buf.data(), (int)w, (int)h, bd, 8);
+            if (!filled || w != m_surfaceW || h != m_surfaceH) {
+                if (m_surface.HasReference()) m_surface.Reset();
+                m_surfaceW = w; m_surfaceH = h;
+            }
+            if (filled) {
+                float sx = 0.0f, sy = 0.0f;
+                r.surfaceTracked = true;
+                r.centroidTooFaint = false;
+                if (m_surface.Measure(buf.data(), (int)w, (int)h, bd, sx, sy)) {
+                    r.centroidX = sx;
+                    r.centroidY = sy;
+                    r.centroidValid = true;
+                    m_lastCentroidX = sx;
+                    m_lastCentroidY = sy;
+                    m_lastCentroidValid = true;
+                } else {
+                    // No detail yet, or the patch is lost: no position,
+                    // rather than the meaningless middle of the frame.
+                    r.centroidValid = false;
+                }
+            }
+        }
+
         // Phase 61: hold the last centroid briefly when the planet
         // drops out, rather than snapping the sharpness crop back to
         // frame centre on the first dim frame. This matters most during

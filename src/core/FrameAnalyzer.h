@@ -26,6 +26,7 @@
 #include <windows.h>
 #include "Sharpness.h"
 #include "StarMetrics.h"
+#include "SurfaceLock.h"
 
 namespace raduk::core {
 
@@ -169,6 +170,10 @@ struct AnalysisResult {
     // and the gate below could not tell them apart.
     bool  centroidTooFaint = false;   // brightest pixel under the gate
     uint8_t centroidPeak   = 0;       // frame peak, 0-255, for the message
+    // Phase 126: the frame is full (the Moon, the Sun), so centroidX/Y
+    // is where a patch of the surface has moved to, not a centre of
+    // brightness, which cannot move when every pixel is target.
+    bool  surfaceTracked = false;
 
     // ── Frame info ────────────────────────────────────────────
     uint32_t width  = 0;
@@ -343,6 +348,11 @@ private:
     // returns to frame centre (~0.7 s at 43 FPS).
     static constexpr int CENTROID_HOLD_FRAMES = 30;
     int                  m_centroidMissFrames = 0;
+
+    // Phase 126: holds a patch of a frame-filling surface, analyzer
+    // thread only. Reset when the frame stops being full or changes size.
+    SurfaceLock          m_surface;
+    uint32_t             m_surfaceW = 0, m_surfaceH = 0;
 
     float                m_lastCentroidX     = -1.0f;
     float                m_lastCentroidY     = -1.0f;

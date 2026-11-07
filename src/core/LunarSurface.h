@@ -160,6 +160,45 @@ inline double LunarAlbedo(double latDeg, double lonDeg) {
     return a < 0.15 ? 0.15 : a;
 }
 
+// ── Fine texture (phase 126) ─────────────────────────────────
+//
+// The maria and the 5-degree crater cells are all the detail the
+// emulated Moon had, and a 640x480 crop near the middle of the disc
+// spans about 16 degrees: a smooth gradient with nothing to hold. The
+// real Moon has detail at every scale -- small craters, ejecta, ridges
+// -- and following the surface (phase 109) and guiding on it (126)
+// depend on that. So the albedo gets value noise at three scales, a few
+// per cent each, fixed to latitude and longitude so it moves with the
+// surface exactly as real detail does.
+
+inline double LunarNoiseCell(int i, int j, int octave) {
+    uint32_t h = (uint32_t)i * 0x8da6b343u ^ (uint32_t)j * 0xd8163841u ^ (uint32_t)octave * 0xcb1ab31fu;
+    h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
+    return (h & 0xFFFFu) / 65535.0;                 // 0..1
+}
+
+inline double LunarValueNoise(double x, double y, int octave) {
+    const double fx = std::floor(x), fy = std::floor(y);
+    const int ix = (int)fx, iy = (int)fy;
+    double tx = x - fx, ty = y - fy;
+    tx = tx * tx * (3.0 - 2.0 * tx);
+    ty = ty * ty * (3.0 - 2.0 * ty);
+    const double a = LunarNoiseCell(ix, iy, octave),     b = LunarNoiseCell(ix + 1, iy, octave);
+    const double c = LunarNoiseCell(ix, iy + 1, octave), d = LunarNoiseCell(ix + 1, iy + 1, octave);
+    return (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
+}
+
+// A multiplier near 1: about +-15% in all.
+inline double LunarFineTexture(double latDeg, double lonDeg) {
+    const double x = lonDeg * std::cos(latDeg * 3.14159265358979 / 180.0);
+    const double y = latDeg;
+    double n = 0.0;
+    n += 0.12 * (LunarValueNoise(x / 1.0,  y / 1.0,  0) - 0.5);
+    n += 0.10 * (LunarValueNoise(x / 0.3,  y / 0.3,  1) - 0.5);
+    n += 0.08 * (LunarValueNoise(x / 0.1,  y / 0.1,  2) - 0.5);
+    return 1.0 + 2.0 * n;
+}
+
 // ── Craters ──────────────────────────────────────────────────
 //
 // Procedural, from a hash of a coarse lat/lon cell, so the same

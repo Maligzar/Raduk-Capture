@@ -70,6 +70,7 @@ $Tests = @(
     @{ Name = "pointing_score";   Sources = @() }
     @{ Name = "session_stats";    Sources = @() }
     @{ Name = "scenario_runner";  Sources = @() }
+    @{ Name = "full_frame_lock";  Sources = @("src\core\FrameAnalyzer.cpp") }
     @{ Name = "mosaic_run";      Sources = @() }
     @{ Name = "camera_panel";    Sources = @() }
     @{ Name = "camera_controls"; Sources = @() }

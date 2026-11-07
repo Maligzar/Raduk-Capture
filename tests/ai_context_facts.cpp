@@ -156,7 +156,7 @@ static std::string FindWrittenPosition(const std::string& t) {
 
     auto context = [&](size_t a, size_t b) {
         const size_t lo = a >= 30 ? a - 30 : 0;
-        const size_t hi = std::min(b + 30, t.size());
+        const size_t hi = (std::min)(b + 30, t.size());
         std::string c = t.substr(a, b - a) + " in \"" + t.substr(lo, hi - lo) + "\"";
         for (char& ch : c) if (ch == '\n' || ch == '\r') ch = ' ';
         return c;

@@ -19,12 +19,12 @@ This decides everything else, so it comes first.
 
 At 0.203"/px the camera sees **12.99' x 7.31'**. To land a target
 inside the frame on a cold GoTo, pointing must beat half the short
-axis — **3.65', or 0.061 deg**. At latitude 33.9 that is:
+axis — **3.65', or 0.061 deg**. At latitude 40.7 that is:
 
 | | tolerance |
 |---|---|
 | latitude | 6.8 km |
-| longitude | 5.6 km |
+| longitude | 5.1 km |
 
 Measured against candidate sources:
 
@@ -122,9 +122,9 @@ case immediately.
 
 **Against the OS timezone.** The UTC offset implies a longitude band:
 `offset x 15 deg`, give or take the irregular real borders. Flag a
-derived longitude more than ~20 deg from that centre. For UTC-7 the
-centre is -105; a site at -112.09 is 7 deg away and passes, while 0.0
-is 105 deg away and fails loudly.
+derived longitude more than ~20 deg from that centre. For UTC-5 the
+centre is -75; a site at -74.0 is 1 deg away and passes, while 0.0
+is 75 deg away and fails loudly.
 
 **Against the mount.** If both the app and the mount hold a site,
 compare them. Agreement is reassurance; a large disagreement is a
@@ -150,7 +150,7 @@ lives, and the public history was deliberately scrubbed of it — so:
 
 - never write coordinates into source, docs, or anything committed
 - do not log full precision at startup; a coarse confirmation such as
-  "site: 33.9N 112.1W (windows, +/-1 km)" is enough to verify without
+  "site: 40.7N 74.0W (windows, +/-1 km)" is enough to verify without
   putting a house on a screenshot
 - IP geolocation is **opt-in only**, never a silent fallback: it
   discloses the user's IP to a third party, and the accuracy table

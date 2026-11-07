@@ -697,7 +697,7 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
     </div>
   </div>
   <div class="header-right">
-    <div><div style="font-size:19px;color:var(--text-dim);letter-spacing:2px;margin-bottom:1px">LOCAL / UTC</div><div class="live-clock" id="clockDisplay">--:-- MST / --:-- UTC</div></div>
+    <div><div style="font-size:19px;color:var(--text-dim);letter-spacing:2px;margin-bottom:1px">LOCAL / UTC</div><div class="live-clock" id="clockDisplay">--:-- LOCAL / --:-- UTC</div></div>
     <div class="imaging-score-badge"><div class="label" id="scoreBadgeTitle">IMAGING SCORE</div><div class="score" id="overallScore">--</div><div class="score-sub" id="scoreLabel">CALCULATING</div></div>
     <button class="refresh-btn" onclick="refreshAll()">↻ REFRESH</button>
     <button class="refresh-btn" onclick="document.getElementById('shortcutOverlay').classList.add('show')" style="border-color:var(--purple);color:var(--purple)">⌨ KEYS</button>
@@ -768,8 +768,8 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
       <div class="weather-grid">
         <div class="weather-cell"><div class="wc-label">PRESSURE</div><div class="wc-val" id="wc-pressure">29.92</div><div class="wc-sub">inHg</div></div>
         <div class="weather-cell"><div class="wc-label">VISIBILITY</div><div class="wc-val" id="wc-vis">10+ mi</div><div class="wc-sub">EXCELLENT</div></div>
-        <div class="weather-cell"><div class="wc-label">SUNSET</div><div class="wc-val" id="wc-sunset">--:--</div><div class="wc-sub">LOCAL MST</div></div>
-        <div class="weather-cell"><div class="wc-label">ASTRO DARK</div><div class="wc-val" id="wc-dark">--:--</div><div class="wc-sub">LOCAL MST</div></div>
+        <div class="weather-cell"><div class="wc-label">SUNSET</div><div class="wc-val" id="wc-sunset">--:--</div><div class="wc-sub">LOCAL TIME</div></div>
+        <div class="weather-cell"><div class="wc-label">ASTRO DARK</div><div class="wc-val" id="wc-dark">--:--</div><div class="wc-sub">LOCAL TIME</div></div>
       </div>
     </div>
     <div class="panel">
@@ -808,7 +808,7 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
       <div class="bortle-display"><div class="bortle-number">4</div><div class="bortle-desc"><div class="b-title">Rural/Suburban</div><div class="b-sub">Milky Way visible · Zodiacal light</div><div class="b-sqm">SQM: 21.4 mag/arcsec²</div></div></div>
       <div class="bortle-scale" id="bortleScale"></div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:3px;font-family:'Space Mono',monospace"><span>1 DARK</span><span>9 CITY</span></div>
-      <div style="margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.8"><div><span style="color:var(--amber)">⚠</span> Phoenix glow: SE horizon 15°</div><div><span style="color:var(--green)">✓</span> N/NW/W: Excellent</div></div>
+      <div style="margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.8"><div>Placeholder figures, not measured at your site</div></div>
     </div>
     <div class="panel">
       <div class="panel-title">👁 SEEING FORECAST</div>
@@ -1742,8 +1742,34 @@ const apexStorage = {
 // Default location is unset — user configures via the location panel
 const DEFAULT_LAT=0.0, DEFAULT_LON=0.0, DEFAULT_LABEL="SET YOUR LOCATION";
 let LAT=DEFAULT_LAT, LON=DEFAULT_LON;
-let SITE_LABEL=DEFAULT_LABEL, SITE_ELEV="1,732 FT";
-const TIMEZONE="America/Phoenix";
+let SITE_LABEL=DEFAULT_LABEL, SITE_ELEV="";
+// The browser's own time zone. Every local time on this page is shown in
+// it, and the forecasts are requested in it, so the hourly data the APIs
+// return without an offset ("2026-11-07T18:00") parses consistently with
+// new Date(). This was hardcoded to America/Phoenix, which was wrong for
+// anyone else, and by an hour for half the year anywhere that has DST.
+const TIMEZONE=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch(e){return 'UTC';}})();
+// Minutes the zone is ahead of UTC at this instant (negative west of Greenwich).
+function tzOffsetMin(date,tz=TIMEZONE){
+  const p={};
+  new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',
+    hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(date).forEach(x=>p[x.type]=x.value);
+  const asUTC=Date.UTC(+p.year,+p.month-1,+p.day,+p.hour%24,+p.minute,+p.second);
+  return Math.round((asUTC-Math.floor(date.getTime()/1000)*1000)/60000);
+}
+// The instant of local midnight, in the zone, on the local date containing `date`.
+function localMidnightUTC(date,tz=TIMEZONE){
+  const [y,m,d]=date.toLocaleDateString('en-CA',{timeZone:tz}).split('-').map(Number);
+  const guess=Date.UTC(y,m-1,d);
+  let t=guess-tzOffsetMin(new Date(guess),tz)*60000;
+  t=guess-tzOffsetMin(new Date(t),tz)*60000;   // second pass settles a DST day
+  return t;
+}
+// Short zone name for labels: "EST", "MST", "GMT+1".
+function tzAbbr(date=new Date(),tz=TIMEZONE){
+  try{const z=new Intl.DateTimeFormat('en-US',{timeZone:tz,timeZoneName:'short'}).formatToParts(date)
+        .find(x=>x.type==='timeZoneName');return z?z.value:'LOCAL';}catch(e){return 'LOCAL';}
+}
 
 // Load saved location
 (function(){
@@ -1778,9 +1804,9 @@ function switchTab(tab) {
 // ============================================================
 function updateClock(){
   const n=new Date();
-  const mst=n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Phoenix',hour12:false});
+  const loc=n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:TIMEZONE,hour12:false});
   const utc=n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'UTC',hour12:false});
-  document.getElementById('clockDisplay').textContent=`${mst} MST / ${utc} UTC`;
+  document.getElementById('clockDisplay').textContent=`${loc} ${tzAbbr(n)} / ${utc} UTC`;
 }
 setInterval(updateClock,1000); updateClock();
 
@@ -1820,49 +1846,43 @@ function sunPosition(date,lat,lon){
   return raDecToAltAz(((ra%360)+360)%360,dec,lat,lon,date);
 }
 function getSunTimes(date){
-  const tz='America/Phoenix';
-  // Get today's date string in Phoenix time
-  const dateStr=date.toLocaleDateString('en-CA',{timeZone:tz});
-  const [yr,mo,dy]=dateStr.split('-').map(Number);
-  // Work in UTC — Phoenix is UTC-7 year-round (no DST)
-  const utcOffset=7*60; // minutes
-  // Midnight Phoenix = 07:00 UTC
-  const baseUTC=Date.UTC(yr,mo-1,dy,7,0,0,0);
+  // Minutes after local midnight, in the browser's zone. This used to add a
+  // fixed UTC-7 offset twice, so it sampled the sun seven hours early, never
+  // found sunset in its window, and every figure was the fallback below.
+  const baseUTC=localMidnightUTC(date);
+  const alt=m=>sunPosition(new Date(baseUTC+m*60000),LAT,LON).alt;
 
-  let sunset=null,astroEnd=null,astroStart=null,sunrise=null;
-  // Search for sunrise (05:00-10:00 Phoenix)
-  for(let m=5*60;m<10*60;m++){
-    const utc=new Date(baseUTC+(m-utcOffset)*60000);
-    const pos=sunPosition(utc,LAT,LON);
-    if(sunrise==null&&pos.alt>0){sunrise=m;break;}
-  }
-  // Search for sunset (17:00-22:00 Phoenix = 00:00-05:00 UTC next day)
-  for(let m=17*60;m<22*60;m++){
-    const utc=new Date(baseUTC+(m-utcOffset)*60000);
-    const pos=sunPosition(utc,LAT,LON);
-    if(sunset==null&&pos.alt<0){sunset=m;break;}
-  }
-  // Search for astro twilight end (sun < -18°), evening
-  for(let m=(sunset||18*60);m<24*60;m++){
-    const utc=new Date(baseUTC+(m-utcOffset)*60000);
-    const pos=sunPosition(utc,LAT,LON);
-    if(astroEnd==null&&pos.alt<-18){astroEnd=m;break;}
-  }
-  // Search for astro twilight start (sun > -18°), morning next day
-  for(let m=24*60+2*60;m<24*60+7*60;m++){
-    const utc=new Date(baseUTC+(m-utcOffset)*60000);
-    const pos=sunPosition(utc,LAT,LON);
-    if(astroStart==null&&pos.alt>-18){astroStart=m;break;}
-  }
-  const fmt=m=>`${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+  // Crossings, not windows: the first minute the altitude passes the line
+  // in the given direction. A site far from the page's zone (the 0,0
+  // default, or a remote rig) can set in the local morning, which a
+  // fixed "evening" window misses.
+  const cross=(from,to,line,up)=>{
+    let prev=alt(from-1);
+    for(let m=from;m<to;m++){ const a=alt(m); if(up?(prev<=line&&a>line):(prev>=line&&a<line)) return m; prev=a; }
+    return null;
+  };
+  const sunrise=cross(0,24*60,0,true);
+  const sunset=cross(0,24*60,0,false);
+  // Astronomical dark: below -18 after sunset, then back above it.
+  const astroEnd=sunset==null?null:cross(sunset,sunset+18*60,-18,false);
+  const astroStart=astroEnd==null?null:cross(astroEnd,astroEnd+24*60,-18,true);
+  // Shown as the wall clock at that instant, so a DST changeover day reads
+  // right. A crossing that does not happen (polar day, or a summer night
+  // that never gets astronomically dark) reads --:-- rather than a guess.
+  const fmt=m=>m==null?'--:--':new Date(baseUTC+m*60000).toLocaleTimeString('en-GB',
+    {timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  // With no astronomical dark, both ends sit at the darkest point of the
+  // night, so the twilight bar draws no DARK segment.
+  const nadir=Math.round(((sunset??18*60)+((sunrise??6*60)+24*60))/2);
   return{
-    sunrise:fmt(sunrise||6*60),
-    sunset:fmt(sunset||18*60+30),
-    astroEnd:fmt(astroEnd||20*60),
-    astroStart:fmt(astroStart||28*60+30), // stored as 28:30 = 04:30 next day
-    _sunsetMin: sunset||18*60+30,
-    _astroEndMin: astroEnd||20*60,
-    _astroStartMin: astroStart||28*60+30
+    sunrise:fmt(sunrise),
+    sunset:fmt(sunset),
+    astroEnd:fmt(astroEnd),
+    astroStart:fmt(astroStart),
+    noAstroDark: astroEnd==null,
+    _sunsetMin: sunset??18*60+30,
+    _astroEndMin: astroEnd??nadir,
+    _astroStartMin: astroStart??(astroEnd==null?nadir:30*60)
   };
 }
 
@@ -1915,7 +1935,7 @@ function getTargetsByAltitude(date){
 function logSession(msg, type='info') {
   const el = document.getElementById('sessionLog');
   if (!el) return;
-  const ts = new Date().toLocaleTimeString('en-US',{timeZone:'America/Phoenix',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const ts = new Date().toLocaleTimeString('en-US',{timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
   const div = document.createElement('div');
   div.className = 'log-line ' + type;
   div.textContent = '[' + ts + '] ' + msg;
@@ -2526,7 +2546,7 @@ function rcToggleCapture() {
 // ── Session log ─────────────────────────────────────────────
 function rcLogSession(msg, type='info') {
   const el = document.getElementById('rcSessionLog'); if (!el) return;
-  const ts = new Date().toLocaleTimeString('en-US',{timeZone:'America/Phoenix',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const ts = new Date().toLocaleTimeString('en-US',{timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
   const div = document.createElement('div');
   div.className = `log-line ${type}`;
   div.textContent = `[${ts}] ${msg}`;
@@ -2641,7 +2661,7 @@ function drawSkyMap(targets,planets){
   // Zenith
   ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.strokeStyle='rgba(0,229,255,.5)';ctx.lineWidth=1;ctx.stroke();
   ctx.save();ctx.globalCompositeOperation='destination-in';ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fill();ctx.restore();
-  document.getElementById('skyTime').textContent=`SKY POSITIONS FOR ${new Date().toLocaleString('en-US',{timeZone:'America/Phoenix',hour:'2-digit',minute:'2-digit',month:'short',day:'numeric'})} MST`;
+  document.getElementById('skyTime').textContent=`SKY POSITIONS FOR ${new Date().toLocaleString('en-US',{timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit',month:'short',day:'numeric'})} ${tzAbbr()}`;
 }
 
 function drawWindCompass(direction,speed){
@@ -2704,16 +2724,16 @@ function renderHourly(weatherData){
   if(!el)return;
   el.innerHTML='';
   const now=new Date();
-  const tz='America/Phoenix';
+  const tz=TIMEZONE;
   const tsEl=document.getElementById('hourlyBannerTime');
   if(tsEl)tsEl.textContent='FROM '+now.toLocaleTimeString('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit'})+' LOCAL';
   const tsEl2=document.getElementById('hourlyBannerTime2');
   if(tsEl2)tsEl2.textContent='FROM '+now.toLocaleTimeString('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit'})+' LOCAL';
 
   // Build LOCAL-hour-keyed score map from fcastDays.hourlyScores
-  // Open-Meteo uses timezone=America/Phoenix so hourlyScores[i] is indexed by LOCAL hour
-  const scoreMap = {};   // key: "YYYY-MM-DDTHH" LOCAL Phoenix -> imaging score 0-100
-  const cloudMap = {};   // key: "YYYY-MM-DDTHH" LOCAL Phoenix -> cloud % (for tooltip)
+  // Open-Meteo is asked for TIMEZONE, so hourlyScores[i] is indexed by LOCAL hour
+  const scoreMap = {};   // key: "YYYY-MM-DDTHH" LOCAL -> imaging score 0-100
+  const cloudMap = {};   // key: "YYYY-MM-DDTHH" LOCAL -> cloud % (for tooltip)
   if(window.fcastDays && fcastDays.length) {
     fcastDays.forEach(day => {
       day.hourlyScores.forEach((score, localHr) => {
@@ -2743,7 +2763,7 @@ function renderHourly(weatherData){
 
   for(let i=0;i<48;i++){
     const h = new Date(now.getTime() + i*3600000);
-    // Local Phoenix date+hour for scoreMap lookup
+    // Local date+hour for scoreMap lookup
     const localDate = h.toLocaleDateString('en-CA', {timeZone:tz});   // "YYYY-MM-DD"
     // Use hour12:true then convert to avoid browser bug where hour12:false returns "24" at midnight
     const localHrRaw = h.toLocaleTimeString('en-US', {timeZone:tz, hour:'numeric', hour12:false});
@@ -2798,7 +2818,7 @@ function updateSunTimes(){
   document.getElementById('wc-sunset').textContent=t.sunset;
   document.getElementById('wc-dark').textContent=t.astroEnd;
   if(document.getElementById('moonRise'))
-    document.getElementById('moonRise').textContent=`Astro dark: ${t.astroEnd} – ${t.astroStart}`;
+    document.getElementById('moonRise').textContent=t.noAstroDark?'No astronomical dark tonight':`Astro dark: ${t.astroEnd} – ${t.astroStart}`;
   // Populate location badge sun row
   const sunRow = document.getElementById('locationBadgeSun');
   const srEl   = document.getElementById('lbSunrise');
@@ -2812,11 +2832,11 @@ function updateSunTimes(){
 }
 
 function renderTwilightCloud(t){
-  const tz='America/Phoenix';
+  const tz=TIMEZONE;
   const now=new Date();
 
-  // Window: 6 PM today → 6 AM tomorrow (Phoenix time) = 12 hours = 720 min
-  // Use raw minute values from getSunTimes (all in minutes since midnight Phoenix)
+  // Window: 6 PM today → 6 AM tomorrow (local time) = 12 hours = 720 min
+  // Use raw minute values from getSunTimes (all in minutes since local midnight)
   // astroStartMin may be > 24*60 (e.g. 28*60+30 = 4:30 AM next day)
   const totalMin=720;
   const windowStartHour=18; // 6 PM
@@ -2861,10 +2881,8 @@ function renderTwilightCloud(t){
   if(!cloudRow||!labelsEl)return;
   cloudRow.innerHTML=''; labelsEl.innerHTML='';
 
-  // Phoenix midnight in UTC for today
-  const dateStr=now.toLocaleDateString('en-CA',{timeZone:tz});
-  const [yr,mo,dy]=dateStr.split('-').map(Number);
-  const phoenixMidnightUTC=new Date(Date.UTC(yr,mo-1,dy,7,0,0,0)); // UTC-7
+  // Local midnight today, as an instant
+  const localMidnight=new Date(localMidnightUTC(now,tz));
 
   function getCloud(dt){
     if(window.fcastDays&&fcastDays.length){
@@ -2883,16 +2901,16 @@ function renderTwilightCloud(t){
   }
 
   for(let i=0;i<12;i++){
-    // Hour i: Phoenix hour = 18+i (wraps after 23 → 0,1,2,3,4,5)
-    const phoenixHour=(18+i)%24;
+    // Hour i: local hour = 18+i (wraps after 23 → 0,1,2,3,4,5)
+    const localHour=(18+i)%24;
     const dayOffset=i>=6?1:0; // hours 0–5 AM are next day
-    const cellUTC=new Date(phoenixMidnightUTC.getTime()+(dayOffset*24*60+phoenixHour*60)*60000);
+    const cellUTC=new Date(localMidnight.getTime()+(dayOffset*24*60+localHour*60)*60000);
     const cloud=Math.round(getCloud(cellUTC));
 
     // Window offset in minutes for this cell
     const winMin=i*60;
     const isAstroDark=(winMin>=astroEndMin&&winMin<astroStartMin);
-    const isDark=(phoenixHour>=20||phoenixHour<6);
+    const isDark=(localHour>=20||localHour<6);
     const isNow=Math.abs(cellUTC.getTime()-now.getTime())<1800000;
 
     const barH=Math.max(3,Math.round(cloud/100*24));
@@ -2989,7 +3007,7 @@ function updateScore(score){
 }
 
 function updateScoreBadge() {
-  const tz = 'America/Phoenix';
+  const tz = TIMEZONE;
   const now = new Date();
   const localHrRaw = now.toLocaleTimeString('en-US', {timeZone:tz, hour:'numeric', hour12:false});
   const localHr = parseInt(localHrRaw) % 24;
@@ -3155,7 +3173,7 @@ async function refreshAll(){
   updateMoon();updateSunTimes();renderBortle(4);renderSeeingBars();renderNASAEvents();renderFAANotices();
   setTimeout(()=>{ try{ refreshSkyUI(); }catch(e){} }, 3500);
   document.getElementById('val-aqi').textContent='AQI 42';document.getElementById('val-trans').textContent='8.2/10';document.getElementById('val-see').textContent='2.8″';
-  document.getElementById('lastUpdate').textContent=now.toLocaleTimeString('en-US',{timeZone:'America/Phoenix',hour:'2-digit',minute:'2-digit'});
+  document.getElementById('lastUpdate').textContent=now.toLocaleTimeString('en-US',{timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit'});
 }
 
 // Live sky update every 60s
@@ -3923,7 +3941,7 @@ function processForecastData() {
   }
 
   // Parse 7Timer into date map (3-hourly)
-  // 7Timer returns UTC times — convert to Phoenix local (UTC-7, no DST)
+  // 7Timer returns UTC times — convert to local time in the page's zone
   const t7ByDate = {};
   if (fcastRaw.timer7 && fcastRaw.timer7.dataseries) {
     const initStr = fcastRaw.timer7.init; // "YYYYMMDDhh" UTC
@@ -3933,11 +3951,9 @@ function processForecastData() {
     ));
     fcastRaw.timer7.dataseries.forEach(pt => {
       const utcMs = initDate.getTime() + pt.timepoint * 3600000;
-      // Convert to Phoenix local (UTC-7, Arizona has no DST)
-      const phxMs = utcMs - 7 * 3600000;
-      const phxDate = new Date(phxMs);
-      const date = phxDate.toISOString().slice(0,10); // local date as YYYY-MM-DD
-      const hour = phxDate.getUTCHours();             // local hour 0-23
+      const at = new Date(utcMs);
+      const date = at.toLocaleDateString('en-CA', {timeZone:TIMEZONE});   // local YYYY-MM-DD
+      const hour = parseInt(at.toLocaleTimeString('en-US', {timeZone:TIMEZONE, hour:'numeric', hour12:false})) % 24;
       if (!t7ByDate[date]) t7ByDate[date] = [];
       t7ByDate[date].push({
         hour, cloud: t7CloudPct(pt.cloudcover),
@@ -4030,8 +4046,8 @@ function processForecastData() {
 
     fcastDays.push({
       date, di,
-      dayOfWeek: new Date(date+'T20:00:00Z').toLocaleDateString('en-US',{weekday:'short',timeZone:'America/Phoenix'}).toUpperCase(),
-      dateShort: new Date(date+'T20:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'America/Phoenix'}),
+      dayOfWeek: new Date(date+'T20:00:00Z').toLocaleDateString('en-US',{weekday:'short',timeZone:TIMEZONE}).toUpperCase(),
+      dateShort: new Date(date+'T20:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:TIMEZONE}),
       hours:omHrs, hourlyScores, nightScore,
       avgCloud: Math.round(omNightCloud), avgWind: omNightWind, avgHum: omNightHum,
       avgGust: omNightGust ? Math.round(omNightGust) : null,
@@ -4157,7 +4173,7 @@ function selectForecastDay(idx) {
   document.getElementById('fcastDetailLoading').style.display = 'none';
   document.getElementById('fcastDetailContent').style.display = 'block';
 
-  const dt = new Date(d.date+'T20:00:00Z').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:'America/Phoenix'});
+  const dt = new Date(d.date+'T20:00:00Z').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:TIMEZONE});
   const sr = d.sunrise ? d.sunrise.slice(11,16) : '—';
   const ss = d.sunset  ? d.sunset.slice(11,16)  : '—';
   document.getElementById('fcastDetailTitle').textContent =
@@ -4239,7 +4255,7 @@ function renderSourceCompare(d) {
 function renderHourlyBars(d) {
   const el = document.getElementById('fcastHourlyBars');
   el.innerHTML = '';
-  // hourlyScores is indexed by LOCAL Phoenix hour (Open-Meteo uses timezone=America/Phoenix)
+  // hourlyScores is indexed by LOCAL hour (Open-Meteo is asked for TIMEZONE)
   d.hourlyScores.forEach((s, hr) => {
     const isNight = hr >= 20 || hr < 4;
     const cb = s>=75?'rgba(77,255,145,':s>=55?'rgba(0,229,255,':s>=35?'rgba(255,170,0,':'rgba(255,80,80,';
@@ -4269,7 +4285,7 @@ function renderFcastCloudChart(d) {
     ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='17px Space Mono,monospace';ctx.fillText(v+'%',12,y-2);
   });
   const night=[[20,24],[0,5]];  // local night hours (kept for reference)
-  // Night shading: local night hours 20-23 and 0-4 (data is in local Phoenix time)
+  // Night shading: local night hours 20-23 and 0-4 (data is in local time)
   ctx.fillStyle='rgba(0,0,80,.20)';
   ctx.fillRect(20/23*(W-20)+10, 0, (23-20)/23*(W-20), H);
   ctx.fillRect(0/23*(W-20)+10,  0, 4/23*(W-20),       H);
@@ -4586,7 +4602,7 @@ function saveLocation() {
   if (locSelectedOption === 'default') {
     newLat = DEFAULT_LAT; newLon = DEFAULT_LON;
     newLabel = DEFAULT_LABEL; newType = 'default';
-    SITE_ELEV = '1,732 FT';
+    SITE_ELEV = '';
 
   } else if (locSelectedOption === 'detect') {
     if (!locPendingLat) { locSetStatus('locDetectStatus','⚠ First click REQUEST LOCATION and wait for acquisition','err'); return; }
@@ -4655,7 +4671,7 @@ function histAutoLog(weather) {
   const entry = {
     id: Date.now(),
     date: today,
-    time: new Date().toLocaleTimeString('en-US',{timeZone:'America/Phoenix',hour:'2-digit',minute:'2-digit'}),
+    time: new Date().toLocaleTimeString('en-US',{timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit'}),
     score: Math.round(score),
     cloud: Math.round(weather.cloud),
     humidity: Math.round(weather.hum),
@@ -4682,7 +4698,7 @@ const HIST_PAGE_SIZE = 30;
 // ---- Modal ----
 function openLogModal() {
   const now = new Date();
-  const tz = 'America/Phoenix';
+  const tz = TIMEZONE;
   document.getElementById('ml-date').value = now.toLocaleDateString('en-CA',{timeZone:tz});
   document.getElementById('ml-time').value = now.toLocaleTimeString('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false});
   // Auto-fill from live dashboard values
@@ -5163,7 +5179,7 @@ function skySave(arr) {
 // Auto-capture every page load, once per calendar day — richer data than histAutoLog
 function skyAutoCapture(weather) {
   if (!weather) return;
-  const tz = 'America/Phoenix';
+  const tz = TIMEZONE;
   const today = new Date().toLocaleDateString('en-CA', {timeZone: tz});
   const arr = skyLoad();
   const existing = arr.find(e => e.date === today);

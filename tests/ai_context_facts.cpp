@@ -21,10 +21,42 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 
 using namespace raduk::core;
 
 static int g_fail = 0;
+
+// The docs folder beside tests, found from this file's own path. run-tests.ps1
+// compiles with an absolute source path, so __FILE__ is absolute.
+static std::wstring RepoDocsDir() {
+    std::filesystem::path here(__FILE__);
+    return (here.parent_path().parent_path() / "docs").wstring();
+}
+
+// A session log shaped like SessionLog's output, in a fresh temp
+// directory. Twelve thousand lines with a handful about autofocus for the
+// retrieval to find. Kept under 1 MB: ReadWholeFile returns nothing for
+// a file of 1 MB or more, so a larger log would load as no session.
+static std::wstring WriteSyntheticSessionLog() {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path dir = fs::temp_directory_path(ec) / "raduk_ai_context_facts";
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+    std::ofstream f(dir / "session_20261010_210000.log");
+    for (int i = 0; i < 12000; i++) {
+        f << "[21:" << (10 + i / 600 % 50) << ":" << (10 + i / 10 % 50)
+          << "] [CAPTURE     ] frame " << i << " written, 1280x960 8-bit\n";
+        if (i == 6000) {
+            f << "[22:15:00] [AUTOFOCUS   ] V-curve sweep started at 168032\n"
+              << "[22:16:40] [AUTOFOCUS   ] parabola fit accepted, best 168110\n"
+              << "[22:16:41] [AUTOFOCUS   ] focus improved 6.2% over start\n";
+        }
+    }
+    return dir.wstring();
+}
 
 static void Check(bool ok, const std::string& what, const std::string& detail) {
     printf("  [%s] %-58s %s\n", ok ? "PASS" : "FAIL", what.c_str(), detail.c_str());
@@ -200,9 +232,17 @@ int main() {
     // smuggle the observing site in.
     printf("\n6. Retrieval over the local corpus\n");
     {
+        // Hermetic on purpose. This read the docs and logs folders under
+        // D:/RadukCapture, so the gate passed on one machine only and
+        // failed on every fresh clone. The documents now come from the
+        // clone this test was compiled in, and the session history is
+        // a synthetic log written here, large enough that "selected,
+        // not dumped" below still means something.
+        const std::wstring docsDir = RepoDocsDir();
+        const std::wstring logsDir = WriteSyntheticSessionLog();
         AIContextBuilder b2;
-        b2.LoadDocuments(L"D:\\RadukCapture\\docs");
-        b2.LoadSessionLogs(L"D:\\RadukCapture\\logs");
+        b2.LoadDocuments(docsDir);
+        b2.LoadSessionLogs(logsDir);
 
         // A question the help file cannot answer and the project's own
         // notes can.
@@ -235,22 +275,56 @@ int main() {
         // And the site rule still holds with all of it present. This
         // is the check that matters most: the corpus grew, and
         // everything in the prompt can be quoted back.
+        //
+        // The broad scan below flags ANY number from 10 to 180 with two
+        // decimals, which is right for text this rig produced at runtime
+        // (logs, state) where a site could appear in any form. It is
+        // wrong for the project's own documents, which are reviewed,
+        // committed text full of measurements and stage numbers: it
+        // tripped on "132.10", a Phase 132 stage. So the documents block
+        // is held to the exact rule -- the configured site does not
+        // appear at more than one decimal anywhere in the prompt -- and
+        // the broad scan runs over everything else.
+        Check(!Has(p3, "41.87") && !Has(p3, "87.65"),
+              "the configured site is nowhere in the prompt at two decimals", "");
+        std::string scan = p3;
+        const size_t docs = scan.find("[LOCAL DOCUMENTS]\n");
+        if (docs != std::string::npos) {
+            // Up to the next section the builder writes. Markdown can
+            // itself contain "\n\n[", so a generic search would stop
+            // inside the documents.
+            size_t next = scan.find("[SESSION HISTORY]\n", docs);
+            if (next == std::string::npos) next = scan.find("[SESSION STATE]\n", docs);
+            scan.erase(docs, next == std::string::npos ? std::string::npos
+                                                      : next - docs);
+        }
+        Check(scan.size() < p3.size() || !Has(p3, "[LOCAL DOCUMENTS]"),
+              "  and the documents block was found to set aside", "");
+
         bool tooPrecise = false;
-        for (size_t i = 0; i + 4 < p3.size(); i++) {
-            if (!isdigit((unsigned char)p3[i])) continue;
-            if (i > 0 && (isdigit((unsigned char)p3[i-1]) || p3[i-1] == '.')) continue;
+        std::string offender;
+        for (size_t i = 0; i + 4 < scan.size(); i++) {
+            if (!isdigit((unsigned char)scan[i])) continue;
+            if (i > 0 && (isdigit((unsigned char)scan[i-1]) || scan[i-1] == '.')) continue;
             size_t j = i;
-            while (j < p3.size() && isdigit((unsigned char)p3[j])) j++;
-            if (j >= p3.size() || p3[j] != '.') continue;
+            while (j < scan.size() && isdigit((unsigned char)scan[j])) j++;
+            if (j >= scan.size() || scan[j] != '.') continue;
             size_t k = j + 1, dec = 0;
-            while (k < p3.size() && isdigit((unsigned char)p3[k])) { k++; dec++; }
+            while (k < scan.size() && isdigit((unsigned char)scan[k])) { k++; dec++; }
             if (dec < 2) continue;
-            const double v = atof(p3.substr(i, k - i).c_str());
-            if (v >= 10.0 && v <= 180.0) { tooPrecise = true; break; }
+            const double v = atof(scan.substr(i, k - i).c_str());
+            if (v >= 10.0 && v <= 180.0) {
+                tooPrecise = true;
+                const size_t a = i >= 40 ? i - 40 : 0;
+                offender = scan.substr(i, k - i) + " in \"" +
+                           scan.substr(a, std::min<size_t>(k + 40, scan.size()) - a) + "\"";
+                for (char& c : offender) if (c == '\n' || c == '\r') c = ' ';
+                break;
+            }
         }
         Check(!tooPrecise,
-              "and the site rule still holds with documents and logs in",
-              "");
+              "and nothing from the logs or state is coordinate-precise",
+              offender);
     }
 
     printf("\n");

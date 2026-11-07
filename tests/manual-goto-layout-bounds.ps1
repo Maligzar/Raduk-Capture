@@ -52,6 +52,6 @@ foreach ($sz in @(@(480,700,'gt_a.png'), @(620,900,'gt_b.png'), @(1000,1040,'gt_
   $wr=New-Object GL+RECT; [void][GL]::GetWindowRect($h,[ref]$wr)
   $bmp=New-Object System.Drawing.Bitmap (($wr.R-$wr.L),($wr.B-$wr.T))
   $g=[System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($wr.L,$wr.T,0,0,$bmp.Size)
-  $bmp.Save("C:\Users\malig\AppData\Local\Temp\claude\D--RadukCapture\813bf01e-7524-43a3-941a-a4d975abfdd7\scratchpad\$($sz[2])",[System.Drawing.Imaging.ImageFormat]::Png)
+  $bmp.Save((Join-Path $env:TEMP $sz[2]),[System.Drawing.Imaging.ImageFormat]::Png)
   $g.Dispose(); $bmp.Dispose()
 }

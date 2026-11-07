@@ -1,0 +1,11 @@
+# The app starts in a sandbox, shows its windows, and closes cleanly.
+name    Smoke: start, look, close
+timeout 90
+
+expect 30 Started -- EMULATOR
+expect 30 [SCENARIO] Smoke: start
+wait   4
+shot   start
+press  STATS
+expect 15 [STATS]
+wait   2

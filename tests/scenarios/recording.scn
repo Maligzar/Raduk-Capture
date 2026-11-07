@@ -1,0 +1,34 @@
+# Checklist 28 and 32: one ordinary recording of Jupiter, made from the
+# CAMERA tab. Named for the target, stopped at the profile's limit, the
+# derotation window announced, and renamed for WinJUPOS when it ends.
+name    Recording: one run of Jupiter
+timeout 300
+
+rig     WinJuposNames=1
+rig     DerotationStop=0
+profile jupiter.ini roi width=640
+profile jupiter.ini roi height=480
+profile jupiter.ini roi img_type=0
+profile jupiter.ini capture limit_value=120
+
+expect 30  [SCENARIO] Recording
+wait   3
+goto   Jupiter
+expect 120 Slew to 'Jupiter' complete
+wait   3
+tab    CAMERA
+
+# One line can satisfy only one expect, so each checks something different.
+press  RECORD
+expect 10  captures\Jupiter_
+expect 10  min (it will warn)
+expect 60  Recording stopped: 120 frames
+expect 15  Renamed for WinJUPOS:
+shot   after-recording
+
+# OUTPUT open this time: the same values must come from the live controls.
+tab    OUTPUT
+press  RECORD
+expect 10  captures\Jupiter_
+expect 60  Recording stopped: 120 frames
+shot   output-tab

@@ -74,6 +74,9 @@
 #include "core/HardwareLink.h" // phase 46: what the [HW] button shows and says
 #include "core/RoiFollower.h"
 #include "core/DashboardLaunch.h" // [DASH]: open the dashboard with its token
+#include "core/Scenario.h"        // Phase 125: --scenario, the app tests itself
+#include "core/TestProbe.h"
+#include "gui/WindowShot.h"
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
 #pragma comment(lib, "shlwapi.lib")
@@ -115,6 +118,16 @@ using namespace raduk::profiles;
 // ── Crash-safe logging ─────────────────────────────────────────
 static FILE* g_log = nullptr;
 
+// Phase 125: set when the emulator was started with --scenario. Every
+// Log line is shown to it, along with the probes (TestProbe.h).
+static raduk::core::ScenarioRunner* g_scenario = nullptr;
+static std::string g_scenarioDir;      // the sandbox
+static std::string g_scenarioReport;   // where the report goes
+static double ScenarioNow() {
+    return std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
 static void LogInit() {
     g_log = fopen(raduk::core::Paths::LogFile().c_str(), "w");
     if (!g_log) g_log = fopen("raduk_log.txt", "w");
@@ -126,6 +139,13 @@ static void Log(const char* fmt, ...) {
     va_list args;
     if (g_log) { va_start(args, fmt); vfprintf(g_log, fmt, args); va_end(args); fflush(g_log); }
     va_start(args, fmt); vprintf(fmt, args); va_end(args); fflush(stdout);
+    if (g_scenario) {
+        char buf[2048];
+        va_start(args, fmt); vsnprintf(buf, sizeof(buf), fmt, args); va_end(args);
+        // The twice-a-second readouts would bury a failure report.
+        if (strncmp(buf, "[SHARP]", 7) != 0 && strncmp(buf, "[MOTION]", 8) != 0)
+            g_scenario->Observe(buf, ScenarioNow());
+    }
 }
 
 // ── Global mount pointer for crash/exit emergency stop ────────
@@ -589,6 +609,10 @@ static void EmuApplyApparentSize(raduk::core::ASICamera* cam) {
     if (resolved == std::string("Moon")) {
         double mra = 0.0, mdec = 0.0, phase = 0.0;
         raduk::sky::MoonRADec(jd, mra, mdec, phase);
+        // Phase 125: a scenario needs the same Moon on any date. Near new,
+        // the middle of the frame is unlit and nothing can be acquired.
+        char ph[16] = {};
+        if (GetEnvironmentVariableA("RADUK_EMU_LUNAR_PHASE", ph, 16) > 0) phase = atof(ph);
         cam->SetLunarPhase((float)phase);
         Log("[EMU] Moon phase %.3f (0 new, 0.5 full)\n", phase);
     }
@@ -1257,7 +1281,10 @@ static int RunApp(bool useEmulator) {
         // WsLanOpen means nothing while the server only listens on this PC.
         const bool lanOpen = wsLan && rc.wsLanOpen;
         wsServer.SetLanOpen(lanOpen);
-        wsServer.Start(8765, wsLan);
+        // Phase 125: a scenario must never take the port from a copy the
+        // owner has open, and nothing remote belongs in a test.
+        if (g_scenario) Log("[INIT] WebSocket server off: scenario run\n");
+        else wsServer.Start(8765, wsLan);
         Log("[INIT] WebSocket server on %s:8765%s%s\n",
             wsLan ? "0.0.0.0" : "127.0.0.1",
             wsLan ? " (home network: WsLan / RADUK_WS_LAN)" : "",
@@ -4417,6 +4444,10 @@ static int RunApp(bool useEmulator) {
         controls.SetAutofocusRunning(false);
         tracker.Reset();  // stops all stages, joins correction thread
         controls.SetSkyMapLocked(false);
+        // Phase 125, found by a scenario: the tracker stopped but PLANET
+        // LOCK stayed lit, reading TRACKING over nothing. Phase 102 fixed
+        // this for the panel's STOP and not for Escape.
+        controls.SetPlanetLockState(false);
         controls.EmergencyStop();
         slog.Safety("EMERGENCY STOP");
     };
@@ -5010,6 +5041,28 @@ static int RunApp(bool useEmulator) {
         // and the toggle agree and the bool is only a sanity check.
         const bool runningNow =
             tracker.Stage() != raduk::core::AcquisitionStage::Off;
+        // Phase 125, found by the first scenario: a GoTo leaves a plain
+        // search running, which waits for LOCK. PLANET LOCK pressed then
+        // only lit the button, because the tracker was already "running",
+        // and the planet was never calibrated, centred or locked. It now
+        // means what it means from Off: do the whole sequence.
+        if (want && tracker.Stage() == raduk::core::AcquisitionStage::Searching &&
+            !tracker.AutoAdvancing()) {
+            tracker.SetMount(mount);
+            std::string whyNot;
+            if (tracker.PromoteToAutoAcquire(whyNot)) {
+                Log("[ACQ] PLANET LOCK: the search under way now runs the whole sequence\n");
+                slog.Mount("Acquisition: auto (search -> calibrate -> centre -> lock)");
+                notifBar.NotifyInfo(L"Acquiring planet - searching...");
+                controls.SetPlanetLockState(true);
+            } else {
+                Log("[ACQ] Auto-acquire refused: %s\n", whyNot.c_str());
+                std::wstring w(whyNot.begin(), whyNot.end());
+                notifBar.NotifyWarn(L"Cannot acquire: " + w);
+                controls.SetPlanetLockState(false);
+            }
+            return;
+        }
         if (want == runningNow) {
             // Already in the asked-for state: nothing to toggle, just
             // make the button agree with the tracker.
@@ -5161,6 +5214,9 @@ static int RunApp(bool useEmulator) {
         Log("[STATS] %d logs, %d records: rig %d sessions over %zu nights, emulator %d (%llu ms)\n",
             st.logsRead, st.records, st.rig.sessions, st.rig.nights.size(), st.emu.sessions,
             (unsigned long long)(GetTickCount64() - t0));
+        // A scenario checks the page was written; it must not open the
+        // owner's browser.
+        if (g_scenario) { Log("[STATS] written to %s\n", path.c_str()); return; }
         const HINSTANCE r = ShellExecuteW(nullptr, L"open", toWide(path).c_str(),
                                           nullptr, nullptr, SW_SHOWNORMAL);
         if ((INT_PTR)r <= 32) {
@@ -5598,7 +5654,79 @@ static int RunApp(bool useEmulator) {
 
     auto lastReadout = std::chrono::steady_clock::now();
 
+    // ── Phase 125: the scenario driver ─────────────────────────
+    // One step per pass of the loop, on the UI thread, through the same
+    // entry points a click or a key uses.
+    if (g_scenario) {
+        Log("[SCENARIO] %s: running in %s\n", g_scenario->Name().c_str(), g_scenarioDir.c_str());
+    }
+    bool scenarioClosing = false;
+    auto scenarioStep = [&]() {
+        if (!g_scenario || scenarioClosing) return;
+        using AK = raduk::core::ScenarioAction::Kind;
+        const raduk::core::ScenarioAction a = g_scenario->Tick(ScenarioNow());
+        switch (a.kind) {
+        case AK::None: break;
+        case AK::Press: {
+            Log("[SCENARIO] press %s\n", a.arg.c_str());
+            std::wstring w(a.arg.begin(), a.arg.end());
+            if (!toolbar.PressByLabel(w) && !controls.PressByName(a.arg))
+                g_scenario->ActionFailed("no button called '" + a.arg + "'");
+            break;
+        }
+        case AK::Key: {
+            Log("[SCENARIO] key %s\n", a.arg.c_str());
+            struct KN { const char* n; UINT vk; };
+            static const KN kKeys[] = {
+                {"ESC", VK_ESCAPE}, {"ESCAPE", VK_ESCAPE}, {"SPACE", VK_SPACE},
+                {"ENTER", VK_RETURN}, {"F1", VK_F1}, {"F5", VK_F5}, {"F11", VK_F11},
+                {"LEFT", VK_LEFT}, {"RIGHT", VK_RIGHT}, {"UP", VK_UP}, {"DOWN", VK_DOWN} };
+            UINT vk = 0;
+            for (const KN& k : kKeys) if (_stricmp(k.n, a.arg.c_str()) == 0) vk = k.vk;
+            if (!vk && a.arg.size() == 1 && isalnum((unsigned char)a.arg[0]))
+                vk = (UINT)toupper((unsigned char)a.arg[0]);
+            if (!vk) { g_scenario->ActionFailed("no key called '" + a.arg + "'"); break; }
+            PostMessageW(window.Handle(), WM_KEYDOWN, vk, 1);
+            PostMessageW(window.Handle(), WM_KEYUP, vk, 0xC0000001);
+            break;
+        }
+        case AK::Goto:
+            Log("[SCENARIO] goto %s\n", a.arg.c_str());
+            gotoPanel.RequestGoToByName(a.arg);
+            break;
+        case AK::Tab:
+            Log("[SCENARIO] tab %s\n", a.arg.c_str());
+            if (!controls.OpenTabByName(a.arg))
+                g_scenario->ActionFailed("no tab called '" + a.arg + "'");
+            break;
+        case AK::Shot: {
+            const std::string dir = g_scenarioDir + "\\shots";
+            CreateDirectoryA(dir.c_str(), nullptr);
+            CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+            const int n = raduk::gui::ShotAllWindows(toWide(dir), toWide(a.arg));
+            Log("[SCENARIO] shot %s: %d windows\n", a.arg.c_str(), n);
+            if (n == 0) g_scenario->ActionFailed("no window could be captured");
+            break;
+        }
+        case AK::Finish: {
+            scenarioClosing = true;
+            // Leave nothing running, then close the way EXIT does. The
+            // recording has to be stopped first, because exiting while
+            // recording asks a question nobody is there to answer.
+            if (autorun.Running()) autorun.Abort("scenario finished");
+            if (capturer.IsRecording()) capturer.StopRecording(false);
+            const std::string rep = g_scenario->Report("Sandbox: " + g_scenarioDir + "\n");
+            if (FILE* f = fopen(g_scenarioReport.c_str(), "w")) { fputs(rep.c_str(), f); fclose(f); }
+            Log("[SCENARIO] %s: %s\n", g_scenario->Name().c_str(),
+                g_scenario->Passed() ? "PASS" : "FAIL");
+            doGracefulExit();
+            break;
+        }
+        }
+    };
+
     window.Run([&]() {
+        scenarioStep();
         // ── SAFETY: Feed mount watchdog every frame ────────────
         // Virtual on IMount: NexStarMount feeds its watchdog, the ASCOM and
         // emulator backends no-op. (Previously a static_cast to NexStarMount
@@ -7233,10 +7361,80 @@ static int RunApp(bool useEmulator) {
     slog.System("Done");
     Log("Goodbye.\n");
     if (g_log) fclose(g_log);
+    // Phase 125: the scenario's verdict is the exit code.
+    if (g_scenario) return g_scenario->Passed() ? 0 : 1;
     return 0;
 }
 
 // ──────────────────────────────────────────────────────────────
+
+#ifdef RADUK_EMULATOR
+// ── Phase 125: the sandbox a scenario runs in ──────────────────
+//
+//   <root>\test_runs\<name>_<stamp>\
+//       logs\  captures\  data\  profiles\  shots\
+//       rig.ini        the owner's, with the scenario's rig lines over it
+//       workspace.ini  the owner's window layout, so windows land as usual
+//       report.txt     what happened
+//
+// The owner's own logs, captures, pointing map and rig.ini are never
+// written. Returns 0, or the process exit code to give up with.
+static int SetUpScenario(const wchar_t* scriptPathW, raduk::core::ScenarioRunner& sc) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path script(scriptPathW);
+    std::ifstream in(script, std::ios::binary);
+    if (!in) { fwprintf(stderr, L"scenario: cannot read %ls\n", scriptPathW); return 2; }
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::string why;
+    if (!sc.Load(text, why)) { fprintf(stderr, "scenario: %s\n", why.c_str()); return 2; }
+
+    const std::string realRoot = raduk::core::Paths::Resolve();   // not cached
+    const std::string exeDir = raduk::core::Paths::ExeDir();
+    SYSTEMTIME st; GetLocalTime(&st);
+    char stamp[32];
+    snprintf(stamp, sizeof(stamp), "%04d%02d%02d_%02d%02d%02d",
+             st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+    std::string slug = script.stem().string();
+    const fs::path box = fs::path(realRoot) / "test_runs" / (slug + "_" + stamp);
+    for (const char* sub : { "logs", "captures", "data", "profiles", "shots" })
+        fs::create_directories(box / sub, ec);
+    if (ec) { fprintf(stderr, "scenario: cannot make %s\n", box.string().c_str()); return 2; }
+
+    // What the app needs to start as it would for the owner.
+    for (const auto& e : fs::directory_iterator(fs::path(realRoot) / "profiles", ec))
+        if (e.path().extension() == ".ini")
+            fs::copy_file(e.path(), box / "profiles" / e.path().filename(), ec);
+    fs::copy_file(fs::path(realRoot) / "data" / "object_knowledge.db",
+                  box / "data" / "object_knowledge.db", ec);
+    fs::copy_file(fs::path(exeDir) / "rig.ini", box / "rig.ini", ec);
+    fs::copy_file(fs::path(exeDir) / "workspace.ini", box / "workspace.ini", ec);
+    const std::string ini = (box / "rig.ini").string();
+    for (const auto& kv : sc.Rig())
+        WritePrivateProfileStringA("Rig", kv.first.c_str(), kv.second.c_str(), ini.c_str());
+    for (const auto& pe : sc.ProfileEdits()) {
+        const std::string pf = (box / "profiles" / pe.file).string();
+        if (!fs::exists(pf, ec)) { fprintf(stderr, "scenario: no profile %s\n", pe.file.c_str()); return 2; }
+        WritePrivateProfileStringA(pe.section.c_str(), pe.key.c_str(), pe.value.c_str(), pf.c_str());
+    }
+    // The sandbox, not wherever the owner's ini points.
+    WritePrivateProfileStringA("Rig", "DataRoot", box.string().c_str(), ini.c_str());
+
+    SetEnvironmentVariableA("RADUK_DATA_ROOT", box.string().c_str());
+    SetEnvironmentVariableA("RADUK_RIG_INI", ini.c_str());
+    for (const auto& kv : sc.Env())
+        SetEnvironmentVariableA(kv.first.c_str(), kv.second.c_str());
+    SetCurrentDirectoryW(box.wstring().c_str());   // workspace.ini is read from here
+    // Something reads RigConfig before WinMain, which loaded the owner's
+    // rig.ini; the next save then wrote those values over the sandbox's
+    // overrides. Load again, from the sandbox.
+    raduk::core::RigConfig::Reload();
+
+    g_scenarioDir = box.string();
+    g_scenarioReport = (box / "report.txt").string();
+    return 0;
+}
+#endif
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Declare Per-Monitor DPI awareness so Direct2D coordinates and Win32 pixel
@@ -7249,11 +7447,43 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     raduk::gui::Fonts::LoadBundled();
 
 #ifdef RADUK_EMULATOR
+    // Phase 125: --scenario <file>. Must run before the first Paths or
+    // RigConfig call, since both cache what they find.
+    static raduk::core::ScenarioRunner scenario;
+    {
+        int argc = 0;
+        LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        for (int i = 1; argv && i + 1 < argc; ++i) {
+            if (wcscmp(argv[i], L"--scenario") != 0) continue;
+            const int code = SetUpScenario(argv[i + 1], scenario);
+            if (code != 0) { LocalFree(argv); return code; }
+            g_scenario = &scenario;
+            // From the first line on: startup is part of what is checked.
+            raduk::core::ProbeHook() = [](const std::string& s) {
+                if (!g_scenario) return;
+                g_scenario->Observe(s, ScenarioNow());
+                // Into the sandbox log too, so a run can be read afterwards.
+                // Session lines are in the session log already.
+                if (g_log && s.rfind("[SESSION]", 0) != 0) { fprintf(g_log, "%s\n", s.c_str()); fflush(g_log); }
+            };
+            break;
+        }
+        if (argv) LocalFree(argv);
+    }
     const char* MUTEX_NAME = "RadukCapture_Emulator_SingleInstance";
 #else
     const char* MUTEX_NAME = "RadukCapture_SingleInstance";
 #endif
     HANDLE hMutex = CreateMutexA(nullptr, TRUE, MUTEX_NAME);
+    if (hMutex && GetLastError() == ERROR_ALREADY_EXISTS && g_scenario) {
+        // Never alongside the owner's copy: they would share the log.
+        if (FILE* f = fopen(g_scenarioReport.c_str(), "w")) {
+            fputs("Result: NOT RUN\nWhy: the emulator is already open; close it first.\n", f);
+            fclose(f);
+        }
+        CloseHandle(hMutex);
+        return 3;
+    }
     if (hMutex && GetLastError() == ERROR_ALREADY_EXISTS) {
         MessageBoxA(nullptr,
             "RadukCapture is already running.\n\nClose the existing instance first.",

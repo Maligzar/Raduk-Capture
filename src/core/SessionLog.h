@@ -17,6 +17,7 @@
 #include <ctime>
 #include <mutex>
 #include "Paths.h"
+#include "TestProbe.h"
 
 namespace raduk::core {
 
@@ -164,6 +165,15 @@ private:
         std::lock_guard<std::mutex> lk(m_mutex);
         if (!m_file) return;
         fprintf(m_file, "[%s] [%-12s] ", Timestamp().c_str(), category);
+        if (ProbeOn()) {
+            // Phase 125: a scenario reads the session log as it is written.
+            char buf[1024];
+            va_list copy;
+            va_copy(copy, args);
+            vsnprintf(buf, sizeof(buf), fmt, copy);
+            va_end(copy);
+            Probe(std::string("[SESSION] [") + category + "] " + buf);
+        }
         vfprintf(m_file, fmt, args);
         fprintf(m_file, "\n");
         fflush(m_file);

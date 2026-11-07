@@ -345,6 +345,9 @@ struct RigConfig {
         static RigConfig cfg = LoadFromDisk();
         return cfg;
     }
+    // Phase 125: a scenario run moves IniPath to its sandbox after the
+    // first Get, so it reads the file again from there.
+    static void Reload() { Get() = LoadFromDisk(); }
 
     void Save() const {
         std::string p = IniPath();
@@ -414,6 +417,9 @@ struct RigConfig {
 
 private:
     static std::string IniPath() {
+        // Phase 125: a scenario run keeps its own.
+        char env[MAX_PATH] = {};
+        if (GetEnvironmentVariableA("RADUK_RIG_INI", env, MAX_PATH) > 0) return env;
         char exe[MAX_PATH] = {};
         GetModuleFileNameA(nullptr, exe, MAX_PATH);
         std::string p(exe);

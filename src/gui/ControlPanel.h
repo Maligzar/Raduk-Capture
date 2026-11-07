@@ -15,6 +15,7 @@
 #include <windows.h>
 #include <commctrl.h>
 #include <functional>
+#include "../core/TestProbe.h"
 #include <vector>
 #include <string>
 #include <array>
@@ -52,6 +53,9 @@ public:
 
     // Message routing — called from PanelWndProc
     bool HandleCommand(WPARAM wParam, LPARAM lParam);
+    // Phase 125: a scenario presses panel buttons by name, and opens tabs.
+    bool PressByName(const std::string& name);
+    bool OpenTabByName(const std::string& name);
     bool HandleScroll(WPARAM wParam, LPARAM lParam);
 
     void EmergencyStop();
@@ -204,6 +208,7 @@ public:
     void SetAcquisitionStatus(const std::wstring& text) {
         if (text == m_acqStatus) return;        // avoid needless repaints
         m_acqStatus = text;
+        if (!text.empty()) raduk::core::ProbeW("[STATUS]", text);
         if (m_lblMountControl) {
             // Phase 71 (review): when acquisition ends the status goes
             // empty, and the label was simply blanked -- so an active
@@ -299,6 +304,7 @@ public:
     }
     void SetAutofocusStatus(const wchar_t* msg) {
         m_afStatusMsg = msg ? msg : L"";
+        raduk::core::ProbeW("[STATUS]", m_afStatusMsg);
         if (m_lblAFStatus) SetWindowTextW(m_lblAFStatus, m_afStatusMsg.c_str());
     }
     // ADC readout — called from readout loop with ADCAssistant::SuggestionText()

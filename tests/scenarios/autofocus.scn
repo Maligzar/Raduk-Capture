@@ -1,0 +1,30 @@
+# Checklist 35: autofocus with AE. AE is switched on and settles the
+# exposure first, holds it during the sweep, and stays on afterwards.
+name    Autofocus: AE settles, holds, and stays on
+timeout 400
+
+profile jupiter.ini roi width=640
+profile jupiter.ini roi height=480
+profile jupiter.ini roi img_type=0
+
+expect 30  [SCENARIO] Autofocus
+wait   3
+goto   Jupiter
+expect 120 Slew to 'Jupiter' complete
+wait   5
+tab    FOCUS
+
+press  AUTO FOCUS
+expect 10  [STATUS] AE AUTO on: settling exposure before focus
+expect 60  [STATUS] Sweeping, AE held until it ends
+shot   sweeping
+expect 240 [AF] Complete
+absent 3   [AE] Auto mode OFF
+shot   after-focus
+
+# Aborted while AE is settling: it stops, and nothing sweeps.
+press  AUTO FOCUS
+expect 10  [STATUS] AE AUTO on: settling
+press  AUTO FOCUS
+expect 10  [STATUS] Aborted
+absent 10  [STATUS] Sweeping

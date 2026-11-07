@@ -24,6 +24,7 @@
 #include "Theme.h"
 #include "ToolbarLayout.h"
 #include "../core/HardwareLink.h"   // Phase 46: what the [HW] button shows
+#include "../core/TestProbe.h"      // Phase 125: scenarios read the labels
 #include <windows.h>
 #include <commctrl.h>
 #include <uxtheme.h>
@@ -174,6 +175,17 @@ public:
     void SetDashCallback    (std::function<void()> cb) { m_onDash     = cb; }
     // Phase 124: every session's figures, built and opened as a page.
     void SetStatsCallback   (std::function<void()> cb) { m_onStats    = cb; }
+    // Phase 125: press a button by its resting label, as a scenario does.
+    bool PressByLabel(const std::wstring& name) {
+        auto match = [&](const ToolbarItem& d) { return _wcsicmp(d.label, name.c_str()) == 0; };
+        int id = 0;
+        for (const ToolbarItem& d : kRailItems)   if (match(d)) id = d.id;
+        for (const ToolbarItem& d : kViewItems)   if (match(d)) id = d.id;
+        for (const ToolbarItem& d : kCameraItems) if (match(d)) id = d.id;
+        for (const ToolbarItem& d : kMountItems)  if (match(d)) id = d.id;
+        return id && HandleCommand(MAKEWPARAM(id, BN_CLICKED));
+    }
+
     // The same action as the K key, which had no button.
     void SetStackCallback   (std::function<void()> cb) { m_onStack    = cb; }
     void SetFollowCallback  (std::function<void()> cb) { m_onFollow   = cb; }
@@ -323,9 +335,21 @@ private:
 
     // Repaints only on a change: this runs every render tick and a
     // redraw per tick would flash.
+    // The label a button wears at rest, which is the name a scenario
+    // presses it by.
+    static const wchar_t* RestLabel(int id) {
+        for (const ToolbarItem& d : kRailItems)   if (d.id == id) return d.label;
+        for (const ToolbarItem& d : kViewItems)   if (d.id == id) return d.label;
+        for (const ToolbarItem& d : kCameraItems) if (d.id == id) return d.label;
+        for (const ToolbarItem& d : kMountItems)  if (d.id == id) return d.label;
+        return L"?";
+    }
     void Show(int id, const wchar_t* label, State s) {
         const int i = Index(id);
         if (m_state[i] == s && m_text[i] == label) return;
+        if (raduk::core::ProbeOn())
+            raduk::core::ProbeW("[BUTTON]", std::wstring(RestLabel(id)) + L" -> " + label +
+                (s == State::Active ? L" (lit)" : s == State::Ready ? L" (ready)" : L""));
         // Stored even with no button: it may be on a tab not showing.
         m_state[i] = s;
         m_text[i]  = label;

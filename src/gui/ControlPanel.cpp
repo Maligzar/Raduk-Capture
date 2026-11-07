@@ -203,53 +203,30 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                     }
                 }
 
-                // Background
+                // Phase 132.3: an engraved legend, not a coloured badge.
+                // The per-section circle, its initial and the section's
+                // own accent were colour-coding that night vision turned
+                // into six shades of one red; the title says which
+                // section it is, and it is the only thing that does.
+                (void)accent;
+                const COLORREF legend = Theme::NV(Theme::Rgb::TEXT_DIM);
                 {
                     HBRUSH bg = CreateSolidBrush(Theme::NV(Theme::Rgb::PANEL));
                     FillRect(hdc, &r, bg);
                     DeleteObject(bg);
                 }
-
-                // Colored circle
-                const int circ = h - 6;
-                const int cx = x + 4 + circ/2;
-                const int cy = y + h/2;
-                {
-                    HBRUSH cb = CreateSolidBrush(accent);
-                    HPEN cp = CreatePen(PS_SOLID, 1,
-                        RGB((int)(GetRValue(accent)*0.55f),
-                            (int)(GetGValue(accent)*0.55f),
-                            (int)(GetBValue(accent)*0.55f)));
-                    HPEN op  = (HPEN)SelectObject(hdc, cp);
-                    HBRUSH ob = (HBRUSH)SelectObject(hdc, cb);
-                    Ellipse(hdc, cx-circ/2, cy-circ/2, cx+circ/2+1, cy+circ/2+1);
-                    SelectObject(hdc, op); SelectObject(hdc, ob);
-                    DeleteObject(cb); DeleteObject(cp);
-                }
-                // Letter in circle
-                if (title[0]) {
-                    char letter[2] = { title[0], 0 };
-                    HFONT fi = CreateFontA(-9, 0,0,0, FW_BOLD, 0,0,0,
-                        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                        CLEARTYPE_QUALITY, DEFAULT_PITCH|FF_DONTCARE, "Barlow Condensed");
-                    HFONT oldf = fi ? (HFONT)SelectObject(hdc, fi) : nullptr;
-                    SetBkMode(hdc, TRANSPARENT);
-                    SetTextColor(hdc, Theme::NV(Theme::Rgb::BG_VOID));
-                    RECT lr = {cx-circ/2, cy-circ/2, cx+circ/2+1, cy+circ/2+1};
-                    DrawTextA(hdc, letter, 1, &lr, DT_CENTER|DT_VCENTER|DT_SINGLELINE);
-                    if (oldf) SelectObject(hdc, oldf);
-                    if (fi)   DeleteObject(fi);
-                }
-                // Title text
+                // Title: Barlow Condensed, upper case, tracked a pixel.
                 {
                     HFONT ft = CreateFontA(-12, 0,0,0, FW_BOLD, 0,0,0,
                         ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                         CLEARTYPE_QUALITY, DEFAULT_PITCH|FF_DONTCARE, "Barlow Condensed");
                     HFONT oldf = ft ? (HFONT)SelectObject(hdc, ft) : nullptr;
                     SetBkMode(hdc, TRANSPARENT);
-                    SetTextColor(hdc, accent);
-                    RECT tr = {x + 4 + circ + 6, y, x+w-20, y+h};
+                    SetTextColor(hdc, legend);
+                    const int oldExtra = SetTextCharacterExtra(hdc, 1);
+                    RECT tr = {x + Theme::Space::SM, y, x+w-20, y+h};
                     DrawTextA(hdc, title, -1, &tr, DT_LEFT|DT_VCENTER|DT_SINGLELINE);
+                    SetTextCharacterExtra(hdc, oldExtra);
                     if (oldf) SelectObject(hdc, oldf);
                     if (ft)   DeleteObject(ft);
                 }
@@ -259,24 +236,26 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                         CLEARTYPE_QUALITY, DEFAULT_PITCH|FF_DONTCARE, L"Barlow Condensed");
                     HFONT oldf = fc ? (HFONT)SelectObject(hdc, fc) : nullptr;
-                    SetTextColor(hdc, accent);
+                    SetTextColor(hdc, legend);
                     RECT chevR = {x+w-18, y, x+w-2, y+h};
                     const wchar_t* chev = collapsed ? L"\u25BA" : L"\u25BC";
                     DrawTextW(hdc, chev, -1, &chevR, DT_CENTER|DT_VCENTER|DT_SINGLELINE);
                     if (oldf) SelectObject(hdc, oldf);
                     if (fc)   DeleteObject(fc);
                 }
-                // Accent bottom line
+                // The engraved rule: a hairline, then a lit edge under it.
                 {
-                    COLORREF lc = RGB((int)(GetRValue(accent)*0.35f),
-                                      (int)(GetGValue(accent)*0.35f),
-                                      (int)(GetBValue(accent)*0.35f));
-                    HPEN lp = CreatePen(PS_SOLID, 1, lc);
-                    HPEN op = (HPEN)SelectObject(hdc, lp);
+                    HPEN dark = CreatePen(PS_SOLID, 1, Theme::NV(Theme::Rgb::BORDER));
+                    HPEN lit  = CreatePen(PS_SOLID, 1, Theme::HighlightOver(Theme::Rgb::PANEL, 1.0f));
+                    HPEN op = (HPEN)SelectObject(hdc, dark);
+                    MoveToEx(hdc, x, y+h-2, nullptr);
+                    LineTo(hdc, x+w, y+h-2);
+                    SelectObject(hdc, lit);
                     MoveToEx(hdc, x, y+h-1, nullptr);
                     LineTo(hdc, x+w, y+h-1);
                     SelectObject(hdc, op);
-                    DeleteObject(lp);
+                    DeleteObject(dark);
+                    DeleteObject(lit);
                 }
                 return TRUE;
             }
@@ -288,16 +267,18 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 bool pressed = (dis->itemState & ODS_SELECTED) != 0;
                 bool locked  = self->m_planetLock;
 
-                // Elite Raduk: red glow when locked, deep navy otherwise
+                // Phase 132.3: tracking is a LIVE state (the design
+                // language's role for mount and tracking), shown with
+                // Live's square, on a face tinted toward it.
                 COLORREF bg = locked
-                    ? (pressed ? Theme::NV(RGB(200, 30, 50))  : Theme::NV(RGB(160, 15, 35)))
+                    ? Theme::Mix(Theme::NV(Theme::Rgb::PANEL), Theme::NV(Theme::Rgb::GREEN), pressed ? 0.32f : 0.22f)
                     : (pressed ? Theme::NV(Theme::Rgb::BORDER)   : Theme::NV(Theme::Rgb::PANEL));
                 HBRUSH hbg = CreateSolidBrush(bg);
                 FillRect(hdc, &r, hbg);
                 DeleteObject(hbg);
 
                 HPEN pen = CreatePen(PS_SOLID, 1,
-                    locked ? Theme::NV(Theme::Rgb::ACCENT4) : Theme::NV(RGB(0, 90, 110)));
+                    locked ? Theme::NV(Theme::Rgb::GREEN) : Theme::NV(Theme::Rgb::BORDER));
                 HPEN oldPen = (HPEN)SelectObject(hdc, pen);
                 HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
                 Rectangle(hdc, r.left, r.top, r.right, r.bottom);
@@ -305,9 +286,9 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 SelectObject(hdc, oldBrush);
                 DeleteObject(pen);
 
-                const wchar_t* label = locked ? L"\u25CF TRACKING" : L"PLANET LOCK";
+                const wchar_t* label = locked ? L"\u25A0 TRACKING" : L"PLANET LOCK";
                 SetBkMode(hdc, TRANSPARENT);
-                SetTextColor(hdc, locked ? Theme::NV(Theme::Rgb::ACCENT4) : Theme::NV(RGB(0, 150, 170)));
+                SetTextColor(hdc, locked ? Theme::NV(Theme::Rgb::GREEN) : Theme::NV(Theme::Rgb::TEXT));
                 DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                 if (dis->itemState & ODS_FOCUS) DrawFocusRect(hdc, &r);
                 return TRUE;
@@ -320,15 +301,17 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 bool pressed = (dis->itemState & ODS_SELECTED) != 0;
                 bool running = self->m_afRunning;
 
+                // Phase 132.3: neutral at rest; caution, and a face
+                // tinted toward it, only while the focuser is moving.
                 COLORREF bg = running
-                    ? (pressed ? Theme::NV(RGB(180, 110, 0))  : Theme::NV(RGB(140,  80,  0)))
-                    : (pressed ? Theme::NV(RGB(0,  80, 100))  : Theme::NV(RGB(0,   50,  70)));
+                    ? Theme::Mix(Theme::NV(Theme::Rgb::PANEL), Theme::NV(Theme::Rgb::AMBER), pressed ? 0.30f : 0.20f)
+                    : (pressed ? Theme::NV(Theme::Rgb::BORDER) : Theme::NV(Theme::Rgb::PANEL));
                 HBRUSH hbg = CreateSolidBrush(bg);
                 FillRect(hdc, &r, hbg);
                 DeleteObject(hbg);
 
                 HPEN pen = CreatePen(PS_SOLID, 1,
-                    running ? Theme::NV(Theme::Rgb::ACCENT2) : Theme::NV(Theme::Rgb::ACCENT));
+                    running ? Theme::NV(Theme::Rgb::AMBER) : Theme::NV(Theme::Rgb::BORDER));
                 HPEN oldPen = (HPEN)SelectObject(hdc, pen);
                 HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
                 Rectangle(hdc, r.left, r.top, r.right, r.bottom);
@@ -344,7 +327,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
 
                 const wchar_t* label = running ? L"\u25A0  ABORT AF" : L"\u2605  AUTO FOCUS";
                 SetBkMode(hdc, TRANSPARENT);
-                SetTextColor(hdc, running ? Theme::NV(Theme::Rgb::ACCENT2) : Theme::NV(Theme::Rgb::ACCENT));
+                SetTextColor(hdc, running ? Theme::NV(Theme::Rgb::AMBER) : Theme::NV(Theme::Rgb::TEXT));
                 HFONT f = CreateFontW(-Theme::Type::BODY, 0, 0, 0, FW_BOLD,
                     FALSE, FALSE, FALSE,
                     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -364,12 +347,13 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 bool pressed = (dis->itemState & ODS_SELECTED) != 0;
                 int  state   = self->m_aeState;  // 0=off, 1=advisory, 2=auto
 
-                COLORREF bg = (state == 2) ? (pressed ? Theme::NV(RGB(0, 100, 30)) : Theme::NV(RGB(0, 70, 20)))
-                            : (state == 1) ? (pressed ? Theme::NV(RGB(0, 60, 80))  : Theme::NV(RGB(0, 40, 60)))
+                // Phase 132.3: tokens throughout. Off reads dim, advisory
+                // takes the signal colour, auto is live and tints its face.
+                COLORREF bg = (state == 2) ? Theme::Mix(Theme::NV(Theme::Rgb::PANEL), Theme::NV(Theme::Rgb::GREEN), pressed ? 0.28f : 0.18f)
                             :               (pressed ? Theme::NV(Theme::Rgb::BORDER)  : Theme::NV(Theme::Rgb::PANEL));
-                COLORREF fg = (state == 2) ? Theme::NV(Theme::Rgb::ACCENT3)
+                COLORREF fg = (state == 2) ? Theme::NV(Theme::Rgb::GREEN)
                             : (state == 1) ? Theme::NV(Theme::Rgb::ACCENT)
-                            :               Theme::NV(RGB(80, 100, 110));
+                            :               Theme::NV(Theme::Rgb::TEXT_DIM);
                 HBRUSH hbg = CreateSolidBrush(bg);
                 FillRect(hdc, &r, hbg);
                 DeleteObject(hbg);
@@ -402,17 +386,27 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 bool paused  = self->m_recordPaused;
 
                 // Background
-                COLORREF bg = paused ? (pressed ? Theme::NV(RGB(120, 70,  0))  : Theme::NV(RGB(90,  50,  0)))
-                            : rec    ? (pressed ? Theme::NV(RGB(220, 20,  40)) : Theme::NV(RGB(180, 10,  25)))
-                            :          (pressed ? Theme::NV(RGB(0,   70,  90)) : Theme::NV(RGB(0,   40,  60)));
+                // Phase 132.3: tokens throughout. At rest a neutral face
+                // with the signal colour's 2 px outline -- the heaviest
+                // line on the panel, which is what makes it the primary
+                // control in night vision, where the signal colour is
+                // dimmer than text. Recording and paused tint the face.
+                const COLORREF face = Theme::NV(Theme::Rgb::PANEL);
+                COLORREF bg = paused ? Theme::Mix(face, Theme::NV(Theme::Rgb::AMBER), pressed ? 0.32f : 0.22f)
+                            : rec    ? Theme::Mix(face, Theme::NV(Theme::Rgb::RED),   pressed ? 0.38f : 0.28f)
+                            :          (pressed ? Theme::NV(Theme::Rgb::BORDER) : face);
                 HBRUSH hbg = CreateSolidBrush(bg);
                 FillRect(hdc, &r, hbg);
                 DeleteObject(hbg);
 
                 // Border
-                COLORREF borderCol = paused ? Theme::NV(RGB(255, 160, 0))
-                                   : rec    ? Theme::NV(Theme::Rgb::ACCENT4)
+                COLORREF borderCol = paused ? Theme::NV(Theme::Rgb::AMBER)
+                                   : rec    ? Theme::NV(Theme::Rgb::RED)
                                    :          Theme::NV(Theme::Rgb::ACCENT);
+                // The word in primary text at rest, so it is the brightest
+                // thing on the button by day and by night.
+                const COLORREF labelCol = (paused || rec) ? borderCol
+                                                          : Theme::NV(Theme::Rgb::TEXT);
                 HPEN pen = CreatePen(PS_SOLID, 2, borderCol);
                 HPEN oldPen = (HPEN)SelectObject(hdc, pen);
                 HBRUSH oldBr = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
@@ -435,7 +429,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Barlow Condensed");
                 HFONT oldf = f ? (HFONT)SelectObject(hdc, f) : nullptr;
                 SetBkMode(hdc, TRANSPARENT);
-                SetTextColor(hdc, borderCol);
+                SetTextColor(hdc, labelCol);
                 const wchar_t* label = paused        ? L"\u23F8  PAUSED"
                                      : rec           ? L"\u25A0  STOP RECORDING"
                                      :                 L"\u25BA  RECORD";
@@ -518,10 +512,10 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                              it->second == Section::Header);
 
             if (isHeader) {
-                // Elite Raduk section header: deep navy + cyan text
+                // Phase 132.3: a header is a legend, so dim, not signal.
                 SetBkMode(hdc, OPAQUE);
                 SetBkColor(hdc, Theme::NV(Theme::Rgb::PANEL));
-                SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM));
                 HBRUSH hHdrBg = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)hHdrBg;
             }
@@ -538,7 +532,9 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 if (hBigFont) SelectObject(hdc, hBigFont);
                 SetBkColor(hdc, Theme::NV(Theme::Rgb::DEEP));
                 SetBkMode(hdc, OPAQUE);
-                SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT2));  // --amber
+                // Phase 132.3: a readout, so primary text. Amber was the
+                // focuser's decorative colour; it now means caution only.
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
                 HWND hw = self->m_lblFocusPos;
                 RECT r; GetClientRect(hw, &r);
                 SetWindowLongPtr(hw, GWL_STYLE,
@@ -555,7 +551,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 return (LRESULT)hConBg;
             }
             if (ctrl == self->m_lblMountControl && self->m_planetLock) {
-                SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT4));  // --red
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::GREEN));  // 132.3: tracking is live
             } else if (ctrl == self->m_lblSkyMapLock) {
                 // Bright green when locked, dim when empty
                 SetTextColor(hdc, self->m_skyMapLocked
@@ -571,16 +567,11 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 HBRUSH hTgtBg = Theme::Brush(Theme::Rgb::DEEP);
                 return (LRESULT)hTgtBg;
             } else if (it != self->m_ctrlSection.end()) {
-                switch (it->second) {
-                    case Section::Camera:
-                        SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT)); break;  // --cyan
-                    case Section::EAF:
-                        SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT2)); break;  // --amber
-                    case Section::Mount:
-                        SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT3)); break;  // --green
-                    default:
-                        SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM)); break;  // --dim
-                }
+                // Phase 132.3: a section's labels no longer wear its
+                // colour. Camera cyan, focuser amber and mount green were
+                // decoration, and they spent the colours that now mean
+                // signal, caution and live.
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM));
             } else {
                 SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM));  // --dim
             }
@@ -2081,7 +2072,7 @@ namespace {
     inline COLORREF kBg      () { return Theme::NV(Theme::Rgb::BG_VOID); }
     inline COLORREF kPanel   () { return Theme::NV(Theme::Rgb::DEEP); }
     inline COLORREF kRaised  () { return Theme::NV(Theme::Rgb::PANEL); }
-    inline COLORREF kSep     () { return Theme::NV(RGB(0,  45,  60)); }
+    inline COLORREF kSep     () { return Theme::NV(Theme::Rgb::BORDER); }
     inline COLORREF kDim     () { return Theme::NV(Theme::Rgb::TEXT_DIM); }
     inline COLORREF kText    () { return Theme::NV(Theme::Rgb::TEXT); }
     // Accents

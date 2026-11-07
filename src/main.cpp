@@ -2706,7 +2706,7 @@ static int RunApp(bool useEmulator) {
 
         // Dark background
         SetClassLongPtrW(hDlg, GCLP_HBRBACKGROUND,
-            (LONG_PTR)CreateSolidBrush(RGB(10, 21, 32)));
+            (LONG_PTR)CreateSolidBrush(Theme::Rgb::PANEL));
 
         // ── Helpers ───────────────────────────────────────────
         auto MkLabel = [&](const wchar_t* txt, int x, int y, int w, int h) -> HWND {

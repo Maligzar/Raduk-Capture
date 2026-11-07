@@ -1,8 +1,10 @@
 #pragma once
 // ============================================================
-// Theme.h — Elite Raduk design tokens
-// Deep-space palette: void black base, cyan primary accent,
-// amber secondary, green for live/mount, red for capture.
+// Theme.h — Raduk design tokens
+// Phase 132.3: the precision-instrument palette, "Steel" (the owner's
+// pick from the 132.2 specimen). Warm graphite surfaces, one muted
+// steel-blue signal colour, and warning, fault and live kept for state
+// only. Rules: docs/design/Instrument-Design-Language.md.
 // Typography: Space Mono (data), Barlow Condensed (labels).
 // ============================================================
 
@@ -22,7 +24,17 @@ namespace Theme {
     // ── Core palette ───────────────────────────────────────────
     //   0xFFRRGGBB (alpha always FF — fully opaque)
 
-    constexpr uint32_t BG_VOID   = 0xFF04080F;  // --bg-void  (preview bg, deepest surface)
+    // ── Phase 132.3: "Steel" ─────────────────────────────────
+    //
+    // Every value below changed on 2026-11-07, and every role kept its
+    // night luminance: the ladder is now built FROM these constants, so
+    // the night look did not move. What was there, for the record:
+    //   BG_VOID 04080F  DEEP 070D16  PANEL 0A1520  BORDER 0E1D2E
+    //   ACCENT 00E5FF   ACCENT2 FFB900  ACCENT3 4DFF91  ACCENT4 FF3B5C
+    //   TEXT C8E8F0     TEXT_DIM 8CAFBE
+    // Contrast against DEEP (WCAG 2): text 14.3, dim 5.8, signal 7.5,
+    // warning 8.3, fault 4.7, live 7.7 -- all over the 132.2 floors.
+    constexpr uint32_t BG_VOID   = 0xFF0C0D0F;  // --void   (preview bg, deepest surface)
     // ── Phase 96.4 moved this ───────────────────────────────
     //
     // DEEP was 0xFF07080E, which is (7, 8, 14), and NOTHING IN THE
@@ -42,18 +54,18 @@ namespace Theme {
     // constant nobody used would be changing the application to
     // match its documentation. Moving the token changes no pixel --
     // nothing painted it -- and puts eighteen sites on the ladder.
-    constexpr uint32_t DEEP      = 0xFF070D16;  // --bg-deep  (panel background)
-    constexpr uint32_t PANEL     = 0xFF0A1520;  // --bg-panel (section headers, raised)
-    constexpr uint32_t BORDER    = 0xFF0E1D2E;  // --bg-raised (subtle separators)
-    constexpr uint32_t ACCENT    = 0xFF00E5FF;  // --cyan     (primary — camera, active)
-    constexpr uint32_t ACCENT2   = 0xFFFFB900;  // --amber    (EAF, secondary)
-    constexpr uint32_t ACCENT3   = 0xFF4DFF91;  // --green    (mount, live indicators)
-    constexpr uint32_t ACCENT4   = 0xFFFF3B5C;  // --red      (capture, danger)
-    constexpr uint32_t TEXT      = 0xFFC8E8F0;  // --white    (primary text)
-    constexpr uint32_t TEXT_DIM  = 0xFF8CAFBE;  // --dim      (secondary labels)
-    constexpr uint32_t RED       = 0xFFFF3B5C;  // --red
-    constexpr uint32_t AMBER     = 0xFFFFB900;  // --amber
-    constexpr uint32_t GREEN     = 0xFF4DFF91;  // --green
+    constexpr uint32_t DEEP      = 0xFF121316;  // --deep   (panel background)
+    constexpr uint32_t PANEL     = 0xFF191B1F;  // --panel  (raised surface, button face)
+    constexpr uint32_t BORDER    = 0xFF2B2E33;  // --line   (hairlines, separators)
+    constexpr uint32_t ACCENT    = 0xFF8FA7C4;  // --accent (the one signal: active, selected)
+    constexpr uint32_t ACCENT2   = 0xFFD9A441;  // --warn   (caution only)
+    constexpr uint32_t ACCENT3   = 0xFF7DB38E;  // --live   (mount, tracking, connected)
+    constexpr uint32_t ACCENT4   = 0xFFE5484D;  // --fault  (danger, recording)
+    constexpr uint32_t TEXT      = 0xFFE2E2DF;  // --text   (primary readouts)
+    constexpr uint32_t TEXT_DIM  = 0xFF8E9096;  // --dim    (labels you skim)
+    constexpr uint32_t RED       = ACCENT4;
+    constexpr uint32_t AMBER     = ACCENT2;
+    constexpr uint32_t GREEN     = ACCENT3;
 
     // ── Font hierarchy ─────────────────────────────────────────
     //   FONT_BANNER : Space Mono — large readouts, title bar, HUD
@@ -88,16 +100,18 @@ namespace Theme {
         inline constexpr COLORREF FromArgb(uint32_t argb) {
             return RGB((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF);
         }
-        inline constexpr COLORREF BG_VOID  = FromArgb(0xFF04080F);
-        inline constexpr COLORREF DEEP     = FromArgb(0xFF070D16);
-        inline constexpr COLORREF PANEL    = FromArgb(0xFF0A1520);
-        inline constexpr COLORREF BORDER   = FromArgb(0xFF0E1D2E);
-        inline constexpr COLORREF ACCENT   = FromArgb(0xFF00E5FF);
-        inline constexpr COLORREF ACCENT2  = FromArgb(0xFFFFB900);
-        inline constexpr COLORREF ACCENT3  = FromArgb(0xFF4DFF91);
-        inline constexpr COLORREF ACCENT4  = FromArgb(0xFFFF3B5C);
-        inline constexpr COLORREF TEXT     = FromArgb(0xFFC8E8F0);
-        inline constexpr COLORREF TEXT_DIM = FromArgb(0xFF8CAFBE);
+        // Phase 132.3: from the tokens, not a second spelling of
+        // their values, so a palette change is one edit and not two.
+        inline constexpr COLORREF BG_VOID  = FromArgb(Theme::BG_VOID);
+        inline constexpr COLORREF DEEP     = FromArgb(Theme::DEEP);
+        inline constexpr COLORREF PANEL    = FromArgb(Theme::PANEL);
+        inline constexpr COLORREF BORDER   = FromArgb(Theme::BORDER);
+        inline constexpr COLORREF ACCENT   = FromArgb(Theme::ACCENT);
+        inline constexpr COLORREF ACCENT2  = FromArgb(Theme::ACCENT2);
+        inline constexpr COLORREF ACCENT3  = FromArgb(Theme::ACCENT3);
+        inline constexpr COLORREF ACCENT4  = FromArgb(Theme::ACCENT4);
+        inline constexpr COLORREF TEXT     = FromArgb(Theme::TEXT);
+        inline constexpr COLORREF TEXT_DIM = FromArgb(Theme::TEXT_DIM);
         inline constexpr COLORREF RED      = ACCENT4;
         inline constexpr COLORREF AMBER    = ACCENT2;
         inline constexpr COLORREF GREEN    = ACCENT3;
@@ -496,6 +510,14 @@ namespace Theme {
         return NVf(Raw(argb));
     }
 
+    // Phase 132.3: a token at an opacity of its own. NVf keeps alpha,
+    // so this is the token's night shade at the same opacity.
+    inline D2D1_COLOR_F Color(uint32_t argb, float alpha) {
+        D2D1_COLOR_F c = Raw(argb);
+        c.a = alpha;
+        return NVf(c);
+    }
+
 
     // ── Night vision (Phase 26) ───────────────────────────────
     //
@@ -565,18 +587,24 @@ namespace Theme {
     // device accents, then the labels you are meant to skim.
     namespace detail {
         struct NightStep { uint8_t r, g, b; int lum; };
+        inline constexpr NightStep Step(uint32_t argb, int lum) {
+            return { (uint8_t)((argb >> 16) & 0xFF), (uint8_t)((argb >> 8) & 0xFF),
+                     (uint8_t)(argb & 0xFF), lum };
+        }
+        // Phase 132.3: built from the tokens. The luminances are the
+        // design and did not move when the day palette did.
         inline constexpr NightStep kNightLadder[] = {
-            // day colour            night   role
-            { 0xFF, 0x3B, 0x5C,      240 },  // RED / ACCENT4  capture, danger
-            { 0xC8, 0xE8, 0xF0,      200 },  // TEXT           primary readouts
-            { 0x4D, 0xFF, 0x91,      170 },  // GREEN/ACCENT3  mount, live
-            { 0x00, 0xE5, 0xFF,      140 },  // ACCENT cyan    camera, active
-            { 0xFF, 0xB9, 0x00,      110 },  // AMBER/ACCENT2  EAF, secondary
-            { 0x8C, 0xAF, 0xBE,       80 },  // TEXT_DIM       skimmed labels
-            { 0x0E, 0x1D, 0x2E,       34 },  // BORDER         separators
-            { 0x0A, 0x15, 0x20,       24 },  // PANEL          raised surface
-            { 0x07, 0x0D, 0x16,       14 },  // DEEP           panel background
-            { 0x04, 0x08, 0x0F,        8 },  // BG_VOID        deepest surface
+            //   token          night   role
+            Step(ACCENT4,       240),  // RED / ACCENT4  capture, danger
+            Step(TEXT,          200),  // TEXT           primary readouts
+            Step(ACCENT3,       170),  // GREEN/ACCENT3  mount, live
+            Step(ACCENT,        140),  // ACCENT         the signal: active
+            Step(ACCENT2,       110),  // AMBER/ACCENT2  caution
+            Step(TEXT_DIM,       80),  // TEXT_DIM       skimmed labels
+            Step(BORDER,         34),  // BORDER         separators
+            Step(PANEL,          24),  // PANEL          raised surface
+            Step(DEEP,           14),  // DEEP           panel background
+            Step(BG_VOID,         8),  // BG_VOID        deepest surface
         };
 
         // The ladder has two bands and they want opposite things.

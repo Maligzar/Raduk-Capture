@@ -59,14 +59,14 @@ bool PreviewRenderer::CreateBrushes() {
         Theme::NVf(D2D1::ColorF(1.0f, 0.67f, 0.0f, 0.85f)), &m_amberBrush);
     if (FAILED(hr)) return false;
     hr = m_renderTarget->CreateSolidColorBrush(
-        Theme::NVf(D2D1::ColorF(1.0f, 0.23f, 0.36f, 0.85f)), &m_redBrush);
+        Theme::Color(Theme::RED, 0.85f), &m_redBrush);
     if (FAILED(hr)) return false;
     // Frame bar brushes
     hr = m_renderTarget->CreateSolidColorBrush(
         D2D1::ColorF(0.04f, 0.09f, 0.14f, 0.88f), &m_barBgBrush);  // dark translucent
     if (FAILED(hr)) return false;
     hr = m_renderTarget->CreateSolidColorBrush(
-        D2D1::ColorF(0.0f, 0.898f, 1.0f, 0.15f), &m_barHiBrush);   // cyan highlight
+        Theme::Color(Theme::ACCENT, 0.15f), &m_barHiBrush);   // signal highlight; 132.3: now tinted at night
     if (FAILED(hr)) return false;
     // Side panels. Through Theme::NVf so night vision reaches them --
     // the raw ColorF brushes above predate that and stay as they were.

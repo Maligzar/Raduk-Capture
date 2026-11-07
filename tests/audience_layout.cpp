@@ -248,8 +248,11 @@ int main() {
               "as literals the recording light was DIMMER than the"
               " caption beside it");
 
-        const int danger = Theme::NightLuminance(0xFF, 0x3B, 0x5C);
-        const int dim    = Theme::NightLuminance(0x8C, 0xAF, 0xBE);
+        auto NLt = [](COLORREF c) {
+            return Theme::NightLuminance(GetRValue(c), GetGValue(c), GetBValue(c));
+        };
+        const int danger = NLt(Theme::Rgb::RED);
+        const int dim    = NLt(Theme::Rgb::TEXT_DIM);
         Check(danger > dim,
               "as tokens danger outranks a skimmed label, which is"
               " what 96.1 decided");
@@ -269,7 +272,7 @@ int main() {
             { 173, 204, 255, "Star"      }, { 217, 179, 255, "Galaxy"    },
             { 255, 140, 153, "Nebula"    }, { 102, 230, 242, "deep sky"  },
         };
-        const int text = Theme::NightLuminance(0xC8, 0xE8, 0xF0);
+        const int text = NLt(Theme::Rgb::TEXT);
         int over = 0, worst = 0, lo = 999, hi = 0;
         for (const Acc& a : accents) {
             const int L = Theme::NightLuminance(a.r, a.g, a.b);
@@ -289,7 +292,7 @@ int main() {
         Check(hi - lo < 60,
               "and they collapse into each other anyway, so the hue was"
               " carrying nothing in this mode");
-        Check(Theme::NightLuminance(0x00, 0xE5, 0xFF) < text,
+        Check(NLt(Theme::Rgb::ACCENT) < text,
               "the ACCENT token they take in night mode sits below TEXT");
     }
 

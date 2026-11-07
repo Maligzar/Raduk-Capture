@@ -105,7 +105,7 @@ int main() {
         for (int r = 0; r < kRoles; ++r)
             if (Count(css, std::string(RoleVar(r)) + ":") != 2) every = false;
         Check(every, "every role is declared once for day and once for night");
-        Check(css.find(":root{--void:#04080f;") == 0, "day is on :root, first");
+        Check(css.find(":root{--void:" + Hex(gui::Theme::BG_VOID) + ";") == 0, "day is on :root, first");
         Check(css.find(":root[data-mode=\"night\"]{") != std::string::npos,
               "night follows one attribute on the root element");
         const std::string night = css.substr(css.find("[data-mode"));

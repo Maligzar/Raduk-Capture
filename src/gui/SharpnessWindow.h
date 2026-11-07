@@ -170,7 +170,7 @@ private:
         if (!m_rt) return;
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.30f, 1.0f, 0.43f, 1.0f)), &m_green);
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.67f, 0.0f, 1.0f)), &m_amber);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.23f, 0.36f, 1.0f)), &m_red);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::RED), &m_red);
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.47f, 0.53f, 0.61f, 1.0f)), &m_dim);
         m_brushGen = Theme::PaletteGeneration();
     }
@@ -212,7 +212,7 @@ private:
             CreateBrushes();
         }
         m_rt->BeginDraw();
-        m_rt->Clear(Theme::NVf(D2D1::ColorF(0.016f, 0.031f, 0.059f, 1.0f)));
+        m_rt->Clear(Theme::Color(Theme::BG_VOID));
 
         sharpness::Brushes br;
         br.green = m_green; br.amber = m_amber; br.red = m_red; br.dim = m_dim;

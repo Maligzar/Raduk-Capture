@@ -167,7 +167,7 @@ private:
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.85f, 0.88f, 0.92f, 1.0f)), &m_br.meanB);
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.47f, 0.53f, 0.61f, 1.0f)), &m_br.dimB);
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.67f, 0.0f, 1.0f)), &m_br.amberB);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.23f, 0.36f, 1.0f)), &m_br.redB);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::RED), &m_br.redB);
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.30f, 1.0f, 0.43f, 1.0f)), &m_br.greenB);
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.02f, 0.03f, 0.06f, 1.0f)), &m_bgBrush);
         m_brushGen = Theme::PaletteGeneration();
@@ -218,7 +218,7 @@ private:
             CreateBrushes();
         }
         m_rt->BeginDraw();
-        m_rt->Clear(Theme::NVf(D2D1::ColorF(0.016f, 0.031f, 0.059f, 1.0f)));
+        m_rt->Clear(Theme::Color(Theme::BG_VOID));
 
         const float top = (float)m_chrome.CaptionHeight();
         const float w = (float)m_w, h = (float)m_h - top;

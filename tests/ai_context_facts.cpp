@@ -36,8 +36,9 @@ static std::wstring RepoDocsDir() {
 }
 
 // A session log shaped like SessionLog's output, in a fresh temp
-// directory. Tens of thousands of lines, as a real night's log is, with
-// a handful about autofocus for the retrieval to find.
+// directory. Twelve thousand lines with a handful about autofocus for the
+// retrieval to find. Kept under 1 MB: ReadWholeFile returns nothing for
+// a file of 1 MB or more, so a larger log would load as no session.
 static std::wstring WriteSyntheticSessionLog() {
     namespace fs = std::filesystem;
     std::error_code ec;
@@ -45,10 +46,10 @@ static std::wstring WriteSyntheticSessionLog() {
     fs::remove_all(dir, ec);
     fs::create_directories(dir, ec);
     std::ofstream f(dir / "session_20261010_210000.log");
-    for (int i = 0; i < 20000; i++) {
+    for (int i = 0; i < 12000; i++) {
         f << "[21:" << (10 + i / 600 % 50) << ":" << (10 + i / 10 % 50)
           << "] [CAPTURE     ] frame " << i << " written, 1280x960 8-bit\n";
-        if (i == 9000) {
+        if (i == 6000) {
             f << "[22:15:00] [AUTOFOCUS   ] V-curve sweep started at 168032\n"
               << "[22:16:40] [AUTOFOCUS   ] parabola fit accepted, best 168110\n"
               << "[22:16:41] [AUTOFOCUS   ] focus improved 6.2% over start\n";
@@ -275,6 +276,7 @@ int main() {
         // is the check that matters most: the corpus grew, and
         // everything in the prompt can be quoted back.
         bool tooPrecise = false;
+        std::string offender;
         for (size_t i = 0; i + 4 < p3.size(); i++) {
             if (!isdigit((unsigned char)p3[i])) continue;
             if (i > 0 && (isdigit((unsigned char)p3[i-1]) || p3[i-1] == '.')) continue;
@@ -285,11 +287,18 @@ int main() {
             while (k < p3.size() && isdigit((unsigned char)p3[k])) { k++; dec++; }
             if (dec < 2) continue;
             const double v = atof(p3.substr(i, k - i).c_str());
-            if (v >= 10.0 && v <= 180.0) { tooPrecise = true; break; }
+            if (v >= 10.0 && v <= 180.0) {
+                tooPrecise = true;
+                const size_t a = i >= 40 ? i - 40 : 0;
+                offender = p3.substr(i, k - i) + " in \"" +
+                           p3.substr(a, std::min<size_t>(k + 40, p3.size()) - a) + "\"";
+                for (char& c : offender) if (c == '\n' || c == '\r') c = ' ';
+                break;
+            }
         }
         Check(!tooPrecise,
               "and the site rule still holds with documents and logs in",
-              "");
+              offender);
     }
 
     printf("\n");

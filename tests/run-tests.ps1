@@ -134,6 +134,17 @@ if (Test-Path $sqlite) {
 #
 # Same reason as sqlite3.dll: an /fsanitize=address exe will not start
 # without it, and it lives in the toolset's bin folder, not on PATH.
+# object_knowledge opens <data root>\data\object_knowledge.db. With no
+# DataRoot and no D:\RadukCapture the data root is the folder holding the
+# test exe, so the database has to be there, as the app build puts it.
+$kdb = Join-Path $root "data\object_knowledge.db"
+if (Test-Path $kdb) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $out "data") | Out-Null
+    Copy-Item $kdb (Join-Path $out "data\object_knowledge.db") -Force
+} else {
+    Write-Host "[tests] WARNING: $kdb not found - object_knowledge will fail"
+}
+
 $asanDll = $null
 $verFile = Join-Path $vsPath "VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt"
 if (Test-Path $verFile) {

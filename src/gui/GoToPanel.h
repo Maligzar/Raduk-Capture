@@ -1827,6 +1827,15 @@ public:
         return false;
     }
 
+    // Phase 128: the sky map's NEOs are followed through the same path as
+    // a target typed into the box, so it shows what is being followed.
+    void FollowJplTarget(const std::string& target) {
+        if (!m_editTarget) return;
+        std::wstring w(target.begin(), target.end());
+        SetWindowTextW(m_editTarget, w.c_str());
+        RequestFollow();
+    }
+
     bool ScenarioType(const std::string& field, const std::string& text) {
         if (_stricmp(field.c_str(), "JPL") != 0 || !m_editTarget) return false;
         std::wstring w(text.begin(), text.end());

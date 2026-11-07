@@ -10,14 +10,18 @@ rig     AutorunGapSec=4
 rig     AutorunRefocusEvery=0
 rig     AutorunSeeingPct=100
 rig     AutorunSeeingHoldSec=10
-profile jupiter.ini roi width=640
-profile jupiter.ini roi height=480
-profile jupiter.ini roi img_type=0
-profile jupiter.ini capture limit_value=100
+# Kochab (dec +74) never sets at this site but dips to 17.9 deg, under the
+# sequence's 20 deg floor; the floor is runs-refused.scn's to test.
+rig     AutorunMinAltDeg=10
+profile star.ini focuser position=168000
+profile star.ini capture limit_value=100
 
 expect 30  [SCENARIO] Seeing hold
 wait   3
-goto   Jupiter
+goto   Kochab
+expect 30  No matching profile for
+press  LOAD PROFILE Star
+expect 10  [PROFILE] Applying: Star
 expect 120 SEARCHING
 wait   3
 press  PLANET LOCK

@@ -2792,6 +2792,7 @@ order.
 | 3.0+ | 125 | Scenarios: the emulator build tests itself. Fixed PLANET LOCK after a GoTo, recording limits and names from any tab, and Escape leaving the lock lit |
 | 3.0+ | 126 | PLANET LOCK works on a Moon that fills the frame: it guides on the surface itself |
 | 3.0+ | 127 | SKY SURVEY works again; satellite recordings are named for the satellite and run the whole pass; a calibration with one dead axis is refused |
+| 3.0+ | 128 | Near-Earth objects on the sky map: orange diamonds with their magnitude and an hour's motion; click one to FOLLOW it. `NeoMagLimit` in rig.ini sets how faint |
 
 ---
 

@@ -56,6 +56,43 @@ namespace raduk::core {
 
 class SatDesk {
 public:
+    // Phase 128: public, so the NEO list (NeoDesk) uses the same client.
+    static bool HttpGet(const wchar_t* host, const wchar_t* path, std::string& out) {
+        HINTERNET s = WinHttpOpen(L"RadukCapture", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        if (!s) return false;
+        WinHttpSetTimeouts(s, 5000, 5000, 10000, 15000);
+        HINTERNET c = WinHttpConnect(s, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
+        HINTERNET r = c ? WinHttpOpenRequest(c, L"GET", path, nullptr,
+                              WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                              WINHTTP_FLAG_SECURE) : nullptr;
+        bool ok = r && WinHttpSendRequest(r, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                                          WINHTTP_NO_REQUEST_DATA, 0, 0, 0)
+                    && WinHttpReceiveResponse(r, nullptr);
+        if (ok) {
+            DWORD status = 0, sz = sizeof(status);
+            WinHttpQueryHeaders(r, WINHTTP_QUERY_STATUS_CODE |
+                                WINHTTP_QUERY_FLAG_NUMBER, nullptr, &status,
+                                &sz, nullptr);
+            ok = status == 200;
+        }
+        const size_t kMax = 4u * 1024u * 1024u;
+        while (ok) {
+            DWORD avail = 0;
+            if (!WinHttpQueryDataAvailable(r, &avail)) { ok = false; break; }
+            if (avail == 0) break;
+            std::string chunk(avail, '\0');
+            DWORD got = 0;
+            if (!WinHttpReadData(r, &chunk[0], avail, &got)) { ok = false; break; }
+            out.append(chunk, 0, got);
+            if (out.size() > kMax) { ok = false; break; }
+        }
+        if (r) WinHttpCloseHandle(r);
+        if (c) WinHttpCloseHandle(c);
+        WinHttpCloseHandle(s);
+        return ok;
+    }
+
     static constexpr int kTickMs = 200;
     static constexpr double kMinFetchHours = 2.0;
     static constexpr double kPredictHours = 24.0;
@@ -342,41 +379,6 @@ private:
         Say(b);
     }
 
-    static bool HttpGet(const wchar_t* host, const wchar_t* path, std::string& out) {
-        HINTERNET s = WinHttpOpen(L"RadukCapture", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                                  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-        if (!s) return false;
-        WinHttpSetTimeouts(s, 5000, 5000, 10000, 15000);
-        HINTERNET c = WinHttpConnect(s, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
-        HINTERNET r = c ? WinHttpOpenRequest(c, L"GET", path, nullptr,
-                              WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
-                              WINHTTP_FLAG_SECURE) : nullptr;
-        bool ok = r && WinHttpSendRequest(r, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-                                          WINHTTP_NO_REQUEST_DATA, 0, 0, 0)
-                    && WinHttpReceiveResponse(r, nullptr);
-        if (ok) {
-            DWORD status = 0, sz = sizeof(status);
-            WinHttpQueryHeaders(r, WINHTTP_QUERY_STATUS_CODE |
-                                WINHTTP_QUERY_FLAG_NUMBER, nullptr, &status,
-                                &sz, nullptr);
-            ok = status == 200;
-        }
-        const size_t kMax = 4u * 1024u * 1024u;
-        while (ok) {
-            DWORD avail = 0;
-            if (!WinHttpQueryDataAvailable(r, &avail)) { ok = false; break; }
-            if (avail == 0) break;
-            std::string chunk(avail, '\0');
-            DWORD got = 0;
-            if (!WinHttpReadData(r, &chunk[0], avail, &got)) { ok = false; break; }
-            out.append(chunk, 0, got);
-            if (out.size() > kMax) { ok = false; break; }
-        }
-        if (r) WinHttpCloseHandle(r);
-        if (c) WinHttpCloseHandle(c);
-        WinHttpCloseHandle(s);
-        return ok;
-    }
 
     void Predict(const raduk::sky::LunarObserver& site,
                  const raduk::sky::SatPassLimits& lim) {

@@ -1,0 +1,19 @@
+# Phase 128: a sequence refused at its first check says so. It used to end
+# before it had been shown, in silence: RUNS did nothing and said nothing.
+# An 89 deg floor makes any target too low.
+name    Runs refused: says why
+timeout 240
+
+rig     AutorunMinAltDeg=89
+rig     AutorunSeeingPct=0
+profile star.ini focuser position=168000
+
+expect 30  [SCENARIO] Runs
+wait   3
+goto   Kochab
+expect 120 SEARCHING
+wait   3
+press  RUNS
+expect 10  [AUTORUN] end: 0 of
+expect 5   [NOTICE] Sequence: 0 of
+absent 5   Recording started

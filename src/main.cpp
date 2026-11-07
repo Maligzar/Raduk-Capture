@@ -78,6 +78,7 @@
 #include "core/TestProbe.h"
 #include "gui/WindowShot.h"
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
+#include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
 #pragma comment(lib, "shlwapi.lib")
 #include "gui/ShareView.h"
@@ -4856,6 +4857,21 @@ static int RunApp(bool useEmulator) {
     window.SetRecallFramingHandler(doRecallFraming);   // phase 48
     window.SetRecallOffsetHandler(doRecallOffset);
     window.SetSkyMapToggleHandler([&]()     { skyMap.Toggle();       });
+
+    // ── Phase 128: near-Earth objects on both sky maps ─────────
+    // Fetched off the UI thread (NeoDesk), refreshed every six hours;
+    // positioned every ten seconds below; clicked to FOLLOW through
+    // Horizons, as a typed target would be.
+    raduk::core::NeoDesk neoDesk;
+    neoDesk.Refresh(false);
+    auto followNeo = [&](const std::string& target, const std::string& name) {
+        Log("[NEO] Following %s (%s)\n", name.c_str(), target.c_str());
+        gotoPanel.FollowJplTarget(target);
+    };
+    skyMap.SetFollowCallback(followNeo);
+    skyMap2.SetFollowCallback(followNeo);
+    auto lastNeoTick = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+    int lastNeoShown = -1;
     // Shift+M. The second map, for the control screen, so the first
     // can stay where people can see it.
     window.SetSkyMap2ToggleHandler([&]() {
@@ -5682,6 +5698,24 @@ static int RunApp(bool useEmulator) {
         case AK::None: break;
         case AK::Press: {
             Log("[SCENARIO] press %s\n", a.arg.c_str());
+            // Phase 128: LOAD on a named profile, as the panel does it.
+            if (a.arg.rfind("LOAD PROFILE ", 0) == 0) {
+                const std::string want = a.arg.substr(13);
+                int idx = -1;
+                for (int i = 0; i < (int)profiles.Profiles().size(); ++i)
+                    if (_stricmp(profiles.Profiles()[i].name.c_str(), want.c_str()) == 0) idx = i;
+                if (!controls.LoadProfileIndex(idx))
+                    g_scenario->ActionFailed("no profile called '" + want + "'");
+                break;
+            }
+            // Phase 128: what confirming FOLLOW on the map's first NEO does.
+            if (a.arg == "MAP:FOLLOW FIRST NEO") {
+                const auto items = neoDesk.Positions(raduk::sky::PreciseJdNow(),
+                    raduk::gui::GoToPanel::SiteObserver(), RigConfig::Get().neoMagLimit);
+                if (items.empty()) g_scenario->ActionFailed("no NEO on the map to follow");
+                else followNeo(items[0].target, items[0].name);
+                break;
+            }
             if (a.arg.rfind("GOTO:", 0) == 0) {
                 if (!gotoPanel.ScenarioPress(a.arg.substr(5)))
                     g_scenario->ActionFailed("no GoTo panel button called '" + a.arg.substr(5) + "'");
@@ -5769,6 +5803,33 @@ static int RunApp(bool useEmulator) {
 
     window.Run([&]() {
         scenarioStep();
+
+        // Phase 128: NEO positions every ten seconds, and the fetch's news.
+        for (const auto& m : neoDesk.TakeMessages()) Log("%s\n", m.c_str());
+        if (std::chrono::steady_clock::now() - lastNeoTick > std::chrono::seconds(10)) {
+            lastNeoTick = std::chrono::steady_clock::now();
+            neoDesk.Refresh(false);   // a no-op until six hours have passed
+            const auto items = neoDesk.Positions(raduk::sky::PreciseJdNow(),
+                                                 raduk::gui::GoToPanel::SiteObserver(),
+                                                 RigConfig::Get().neoMagLimit);
+            std::vector<raduk::gui::SkyMapWindow::NeoMark> marks;
+            for (const auto& it : items) {
+                raduk::gui::SkyMapWindow::NeoMark m;
+                m.name = it.name; m.target = it.target;
+                m.ra = it.view.raHours; m.dec = it.view.decDeg;
+                m.raNext = it.view.raNext; m.decNext = it.view.decNext;
+                m.mag = (float)it.view.mag; m.rateDegPerHour = (float)it.view.rateDegPerHour;
+                m.distAu = it.view.earthDistAu;
+                marks.push_back(m);
+            }
+            if ((int)marks.size() != lastNeoShown && neoDesk.Fetched() > 0) {
+                lastNeoShown = (int)marks.size();
+                Log("[NEO] %d on the map (of %d with tables), brighter than mag %.1f\n",
+                    lastNeoShown, neoDesk.Fetched(), RigConfig::Get().neoMagLimit);
+            }
+            skyMap.SetNeos(marks);
+            skyMap2.SetNeos(marks);
+        }
         // ── SAFETY: Feed mount watchdog every frame ────────────
         // Virtual on IMount: NexStarMount feeds its watchdog, the ASCOM and
         // emulator backends no-op. (Previously a static_cast to NexStarMount
@@ -6559,6 +6620,12 @@ static int RunApp(bool useEmulator) {
                                               seeing.EndRun()});
                 };
                 const int doneBefore = autorun.Done();
+                // Phase 128, found by a scenario: a sequence refused at its
+                // first check (below the altitude floor, no target, no disk)
+                // ended before it had ever been shown, so it ended in
+                // silence -- RUNS did nothing and said nothing. Ending is
+                // judged from before this tick as well as after the last.
+                const bool runningBefore = autorun.Running();
 
                 switch (autorun.Tick(nowSec, ai)) {
                 case Autorun::Action::StartFocus:
@@ -6604,7 +6671,7 @@ static int RunApp(bool useEmulator) {
                 }
 
                 toolbar.SetRuns(autorun.Running(), autorun.Ordinal());
-                const bool ended = autorunShown && !autorun.Running();
+                const bool ended = (autorunShown || runningBefore) && !autorun.Running();
                 autorunShown = autorun.Running();
                 if (ended) {
                     const bool ok = autorun.State() == Autorun::Phase::Complete;

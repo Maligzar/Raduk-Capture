@@ -56,6 +56,13 @@ public:
     // Phase 125: a scenario presses panel buttons by name, and opens tabs.
     bool PressByName(const std::string& name);
     bool OpenTabByName(const std::string& name);
+    // Phase 128: what LOAD does with this profile selected, from any tab.
+    bool LoadProfileIndex(int idx) {
+        if (!m_onProfileLoad || idx < 0) return false;
+        m_cachedProfileIndex = idx;
+        m_onProfileLoad(idx);
+        return true;
+    }
     bool HandleScroll(WPARAM wParam, LPARAM lParam);
 
     void EmergencyStop();

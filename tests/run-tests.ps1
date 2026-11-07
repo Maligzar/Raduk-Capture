@@ -71,6 +71,7 @@ $Tests = @(
     @{ Name = "session_stats";    Sources = @() }
     @{ Name = "scenario_runner";  Sources = @() }
     @{ Name = "full_frame_lock";  Sources = @("src\core\FrameAnalyzer.cpp") }
+    @{ Name = "neo_list";         Sources = @() }
     @{ Name = "mosaic_run";      Sources = @() }
     @{ Name = "camera_panel";    Sources = @() }
     @{ Name = "camera_controls"; Sources = @() }

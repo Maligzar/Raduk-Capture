@@ -177,6 +177,10 @@ struct RigConfig {
     // Phase 114: the bar as a percentage of tonight's best. 0 never waits.
     int         autorunSeeingPct     = 80;
     float       autorunSeeingHoldSec = 180.0f;
+    // Phase 128: near-Earth objects fainter than this stay off the sky
+    // map. 16 is a guess at what the 8SE and the 678MC show in a few
+    // seconds of video; the night will say.
+    float       neoMagLimit = 16.0f;
     // Phase 123: correct GoTos from the pointing map. 0 off, 1 the map
     // from every night, 2 tonight's only. Off until the score in the
     // log says one helps on this mount.
@@ -376,6 +380,7 @@ struct RigConfig {
         wf("AutorunMinAltDeg", autorunMinAltDeg);
         wf("AutorunSeeingPct", autorunSeeingPct);
         wf("AutorunSeeingHoldSec", autorunSeeingHoldSec);
+        wf("NeoMagLimit", neoMagLimit);
         wf("ApertureMm", apertureMm);
         ws("AutoStackOnStop", autoStackOnStop ? "1" : "0");
         ws("AutoStakkertPath", autoStakkertPath);
@@ -533,6 +538,7 @@ private:
         cfg.autorunMinAltDeg      = (float)rf("AutorunMinAltDeg", cfg.autorunMinAltDeg);
         cfg.autorunSeeingPct      = (int)rf("AutorunSeeingPct", cfg.autorunSeeingPct);
         cfg.autorunSeeingHoldSec  = (float)rf("AutorunSeeingHoldSec", cfg.autorunSeeingHoldSec);
+        cfg.neoMagLimit           = (float)rf("NeoMagLimit", cfg.neoMagLimit);
         cfg.apertureMm            = (float)rf("ApertureMm", cfg.apertureMm);
         cfg.autoStackOnStop       = rs("AutoStackOnStop", cfg.autoStackOnStop ? "1" : "0") == "1";
         cfg.autoStakkertPath      = rs("AutoStakkertPath", cfg.autoStakkertPath);

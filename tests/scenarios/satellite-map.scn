@@ -1,0 +1,14 @@
+# Phase 130: satellites and rocket bodies on the sky map. Reads the
+# elements in satellites.tle (copied into the sandbox), positions every
+# one each second, and draws those above the horizon. The count line
+# under the map says how many are up, how many can be seen, and how
+# many NEOs the magnitude limit let through.
+name    Satellite map: elements, positions, draw
+timeout 120
+
+expect 30  [SCENARIO] Satellite
+expect 15  satellites and rocket bodies from
+expect 5   sunlit against a dark sky
+absent 3   [SATMAP] 0 satellites
+wait   2
+shot   satellite-map

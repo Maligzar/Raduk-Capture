@@ -509,3 +509,24 @@ window header) compile cleanly with mingw.
 merges, then `-Expect` set to every window, since a token swap is meant to change
 all of them. Look at the control panel in daylight and in night vision, and
 check the new section headers for text clipping.
+
+**Run on the rig, 2026-11-07.** Both configurations build under MSVC, and
+`run-tests` passes all 70. The reference was saved from `a565bae` (132.2), and
+the diff was run with `-Expect "day/"`, so that any night change would be
+flagged. That run used the build-stamp key fix from #101. Every day window
+changed. In night vision, everything read `same` except two windows. GoTo's
+change is its object list reordering as the sky turned, not this stage. The
+main window's change is all in the control panel: the legends, the dimmed
+labels, RECORD and AE, which is what this stage set out to change. The section
+headers do not clip, in day or night.
+
+**Found, not caused by this stage: the sliders leak non-red light at night.**
+Sampled from the night shots, a slider's track background is the *day* DEEP
+colour: (7, 13, 22) before this stage, (18, 19, 22) after. The rail is the
+theme's grey (160, 160, 160) in both. The `WM_CTLCOLORSTATIC` brush does go
+through `NV`, but the trackbar keeps the background it took in day mode, and
+the visual style draws the rail and thumb itself. Every slider on the control
+panel is affected; there are nine on the Camera tab alone. The tests cannot see this, because the colours are drawn by
+the common control, not by the app. The fix is to custom-draw the trackbar
+(`NM_CUSTOMDRAW`: channel and thumb from the tokens) and to repaint it on a
+palette change.

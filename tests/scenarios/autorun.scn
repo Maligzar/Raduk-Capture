@@ -8,14 +8,18 @@ rig     AutorunRuns=2
 rig     AutorunGapSec=4
 rig     AutorunRefocusEvery=3
 rig     AutorunSeeingPct=0
-profile jupiter.ini roi width=640
-profile jupiter.ini roi height=480
-profile jupiter.ini roi img_type=0
-profile jupiter.ini capture limit_value=150
+# Kochab (dec +74) never sets at this site but dips to 17.9 deg, under the
+# sequence's 20 deg floor; the floor is runs-refused.scn's to test.
+rig     AutorunMinAltDeg=10
+profile star.ini focuser position=168000
+profile star.ini capture limit_value=150
 
 expect 30  [SCENARIO] Autorun
 wait   3
-goto   Jupiter
+goto   Kochab
+expect 30  No matching profile for
+press  LOAD PROFILE Star
+expect 10  [PROFILE] Applying: Star
 expect 120 SEARCHING
 wait   3
 press  PLANET LOCK
@@ -26,10 +30,9 @@ press  RUNS
 expect 10  [AUTORUN] start: 2 runs
 expect 10  [BUTTON] RUNS -> #1
 expect 10  [AUTORUN] focus before run 1
-# Named for the target and stopped at the profile's 150 frames, from
-# whichever tab is open: phase 125 found both fell back to defaults.
+# Stopped at the profile's 150 frames from whichever tab is open: phase
+# 125 found the limit fell back to 1000. (Naming is recording.scn's.)
 expect 120 Recording started: 
-expect 10  captures\Jupiter_
 expect 10  [AUTORUN] run 1 of 2
 expect 90  Recording stopped: 150 frames
 expect 30  [BUTTON] RUNS -> #2

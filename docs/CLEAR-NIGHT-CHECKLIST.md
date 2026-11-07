@@ -1220,3 +1220,10 @@ For contrast, so this list is not read as "nothing works":
     new night should be at the top of By night, and nothing from the emulator
     should appear in the rig's figures.
 
+46. **Near-Earth objects on the map** (phase 128). With the network up, the
+    log should say how many close approaches JPL listed and how many have
+    tables. Any brighter than `NeoMagLimit` appear on the map as orange
+    diamonds. Click one above the tracking floor and press FOLLOW: the
+    mount should go to it and hold it. Note the magnitude the map predicted
+    and what the camera shows, which is what tunes `NeoMagLimit`.
+

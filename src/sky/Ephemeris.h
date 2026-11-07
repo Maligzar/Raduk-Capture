@@ -221,7 +221,10 @@ inline SatPassInfo EphemWindow(const Ephemeris& e, const LunarObserver& o,
 
 // The request, as a path for the Horizons API. Geocentric on purpose:
 // see the header.
-inline std::string HorizonsVectorsPath(const std::string& target, double fromJd, double toJd) {
+// Phase 128: the step is a parameter. A satellite-fast target wants a
+// row a minute; an NEO over a day is well served by one every ten.
+inline std::string HorizonsVectorsPath(const std::string& target, double fromJd, double toJd,
+                                       const char* step = "1 min") {
     auto enc = [](const std::string& s) {
         std::string o;
         for (unsigned char c : s) {
@@ -240,7 +243,7 @@ inline std::string HorizonsVectorsPath(const std::string& target, double fromJd,
     p += "&OUT_UNITS=" + enc("'KM-S'") + "&TIME_TYPE=" + enc("'UT'");
     snprintf(t, sizeof(t), "'JD %.6f'", fromJd); p += "&START_TIME=" + enc(t);
     snprintf(t, sizeof(t), "'JD %.6f'", toJd);   p += "&STOP_TIME=" + enc(t);
-    p += "&STEP_SIZE=" + enc("'1 min'");
+    p += "&STEP_SIZE=" + enc(std::string("'") + step + "'");
     return p;
 }
 

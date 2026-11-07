@@ -75,6 +75,28 @@ public:
                                             const std::string& name)> cb)
         { m_onGoTo = cb; }
 
+    // ── Phase 128: near-Earth objects ──────────────────────────
+    // Where each is now and an hour on (RA/Dec, so the map places both
+    // at the current sidereal time and the tick shows motion against
+    // the stars), how bright, and what Horizons is asked for to follow
+    // it. Set every few seconds by main from NeoDesk.
+    struct NeoMark {
+        std::string name, target;
+        double ra = 0, dec = 0, raNext = 0, decNext = 0;
+        float  mag = 99, rateDegPerHour = 0;
+        double distAu = 0;
+    };
+    void SetNeos(std::vector<NeoMark> neos) {
+        m_neos = std::move(neos);
+        if (m_hwnd) { BuildObjectList(); Redraw(); }
+    }
+    int NeoCount() const { return (int)m_neos.size(); }
+    // Clicking an NEO follows it through Horizons rather than slewing to
+    // where it was: they move too fast for a fixed GoTo.
+    void SetFollowCallback(std::function<void(const std::string& target,
+                                              const std::string& name)> cb)
+        { m_onFollow = std::move(cb); }
+
     // Phase 50a: right-click on object → show knowledge panel
     // args: name, altDeg, azDeg, mag
     void SetInfoCallback(std::function<void(const std::string&,
@@ -381,6 +403,11 @@ private:
         float        altDeg, azDeg;
         float        px, py;   // screen coords
         bool         visible;  // above horizon
+        // Phase 128, NEOs only (type "NEO").
+        std::string  target;
+        float        pxNext = 0, pyNext = 0;
+        float        rate = 0;
+        double       distAu = 0;
     };
 
     void BuildObjectList() {
@@ -407,6 +434,28 @@ private:
             mo.visible = alt > -1.0; // 1° below horizon still show faded
 
             AltAzToXY(alt, az, mo.px, mo.py);
+            m_objects.push_back(mo);
+        }
+
+        // Phase 128: the NEOs, at this sidereal time.
+        for (const auto& n : m_neos) {
+            MapObject mo;
+            mo.name = n.name;
+            mo.type = "NEO";
+            mo.mag  = n.mag;
+            mo.ra   = n.ra;
+            mo.dec  = n.dec;
+            mo.target = n.target;
+            mo.rate = n.rateDegPerHour;
+            mo.distAu = n.distAu;
+            double alt, az, altN, azN;
+            RADecToAltAz(n.ra, n.dec, lst, OBS_LAT, alt, az);
+            RADecToAltAz(n.raNext, n.decNext, lst, OBS_LAT, altN, azN);
+            mo.altDeg  = (float)alt;
+            mo.azDeg   = (float)az;
+            mo.visible = alt > -1.0;
+            AltAzToXY(alt, az, mo.px, mo.py);
+            AltAzToXY(altN, azN, mo.pxNext, mo.pyNext);
             m_objects.push_back(mo);
         }
     }
@@ -674,6 +723,34 @@ private:
             }
         }
 
+        // ── Phase 128: near-Earth objects ─────────────────────
+        // An orange diamond, a line to where it will be in an hour, and
+        // its name and predicted magnitude. Faded below the horizon.
+        {
+            ID2D1SolidColorBrush *neoBr = nullptr, *neoFade = nullptr;
+            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.62f, 0.15f, 0.95f)), &neoBr);
+            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.62f, 0.15f, 0.30f)), &neoFade);
+            for (const auto& obj : m_objects) {
+                if (obj.type != "NEO" || !InCircle(obj.px, obj.py)) continue;
+                auto* br = obj.visible ? neoBr : neoFade;
+                if (!br) continue;
+                m_rt->DrawLine(D2D1::Point2F(obj.px, obj.py),
+                               D2D1::Point2F(obj.pxNext, obj.pyNext), br, 1.2f);
+                const float s = 5.0f;
+                const D2D1_POINT_2F p[4] = { {obj.px, obj.py - s}, {obj.px + s, obj.py},
+                                             {obj.px, obj.py + s}, {obj.px - s, obj.py} };
+                for (int k = 0; k < 4; ++k)
+                    m_rt->DrawLine(p[k], p[(k + 1) % 4], br, 1.6f);
+                if (obj.visible && m_labelFormat) {
+                    char lbl[96];
+                    snprintf(lbl, sizeof(lbl), "%s  %.1f", obj.name.c_str(), obj.mag);
+                    DrawObjectLabel(lbl, obj.px + s + 3, obj.py - 6, 1.0f, 0.7f, 0.3f);
+                }
+            }
+            if (neoBr)   neoBr->Release();
+            if (neoFade) neoFade->Release();
+        }
+
         // ── Mount crosshair ────────────────────────────────────
         if (m_mountValid) {
             double lst = LST();
@@ -933,7 +1010,10 @@ private:
         ID2D1SolidColorBrush* br = nullptr;
         m_rt->CreateSolidColorBrush(D2D1::ColorF(r, g, b, 0.85f), &br);
         if (br) {
-            D2D1_RECT_F rect = D2D1::RectF(x, y, x+80, y+12);
+            // Phase 128: 220, not 80. An NEO's label, "2026 VW2  20.5",
+            // wrapped onto a second line on a large map and ran into the
+            // next one; short labels are drawn exactly as before.
+            D2D1_RECT_F rect = D2D1::RectF(x, y, x+220, y+12);
             m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
             m_rt->DrawText(wname, (UINT32)wcslen(wname), m_labelFormat, rect, br);
             br->Release();
@@ -950,7 +1030,9 @@ private:
         bool belowHorizon = obj.altDeg < 15.0f;
 
         // Popup dims
-        const float PW = 200, PH = belowHorizon ? 56 : 76;
+        // Phase 128: an NEO can be followed while low -- FOLLOW waits for
+        // its window -- so its popup keeps the button.
+        const float PW = 200, PH = (belowHorizon && obj.type != "NEO") ? 56 : 76;
         // Anchor near the object, keep on screen
         float px = m_confirmPx + 14;
         float py = m_confirmPy - PH / 2;
@@ -988,18 +1070,22 @@ private:
 
             // Altitude / horizon warning
             if (altBr) {
-                wchar_t altStr[48];
-                if (belowHorizon)
-                    swprintf(altStr, 48, L"BELOW HORIZON (Alt %.0f°)", obj.altDeg);
+                wchar_t altStr[64];
+                if (obj.type == "NEO")
+                    swprintf(altStr, 64, L"mag %.1f  %.2f°/h  %.3f au  Alt %.0f°",
+                             obj.mag, obj.rate, obj.distAu, obj.altDeg);
+                else if (belowHorizon)
+                    swprintf(altStr, 64, L"BELOW HORIZON (Alt %.0f°)", obj.altDeg);
                 else
-                    swprintf(altStr, 48, L"Alt %.0f°  Az %.0f°", obj.altDeg, obj.azDeg);
+                    swprintf(altStr, 64, L"Alt %.0f°  Az %.0f°", obj.altDeg, obj.azDeg);
                 D2D1_RECT_F ar = D2D1::RectF(px+6, py+22, px+PW-6, py+36);
                 m_rt->DrawText(altStr, (UINT32)wcslen(altStr), m_labelFormat, ar, altBr);
             }
 
             // Buttons
-            if (!belowHorizon && slewBr) {
-                // ✓ SLEW button
+            const bool isNeo = obj.type == "NEO";
+            if ((!belowHorizon || isNeo) && slewBr) {
+                // ✓ SLEW button (FOLLOW for an NEO: it waits for its window)
                 m_btnSlewRect = D2D1::RectF(px+6, py+40, px+PW/2-4, py+PH-6);
                 ID2D1SolidColorBrush* slewBg = nullptr;
                 m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.05f, 0.25f, 0.12f, 0.9f)), &slewBg);
@@ -1008,7 +1094,8 @@ private:
                 D2D1_RECT_F st = D2D1::RectF(m_btnSlewRect.left+2, m_btnSlewRect.top+2,
                                               m_btnSlewRect.right-2, m_btnSlewRect.bottom-2);
                 m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-                m_rt->DrawText(L"\u2713 SLEW", 7, m_labelFormat, st, slewBr);
+                if (isNeo) m_rt->DrawText(L"\u2713 FOLLOW", 8, m_labelFormat, st, slewBr);
+                else       m_rt->DrawText(L"\u2713 SLEW", 7, m_labelFormat, st, slewBr);
             } else {
                 m_btnSlewRect = {};  // disabled
             }
@@ -1339,6 +1426,12 @@ private:
                         // click time (review G5: the live list may have been
                         // rebuilt under the popup)
                         const auto obj = self->m_confirmObj;
+                        if (obj.type == "NEO") {
+                            if (self->m_onFollow) self->m_onFollow(obj.target, obj.name);
+                            self->m_confirmActive = false;
+                            self->Redraw();
+                            return 0;
+                        }
                         printf("[SkyMap] GoTo confirmed: %s  RA=%.4fh Dec=%.4f°\n",
                                obj.name.c_str(), obj.ra, obj.dec);
                         if (self->m_onGoTo)
@@ -1462,6 +1555,8 @@ private:
 
     // Callback
     std::function<void(double, double, const std::string&)> m_onGoTo;
+    std::function<void(const std::string&, const std::string&)> m_onFollow;
+    std::vector<NeoMark> m_neos;
     std::function<void(const std::string&, float, float, float)> m_onInfo;
 };
 

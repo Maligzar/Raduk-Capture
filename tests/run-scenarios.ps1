@@ -55,8 +55,8 @@ foreach ($s in $scripts) {
         $rep = Join-Path $box.FullName "report.txt"
         if (Test-Path $rep) {
             $text = Get-Content $rep -Raw
-            if ($text -match 'Result: (\w+)') { $result = $Matches[1] }
-            if ($text -match 'Why: (.+)') { $why = $Matches[1].Trim() }
+            if ($text -cmatch '(?m)^Result: (\w+)') { $result = $Matches[1] }
+            if ($text -cmatch '(?m)^Why: (.+)') { $why = $Matches[1].Trim() }
         } else { $why = "no report (exit code $($p.ExitCode))" }
         if (-not $Keep) {
             Get-ChildItem (Join-Path $box.FullName "captures") -Recurse -File -ErrorAction SilentlyContinue |

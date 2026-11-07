@@ -1,0 +1,23 @@
+# Phase 128: near-Earth objects on the sky map. Asks JPL for the close
+# approaches and Horizons for their positions (the site is never sent),
+# draws them, and follows one the way the map's FOLLOW button does.
+# Every NEO is shown here (NeoMagLimit=30) so there is one to follow.
+name    NEO map: fetch, draw, follow
+timeout 300
+
+rig     NeoMagLimit=30
+
+expect 30  [SCENARIO] NEO
+expect 120 close approaches within
+expect 20  on the map (of
+wait   2
+shot   neo-map
+press  MAP:FOLLOW FIRST NEO
+expect 10  [NEO] Following
+expect 10  Target: asking JPL Horizons for
+# Its window may not be in the next 12 hours; either answer is a working
+# path. Only no answer at all fails.
+wait   15
+absent 1   could not reach JPL Horizons
+press  GOTO:FOLLOW
+wait   3

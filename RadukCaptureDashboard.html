@@ -461,6 +461,7 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
 .loc-modal {
   background:#080b10; border:1px solid rgba(0,229,255,.25);
   padding:26px; min-width:420px; max-width:540px; width:92%;
+  max-height:92vh; overflow-y:auto; box-sizing:border-box;
   box-shadow:0 0 50px rgba(0,229,255,.1);
 }
 .loc-modal-title {
@@ -502,6 +503,14 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
   color:var(--text); padding:8px 10px; outline:none; box-sizing:border-box;
 }
 .loc-field input:focus { border-color:rgba(0,229,255,.5); }
+.loc-field select, .loc-field textarea {
+  width:100%; font-family:'Space Mono',monospace; font-size:20px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+  color:var(--text); padding:8px 10px; outline:none; box-sizing:border-box;
+}
+.loc-field select option { background:#0a1420; color:var(--text); }
+.loc-field textarea { resize:vertical; font-size:17px; }
+.loc-field select:focus, .loc-field textarea:focus { border-color:rgba(0,229,255,.5); }
 .loc-field-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .loc-status {
   font-family:'Space Mono',monospace; font-size:19px; letter-spacing:1.5px;
@@ -697,7 +706,7 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
     </div>
   </div>
   <div class="header-right">
-    <div><div style="font-size:19px;color:var(--text-dim);letter-spacing:2px;margin-bottom:1px">LOCAL / UTC</div><div class="live-clock" id="clockDisplay">--:-- MST / --:-- UTC</div></div>
+    <div><div style="font-size:19px;color:var(--text-dim);letter-spacing:2px;margin-bottom:1px">LOCAL / UTC</div><div class="live-clock" id="clockDisplay">--:-- / --:-- UTC</div></div>
     <div class="imaging-score-badge"><div class="label" id="scoreBadgeTitle">IMAGING SCORE</div><div class="score" id="overallScore">--</div><div class="score-sub" id="scoreLabel">CALCULATING</div></div>
     <button class="refresh-btn" onclick="refreshAll()">↻ REFRESH</button>
     <button class="refresh-btn" onclick="document.getElementById('shortcutOverlay').classList.add('show')" style="border-color:var(--purple);color:var(--purple)">⌨ KEYS</button>
@@ -768,8 +777,8 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
       <div class="weather-grid">
         <div class="weather-cell"><div class="wc-label">PRESSURE</div><div class="wc-val" id="wc-pressure">29.92</div><div class="wc-sub">inHg</div></div>
         <div class="weather-cell"><div class="wc-label">VISIBILITY</div><div class="wc-val" id="wc-vis">10+ mi</div><div class="wc-sub">EXCELLENT</div></div>
-        <div class="weather-cell"><div class="wc-label">SUNSET</div><div class="wc-val" id="wc-sunset">--:--</div><div class="wc-sub">LOCAL MST</div></div>
-        <div class="weather-cell"><div class="wc-label">ASTRO DARK</div><div class="wc-val" id="wc-dark">--:--</div><div class="wc-sub">LOCAL MST</div></div>
+        <div class="weather-cell"><div class="wc-label">SUNSET</div><div class="wc-val" id="wc-sunset">--:--</div><div class="wc-sub">LOCAL <span class="tz-abbr"></span></div></div>
+        <div class="weather-cell"><div class="wc-label">ASTRO DARK</div><div class="wc-val" id="wc-dark">--:--</div><div class="wc-sub">LOCAL <span class="tz-abbr"></span></div></div>
       </div>
     </div>
     <div class="panel">
@@ -805,17 +814,18 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
     </div>
     <div class="panel">
       <div class="panel-title">💡 LIGHT POLLUTION</div>
-      <div class="bortle-display"><div class="bortle-number">4</div><div class="bortle-desc"><div class="b-title">Rural/Suburban</div><div class="b-sub">Milky Way visible · Zodiacal light</div><div class="b-sqm">SQM: 21.4 mag/arcsec²</div></div></div>
+      <div class="bortle-display"><div class="bortle-number" id="lpBortleNum">—</div><div class="bortle-desc"><div class="b-title" id="lpBortleTitle">Bortle class not set</div><div class="b-sub" id="lpBortleSub">Set it in the location panel</div><div class="b-sqm" id="lpSqm"></div></div></div>
       <div class="bortle-scale" id="bortleScale"></div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:3px;font-family:'Space Mono',monospace"><span>1 DARK</span><span>9 CITY</span></div>
-      <div style="margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.8"><div><span style="color:var(--amber)">⚠</span> Phoenix glow: SE horizon 15°</div><div><span style="color:var(--green)">✓</span> N/NW/W: Excellent</div></div>
+      <div id="lpNotes" style="margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.8;white-space:pre-wrap"></div>
+      <div style="margin-top:6px"><a href="#" onclick="event.preventDefault();openLocationModal()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--accent);text-decoration:none">✎ EDIT SKY DETAILS</a></div>
     </div>
     <div class="panel">
       <div class="panel-title">👁 SEEING FORECAST</div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:3px"><span>Antoniadi:</span><span id="antoniadiVal" style="color:var(--accent);font-family:'Space Mono',monospace">II — Good</span></div>
       <div class="seeing-bars" id="seeingBars"></div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:3px;font-family:'Space Mono',monospace"><span>8PM</span><span>10PM</span><span>12AM</span><span>2AM</span><span>4AM</span></div>
-      <div style="margin-top:8px;font-size:11px;color:var(--text-dim);line-height:1.8"><div><span style="color:var(--green)">✓</span> Best window: 11PM–2AM</div><div><span style="color:var(--accent)">→</span> Jet stream N of AZ</div></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text-dim);line-height:1.8"><div><span style="color:var(--green)">✓</span> Best window: 11PM–2AM</div></div>
     </div>
   </div>
 
@@ -1547,7 +1557,7 @@ body::before { content:''; position:fixed; inset:0; background-image: radial-gra
         <div class="fcast-chart-card">
           <div class="fcast-chart-lbl">◈ CLEAR DARK SKY REFERENCE</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:var(--text-dim);margin-bottom:8px;letter-spacing:1px">Direct link — browser CORS prevents inline embedding</div>
-          <a id="cdsLink" href="https://www.cleardarksky.com/c/AntmAZkey.html?1" target="_blank"
+          <a id="cdsLink" href="https://www.cleardarksky.com/csk/" target="_blank"
              style="display:inline-block;font-family:'Space Mono',monospace;font-size:19px;padding:7px 14px;border:1px solid rgba(191,127,255,.3);color:#bf7fff;text-decoration:none">
             ↗ OPEN CLEAR DARK SKY
           </a>
@@ -1742,19 +1752,102 @@ const apexStorage = {
 // Default location is unset — user configures via the location panel
 const DEFAULT_LAT=0.0, DEFAULT_LON=0.0, DEFAULT_LABEL="SET YOUR LOCATION";
 let LAT=DEFAULT_LAT, LON=DEFAULT_LON;
-let SITE_LABEL=DEFAULT_LABEL, SITE_ELEV="1,732 FT";
-const TIMEZONE="America/Phoenix";
+let SITE_LABEL=DEFAULT_LABEL, SITE_ELEV="";
+// Site sky-quality details (user-entered; blank = not set)
+let SITE_BORTLE=0, SITE_SQM="", SITE_SKY_NOTES="";
+
+// ============================================================
+// TIME ZONE
+// Defaults to the browser's own zone; a user override is saved
+// with the location in raduk_location_v1 (field: tz).
+// ============================================================
+function browserTimeZone(){
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch(e) { return 'UTC'; }
+}
+function isValidTimeZone(tz){
+  if (!tz || typeof tz !== 'string') return false;
+  try { new Intl.DateTimeFormat('en-US',{timeZone:tz}); return true; } catch(e) { return false; }
+}
+let TIMEZONE = browserTimeZone();
+
+// Read the saved location record (cache/localStorage may hold an object or a JSON string)
+function readSavedLocation(){
+  try {
+    const raw = apexStorage.getSync('raduk_location_v1');
+    const v = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return (v && typeof v === 'object') ? v : null;
+  } catch(e) { return null; }
+}
+
+// Wall-clock parts of an instant in a zone: {year,month,day,hour,minute,second}
+const _tzFmtCache = {};
+function tzParts(date, tz){
+  tz = tz || TIMEZONE;
+  let f = _tzFmtCache[tz];
+  if (!f) f = _tzFmtCache[tz] = new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',
+    year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const o = {};
+  f.formatToParts(date).forEach(p => { if (p.type !== 'literal') o[p.type] = parseInt(p.value,10); });
+  if (o.hour === 24) o.hour = 0;
+  return o;
+}
+// Zone offset from UTC in minutes at an instant (e.g. -300 for EST, +60 for BST)
+function tzOffsetMin(date, tz){
+  const p = tzParts(date, tz);
+  const wall = Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second);
+  return Math.round((wall - Math.floor(date.getTime()/1000)*1000) / 60000);
+}
+// UTC instant for a local wall-clock time in a zone (fields may overflow, e.g. hour 26)
+function zonedToUTC(yr, mo, dy, h, mi, tz){
+  const guess = Date.UTC(yr, mo-1, dy, h||0, mi||0, 0, 0);
+  let t = guess - tzOffsetMin(new Date(guess), tz)*60000;
+  t = guess - tzOffsetMin(new Date(t), tz)*60000;   // second pass settles DST edges
+  return new Date(t);
+}
+// Parse an Open-Meteo local timestamp "YYYY-MM-DDTHH:MM" (requested in TIMEZONE) to a Date
+function omLocalToDate(str){
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(str||'');
+  if (!m) return new Date(str);
+  return zonedToUTC(+m[1], +m[2], +m[3], +m[4], +m[5]);
+}
+// Local calendar date "YYYY-MM-DD" in the site zone
+function tzDateStr(date, tz){
+  const p = tzParts(date || new Date(), tz);
+  return `${p.year}-${String(p.month).padStart(2,'0')}-${String(p.day).padStart(2,'0')}`;
+}
+// Short zone name ("EDT", "BST", "CET"); falls back to "GMT+5:30"-style when no abbreviation exists
+function tzAbbr(date, tz){
+  tz = tz || TIMEZONE; date = date || new Date();
+  const locales = [];
+  try { if (navigator.language) locales.push(navigator.language); } catch(e) {}
+  locales.push('en-US','en-GB','en-AU');
+  let fallback = null;
+  for (const loc of locales) {
+    try {
+      const part = new Intl.DateTimeFormat(loc,{timeZone:tz,timeZoneName:'short'})
+        .formatToParts(date).find(p => p.type === 'timeZoneName');
+      const v = part && part.value;
+      if (!v) continue;
+      if (!fallback) fallback = v;
+      if (!/^(GMT|UTC)[+\-−]/.test(v)) return v;
+    } catch(e) {}
+  }
+  return fallback || tz;
+}
 
 // Load saved location
 (function(){
-  try {
-    const saved = JSON.parse(apexStorage.getSync('raduk_location_v1'));
-    if (saved && saved.lat && saved.lon) {
-      LAT=saved.lat; LON=saved.lon;
-      SITE_LABEL=saved.label||DEFAULT_LABEL;
-      SITE_ELEV=saved.elev||"";
-    }
-  } catch(e) {}
+  const saved = readSavedLocation();
+  if (!saved) return;
+  if (Number.isFinite(saved.lat) && Number.isFinite(saved.lon) && (saved.lat || saved.lon)) {
+    LAT=saved.lat; LON=saved.lon;
+    SITE_LABEL=saved.label||DEFAULT_LABEL;
+  }
+  SITE_ELEV = saved.elev || "";
+  if (isValidTimeZone(saved.tz)) TIMEZONE = saved.tz;
+  SITE_BORTLE = parseInt(saved.bortle,10) || 0;
+  SITE_SQM = saved.sqm || "";
+  SITE_SKY_NOTES = saved.skyNotes || "";
 })();
 const PIXEL_SIZE_UM=2.0;
 let isCapturing=false, captureFrames=0, captureStartTime=null, captureInterval=null;
@@ -1778,9 +1871,11 @@ function switchTab(tab) {
 // ============================================================
 function updateClock(){
   const n=new Date();
-  const mst=n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Phoenix',hour12:false});
-  const utc=n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'UTC',hour12:false});
-  document.getElementById('clockDisplay').textContent=`${mst} MST / ${utc} UTC`;
+  const local=n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:TIMEZONE,hourCycle:'h23'});
+  const utc=n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'UTC',hourCycle:'h23'});
+  const abbr=tzAbbr(n);
+  document.getElementById('clockDisplay').textContent=`${local} ${abbr} / ${utc} UTC`;
+  document.querySelectorAll('.tz-abbr').forEach(el=>{ if(el.textContent!==abbr) el.textContent=abbr; });
 }
 setInterval(updateClock,1000); updateClock();
 
@@ -1819,50 +1914,73 @@ function sunPosition(date,lat,lon){
   const dec=radToDeg(Math.asin(Math.sin(ep)*Math.sin(lambda)));
   return raDecToAltAz(((ra%360)+360)%360,dec,lat,lon,date);
 }
+// Sun event times for the local date of `date` in the site zone (TIMEZONE).
+// Searches in real UTC time, so DST and any UTC offset are handled; results are
+// expressed as local wall-clock minutes since local midnight of that date
+// (values >= 1440 are the following morning).
 function getSunTimes(date){
-  const tz='America/Phoenix';
-  // Get today's date string in Phoenix time
-  const dateStr=date.toLocaleDateString('en-CA',{timeZone:tz});
-  const [yr,mo,dy]=dateStr.split('-').map(Number);
-  // Work in UTC — Phoenix is UTC-7 year-round (no DST)
-  const utcOffset=7*60; // minutes
-  // Midnight Phoenix = 07:00 UTC
-  const baseUTC=Date.UTC(yr,mo-1,dy,7,0,0,0);
+  const p=tzParts(date);
+  const yr=p.year, mo=p.month, dy=p.day;
+  const midnight=zonedToUTC(yr,mo,dy,0,0).getTime();
+  const dayUTC=Date.UTC(yr,mo-1,dy);
+  const MIN=60000, HR=3600000;
+  const alt=ms=>sunPosition(new Date(ms),LAT,LON).alt;
+  const wallMin=ms=>{
+    const q=tzParts(new Date(ms));
+    const dd=Math.round((Date.UTC(q.year,q.month-1,q.day)-dayUTC)/86400000);
+    return dd*1440+q.hour*60+q.minute;
+  };
+  // First crossing of `thr` in direction dir (-1 falling, +1 rising) in [fromMs,toMs]:
+  // 5-minute coarse scan, then 1-minute refine.
+  function cross(fromMs,toMs,thr,dir){
+    if(fromMs==null)return null;
+    let prevT=fromMs, prev=alt(fromMs);
+    for(let t=fromMs+5*MIN;t<=toMs;t+=5*MIN){
+      const a=alt(t);
+      if(dir<0?(prev>=thr&&a<thr):(prev<=thr&&a>thr)){
+        for(let u=prevT+MIN;u<=t;u+=MIN){
+          const b=alt(u);
+          if(dir<0?b<thr:b>thr)return u;
+        }
+        return t;
+      }
+      prevT=t; prev=a;
+    }
+    return null;
+  }
+  // Lowest sun of the night (used when it never reaches -18 deg)
+  function lowest(fromMs,toMs){
+    let best=fromMs, bestA=Infinity;
+    for(let t=fromMs;t<=toMs;t+=5*MIN){const a=alt(t);if(a<bestA){bestA=a;best=t;}}
+    return best;
+  }
+  // Sunrise/sunset: upper limb on the horizon with standard refraction (-0.833 deg)
+  const HORIZON=-0.833;
+  const sunriseMs  =cross(midnight,         midnight+14*HR, HORIZON, +1);
+  const sunsetMs   =cross(midnight+10*HR,   midnight+30*HR, HORIZON, -1);
+  const eveFrom    =sunsetMs ?? (midnight+12*HR);
+  const astroEndMs =cross(eveFrom,          midnight+36*HR, -18,-1);
+  const astroStartMs=astroEndMs!=null ? cross(astroEndMs, astroEndMs+20*HR, -18, +1) : null;
 
-  let sunset=null,astroEnd=null,astroStart=null,sunrise=null;
-  // Search for sunrise (05:00-10:00 Phoenix)
-  for(let m=5*60;m<10*60;m++){
-    const utc=new Date(baseUTC+(m-utcOffset)*60000);
-    const pos=sunPosition(utc,LAT,LON);
-    if(sunrise==null&&pos.alt>0){sunrise=m;break;}
+  const sunrise   =sunriseMs!=null?wallMin(sunriseMs):null;
+  const sunset    =sunsetMs!=null?wallMin(sunsetMs):null;
+  let astroEnd    =astroEndMs!=null?wallMin(astroEndMs):null;
+  let astroStart  =astroStartMs!=null?wallMin(astroStartMs):null;
+  const noAstroDark = astroEnd==null;
+  if(noAstroDark && sunset!=null){
+    // Twilight all night: collapse the dark band to the sun's lowest point
+    astroEnd=astroStart=wallMin(lowest(eveFrom, eveFrom+16*HR));
   }
-  // Search for sunset (17:00-22:00 Phoenix = 00:00-05:00 UTC next day)
-  for(let m=17*60;m<22*60;m++){
-    const utc=new Date(baseUTC+(m-utcOffset)*60000);
-    const pos=sunPosition(utc,LAT,LON);
-    if(sunset==null&&pos.alt<0){sunset=m;break;}
-  }
-  // Search for astro twilight end (sun < -18°), evening
-  for(let m=(sunset||18*60);m<24*60;m++){
-    const utc=new Date(baseUTC+(m-utcOffset)*60000);
-    const pos=sunPosition(utc,LAT,LON);
-    if(astroEnd==null&&pos.alt<-18){astroEnd=m;break;}
-  }
-  // Search for astro twilight start (sun > -18°), morning next day
-  for(let m=24*60+2*60;m<24*60+7*60;m++){
-    const utc=new Date(baseUTC+(m-utcOffset)*60000);
-    const pos=sunPosition(utc,LAT,LON);
-    if(astroStart==null&&pos.alt>-18){astroStart=m;break;}
-  }
-  const fmt=m=>`${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+  const fmt=m=>m==null?'--:--':`${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
   return{
-    sunrise:fmt(sunrise||6*60),
-    sunset:fmt(sunset||18*60+30),
-    astroEnd:fmt(astroEnd||20*60),
-    astroStart:fmt(astroStart||28*60+30), // stored as 28:30 = 04:30 next day
-    _sunsetMin: sunset||18*60+30,
-    _astroEndMin: astroEnd||20*60,
-    _astroStartMin: astroStart||28*60+30
+    sunrise:fmt(sunrise),
+    sunset:fmt(sunset),
+    astroEnd:noAstroDark?'NONE':fmt(astroEnd),
+    astroStart:noAstroDark?'NONE':fmt(astroStart),
+    noAstroDark,
+    _sunsetMin: sunset ?? 18*60+30,
+    _astroEndMin: astroEnd ?? 20*60,
+    _astroStartMin: astroStart ?? 28*60+30
   };
 }
 
@@ -1915,7 +2033,7 @@ function getTargetsByAltitude(date){
 function logSession(msg, type='info') {
   const el = document.getElementById('sessionLog');
   if (!el) return;
-  const ts = new Date().toLocaleTimeString('en-US',{timeZone:'America/Phoenix',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const ts = new Date().toLocaleTimeString('en-US',{timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
   const div = document.createElement('div');
   div.className = 'log-line ' + type;
   div.textContent = '[' + ts + '] ' + msg;
@@ -2526,7 +2644,7 @@ function rcToggleCapture() {
 // ── Session log ─────────────────────────────────────────────
 function rcLogSession(msg, type='info') {
   const el = document.getElementById('rcSessionLog'); if (!el) return;
-  const ts = new Date().toLocaleTimeString('en-US',{timeZone:'America/Phoenix',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const ts = new Date().toLocaleTimeString('en-US',{timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
   const div = document.createElement('div');
   div.className = `log-line ${type}`;
   div.textContent = `[${ts}] ${msg}`;
@@ -2641,7 +2759,7 @@ function drawSkyMap(targets,planets){
   // Zenith
   ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.strokeStyle='rgba(0,229,255,.5)';ctx.lineWidth=1;ctx.stroke();
   ctx.save();ctx.globalCompositeOperation='destination-in';ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fill();ctx.restore();
-  document.getElementById('skyTime').textContent=`SKY POSITIONS FOR ${new Date().toLocaleString('en-US',{timeZone:'America/Phoenix',hour:'2-digit',minute:'2-digit',month:'short',day:'numeric'})} MST`;
+  document.getElementById('skyTime').textContent=`SKY POSITIONS FOR ${new Date().toLocaleString('en-US',{timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit',month:'short',day:'numeric'})} ${tzAbbr()}`;
 }
 
 function drawWindCompass(direction,speed){
@@ -2685,6 +2803,27 @@ function renderTargets(targets){
   });
 }
 
+const BORTLE_INFO={
+  1:['Excellent dark site','Zodiacal band, gegenschein visible'],
+  2:['Typical dark site','Airglow visible · M33 naked-eye'],
+  3:['Rural sky','Some glow near horizon · Milky Way structured'],
+  4:['Rural/suburban transition','Milky Way visible · Zodiacal light'],
+  5:['Suburban sky','Milky Way washed out near horizon'],
+  6:['Bright suburban sky','Milky Way only near zenith'],
+  7:['Suburban/urban transition','Milky Way invisible'],
+  8:['City sky','Only bright constellations'],
+  9:['Inner-city sky','Few stars visible'],
+};
+function renderLightPollution(){
+  const b=SITE_BORTLE>=1&&SITE_BORTLE<=9?SITE_BORTLE:0;
+  const set=(id,txt)=>{const el=document.getElementById(id);if(el)el.textContent=txt;};
+  set('lpBortleNum', b?String(b):'—');
+  set('lpBortleTitle', b?BORTLE_INFO[b][0]:'Bortle class not set');
+  set('lpBortleSub', b?BORTLE_INFO[b][1]:'Set it in the location panel');
+  set('lpSqm', SITE_SQM?('SQM: '+SITE_SQM+' mag/arcsec²'):'');
+  set('lpNotes', SITE_SKY_NOTES||'');
+  renderBortle(b);
+}
 function renderBortle(level){
   const el=document.getElementById('bortleScale');el.innerHTML='';
   for(let i=1;i<=9;i++){const pip=document.createElement('div');pip.className=`bortle-pip${i<=level?` active-${i}`:''}`;el.appendChild(pip);}
@@ -2704,16 +2843,16 @@ function renderHourly(weatherData){
   if(!el)return;
   el.innerHTML='';
   const now=new Date();
-  const tz='America/Phoenix';
+  const tz=TIMEZONE;
   const tsEl=document.getElementById('hourlyBannerTime');
   if(tsEl)tsEl.textContent='FROM '+now.toLocaleTimeString('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit'})+' LOCAL';
   const tsEl2=document.getElementById('hourlyBannerTime2');
   if(tsEl2)tsEl2.textContent='FROM '+now.toLocaleTimeString('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit'})+' LOCAL';
 
   // Build LOCAL-hour-keyed score map from fcastDays.hourlyScores
-  // Open-Meteo uses timezone=America/Phoenix so hourlyScores[i] is indexed by LOCAL hour
-  const scoreMap = {};   // key: "YYYY-MM-DDTHH" LOCAL Phoenix -> imaging score 0-100
-  const cloudMap = {};   // key: "YYYY-MM-DDTHH" LOCAL Phoenix -> cloud % (for tooltip)
+  // Open-Meteo is requested with timezone=TIMEZONE so hourlyScores[i] is indexed by LOCAL site hour
+  const scoreMap = {};   // key: "YYYY-MM-DDTHH" local site time -> imaging score 0-100
+  const cloudMap = {};   // key: "YYYY-MM-DDTHH" local site time -> cloud % (for tooltip)
   if(window.fcastDays && fcastDays.length) {
     fcastDays.forEach(day => {
       day.hourlyScores.forEach((score, localHr) => {
@@ -2731,7 +2870,7 @@ function renderHourly(weatherData){
   // Fallback: compute score from live Open-Meteo hourly if fcastDays not loaded
   function getLiveScore(h) {
     if(!weatherData?.hourly?.time) return null;
-    const idx = weatherData.hourly.time.findIndex(t => Math.abs(new Date(t).getTime()-h.getTime()) < 1800000);
+    const idx = weatherData.hourly.time.findIndex(t => Math.abs(omLocalToDate(t).getTime()-h.getTime()) < 1800000);
     if(idx < 0) return null;
     const cloud = weatherData.hourly.cloud_cover?.[idx] ?? 20;
     const hum   = weatherData.hourly.relative_humidity_2m?.[idx] ?? 40;
@@ -2743,7 +2882,7 @@ function renderHourly(weatherData){
 
   for(let i=0;i<48;i++){
     const h = new Date(now.getTime() + i*3600000);
-    // Local Phoenix date+hour for scoreMap lookup
+    // Local site date+hour for scoreMap lookup
     const localDate = h.toLocaleDateString('en-CA', {timeZone:tz});   // "YYYY-MM-DD"
     // Use hour12:true then convert to avoid browser bug where hour12:false returns "24" at midnight
     const localHrRaw = h.toLocaleTimeString('en-US', {timeZone:tz, hour:'numeric', hour12:false});
@@ -2798,7 +2937,9 @@ function updateSunTimes(){
   document.getElementById('wc-sunset').textContent=t.sunset;
   document.getElementById('wc-dark').textContent=t.astroEnd;
   if(document.getElementById('moonRise'))
-    document.getElementById('moonRise').textContent=`Astro dark: ${t.astroEnd} – ${t.astroStart}`;
+    document.getElementById('moonRise').textContent=t.noAstroDark
+      ? 'Astro dark: none tonight (twilight all night)'
+      : `Astro dark: ${t.astroEnd} – ${t.astroStart} ${tzAbbr()}`;
   // Populate location badge sun row
   const sunRow = document.getElementById('locationBadgeSun');
   const srEl   = document.getElementById('lbSunrise');
@@ -2812,14 +2953,16 @@ function updateSunTimes(){
 }
 
 function renderTwilightCloud(t){
-  const tz='America/Phoenix';
+  const tz=TIMEZONE;
   const now=new Date();
 
-  // Window: 6 PM today → 6 AM tomorrow (Phoenix time) = 12 hours = 720 min
-  // Use raw minute values from getSunTimes (all in minutes since midnight Phoenix)
+  // Window starts at the local hour of sunset (clamped 15:00–20:00) and runs
+  // 12–16 h so it covers dusk through dawn twilight at any latitude/season.
+  // Minute values from getSunTimes are local wall-clock minutes since local midnight;
   // astroStartMin may be > 24*60 (e.g. 28*60+30 = 4:30 AM next day)
-  const totalMin=720;
-  const windowStartHour=18; // 6 PM
+  const windowStartHour=Math.max(15,Math.min(20,Math.floor((t._sunsetMin||18*60+30)/60)));
+  const nHours=Math.max(12,Math.min(16,Math.ceil(((t._astroStartMin||28*60+30)+60)/60)-windowStartHour));
+  const totalMin=nHours*60;
 
   // Convert absolute minutes-since-midnight to window offset (relative to 6 PM = 18*60)
   function toWin(absMin){ return absMin - windowStartHour*60; }
@@ -2861,10 +3004,9 @@ function renderTwilightCloud(t){
   if(!cloudRow||!labelsEl)return;
   cloudRow.innerHTML=''; labelsEl.innerHTML='';
 
-  // Phoenix midnight in UTC for today
-  const dateStr=now.toLocaleDateString('en-CA',{timeZone:tz});
-  const [yr,mo,dy]=dateStr.split('-').map(Number);
-  const phoenixMidnightUTC=new Date(Date.UTC(yr,mo-1,dy,7,0,0,0)); // UTC-7
+  // Local calendar date in the site zone (cell times built with zonedToUTC, DST-aware)
+  const np=tzParts(now,tz);
+  const yr=np.year, mo=np.month, dy=np.day;
 
   function getCloud(dt){
     if(window.fcastDays&&fcastDays.length){
@@ -2876,23 +3018,21 @@ function renderTwilightCloud(t){
     }
     if(window.lastWeatherData?.hourly?.time){
       const wd=window.lastWeatherData;
-      const idx=wd.hourly.time.findIndex(t2=>Math.abs(new Date(t2).getTime()-dt.getTime())<1800000);
+      const idx=wd.hourly.time.findIndex(t2=>Math.abs(omLocalToDate(t2).getTime()-dt.getTime())<1800000);
       if(idx>=0)return wd.hourly.cloud_cover[idx]??20;
     }
     return 15;
   }
 
-  for(let i=0;i<12;i++){
-    // Hour i: Phoenix hour = 18+i (wraps after 23 → 0,1,2,3,4,5)
-    const phoenixHour=(18+i)%24;
-    const dayOffset=i>=6?1:0; // hours 0–5 AM are next day
-    const cellUTC=new Date(phoenixMidnightUTC.getTime()+(dayOffset*24*60+phoenixHour*60)*60000);
+  for(let i=0;i<nHours;i++){
+    // Hour i: local wall-clock hour windowStartHour+i (overflow rolls into next day)
+    const cellUTC=zonedToUTC(yr,mo,dy,windowStartHour+i,0,tz);
     const cloud=Math.round(getCloud(cellUTC));
 
     // Window offset in minutes for this cell
     const winMin=i*60;
     const isAstroDark=(winMin>=astroEndMin&&winMin<astroStartMin);
-    const isDark=(phoenixHour>=20||phoenixHour<6);
+    const isDark=(winMin>=sunsetMin+36&&winMin<astroStartMin+36);
     const isNow=Math.abs(cellUTC.getTime()-now.getTime())<1800000;
 
     const barH=Math.max(3,Math.round(cloud/100*24));
@@ -2989,7 +3129,7 @@ function updateScore(score){
 }
 
 function updateScoreBadge() {
-  const tz = 'America/Phoenix';
+  const tz = TIMEZONE;
   const now = new Date();
   const localHrRaw = now.toLocaleTimeString('en-US', {timeZone:tz, hour:'numeric', hour12:false});
   const localHr = parseInt(localHrRaw) % 24;
@@ -3152,10 +3292,10 @@ async function refreshAll(){
   const targets=getTargetsByAltitude(now);
   renderPlanets(planets);renderTargets(targets);drawSkyMap(targets,planets);
   await fetchWeather();
-  updateMoon();updateSunTimes();renderBortle(4);renderSeeingBars();renderNASAEvents();renderFAANotices();
+  updateMoon();updateSunTimes();renderLightPollution();renderSeeingBars();renderNASAEvents();renderFAANotices();
   setTimeout(()=>{ try{ refreshSkyUI(); }catch(e){} }, 3500);
   document.getElementById('val-aqi').textContent='AQI 42';document.getElementById('val-trans').textContent='8.2/10';document.getElementById('val-see').textContent='2.8″';
-  document.getElementById('lastUpdate').textContent=now.toLocaleTimeString('en-US',{timeZone:'America/Phoenix',hour:'2-digit',minute:'2-digit'});
+  document.getElementById('lastUpdate').textContent=now.toLocaleTimeString('en-US',{timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit'});
 }
 
 // Live sky update every 60s
@@ -3723,7 +3863,7 @@ async function loadForecast() {
   const coLink  = document.getElementById('coLink');
   const cdsLink = document.getElementById('cdsLink');
   if (coLink)  coLink.href  = `https://clearoutside.com/forecast/${LAT.toFixed(2)}/${LON.toFixed(2)}`;
-  if (cdsLink) cdsLink.href = 'https://www.cleardarksky.com/c/AntmAZkey.html?1';
+  if (cdsLink) cdsLink.href = 'https://www.cleardarksky.com/csk/';
 
   Object.keys(FCAST_SOURCES).forEach(k => { FCAST_SOURCES[k].loaded=false; FCAST_SOURCES[k].error=null; FCAST_SOURCES[k].retries=0; });
   fcastRaw = { openmeteo:null, timer7:null, gfs:null };
@@ -3923,7 +4063,7 @@ function processForecastData() {
   }
 
   // Parse 7Timer into date map (3-hourly)
-  // 7Timer returns UTC times — convert to Phoenix local (UTC-7, no DST)
+  // 7Timer returns UTC times — convert to local site time (TIMEZONE, DST-aware)
   const t7ByDate = {};
   if (fcastRaw.timer7 && fcastRaw.timer7.dataseries) {
     const initStr = fcastRaw.timer7.init; // "YYYYMMDDhh" UTC
@@ -3933,11 +4073,9 @@ function processForecastData() {
     ));
     fcastRaw.timer7.dataseries.forEach(pt => {
       const utcMs = initDate.getTime() + pt.timepoint * 3600000;
-      // Convert to Phoenix local (UTC-7, Arizona has no DST)
-      const phxMs = utcMs - 7 * 3600000;
-      const phxDate = new Date(phxMs);
-      const date = phxDate.toISOString().slice(0,10); // local date as YYYY-MM-DD
-      const hour = phxDate.getUTCHours();             // local hour 0-23
+      const lp = tzParts(new Date(utcMs));
+      const date = `${lp.year}-${String(lp.month).padStart(2,'0')}-${String(lp.day).padStart(2,'0')}`;
+      const hour = lp.hour;                           // local hour 0-23
       if (!t7ByDate[date]) t7ByDate[date] = [];
       t7ByDate[date].push({
         hour, cloud: t7CloudPct(pt.cloudcover),
@@ -4030,8 +4168,8 @@ function processForecastData() {
 
     fcastDays.push({
       date, di,
-      dayOfWeek: new Date(date+'T20:00:00Z').toLocaleDateString('en-US',{weekday:'short',timeZone:'America/Phoenix'}).toUpperCase(),
-      dateShort: new Date(date+'T20:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'America/Phoenix'}),
+      dayOfWeek: new Date(date+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'short',timeZone:'UTC'}).toUpperCase(),
+      dateShort: new Date(date+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}),
       hours:omHrs, hourlyScores, nightScore,
       avgCloud: Math.round(omNightCloud), avgWind: omNightWind, avgHum: omNightHum,
       avgGust: omNightGust ? Math.round(omNightGust) : null,
@@ -4157,7 +4295,7 @@ function selectForecastDay(idx) {
   document.getElementById('fcastDetailLoading').style.display = 'none';
   document.getElementById('fcastDetailContent').style.display = 'block';
 
-  const dt = new Date(d.date+'T20:00:00Z').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:'America/Phoenix'});
+  const dt = new Date(d.date+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:'UTC'});
   const sr = d.sunrise ? d.sunrise.slice(11,16) : '—';
   const ss = d.sunset  ? d.sunset.slice(11,16)  : '—';
   document.getElementById('fcastDetailTitle').textContent =
@@ -4239,7 +4377,7 @@ function renderSourceCompare(d) {
 function renderHourlyBars(d) {
   const el = document.getElementById('fcastHourlyBars');
   el.innerHTML = '';
-  // hourlyScores is indexed by LOCAL Phoenix hour (Open-Meteo uses timezone=America/Phoenix)
+  // hourlyScores is indexed by LOCAL site hour (Open-Meteo is requested with timezone=TIMEZONE)
   d.hourlyScores.forEach((s, hr) => {
     const isNight = hr >= 20 || hr < 4;
     const cb = s>=75?'rgba(77,255,145,':s>=55?'rgba(0,229,255,':s>=35?'rgba(255,170,0,':'rgba(255,80,80,';
@@ -4269,7 +4407,7 @@ function renderFcastCloudChart(d) {
     ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='17px Space Mono,monospace';ctx.fillText(v+'%',12,y-2);
   });
   const night=[[20,24],[0,5]];  // local night hours (kept for reference)
-  // Night shading: local night hours 20-23 and 0-4 (data is in local Phoenix time)
+  // Night shading: local night hours 20-23 and 0-4 (data is in local site time)
   ctx.fillStyle='rgba(0,0,80,.20)';
   ctx.fillRect(20/23*(W-20)+10, 0, (23-20)/23*(W-20), H);
   ctx.fillRect(0/23*(W-20)+10,  0, 4/23*(W-20),       H);
@@ -4466,7 +4604,7 @@ function updateLocationBadge() {
 
 function openLocationModal() {
   // Mark current active option
-  const saved = (() => { try { return JSON.parse(apexStorage.getSync(LOC_KEY)); } catch(e){return null;} })();
+  const saved = readSavedLocation();
   const curType = saved ? (saved.type || 'default') : 'default';
   selectLocOption(curType, false);
   // Pre-fill manual fields with current values
@@ -4474,6 +4612,19 @@ function openLocationModal() {
   document.getElementById('locManualLon').value = LON;
   document.getElementById('locManualLabel').value = SITE_LABEL !== 'LOADING...' ? SITE_LABEL : '';
   locUpdateManualPreview();
+  // Site details
+  const tzEl = document.getElementById('locTimeZone');
+  tzEl.value = (saved && isValidTimeZone(saved.tz)) ? saved.tz : '';
+  tzEl.placeholder = browserTimeZone() + ' (browser default)';
+  const tzList = document.getElementById('locTzList');
+  if (tzList && !tzList.childElementCount && Intl.supportedValuesOf) {
+    try { Intl.supportedValuesOf('timeZone').forEach(z => { const o=document.createElement('option'); o.value=z; tzList.appendChild(o); }); } catch(e) {}
+  }
+  document.getElementById('locElev').value = SITE_ELEV || '';
+  document.getElementById('locBortle').value = SITE_BORTLE ? String(SITE_BORTLE) : '';
+  document.getElementById('locSqm').value = SITE_SQM || '';
+  document.getElementById('locSkyNotes').value = SITE_SKY_NOTES || '';
+  locSetStatus('locSiteStatus','','');
   document.getElementById('locModal').classList.add('show');
 }
 
@@ -4586,17 +4737,14 @@ function saveLocation() {
   if (locSelectedOption === 'default') {
     newLat = DEFAULT_LAT; newLon = DEFAULT_LON;
     newLabel = DEFAULT_LABEL; newType = 'default';
-    SITE_ELEV = '1,732 FT';
 
   } else if (locSelectedOption === 'detect') {
     if (!locPendingLat) { locSetStatus('locDetectStatus','⚠ First click REQUEST LOCATION and wait for acquisition','err'); return; }
     newLat=locPendingLat; newLon=locPendingLon; newLabel=locPendingLabel||'DETECTED SITE'; newType='detect';
-    SITE_ELEV = '';
 
   } else if (locSelectedOption === 'address') {
     if (!locPendingLat) { locSetStatus('locAddressStatus','⚠ First click LOOK UP COORDINATES','err'); return; }
     newLat=locPendingLat; newLon=locPendingLon; newLabel=locPendingLabel||'CUSTOM SITE'; newType='address';
-    SITE_ELEV = '';
 
   } else if (locSelectedOption === 'manual') {
     newLat = parseFloat(document.getElementById('locManualLat').value);
@@ -4606,21 +4754,39 @@ function saveLocation() {
     if (newLon<-180||newLon>180) { locSetStatus('locManualStatus','⚠ Longitude must be between -180 and +180','err'); return; }
     const lbl = document.getElementById('locManualLabel').value.trim();
     newLabel = lbl ? lbl.toUpperCase() : 'CUSTOM COORDINATES'; newType='manual';
-    SITE_ELEV = '';
   }
+
+  // Site details (apply to whichever option is selected)
+  const tzIn = (document.getElementById('locTimeZone').value || '').trim();
+  if (tzIn && !isValidTimeZone(tzIn)) {
+    locSetStatus('locSiteStatus','⚠ Unknown time zone — use an IANA name such as Europe/London or America/New_York','err');
+    return;
+  }
+  locSetStatus('locSiteStatus','','');
+  const newTz = tzIn || '';                      // blank = follow the browser's zone
+  const newElev = document.getElementById('locElev').value.trim();
+  const newBortle = parseInt(document.getElementById('locBortle').value,10) || 0;
+  const newSqm = document.getElementById('locSqm').value.trim();
+  const newNotes = document.getElementById('locSkyNotes').value.trim();
 
   // Apply globally
   LAT = newLat; LON = newLon; SITE_LABEL = newLabel;
+  SITE_ELEV = newElev; SITE_BORTLE = newBortle; SITE_SQM = newSqm; SITE_SKY_NOTES = newNotes;
+  TIMEZONE = newTz || browserTimeZone();
 
   // Persist
-  apexStorage.setSync(LOC_KEY, {lat:newLat, lon:newLon, label:newLabel, elev:SITE_ELEV, type:newType});
+  apexStorage.setSync(LOC_KEY, {lat:newLat, lon:newLon, label:newLabel, elev:SITE_ELEV, type:newType,
+    tz:newTz, bortle:newBortle, sqm:newSqm, skyNotes:newNotes});
 
   // Update UI
   updateLocationBadge();
+  renderLightPollution();
+  updateClock();
   closeLocationModal();
 
-  // Refresh all astronomy & weather with new coordinates
+  // Refresh all astronomy & weather with new coordinates / time zone
   refreshAll();
+  if (typeof fcastLoaded !== 'undefined' && fcastLoaded) loadForecast();
 }
 
 
@@ -4655,7 +4821,7 @@ function histAutoLog(weather) {
   const entry = {
     id: Date.now(),
     date: today,
-    time: new Date().toLocaleTimeString('en-US',{timeZone:'America/Phoenix',hour:'2-digit',minute:'2-digit'}),
+    time: new Date().toLocaleTimeString('en-US',{timeZone:TIMEZONE,hour:'2-digit',minute:'2-digit'}),
     score: Math.round(score),
     cloud: Math.round(weather.cloud),
     humidity: Math.round(weather.hum),
@@ -4682,9 +4848,9 @@ const HIST_PAGE_SIZE = 30;
 // ---- Modal ----
 function openLogModal() {
   const now = new Date();
-  const tz = 'America/Phoenix';
+  const tz = TIMEZONE;
   document.getElementById('ml-date').value = now.toLocaleDateString('en-CA',{timeZone:tz});
-  document.getElementById('ml-time').value = now.toLocaleTimeString('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false});
+  document.getElementById('ml-time').value = now.toLocaleTimeString('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
   // Auto-fill from live dashboard values
   const cloudEl = document.getElementById('val-cloud');
   const humEl = document.getElementById('val-hum');
@@ -5163,7 +5329,7 @@ function skySave(arr) {
 // Auto-capture every page load, once per calendar day — richer data than histAutoLog
 function skyAutoCapture(weather) {
   if (!weather) return;
-  const tz = 'America/Phoenix';
+  const tz = TIMEZONE;
   const today = new Date().toLocaleDateString('en-CA', {timeZone: tz});
   const arr = skyLoad();
   const existing = arr.find(e => e.date === today);
@@ -5645,6 +5811,45 @@ function skyClearAll() {
         <div class="loc-coords-preview" id="locManualPreview"></div>
         <div class="loc-status" id="locManualStatus"></div>
       </div>
+    </div>
+
+    <!-- Site details: apply to whichever location option is chosen -->
+    <div class="loc-option" style="cursor:default">
+      <div class="loc-option-title">⚙ SITE DETAILS</div>
+      <div class="loc-option-desc">Time zone, elevation and sky quality for this site</div>
+      <div class="loc-field-row" style="margin-top:10px">
+        <div class="loc-field">
+          <label>TIME ZONE (IANA, blank = browser)</label>
+          <input type="text" id="locTimeZone" list="locTzList" autocomplete="off" spellcheck="false">
+          <datalist id="locTzList"></datalist>
+        </div>
+        <div class="loc-field">
+          <label>ELEVATION (optional)</label>
+          <input type="text" id="locElev" placeholder="e.g. 450 M">
+        </div>
+      </div>
+      <div class="loc-field-row">
+        <div class="loc-field">
+          <label>BORTLE CLASS</label>
+          <select id="locBortle" class="loc-select">
+            <option value="">Not set</option>
+            <option value="1">1 · Excellent dark</option><option value="2">2 · Typical dark</option>
+            <option value="3">3 · Rural</option><option value="4">4 · Rural/suburban</option>
+            <option value="5">5 · Suburban</option><option value="6">6 · Bright suburban</option>
+            <option value="7">7 · Suburban/urban</option><option value="8">8 · City</option>
+            <option value="9">9 · Inner city</option>
+          </select>
+        </div>
+        <div class="loc-field">
+          <label>SQM (mag/arcsec², optional)</label>
+          <input type="text" id="locSqm" placeholder="e.g. 21.2">
+        </div>
+      </div>
+      <div class="loc-field">
+        <label>SKY NOTES (light domes, best directions…)</label>
+        <textarea id="locSkyNotes" class="loc-textarea" rows="3" placeholder="e.g. City glow low in the east · North and west clear"></textarea>
+      </div>
+      <div class="loc-status" id="locSiteStatus"></div>
     </div>
 
     <div class="loc-modal-actions">

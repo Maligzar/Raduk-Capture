@@ -4872,6 +4872,36 @@ static int RunApp(bool useEmulator) {
     skyMap2.SetFollowCallback(followNeo);
     auto lastNeoTick = std::chrono::steady_clock::now() - std::chrono::seconds(60);
     int lastNeoShown = -1;
+
+    // ── Phase 130: satellites and rocket bodies on both maps ───
+    // The same elements the pass list uses (satellites.tle, CelesTrak's
+    // visual group, which the GoTo panel refreshes). Read again whenever
+    // the file is rewritten, positioned every second.
+    struct MapSat { raduk::sky::Sgp4 sgp; std::string name; bool rocket = false; };
+    std::vector<MapSat> mapSats;
+    double mapSatsAge = -1.0;
+    auto lastSatTick = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+    int lastSatUp = -1;
+    auto lastSatLog = lastSatTick;
+    auto loadMapSats = [&]() {
+        const std::string path = raduk::core::SatDesk::ElementsPath();
+        const double age = raduk::core::SatDesk::FileAgeHours(path);
+        if (age > 1.0e8) return;                            // no file yet
+        if (mapSatsAge >= 0.0 && age >= mapSatsAge) { mapSatsAge = age; return; }
+        mapSatsAge = age;
+        std::ifstream f(path, std::ios::binary);
+        std::stringstream ss; ss << f.rdbuf();
+        mapSats.clear();
+        for (const auto& t : raduk::sky::ParseTleText(ss.str())) {
+            MapSat m;
+            if (!m.sgp.Init(t)) continue;
+            m.name = t.name;
+            while (!m.name.empty() && (m.name.back() == ' ' || m.name.back() == '\r')) m.name.pop_back();
+            m.rocket = m.name.find("R/B") != std::string::npos;
+            mapSats.push_back(std::move(m));
+        }
+        Log("[SATMAP] %d satellites and rocket bodies from %s\n", (int)mapSats.size(), path.c_str());
+    };
     // Shift+M. The second map, for the control screen, so the first
     // can stay where people can see it.
     window.SetSkyMap2ToggleHandler([&]() {
@@ -5844,8 +5874,44 @@ static int RunApp(bool useEmulator) {
                 Log("[NEO] %d on the map (of %d with tables), brighter than mag %.1f\n",
                     lastNeoShown, neoDesk.Fetched(), RigConfig::Get().neoMagLimit);
             }
+            skyMap.SetNeoSummary(neoDesk.Fetched(), (float)RigConfig::Get().neoMagLimit);
+            skyMap2.SetNeoSummary(neoDesk.Fetched(), (float)RigConfig::Get().neoMagLimit);
             skyMap.SetNeos(marks);
             skyMap2.SetNeos(marks);
+        }
+        // Phase 130: satellites every second, only while a map is open.
+        if ((skyMap.IsVisible() || skyMap2.IsVisible())
+            && std::chrono::steady_clock::now() - lastSatTick > std::chrono::seconds(1)) {
+            lastSatTick = std::chrono::steady_clock::now();
+            loadMapSats();
+            const double jd = raduk::sky::PreciseJdNow();
+            const auto site = raduk::gui::GoToPanel::SiteObserver();
+            std::vector<raduk::gui::SkyMapWindow::SatMark> sats;
+            int lit = 0;
+            for (const auto& s : mapSats) {
+                const auto l = raduk::sky::SatLookAt(s.sgp, jd, site);
+                if (!l.ok || l.altDeg < 0.0) continue;
+                const auto n = raduk::sky::SatLookAt(s.sgp, jd + 30.0 / 86400.0, site);
+                raduk::gui::SkyMapWindow::SatMark m;
+                m.name = s.name; m.rocket = s.rocket;
+                m.ra = l.raHours; m.dec = l.decDeg;
+                m.raNext = n.ok ? n.raHours : l.raHours;
+                m.decNext = n.ok ? n.decDeg : l.decDeg;
+                m.rangeKm = (float)l.rangeKm;
+                // Seen only when lit with the observer's sky dark enough.
+                m.sunlit = l.sunlit && l.sunAltDeg < raduk::sky::SAT_DARK_SUN_ALT_DEG;
+                if (m.sunlit) ++lit;
+                sats.push_back(m);
+            }
+            // The count changes every few seconds; say it once a minute.
+            if ((int)sats.size() != lastSatUp
+                && (lastSatUp < 0 || lastSatTick - lastSatLog > std::chrono::seconds(60))) {
+                lastSatUp = (int)sats.size();
+                lastSatLog = lastSatTick;
+                Log("[SATMAP] %d up, %d sunlit against a dark sky\n", lastSatUp, lit);
+            }
+            skyMap.SetSats(sats);
+            skyMap2.SetSats(sats);
         }
         // ── SAFETY: Feed mount watchdog every frame ────────────
         // Virtual on IMount: NexStarMount feeds its watchdog, the ASCOM and

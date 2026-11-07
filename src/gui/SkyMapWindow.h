@@ -91,6 +91,28 @@ public:
         if (m_hwnd) { BuildObjectList(); Redraw(); }
     }
     int NeoCount() const { return (int)m_neos.size(); }
+    // How many came back and the limit that hid the rest, for the count
+    // line: without it a map with one NEO looks broken, not filtered.
+    void SetNeoSummary(int fetched, float magLimit) {
+        m_neoFetched = fetched; m_neoMagLimit = magLimit;
+    }
+
+    // ── Phase 130: satellites and rocket bodies ────────────────
+    // The bright ones in satellites.tle (CelesTrak's visual group), where
+    // each is now and 30 s on. Topocentric RA/Dec, so the map places them
+    // like everything else. Lit ones are what an eye or camera sees; the
+    // rest are in Earth's shadow and drawn dim. Set every second by main.
+    struct SatMark {
+        std::string name;
+        double ra = 0, dec = 0, raNext = 0, decNext = 0;
+        float  rangeKm = 0;
+        bool   sunlit = false, rocket = false;
+    };
+    void SetSats(std::vector<SatMark> sats) {
+        m_sats = std::move(sats);
+        if (m_hwnd) { BuildObjectList(); Redraw(); }
+    }
+    int SatCount() const { return (int)m_sats.size(); }
     // Clicking an NEO follows it through Horizons rather than slewing to
     // where it was: they move too fast for a fixed GoTo.
     void SetFollowCallback(std::function<void(const std::string& target,
@@ -408,6 +430,9 @@ private:
         float        pxNext = 0, pyNext = 0;
         float        rate = 0;
         double       distAu = 0;
+        // Phase 130, satellites only (type "SAT").
+        bool         lit = false, rocket = false;
+        float        rangeKm = 0;
     };
 
     void BuildObjectList() {
@@ -454,6 +479,25 @@ private:
             mo.altDeg  = (float)alt;
             mo.azDeg   = (float)az;
             mo.visible = alt > -1.0;
+            AltAzToXY(alt, az, mo.px, mo.py);
+            AltAzToXY(altN, azN, mo.pxNext, mo.pyNext);
+            m_objects.push_back(mo);
+        }
+
+        // Phase 130: satellites above the horizon.
+        for (const auto& s : m_sats) {
+            double alt, az, altN, azN;
+            RADecToAltAz(s.ra, s.dec, lst, OBS_LAT, alt, az);
+            if (alt < 0.0) continue;
+            RADecToAltAz(s.raNext, s.decNext, lst, OBS_LAT, altN, azN);
+            MapObject mo;
+            mo.name = s.name;
+            mo.type = "SAT";
+            mo.mag  = 99;
+            mo.ra = s.ra; mo.dec = s.dec;
+            mo.altDeg = (float)alt; mo.azDeg = (float)az;
+            mo.visible = true;
+            mo.lit = s.sunlit; mo.rocket = s.rocket; mo.rangeKm = s.rangeKm;
             AltAzToXY(alt, az, mo.px, mo.py);
             AltAzToXY(altN, azN, mo.pxNext, mo.pyNext);
             m_objects.push_back(mo);
@@ -751,6 +795,33 @@ private:
             if (neoFade) neoFade->Release();
         }
 
+        // ── Phase 130: satellites and rocket bodies ───────────
+        // A dot for a satellite, a small square for a rocket body, and a
+        // line to where it will be in 30 s. Sunlit ones are bright and
+        // named; those in Earth's shadow are dim and unnamed, because
+        // they cannot be seen and would only crowd the map.
+        {
+            ID2D1SolidColorBrush *litBr = nullptr, *darkBr = nullptr;
+            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.55f, 0.90f, 1.0f, 0.95f)), &litBr);
+            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.45f, 0.55f, 0.65f, 0.40f)), &darkBr);
+            for (const auto& obj : m_objects) {
+                if (obj.type != "SAT" || !InCircle(obj.px, obj.py)) continue;
+                auto* br = obj.lit ? litBr : darkBr;
+                if (!br) continue;
+                m_rt->DrawLine(D2D1::Point2F(obj.px, obj.py),
+                               D2D1::Point2F(obj.pxNext, obj.pyNext), br, 1.0f);
+                const float s = 3.0f;
+                if (obj.rocket)
+                    m_rt->DrawRectangle(D2D1::RectF(obj.px - s, obj.py - s, obj.px + s, obj.py + s), br, 1.4f);
+                else
+                    m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(obj.px, obj.py), s, s), br);
+                if (obj.lit && m_labelFormat)
+                    DrawObjectLabel(obj.name.c_str(), obj.px + s + 3, obj.py - 6, 0.6f, 0.9f, 1.0f);
+            }
+            if (litBr)  litBr->Release();
+            if (darkBr) darkBr->Release();
+        }
+
         // ── Mount crosshair ────────────────────────────────────
         if (m_mountValid) {
             double lst = LST();
@@ -834,6 +905,19 @@ private:
                     D2D1_RECT_F sr = D2D1::RectF(4, m_h - sh, m_w - 4.0f, (float)m_h);
                     m_statusFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
                     m_rt->DrawText(status, (UINT32)wcslen(status), m_statusFormat, sr, sb);
+                    // Phase 130: what moving things are up, and why there
+                    // are not more, one line above.
+                    int up = 0, lit = 0, neoUp = 0;
+                    for (const auto& o : m_objects) {
+                        if (o.type == "SAT") { ++up; if (o.lit) ++lit; }
+                        else if (o.type == "NEO" && o.altDeg > 0.0f) ++neoUp;
+                    }
+                    wchar_t counts[200];
+                    swprintf(counts, 200,
+                        L"Satellites up: %d (%d visible)   ·   NEOs: %d brighter than mag %.0f of %d, %d up",
+                        up, lit, (int)m_neos.size(), m_neoMagLimit, m_neoFetched, neoUp);
+                    D2D1_RECT_F cr = D2D1::RectF(4, m_h - 2 * sh, m_w - 4.0f, m_h - sh);
+                    m_rt->DrawText(counts, (UINT32)wcslen(counts), m_statusFormat, cr, sb);
                     sb->Release();
                 }
             }
@@ -1032,6 +1116,10 @@ private:
         // Popup dims
         // Phase 128: an NEO can be followed while low -- FOLLOW waits for
         // its window -- so its popup keeps the button.
+        // Phase 130: a satellite is gone from that spot in seconds, so its
+        // popup is information only, like a target below the horizon.
+        const bool isSat = obj.type == "SAT";
+        if (isSat) belowHorizon = true;
         const float PW = 200, PH = (belowHorizon && obj.type != "NEO") ? 56 : 76;
         // Anchor near the object, keep on screen
         float px = m_confirmPx + 14;
@@ -1047,12 +1135,12 @@ private:
                              *slewBr = nullptr, *cancelBr = nullptr;
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.04f, 0.09f, 0.18f, 0.97f)), &bgBr);
         m_rt->CreateSolidColorBrush(
-            belowHorizon ? Theme::NVf(D2D1::ColorF(0.8f, 0.2f, 0.1f, 0.9f))
+            (belowHorizon && !isSat) ? Theme::NVf(D2D1::ColorF(0.8f, 0.2f, 0.1f, 0.9f))
                          : Theme::NVf(D2D1::ColorF(0.0f, 0.9f, 1.0f, 0.7f)),
             &borderBr);
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.9f, 0.95f, 1.0f, 1.0f)),  &titleBr);
         m_rt->CreateSolidColorBrush(
-            belowHorizon ? Theme::NVf(D2D1::ColorF(1.0f, 0.35f, 0.2f, 1.0f))
+            (belowHorizon && !isSat) ? Theme::NVf(D2D1::ColorF(1.0f, 0.35f, 0.2f, 1.0f))
                          : Theme::NVf(D2D1::ColorF(0.6f, 0.8f, 0.9f, 0.9f)),
             &altBr);
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.1f, 0.9f, 0.4f, 1.0f)),  &slewBr);
@@ -1074,6 +1162,10 @@ private:
                 if (obj.type == "NEO")
                     swprintf(altStr, 64, L"mag %.1f  %.2f°/h  %.3f au  Alt %.0f°",
                              obj.mag, obj.rate, obj.distAu, obj.altDeg);
+                else if (isSat)
+                    swprintf(altStr, 64, L"%s%s  %.0f km  Alt %.0f°",
+                             obj.rocket ? L"rocket body, " : L"",
+                             obj.lit ? L"visible" : L"not visible", obj.rangeKm, obj.altDeg);
                 else if (belowHorizon)
                     swprintf(altStr, 64, L"BELOW HORIZON (Alt %.0f°)", obj.altDeg);
                 else
@@ -1146,8 +1238,12 @@ private:
         int   bestIdx  = -1;
         for (int i = 0; i < (int)m_objects.size(); i++) {
             const auto& o = m_objects[i];
+            // Phase 130: satellites sweep across everything, so one in
+            // shadow never takes a click, and a lit one only wins when
+            // nothing fixed is as close.
+            if (o.type == "SAT" && !o.lit) continue;
             float dx = o.px - mx, dy = o.py - my;
-            float d  = sqrtf(dx*dx + dy*dy);
+            float d  = sqrtf(dx*dx + dy*dy) + (o.type == "SAT" ? 8.0f : 0.0f);
             if (d < bestDist) { bestDist = d; bestIdx = i; }
         }
         return bestIdx;
@@ -1557,6 +1653,9 @@ private:
     std::function<void(double, double, const std::string&)> m_onGoTo;
     std::function<void(const std::string&, const std::string&)> m_onFollow;
     std::vector<NeoMark> m_neos;
+    int   m_neoFetched = 0;
+    float m_neoMagLimit = 16.0f;
+    std::vector<SatMark> m_sats;
     std::function<void(const std::string&, float, float, float)> m_onInfo;
 };
 

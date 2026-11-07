@@ -367,6 +367,18 @@ under MSVC.
 **Expected in the 132.0 diff:** every `night/` shot changes, slightly, on its
 brightest elements. No `day/` shot changes.
 
+**Run on the rig, 2026-11-07.** MSVC `run-tests`: all 69 pass. The 132.0
+diff against a reference saved from `b462ccc` minutes earlier, with
+`-Expect "night/"`: every night window changed, no day window did. That run
+also exposed a 132.0 bug: the main window's title carries the build stamp, so
+every rebuild reported it MISSING and NEW and never compared it.
+`ShotDiff::StripBuildStamp` now cuts the stamp from the key (gated in
+`tests/shot_diff.cpp` section 2), and the main window then reads `same` in day.
+A later rerun against the same, by then half-hour-old reference flagged GoTo,
+Status, MOUNT CONTROL and the second sky map in day. The heatmaps show sky
+data that moved with the real clock (the object list, alt, airmass, seeing),
+not this change. `ui-baseline.ps1` now says to compare soon after `-Save`.
+
 **Owed.** A look at the eyepiece on a dark night. Danger and primary text lose
 a little warmth, which is the whole change. The preview's planet loses the
 orange cast the green gave it and reads as pure red.

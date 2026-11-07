@@ -71,6 +71,18 @@ int main() {
         Check(d.count("day/untitled#2") && d.at("day/untitled#2") == "day_untitled_7.png",
               "and the second is #2");
         Check(d.count("night/untitled") == 1, "day and night are separate keys");
+
+        // The main window's title carries the build stamp; two builds of
+        // the same code must still pair it with itself.
+        const auto e = KeyFiles({"day_RadukCapture_v3_0_0___build_Nov__7_2026_11_08_57____EMULATOR__0.png"});
+        const auto f = KeyFiles({"day_RadukCapture_v3_0_0___build_Dec_12_2026_23_59_01____EMULATOR__4.png"});
+        Check(e.size() == 1 && f.size() == 1 && e.begin()->first == f.begin()->first,
+              "the main window keeps its key across builds", e.begin()->first);
+        Check(e.begin()->first == "day/RadukCapture_v3_0_0___build_____EMULATOR_",
+              "only the stamp is cut", e.begin()->first);
+        const auto g = KeyFiles({"day_D__RadukCapture_build_emu_Release_RadukCapture_exe_2.png"});
+        Check(g.count("day/D__RadukCapture_build_emu_Release_RadukCapture_exe") == 1,
+              "a build_ with no time after it is left alone");
     }
 
     printf("\n3. Pixels\n");

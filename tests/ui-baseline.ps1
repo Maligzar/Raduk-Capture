@@ -18,6 +18,12 @@
 #     or appeared, is a problem. -Open shows the contact sheet in the
 #     browser.
 #
+#  Compare soon after -Save. The emulator runs on the real clock, so
+#  windows that show the sky (GoTo's list, Status's SKY row, the mount's
+#  alt/az, the sky map) drift as the sky turns; half an hour later they
+#  read as changed in day mode too. Re-save rather than trust an old
+#  reference.
+#
 #  Exit code: 0 when nothing unexpected changed; otherwise the number of
 #  unexpected windows, or 100 when the run itself could not be made.
 #

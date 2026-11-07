@@ -1027,14 +1027,19 @@ private:
         ID_TAB_MAIN        = 2020,  // Phase 14: tab control
         ID_LIST_TONIGHT    = 2021,  // Phase 14: tonight's planner list
         ID_BTN_GOTO_TONIGHT= 2022,  // Phase 14: GoTo selected from planner
-        ID_LIST_PASSES     = 2023,  // Phase 116
+        // Phase 127: 2033, not 2023. It shared 2023 with the Tonight
+        // header label.
+        ID_LIST_PASSES     = 2033,  // Phase 116
         ID_BTN_PASS_UPDATE = 2024,
         ID_BTN_PASS_TRACK  = 2025,
         ID_BTN_PASS_PLAN   = 2026,
         ID_BTN_PASS_RUN    = 2027,
         ID_EDIT_JPL_TARGET = 2028,  // Phase 121
         ID_BTN_FOLLOW      = 2029,
-        ID_BTN_MOTION      = 2030,  // Phase 122
+        // Phase 127: 2032, not 2030. Phase 122 gave it the sky survey's
+        // ID, and the click handler checks this one first, so SKY SURVEY
+        // started image-only tracking and the survey never ran.
+        ID_BTN_MOTION      = 2032,  // Phase 122
         ID_LBL_TONIGHT_HDR = 2023,  // Phase 14: header label
         ID_BTN_SURVEY      = 2030,  // Phase 13: start/stop sky survey
         ID_LBL_SURVEY      = 2031,  // Phase 13: survey progress label
@@ -1781,10 +1786,78 @@ private:
     void ShowPassNote(const std::string& why) {
         wchar_t w[200];
         MultiByteToWideChar(CP_UTF8, 0, why.c_str(), -1, w, 200);
+        raduk::core::ProbeW("[STATUS]", w);
         if (m_lblPassState) SetWindowTextW(m_lblPassState, w);
         m_passStateShown.clear();
     }
 
+public:
+    // ── Phase 127: what a scenario can do here ─────────────────
+    // Press a button by its label, or open a tab by its name.
+    bool ScenarioPress(const std::string& name) {
+        struct N { const char* name; int id; };
+        static const N kButtons[] = {
+            { "UPDATE ELEMENTS",        ID_BTN_PASS_UPDATE },
+            { "TRACK SELECTED PASS",    ID_BTN_PASS_TRACK },
+            { "STOP TRACKING",          ID_BTN_PASS_TRACK },
+            { "PLAN THE NIGHT",         ID_BTN_PASS_PLAN },
+            { "RUN THE PLAN",           ID_BTN_PASS_RUN },
+            { "FOLLOW",                 ID_BTN_FOLLOW },
+            { "TRACK WHAT IS IN FRAME", ID_BTN_MOTION },
+            { "SKY SURVEY",             ID_BTN_SURVEY },
+            { "GOTO",                   ID_BTN_GOTO },
+            { "STOP",                   ID_BTN_STOP },
+        };
+        for (const N& n : kButtons)
+            if (_stricmp(n.name, name.c_str()) == 0) {
+                SendMessageW(m_hwnd, WM_COMMAND, MAKEWPARAM(n.id, BN_CLICKED),
+                             (LPARAM)GetDlgItem(m_hwnd, n.id));
+                return true;
+            }
+        static const char* kTabs[] = { "GOTO", "TONIGHT", "PASSES" };
+        for (int i = 0; i < 3; ++i)
+            if (_stricmp(kTabs[i], name.c_str()) == 0 ||
+                _stricmp((std::string("TAB ") + kTabs[i]).c_str(), name.c_str()) == 0) {
+                if (i == 0 && _stricmp(name.c_str(), "GOTO") == 0) continue;   // the button
+                ShowTab(i);
+                if (m_tabCtrl) TabCtrl_SetCurSel(m_tabCtrl, i);
+                PopulatePassesIfShown(i);
+                return true;
+            }
+        return false;
+    }
+
+    bool ScenarioType(const std::string& field, const std::string& text) {
+        if (_stricmp(field.c_str(), "JPL") != 0 || !m_editTarget) return false;
+        std::wstring w(text.begin(), text.end());
+        SetWindowTextW(m_editTarget, w.c_str());
+        return true;
+    }
+
+#ifdef RADUK_EMULATOR
+    // Move the satellite clock so the first pass listed rises `leadSec`
+    // from now, and select it. Emulator only: a real sky does not wait.
+    // Returns what was armed, or empty when there is no pass to arm.
+    std::string ScenarioArmFirstPass(double leadSec) {
+        PopulatePasses();
+        if (!m_listPasses) return "";
+        int row = -1;
+        for (int i = 0; i < (int)m_passRows.size(); ++i)
+            if (m_passRows[i].pass.trackable) { row = i; break; }
+        if (row < 0) return "";
+        const auto& r = m_passRows[(size_t)row];
+        const double now = raduk::sky::PreciseJdNow();
+        raduk::sky::SatClockOffsetDays() += (r.pass.trackStartJd - now) - leadSec / 86400.0;
+        ListView_SetItemState(m_listPasses, row, LVIS_SELECTED | LVIS_FOCUSED,
+                              LVIS_SELECTED | LVIS_FOCUSED);
+        char b[160];
+        snprintf(b, sizeof(b), "%s, peak %.0f deg, its window opening in %.0f s",
+                 r.name.c_str(), r.pass.peakAlt, leadSec);
+        return b;
+    }
+#endif
+
+private:
     void ToggleSatTrack() {
         if (m_plan.Running()) { ShowPassNote("The plan is running"); return; }
         if (m_sat.Tracking()) { m_sat.StopTrack("stopped by the operator"); return; }

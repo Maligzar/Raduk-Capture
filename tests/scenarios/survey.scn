@@ -1,0 +1,14 @@
+# Phase 127: SKY SURVEY starts the survey. From phase 122 to 127 it shared
+# an ID with TRACK WHAT IS IN FRAME and started image-only tracking
+# instead, so the survey checklist 44 relies on could not run.
+name    Survey: SKY SURVEY starts the survey
+timeout 120
+
+expect 30  [SCENARIO] Survey
+wait   5
+press  GOTO:SKY SURVEY
+expect 15  [STATUS] Survey 1/
+absent 3   Moving target
+absent 1   Not following
+press  GOTO:SKY SURVEY
+wait   5

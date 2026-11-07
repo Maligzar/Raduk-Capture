@@ -1,0 +1,21 @@
+# Checklist 42 (the emulator half): follow a JPL Horizons target. Asks
+# Horizons over the network for the Moon (301), which is in the tracking
+# band at some time in any 12 hours; only the target's name and the time
+# are sent, never the site.
+name    JPL follow: the Moon from Horizons
+timeout 240
+
+expect 30  [SCENARIO] JPL
+wait   5
+press  GOTO:PASSES
+type   JPL 301
+press  GOTO:FOLLOW
+expect 10  Target: asking JPL Horizons for 301.
+expect 90  in the band for
+absent 5   Target not followed
+shot   following
+press  GOTO:FOLLOW
+# Stopped. If that was before its window opened, it must say it never
+# reached the target, not claim a worst error of 0.00 deg (phase 127).
+expect 15  stopped: stopped by the operator.
+absent 1   Worst error on target 0.00 deg

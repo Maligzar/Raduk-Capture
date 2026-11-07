@@ -1,7 +1,7 @@
 # RadukCapture: Architecture and Roadmap
 
 Planetary capture software for the ZWO ASI678MC, ZWO EAF and Celestron 8SE.
-Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 126.
+Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 127.
 
 This file describes how the application is built, what exists, and what is
 left to do. It was rewritten because its old build plan had stopped at about
@@ -556,7 +556,7 @@ The largest debt in the project, and it costs little code. In order:
 
 Running what already exists. Since phase 125 most of this is a scenario
 Claude runs (`tests\run-scenarios.ps1`), not a list for the owner: 23, 24,
-28, 32, 35 (AE and autofocus), 36 and 37 are covered on the emulator. Adding a
+28, 32, 33, 35 (AE and autofocus), 36, 37 and the emulator halves of 39 to 44 are covered. Adding a
 scenario is the way to retire a row below.
 
 | Item | Needs |
@@ -577,7 +577,7 @@ scenario is the way to retire a row below.
 
 | Item | Note |
 |---|---|
-| **Fast targets on the sky** | Phases 116 to 122 are built: satellites, a night plan, JPL targets and image-only tracking. What they owe now is the sky, checklist 39 to 43 |
+| **Fast targets on the sky** | Phases 116 to 122 are built and, since phase 127, run end to end in the emulator as scenarios. What they owe now is the sky, checklist 39 to 43 |
 | GoTo map learning (6.6) | Phase 123 built the correcting half. Every solve grades the map, and a setting applies it. Nobody knows yet whether it helps on the 8SE: checklist 44 |
 
 ### 13.4 Smaller bench work

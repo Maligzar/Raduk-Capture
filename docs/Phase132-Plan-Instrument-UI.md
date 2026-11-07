@@ -4,7 +4,10 @@ Asked for by the owner on 2026-11-07: take the UI from "looks generic,
 template-built AI" to a custom, polished look across every surface. That
 includes the HTML pages the app opens in Edge, which the app should write
 and polish itself. **Planned, not started.** Nothing below is built. The
-owner asked that no stage begin until it is called for.
+owner asked that no stage begin until it is called for. **Prioritized by the
+owner on 2026-11-07** as the next bench work, ahead of everything but the
+clear-night items. 132.0 comes first. Each later stage still waits for the
+owner to look at the one before it.
 
 **How this relates to phase 96 and 119.** It finishes their open items rather
 than restarting them. 132.3 *is* 96.4b, the type and spacing retrofit that

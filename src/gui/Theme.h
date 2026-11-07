@@ -476,9 +476,10 @@ namespace Theme {
     // For the surfaces that pass colours through their own brush
     // helper, which already applies NVf. Handing one of those a value
     // from Color() below would transform it twice, and NVf is not
-    // idempotent -- a second pass takes the luminance of (lum,
-    // lum/10, 0), which is 0.284 of the first, so the colour comes
-    // out at roughly a quarter brightness and still looks plausible.
+    // idempotent -- a second pass takes the luminance of (lum, 0, 0),
+    // which is 0.2126 of the first (0.284 while night vision still
+    // carried a tenth in green), so the colour comes out at roughly a
+    // fifth of its brightness and still looks plausible.
     // Exactly the kind of thing that ships.
     inline D2D1_COLOR_F Raw(uint32_t argb) {
         return D2D1::ColorF(((argb >> 16) & 0xFF) / 255.0f,
@@ -608,15 +609,34 @@ namespace Theme {
         return (int)(0.2126f * r + 0.7152f * g + 0.0722f * b);
     }
 
+    // ── Phase 132.1: no green in the dark ─────────────────────
+    //
+    // Night vision used to emit a tenth of each colour's luminance in
+    // green, "so near-black greys do not read as pure black". Measured,
+    // it never did that job: GDI's integer arithmetic gave the four
+    // surface steps (8, 14, 24, 34) a green of 0, 1, 2 and 3, which is
+    // nothing. Where the green did reach the screen was on the bright
+    // SIGNALS -- 24 on danger, 20 on primary text, 25 on every white of
+    // the preview image -- and green is the wrong place to put light at
+    // the eyepiece. A display's green primary sits near the rods' peak
+    // sensitivity, around 507 nm; its red primary sits where rods are
+    // close to blind. So that tenth very likely carried more of the
+    // rod-visible light than the red it was riding on (inferred from the
+    // scotopic curve, not measured on this monitor).
+    //
+    // A token rather than a bare zero, so the decision is in one place
+    // and the GDI, Direct2D and preview paths cannot drift apart again:
+    // all three read it. tests/night_hierarchy.cpp asserts every path
+    // emits green and blue of exactly zero at the value it ships with.
+    inline constexpr float kNightGreenFraction = 0.0f;
+
     // The tint itself. Pass every colour through this at the point of
     // use, never at the point of definition -- a value tinted once and
     // stored would keep whatever the mode was when it was stored.
     inline COLORREF NV(COLORREF c) {
         if (!detail::g_nightVision) return c;
         const int lum = NightLuminance(GetRValue(c), GetGValue(c), GetBValue(c));
-        // A tenth of the luminance in green keeps near-black greys from
-        // reading as pure black, which is what the preview does.
-        return RGB(lum, lum / 10, 0);
+        return RGB(lum, (int)(lum * kNightGreenFraction), 0);
     }
 
     // The Direct2D counterpart. Same transform, different type: the
@@ -633,7 +653,7 @@ namespace Theme {
         const int g = (int)(c.g * 255.0f + 0.5f);
         const int b = (int)(c.b * 255.0f + 0.5f);
         const float lum = (float)NightLuminance(r, g, b) / 255.0f;
-        return D2D1::ColorF(lum, lum * 0.1f, 0.0f, c.a);
+        return D2D1::ColorF(lum, lum * kNightGreenFraction, 0.0f, c.a);
     }
 
     // ════════════════════════════════════════════════════════
@@ -698,7 +718,7 @@ namespace Theme {
     // reference clients read as layered.
     //
     // NOT a blend toward white. In night vision `dayParent` has
-    // already been collapsed to (lum, lum/10, 0), and mixing that
+    // already been collapsed to (lum, 0, 0), and mixing that
     // toward RGB(255,255,255) at even a third puts 89 of blue back
     // into a display whose entire purpose is to have none -- which is
     // what the mount controller's state-light highlight was doing,

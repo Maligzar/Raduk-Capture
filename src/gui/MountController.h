@@ -792,7 +792,7 @@ private:
             // Phase 96.4. This was Blend(lit, RGB(255,255,255), 0.35f),
             // which in night vision put 89 units of BLUE into the rim
             // of the lamp -- `lit` has already been collapsed to
-            // (lum, lum/10, 0) by NV(), and a third of the way to
+            // (lum, 0, 0) by NV(), and a third of the way to
             // white is a third of the way back to the short
             // wavelengths phase 26 exists to remove. On the one
             // surface read from the eyepiece.

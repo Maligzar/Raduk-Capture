@@ -71,7 +71,7 @@ struct RunResult {
 // Fly a pass end to end at 5 Hz, with `fault` free to break things.
 template <class Fault>
 static RunResult Fly(const Sgp4& s, const SatPassInfo& p, FakeMount m,
-                     SatTracker::Config c, Fault fault) {
+                     SatTracker::Config c, Fault fault, int slewTicks = 25) {
     RunResult r;
     const double t0 = p.trackStartJd;
     c.startSec = 0.0;
@@ -96,7 +96,7 @@ static RunResult Fly(const Sgp4& s, const SatPassInfo& p, FakeMount m,
         double a = m.alt, z = m.az;
         fault(now, ok, a, m, tr);
 
-        const bool slewing = goToAt >= 0 && tick - goToAt < 25;
+        const bool slewing = goToAt >= 0 && tick - goToAt < slewTicks;
         const auto o = tr.Tick(now, sky, ok, a, z, slewing);
         if (o.goTo) {
             goToAt = tick;
@@ -375,6 +375,24 @@ int main() {
               "abort stops the axes and closes the file");
         Check(r.ratesAfterStop == 0, "and no rate follows");
         Check(r.reason == "escape", "keeping its reason");
+    }
+    {
+        // Phase 131: a slew that lands 30 s after the window opened (it
+        // starts 60 s ahead and takes 90 s). The satellite is well along
+        // by then; that is lateness, not a reversed axis.
+        FakeMount m;
+        const RunResult r = Fly(s, *good, m, cfg, none, 450);
+        printf("  late slew: ended %d, %s\n", (int)r.end, r.reason.c_str());
+        Check(r.reason.find("axis directions") == std::string::npos,
+              "a late slew is not called a reversed axis");
+        Check(r.end == SatTracker::Phase::Complete, "and it catches up and completes");
+    }
+    {
+        FakeMount m; m.signAz = -1.0;
+        const RunResult r = Fly(s, *good, m, cfg, none, 450);
+        printf("  late slew, reversed axis: %s\n", r.reason.c_str());
+        Check(r.end == SatTracker::Phase::Failed && r.reason.find("axis directions") != std::string::npos,
+              "but a reversed axis is still caught after one");
     }
     {
         // Slew that never ends.

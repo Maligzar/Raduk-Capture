@@ -113,6 +113,10 @@ public:
         if (m_hwnd) { BuildObjectList(); Redraw(); }
     }
     int SatCount() const { return (int)m_sats.size(); }
+    // Phase 131: FOLLOW on a satellite hands its name to the pass list,
+    // which flies its next pass that reaches the band.
+    void SetSatFollowCallback(std::function<void(const std::string& name)> cb)
+        { m_onSatFollow = std::move(cb); }
     // Clicking an NEO follows it through Horizons rather than slewing to
     // where it was: they move too fast for a fixed GoTo.
     void SetFollowCallback(std::function<void(const std::string& target,
@@ -1139,11 +1143,14 @@ private:
         // Popup dims
         // Phase 128: an NEO can be followed while low -- FOLLOW waits for
         // its window -- so its popup keeps the button.
-        // Phase 130: a satellite is gone from that spot in seconds, so its
-        // popup is information only, like a target below the horizon.
+        // Phase 131: a satellite is gone from that spot in seconds, so it
+        // is never SLEWed to; FOLLOW flies its next pass from the pass
+        // list, which waits for the window like an NEO's FOLLOW does.
         const bool isSat = obj.type == "SAT";
+        const bool isNeo = obj.type == "NEO";
         if (isSat) belowHorizon = true;
-        const float PW = 200, PH = (belowHorizon && obj.type != "NEO") ? 56 : 76;
+        const bool hasButton = !belowHorizon || isNeo || isSat;
+        const float PW = 200, PH = hasButton ? 76 : 56;
         // Anchor near the object, keep on screen
         float px = m_confirmPx + 14;
         float py = m_confirmPy - PH / 2;
@@ -1198,9 +1205,9 @@ private:
             }
 
             // Buttons
-            const bool isNeo = obj.type == "NEO";
-            if ((!belowHorizon || isNeo) && slewBr) {
-                // ✓ SLEW button (FOLLOW for an NEO: it waits for its window)
+            if (hasButton && slewBr) {
+                // ✓ SLEW button (FOLLOW for an NEO or a satellite: it
+                // waits for its window)
                 m_btnSlewRect = D2D1::RectF(px+6, py+40, px+PW/2-4, py+PH-6);
                 ID2D1SolidColorBrush* slewBg = nullptr;
                 m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.05f, 0.25f, 0.12f, 0.9f)), &slewBg);
@@ -1209,7 +1216,7 @@ private:
                 D2D1_RECT_F st = D2D1::RectF(m_btnSlewRect.left+2, m_btnSlewRect.top+2,
                                               m_btnSlewRect.right-2, m_btnSlewRect.bottom-2);
                 m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-                if (isNeo) m_rt->DrawText(L"\u2713 FOLLOW", 8, m_labelFormat, st, slewBr);
+                if (isNeo || isSat) m_rt->DrawText(L"\u2713 FOLLOW", 8, m_labelFormat, st, slewBr);
                 else       m_rt->DrawText(L"\u2713 SLEW", 7, m_labelFormat, st, slewBr);
             } else {
                 m_btnSlewRect = {};  // disabled
@@ -1217,7 +1224,9 @@ private:
 
             // ✗ CANCEL button
             if (cancelBr) {
-                float cancelLeft = belowHorizon ? px+6 : px+PW/2+4;
+                // Beside the button when there is one. A low NEO used to
+                // put CANCEL on top of FOLLOW here.
+                float cancelLeft = hasButton ? px+PW/2+4 : px+6;
                 m_btnCancelRect = D2D1::RectF(cancelLeft, py+40, px+PW-6, py+PH-6);
                 ID2D1SolidColorBrush* cancelBg = nullptr;
                 m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.25f, 0.05f, 0.05f, 0.9f)), &cancelBg);
@@ -1545,6 +1554,12 @@ private:
                         // click time (review G5: the live list may have been
                         // rebuilt under the popup)
                         const auto obj = self->m_confirmObj;
+                        if (obj.type == "SAT") {
+                            if (self->m_onSatFollow) self->m_onSatFollow(obj.name);
+                            self->m_confirmActive = false;
+                            self->Redraw();
+                            return 0;
+                        }
                         if (obj.type == "NEO") {
                             if (self->m_onFollow) self->m_onFollow(obj.target, obj.name);
                             self->m_confirmActive = false;
@@ -1679,6 +1694,7 @@ private:
     int   m_neoFetched = 0;
     float m_neoMagLimit = 16.0f;
     std::vector<SatMark> m_sats;
+    std::function<void(const std::string&)> m_onSatFollow;
     std::function<void(const std::string&, float, float, float)> m_onInfo;
 };
 

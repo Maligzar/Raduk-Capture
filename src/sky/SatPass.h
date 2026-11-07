@@ -152,6 +152,11 @@ struct SatPassLimits {
     double minAltDeg  = 15.0;    // lower than this is mostly tripod and air
     double maxAltDeg  = 80.0;    // the tube and the base
     double maxRateDeg = 3.0;     // deg/s on either axis
+    // Phase 131: how fast a GoTo crosses the sky (SatSlewDegPerSec), so a
+    // pass already under way is met where it will be when the mount
+    // arrives, not where it was when the window opened.
+    double slewDegPerSec = 2.4;
+    double slewMarginSec = 8.0;  // settling, and the estimate's error
 };
 
 struct SatPassInfo {

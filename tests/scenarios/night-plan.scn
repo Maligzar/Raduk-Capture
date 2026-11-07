@@ -16,4 +16,4 @@ wait   8
 shot   plan-running
 press  GOTO:RUN THE PLAN
 expect 20  stopped by the operator
-absent 10  slewing to where the window opens.
+absent 10  Satellite: slewing

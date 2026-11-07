@@ -581,9 +581,13 @@ private:
         if (m_cap.fps > 0.0)
             len += swprintf(line + len, 256 - len, L"%s%.0f fps",
                             len ? L"   ·   " : L"", m_cap.fps);
-        if (m_cap.haveAltitude)
+        // Phase 129: "-16° up" read as nonsense on the audience screen.
+        if (m_cap.haveAltitude && m_cap.altitudeDeg >= 0.0)
             len += swprintf(line + len, 256 - len, L"%s%.0f° up",
                             len ? L"   ·   " : L"", m_cap.altitudeDeg);
+        else if (m_cap.haveAltitude)
+            len += swprintf(line + len, 256 - len, L"%s%.0f° below the horizon",
+                            len ? L"   ·   " : L"", -m_cap.altitudeDeg);
 
         const float pad   = Pad();
         const float bigH  = m_fontPx * 1.25f;

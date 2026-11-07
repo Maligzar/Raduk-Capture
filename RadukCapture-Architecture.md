@@ -1,7 +1,7 @@
 # RadukCapture: Architecture and Roadmap
 
 Planetary capture software for the ZWO ASI678MC, ZWO EAF and Celestron 8SE.
-Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 128.
+Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 129.
 
 This file describes how the application is built, what exists, and what is
 left to do. It was rewritten because its old build plan had stopped at about
@@ -561,9 +561,7 @@ scenario is the way to retire a row below.
 
 | Item | Needs |
 |---|---|
-| Camera controls, panel and autofocus path | Checklist 35 |
 | ROI following, derotation limit, surface lock | Checklist 31, 32, 33 |
-| `[HW]` button | One press in the running app |
 | Panel state, buttons, text fit, timer | Checklist 20 to 28 |
 | FITS in Siril, `[STACK]`, `Shift+K` | Checklist 29, 30 |
 | Toolbar in a dark room | Checklist 34 |

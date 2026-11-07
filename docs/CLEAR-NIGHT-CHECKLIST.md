@@ -961,6 +961,7 @@ For contrast, so this list is not read as "nothing works":
     Check a couple of others for comparison -- Saturn and M42 have long
     narratives too, and a star has almost none, which should still be
     drawn at the full size.
+    *Emulator: `panels.scn` (phase 129).*
 
     Two separate things are being checked. The text should FIT, which
     is the sizing; and nothing should be drawn outside the panel even
@@ -1089,6 +1090,7 @@ For contrast, so this list is not read as "nothing works":
     which says whether white balance reaches raw data. On a planet, note
     where AE settles and the sharpness there: the knees of 20 ms and gain
     350 in `RailsFor` are guesses, and this is what tests them.
+    *Emulator: `camera-boxes.scn` (phase 129).*
 
 36. **A sequence of runs** (phase 113). *Emulator: `autorun.scn` (phase 125).
     The sky half below still stands.* Emulator first: load Jupiter, set

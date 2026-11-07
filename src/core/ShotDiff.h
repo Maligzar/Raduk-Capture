@@ -66,6 +66,33 @@ struct ShotName {
     int index = -1;      // EnumWindows order; unstable, used only to split ties
 };
 
+// The main window's title carries the build stamp, "[build Nov  7 2026
+// 11:08:57]", which sanitises to "build_Nov__7_2026_11_08_57". Left in,
+// every rebuild renames the window, so the diff calls it MISSING and NEW
+// and never compares it. Cut what follows "build_" up to and including
+// the first HH_MM_SS; a "build_" with no time after it (the emulator's
+// exe path, "build_emu") is left alone.
+inline std::string StripBuildStamp(std::string t) {
+    auto isTime = [&](size_t i) {
+        if (i + 8 > t.size()) return false;
+        // Whole fields only: "2026_11_08" must not read as a time.
+        if (std::isdigit((unsigned char)t[i - 1])) return false;
+        if (i + 8 < t.size() && std::isdigit((unsigned char)t[i + 8])) return false;
+        for (size_t k = 0; k < 8; ++k) {
+            const char c = t[i + k];
+            if ((k == 2 || k == 5) ? c != '_' : !std::isdigit((unsigned char)c)) return false;
+        }
+        return true;
+    };
+    for (size_t at = t.find("build_"); at != std::string::npos; at = t.find("build_", at + 1)) {
+        const size_t from = at + 6;
+        // A stamp is short; don't let a stray time far down the title match.
+        for (size_t i = from; i < t.size() && i <= from + 16; ++i)
+            if (isTime(i)) { t.erase(from, i + 8 - from); break; }
+    }
+    return t;
+}
+
 // "day_GoTo_Panel_3.png" -> {day, GoTo_Panel, 3}. False for anything that
 // is not a window shot, including the renderer's NAME_preview.png, which
 // is a live camera frame and would be noise by construction.
@@ -87,7 +114,7 @@ inline bool ParseShotName(const std::string& file, ShotName& out) {
                                     [](char c) { return std::isdigit((unsigned char)c) != 0; }))
         return false;
     out.shot  = s.substr(0, first);
-    out.title = s.substr(first + 1, last - first - 1);
+    out.title = StripBuildStamp(s.substr(first + 1, last - first - 1));
     out.index = std::atoi(idx.c_str());
     return !out.shot.empty() && !out.title.empty();
 }

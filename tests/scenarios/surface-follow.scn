@@ -1,0 +1,38 @@
+# Checklist 33: following the surface. The Moon fills a 640x480 crop, the
+# emulated mount drifts it 5 px a second, and with FOLLOW on the crop
+# window should walk with the surface once acquisition locks.
+#
+# Phase 125 found it never locked: calibration on a frame the Moon fills
+# repeated "North response too small". Phase 126 guides on the surface
+# itself when the frame is full, and this is the check.
+
+name    Surface follow: the Moon, drifting
+timeout 400
+
+env     RADUK_EMU_DRIFT_PX_S=5
+# A gibbous Moon whatever the date: near new, the middle of the disc is dark.
+env     RADUK_EMU_LUNAR_PHASE=0.30
+# Exposed to the patch, as an imager would; the profile's 2 ms is for the
+# real Moon and leaves the emulated one at 8% of full scale.
+env     RADUK_EMU_PEAK_DN=220
+rig     RoiFollow=1
+profile moon.ini roi width=640
+profile moon.ini roi height=480
+profile moon.ini roi img_type=0
+# In focus. The profile's focuser position is the real rig's, 11 700 steps
+# from the emulator's true focus, which blurs every detail away.
+profile moon.ini focuser position=168000
+
+expect 30  [SCENARIO] Surface follow
+wait   3
+goto   Moon
+expect 120 SEARCHING
+expect 30  guiding on the surface itself
+wait   3
+press  PLANET LOCK
+expect 120 Acquisition: Locked
+expect 30  [NOTICE] Following the surface
+wait   15
+shot   following
+absent 5   [FOLLOW] gave up
+absent 5   Centroid lost

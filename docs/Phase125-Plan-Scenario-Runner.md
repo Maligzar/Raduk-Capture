@@ -86,7 +86,8 @@ Two more findings are not fixed here:
   calibration repeats "North response too small", because pulsing the mount
   barely moves the brightness-weighted centre of a crop that is all surface.
   Surface following only starts after a lock, so it never starts.
-  `_known-surface-follow.scn` records this. It needs its own phase.
+  `_known-surface-follow.scn` recorded this. Fixed in phase 126; the scenario
+  is now `surface-follow.scn` and passes.
 - **The live preview is black in screenshots.** Its swap chain is not captured
   by `PrintWindow`. Every other window is.
 
@@ -100,7 +101,7 @@ Two more findings are not fixed here:
 | `recording` | From CAMERA and from OUTPUT: target naming, the profile's limit, the derotation notice, the WinJUPOS rename | 28, 32 |
 | `buttons` | POINT SOLVE always answers; PLANET LOCK after a GoTo locks; STOP and Escape both drop the lock | 23, 24 |
 | `autofocus` | AE settles first, holds during the sweep and stays on; an abort during settling stops cleanly | 35 |
-| `_known-surface-follow` | The Moon on a drifting mount. Fails, as described above | 33 |
+| `_known-surface-follow` | The Moon on a drifting mount. Failed, as described above; passes since phase 126 as `surface-follow` | 33 |
 
 `tests/scenario_runner.cpp` gates the script reader and step logic on a fake
 clock, and is part of `tests/run-tests.ps1`. The scenarios themselves are not:

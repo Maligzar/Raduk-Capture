@@ -1351,7 +1351,8 @@ private:
                         } else {
                             double lat = 0.0, lon = 0.0;
                             LunarLatLon(u, v, lat, lon);
-                            const double alb = LunarAlbedo(lat, lon);
+                            const double alb = LunarAlbedo(lat, lon) *
+                                               LunarFineTexture(lat, lon);
                             const double shade =
                                 LunarCraterShade(lat, lon, sun, illum, cellDeg);
 

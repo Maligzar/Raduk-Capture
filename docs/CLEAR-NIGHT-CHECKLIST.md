@@ -1049,8 +1049,9 @@ For contrast, so this list is not read as "nothing works":
     from forum reports, not from WinJUPOS's own documentation.
 
 33. **Surface lock** (phase 109). *Emulator: `_known-surface-follow.scn`
-    answered the first question below. It does not lock: calibration fails on a
-    full-frame Moon. Needs fixing before the real Moon is worth trying.* Emulator first: load the Moon on a
+    answered the first question below: it did not lock. Phase 126 fixed it, and
+    `surface-follow.scn` now locks and holds. On the real Moon, also look for
+    the log line "guiding on the surface itself".* Emulator first: load the Moon on a
     640x480 crop with `RADUK_EMU_DRIFT_PX_S` set and `[FOLLOW]` on, lock,
     and the notification bar should say it is following the surface.
     A crater should stay put in the frame while the window walks. If

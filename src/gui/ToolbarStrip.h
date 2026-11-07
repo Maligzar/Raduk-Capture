@@ -172,6 +172,8 @@ public:
     // Opens RadukCaptureDashboard.html in the browser with the access
     // token already in it, so nobody has to copy WsToken out of rig.ini.
     void SetDashCallback    (std::function<void()> cb) { m_onDash     = cb; }
+    // Phase 124: every session's figures, built and opened as a page.
+    void SetStatsCallback   (std::function<void()> cb) { m_onStats    = cb; }
     // The same action as the K key, which had no button.
     void SetStackCallback   (std::function<void()> cb) { m_onStack    = cb; }
     void SetFollowCallback  (std::function<void()> cb) { m_onFollow   = cb; }
@@ -284,6 +286,7 @@ public:
             case ID_TB_GHOST:    if (m_onGhost)    m_onGhost();    return true;
             case ID_TB_HW:       if (m_onHardware) m_onHardware(); return true;
             case ID_TB_DASH:     if (m_onDash)     m_onDash();     return true;
+            case ID_TB_STATS:    if (m_onStats)    m_onStats();    return true;
             case ID_TB_STACK:    if (m_onStack)    m_onStack();    return true;
             case ID_TB_FOLLOW:   if (m_onFollow)   m_onFollow();   return true;
             case ID_TB_DEROT:    if (m_onDerot)    m_onDerot();    return true;
@@ -499,6 +502,7 @@ private:
     std::function<void()> m_onGhost;
     std::function<void()> m_onHardware;
     std::function<void()> m_onDash;
+    std::function<void()> m_onStats;
     std::function<void()> m_onStack;
     std::function<void()> m_onFollow;
     std::function<void()> m_onDerot;

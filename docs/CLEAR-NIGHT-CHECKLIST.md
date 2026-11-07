@@ -1200,3 +1200,10 @@ For contrast, so this list is not read as "nothing works":
     lands nearer the centre than before. A map that is applied and makes
     things worse means the sign is wrong: set it back to 0 and report it.
 
+45. **Session statistics** (phase 124). Indoors, either build: press `[STATS]`
+    on the rail. A page should open in the browser with two sections, the rig
+    and the emulator. The rig's section should show the night of 8 October,
+    with Saturn at the top of By target. After a real night, press it again: the
+    new night should be at the top of By night, and nothing from the emulator
+    should appear in the rig's figures.
+

@@ -1,7 +1,7 @@
 # RadukCapture: Architecture and Roadmap
 
 Planetary capture software for the ZWO ASI678MC, ZWO EAF and Celestron 8SE.
-Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 123.
+Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 124.
 
 This file describes how the application is built, what exists, and what is
 left to do. It was rewritten because its old build plan had stopped at about
@@ -543,7 +543,7 @@ The largest debt in the project, and it costs little code. In order:
 3. **Clear-night item 14, click to recentre.**
 4. **Clear-night item 15,** which settles the pixel readout's row order.
 5. **Clear-night item 18, the first lunar mosaic.**
-6. **Real-camera unknowns from recent work,** checklist 31 to 44: whether
+6. **Real-camera unknowns from recent work,** checklist 31 to 45: whether
    `ASISetStartPos` applies during capture and how many frames it takes,
    surface lock on a real Moon, whether the camera lists gamma, the light
    ladder's knees, whether `centroidValid` holds on a full-frame Moon, whether
@@ -594,7 +594,6 @@ cheapest way to shrink the status file's debt.
 
 | # | Feature | Effort | Note |
 |---|---|---|---|
-| 19 | Multi-session statistics | Medium | All sessions, pointing accuracy, hours by target, from existing logs |
 | 18 | AVI output | Medium | Only if someone asks. FITS shipped as 106 |
 | 31 | Multi-star FWHM | Hard | Needs the mag-14 catalog that 94.5 was about |
 | 32 | Bahtinov focus aid | Hard | Needs a mask on the OTA, or its diffraction pattern rendered |

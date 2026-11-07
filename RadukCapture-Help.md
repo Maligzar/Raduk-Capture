@@ -445,6 +445,7 @@ capture format.
 | `[RUNS]` | — | **A sequence of runs.** Repeats focus, record and a gap, so a night's runs do not each need a press of RECORD. Each run stops at the derotation window whatever `[DEROT]` says; a target with no window uses the frame or time limit. It focuses first and every third run, with AE on. Before each run it checks the target is in frame, above 20° and that the disk has room. Lit, it shows the run under way. Press it again, or RECORD, to stop; the file is closed. Auto-stack is skipped during a sequence. It also waits, up to 3 minutes, for the seeing to come within 80% of the best it has reached tonight, before a focus sweep and before a run; after that it goes anyway, because a poor run beats none. When it ends it writes `autorun_<date>_<time>.txt` beside the captures, listing the runs best first, so you know which to stack. Set in `rig.ini`: `AutorunRuns`, `AutorunGapSec`, `AutorunRefocusEvery`, `AutorunMinAltDeg`, `AutorunSeeingPct` (0 never waits), `AutorunSeeingHoldSec` |
 | `[STACK]` | `K` | Stack the last finished recording. A SER runs hidden and exits; a FITS file opens in AutoStakkert's window |
 | `[DASH]` | — | **Open the browser dashboard, already signed in.** It connects to this PC by itself; see **The browser dashboard** |
+| `[STATS]` | — | **Every session at once.** Reads all session logs, capture records and the pointing map, and opens one page in the browser: totals, each target, each night, and whether the pointing map helps. Real nights and emulator sessions are shown apart |
 | `FULL` | — | **Whole sensor, 3840x2160** - the widest field, and the way back from any crop |
 | `1920` | — | 1920x1080 |
 | `1280` | — | 1280x960 - what `[ROI]` crops to |
@@ -2787,6 +2788,7 @@ order.
 | 3.0+ | 121 | Follow anything JPL Horizons predicts: asteroids, comets, spacecraft |
 | 3.0+ | 122 | Track whatever is in the frame, from the image alone |
 | 3.0+ | 123 | The pointing map graded on every solve, and applied when it helps |
+| 3.0+ | 124 | `[STATS]`: every session at once, rig and emulator apart |
 
 ---
 

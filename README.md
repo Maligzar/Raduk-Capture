@@ -1,4 +1,4 @@
-# RadukCapture: Planetary Capture Software for the ZWO ASI678MC
+# Raduk-Capture: Planetary Capture Software for the ZWO ASI678MC
 
 **RadukCapture is a native Windows planetary astrophotography capture
 application, written in C++20 on pure Win32 and Direct2D, built for the ZWO

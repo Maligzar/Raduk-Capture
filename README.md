@@ -1,64 +1,183 @@
-# RadukCapture
+# RadukCapture: Planetary Capture Software for the ZWO ASI678MC
 
-High-speed planetary capture suite for Windows, built for the Celestron
-NexStar 8SE + ZWO ASI678MC (and adaptable to similar rigs). Pure Win32 +
-Direct2D — no frameworks.
+**RadukCapture is a native Windows planetary astrophotography capture
+application, written in C++20 on pure Win32 and Direct2D, built for the ZWO
+ASI678MC camera (Sony IMX678 sensor), the ZWO EAF electronic focuser, and the
+Celestron NexStar 8SE telescope.** It records lucky-imaging video of Jupiter,
+Saturn, Mars, the Moon and the Sun as SER or FITS, controls the focuser and
+the mount, plate-solves, tracks the planet on the sensor, and follows
+satellites, rocket bodies and near-Earth asteroids across the sky.
 
-## Highlights
+It is a custom, open-source alternative in the space occupied by FireCapture
+and SharpCap, aimed at one goal: the most surface detail a planetary rig can
+deliver. No frameworks, no .NET, no Qt. The whole application runs with no
+hardware attached, through device emulators that follow the real ZWO SDK and
+NexStar semantics.
 
-- **SER v3 recording** with capture-time trailer timestamps (WinJUPOS-ready),
-  RAM-first write buffering, lucky-imaging quality scores per frame
-- **Capture format on the toolbar** — resolution presets from full sensor down
-  to 640x480 and 8/16-bit depth, applied through one shared reconfigure path,
+Version 3.0.0, source release. Developed through phase 131.
+
+## Who this is for
+
+- Planetary imagers using a **ZWO ASI678MC**, or another ZWO ASI USB 3 camera,
+  who want capture software they can read and change.
+- Owners of a **Celestron NexStar / StarSense** alt-az mount, driven directly
+  over serial or through **ASCOM** (CPWI preferred).
+- Anyone controlling a **ZWO EAF** focuser who wants a V-curve autofocus that
+  reports honestly when it made focus worse.
+- Developers looking for a working C++ example of the **ZWO ASI Camera SDK**
+  (`ASICamera2`) and **EAF SDK**, SER v3 writing, D3D11 compute-shader
+  debayering, SGP4 satellite prediction, or JPL Horizons integration.
+
+## Features
+
+### Capture and recording
+
+- **SER v3 recording** with per-frame trailer timestamps at the exposure
+  midpoint (WinJUPOS-ready), a RAM-first write buffer, and a lucky-imaging
+  quality score for every frame
+- **FITS output**: one cube per run with a `FRAMES` table of mid-exposure MJD
+  and sharpness
+- **GPU debayering** of RAW8 and RAW16 through a Direct3D 11 compute shader,
+  drawn by Direct2D with no CPU readback
+- **Capture format on the toolbar**: resolution presets from the full
+  3840x2160 sensor down to 640x480, 8 or 16 bit, through one reconfigure path
   so an ROI crop is always recoverable
-- **Target profiles that actually load** — picking an object on the sky map or
-  in GoTo applies that target's gain, exposure, resolution, bit depth, focus
-  position and capture limit, and the control panel updates to match
-- **Closed-loop planet tracking** — three-stage centroid acquisition with
-  PHD2-style measured guide calibration (camera rotation, plate scale, and
+- **Target profiles** that apply gain, exposure, resolution, bit depth, focus
+  position and capture limit when a target is chosen
+- **Autorun sequences** that repeat check, focus, record and gap, hold for the
+  seeing, stop at the derotation limit, and rank their runs
+- **Derotation limit** computed from tonight's apparent diameter and the
+  aperture (Jupiter at 44 arcseconds comes to 176 s)
+
+### Tracking and pointing
+
+- **Closed-loop planet tracking**: three-stage centroid acquisition with
+  PHD2-style measured guide calibration (camera rotation, plate scale and
   guide rate are measured, never assumed)
-- **GoTo + sky map + plate solving** — Messier/planet catalog, D2D polar sky
-  map, ASTAP plate-solve → mount sync
-- **EAF V-curve autofocus** — real per-position averaging, a parabola fit it
-  will reject, and an honest report when it made focus worse
-- **Quick-look stacker** — aligned, quality-gated preview stack while you
-  record, so you know that night whether a capture was soft
-- **Atmospheric-dispersion advisor** — Edlen 1966 model over the band of the
-  filter you actually have fitted, plus auto-exposure and capture quality
-  gating
-- **Full device emulators** — camera, mount, and focuser simulate the real
-  SDK semantics (closed tracking loop, fault injection, defocus and sensor
-  noise, NexStar slew-rate curve, per-planet rendering), so the entire app
-  runs with no hardware attached and focus work can be tested indoors
-- **Guidance for non-experts** — a readiness check that stays silent when the
-  rig is fine, and a local AI assistant (Ollama) given the help file as
-  reference plus a live session snapshot: mount position, camera settings,
-  capture format and whether it is cropped, which display modes are altering
-  the image, seeing, focus, and tonight's imaging windows
-- **WebSocket telemetry** + browser dashboard for remote monitoring
-  (loopback-only by default; `RADUK_WS_LAN=1` to expose on a trusted LAN;
-  every connection needs the access token generated into `rig.ini`)
+- **ROI following and surface lock**: the camera's crop window follows the
+  planet on the capture thread, and on a Moon or Sun that fills the frame the
+  lock holds a patch of the surface instead of a centroid
+- **GoTo, sky map and plate solving**: Messier and planet catalogue, Meeus
+  ephemeris, a Direct2D sky map, ASTAP plate solving with mount sync, a plate
+  scale check on every solve, push-to guidance, and a measured pointing map
+- **Lunar feature targeting**: 99 named features, with libration and
+  topocentric parallax
+- **Lunar and solar mosaics** planned and executed, re-aiming every panel at
+  the target's live position so the mosaic closes
+- **Mount safety**: runaway watchdog, cord-wrap veto, keep-out sector and an
+  unconditional stop
+
+### Fast targets
+
+- **Satellite passes** predicted from CelesTrak elements with SGP4 (verified
+  against Vallado's test output) and flown at up to 3 deg/s, with an image
+  lock that corrects the prediction once the satellite is on the sensor
+- **Satellite night plan**: queue passes, pick the best set, fly them in turn
+- **Satellites and rocket bodies on the sky map**, each clickable to FOLLOW
+- **Near-Earth objects** from JPL's close-approach list, positioned through
+  JPL Horizons and followed from the map
+- **Any JPL Horizons target**, and **image-only tracking** that follows
+  whatever is in the frame with no prediction at all
+
+### Focus, exposure and quality
+
+- **ZWO EAF V-curve autofocus** with per-position averaging, a parabola fit it
+  will reject, and an honest report when focus got worse
+- **Auto-exposure**, a light ladder, typed values on every camera control,
+  and capture quality gating
+- **Seeing score, sharpness graph, histograms and clipping**
+- **Quick-look stacker**: an aligned, quality-gated preview stack while you
+  record, plus a one-button handoff to AutoStakkert
+- **Atmospheric dispersion (ADC) advisor** using the Edlen 1966 model over the
+  band of the filter actually fitted, plus an ADC alignment window
+
+### Operating at night
+
+- **Night vision across the whole interface**, with a designed luminance
+  ladder so warnings stay brighter than labels once colour is gone
+- **Display aids**: stretch with black and white points, single-channel view,
+  RGB alignment, movable and rotatable reticles (crosshair, circle,
+  collimation rings, framing box), and a five-second framing boost
+- **Five-monitor workspace** with a one-monitor fallback, an audience share
+  view, and an object panel backed by a knowledge database
+- **Readiness check** that stays silent when the rig is fine
+- **Local AI assistant** (Ollama) given the help file and a live session
+  snapshot: mount position, camera settings, capture format, display modes
+  altering the image, seeing, focus and tonight's imaging windows
+- **WebSocket telemetry and a browser dashboard** for remote monitoring,
+  loopback-only by default, token-protected on a LAN
+- **Session statistics** across every night's logs, capture records and
+  pointing results
+
+### Testing without a telescope
+
+- **Full device emulators** for the camera, mount and focuser: closed tracking
+  loop, fault injection, defocus and sensor noise, a real star field,
+  per-planet rendering at tonight's apparent size, and a textured Moon
+- **Scenario runner**: `--scenario` drives the emulator build end to end and
+  reports pass or fail, so most indoor checks are automated
+- **Bench tests** gate every merge (`tests\run-tests.bat`)
+
+## Supported hardware
+
+| Item | Status |
+|---|---|
+| ZWO ASI678MC (Sony IMX678, 3840x2160, 2.0 um, RGGB, USB 3) | Primary camera. Other ZWO ASI cameras use the same SDK path but are untested |
+| ZWO EAF | Supported through the ZWO EAF SDK |
+| Celestron NexStar 8SE, StarSense hand control | Direct serial protocol, or ASCOM (CPWI preferred) |
+| Other ASCOM telescopes | Through the ASCOM path; tested against the ASCOM telescope simulator |
+| ASTAP | Plate solving and mount sync |
+| Ollama | Optional local assistant |
+
+The design calculates a plate scale of 0.203 arcseconds per pixel for this
+rig (2032 mm at f/10 with 2.0 um pixels).
+
+## Status
+
+RadukCapture is in active development and in use on one rig. Capture,
+tracking, GoTo, autofocus, the ADC advisor, the quick-look stacker, the
+readiness check and the emulators are built and in use.
+
+Much of the recent work (FITS, ROI following, surface lock, mosaics, Autorun,
+lunar features, satellites, NEOs, Horizons targets and image-only tracking) is
+built and gated by bench tests and emulator scenarios, but **has not yet been
+proven under the sky.** Every phase's evidence, and what it still owes, is in
+[docs/PHASE-STATUS.md](docs/PHASE-STATUS.md), the only file that asserts
+status. The order of what remains is in
+[docs/ROADMAP-Next.md](docs/ROADMAP-Next.md) and section 13 of
+[RadukCapture-Architecture.md](RadukCapture-Architecture.md).
+
+Next on the bench is phase 132, the instrument UI. Not built: AVI output,
+multi-star FWHM, a Bahtinov focus aid, deep-sky annotation and stellar
+photometry. Polar alignment is backlogged because the mount is alt-az with no
+wedge. Calibration frames are a preview aid only; recordings stay raw. Full
+stacking is deliberately out of scope, since AutoStakkert does it better.
+There is no installer or binary download yet.
 
 ## Building
 
-Requires Visual Studio (MSVC, C++20) and CMake.
+Requires Windows, Visual Studio (MSVC, C++20) and CMake.
 
 ```bat
-:: Emulator build — no hardware or SDKs needed
+:: Emulator build: no hardware or SDKs needed
 cmake -S . -B build_emu -DRADUK_EMULATOR=ON
 cmake --build build_emu --config Release
 build_emu\Release\RadukCapture.exe
 
-:: Hardware build — uses the ZWO SDKs in external/
+:: Hardware build: uses the ZWO SDKs in external/
 cmake -S . -B build
 cmake --build build --config Release
 ```
+
+Optional companions: [ASTAP](https://www.hnsky.org/astap.htm) with a star
+catalogue for plate solving, [Ollama](https://ollama.com) for the assistant,
+and AutoStakkert for stacking.
 
 ## Configuration
 
 `rig.ini` sits next to the executable, is **not tracked by git**, and is the
 only place your observing site is stored. It is created on first save and
-defaults to latitude/longitude 0,0 until you set it (the app can also
+defaults to latitude and longitude 0,0 until you set it (the app can also
 auto-detect, and will refuse to overwrite a site you entered by hand).
 
 ```ini
@@ -92,49 +211,32 @@ app also loads as reference context for the AI assistant.
 
 ## Documentation
 
-- **[Wiki](https://github.com/Maligzar/Raduk-Capture/wiki)** — deep
-  reference: architecture, threading, the capture pipeline, every subsystem,
-  and why each is built the way it is. Source lives in [`wiki/`](wiki) and is
-  published with `wiki\publish-wiki.bat` (or `wiki/publish-wiki.sh` under
-  bash).
-- [RadukCapture-Help.md](RadukCapture-Help.md) — operator reference and
-  first-night walkthrough, also the AI assistant's app knowledge.
-- [RadukCapture-Architecture.md](RadukCapture-Architecture.md) —
-  how it is built, what has been done, and what is planned.
-- [docs/](docs) — code reviews, security review, tracking findings, phase
-  plans, and the clear-night checklist.
+- **[Wiki](https://github.com/Maligzar/Raduk-Capture/wiki)**: architecture,
+  threading, the capture pipeline, every subsystem, and why each is built the
+  way it is. Source lives in [`wiki/`](wiki) and is published with
+  `wiki\publish-wiki.bat` (or `wiki/publish-wiki.sh` under bash).
+- [RadukCapture-Help.md](RadukCapture-Help.md): operator reference and
+  first-night walkthrough.
+- [RadukCapture-Architecture.md](RadukCapture-Architecture.md): how it is
+  built, what has been done, and what is planned.
+- [docs/](docs): phase plans, code and security reviews, tracking findings,
+  and the clear-night checklist.
 
-## Status and roadmap
+## Keywords
 
-Built and in use: capture, tracking, GoTo, autofocus, the ADC advisor, the
-quick-look stacker, the readiness check and the device emulators.
-
-Also built: night vision across the whole interface (not just the preview),
-a display stretch with black and white points, single-channel (R/G/B) view,
-a four-shape reticle (crosshair, circle, collimation rings, framing box) that
-can be moved, sized and rotated, and a framing shot that boosts gain and
-exposure for five seconds then restores them.
-
-Built more recently, and mostly unproven on the sky: FITS output, framing
-recall, click-to-recentre, a push-to assistant, ROI following, surface lock,
-lunar and solar mosaics, a derotation limit, and Autorun sequences that hold
-for the seeing and rank their runs.
-
-Not built yet: rocket tracking,
-multi-star FWHM and Bahtinov focus aids, multi-session statistics, image
-annotation, stellar photometry and AVI output. A polar-alignment assistant
-is backlogged rather than queued: the mount is alt-az and there is no wedge,
-so the procedure does not apply. Calibration frames exist as a preview aid
-only — the recording stays raw. Full stacking is deliberately out of scope
-— AutoStakkert does that better.
-
-What has been done and what is planned is in sections 12 and 13 of
-[RadukCapture-Architecture.md](RadukCapture-Architecture.md). The evidence
-for each phase is in [docs/PHASE-STATUS.md](docs/PHASE-STATUS.md).
+Planetary imaging software, lucky imaging capture, astrophotography capture
+software for Windows, ZWO ASI678MC capture, Sony IMX678 planetary camera,
+ZWO ASI SDK C++ example, ZWO EAF autofocus, Celestron NexStar 8SE control,
+StarSense, ASCOM telescope control, SER video recorder, FITS cube, WinJUPOS,
+AutoStakkert, ASTAP plate solving, satellite tracking telescope, ISS imaging,
+SGP4, JPL Horizons, near-Earth asteroid tracking, lunar mosaic, atmospheric
+dispersion corrector, Win32, Direct2D, Direct3D 11.
 
 ## License
 
-Copyright 2026 Kenneth C Wood Jr. PolyForm Noncommercial 1.0.0 — see [LICENSE](LICENSE). The ZWO SDKs under `external/` remain the
+Copyright 2026 Kenneth C Wood Jr. Licensed under PolyForm Noncommercial 1.0.0;
+see [LICENSE](LICENSE).
 
-Barlow Condensed and Space Mono are bundled under the SIL Open Font License 1.1. Their notices are in [assets/fonts](assets/fonts).
-property of Suzhou ZWO Co., Ltd. under their own terms.
+The ZWO SDKs under `external/` remain the property of Suzhou ZWO Co., Ltd.
+under their own terms. Barlow Condensed and Space Mono are bundled under the
+SIL Open Font License 1.1; their notices are in [assets/fonts](assets/fonts).

@@ -98,10 +98,10 @@ inline SiteDialogResult AskForSite(HWND owner, HWND panel,
     mk(L"STATIC", whyW, 0, 14, y, DW - 34, 34, -1);
     y += 38;
 
-    mk(L"STATIC", L"Latitude  (+N, e.g. 33.86):",  0, 14, y + 3, 190, 20, -1);
+    mk(L"STATIC", L"Latitude  (+N, e.g. 40.71):",  0, 14, y + 3, 190, 20, -1);
     HWND eLat  = mk(L"EDIT", L"", WS_BORDER | ES_AUTOHSCROLL, 212, y, 120, 22, ID_LAT);
     y += 30;
-    mk(L"STATIC", L"Longitude (+E, e.g. -112.09):", 0, 14, y + 3, 190, 20, -1);
+    mk(L"STATIC", L"Longitude (+E, e.g. -74.01):", 0, 14, y + 3, 190, 20, -1);
     HWND eLon  = mk(L"EDIT", L"", WS_BORDER | ES_AUTOHSCROLL, 212, y, 120, 22, ID_LON);
     y += 30;
     mk(L"STATIC", L"Elevation in metres (optional):", 0, 14, y + 3, 190, 20, -1);

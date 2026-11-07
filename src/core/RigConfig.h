@@ -592,8 +592,8 @@ private:
         // offset implies a longitude band (offset x 15 deg); real borders
         // are irregular, so the tolerance is deliberately loose and only a
         // gross mismatch trips it. This is the check that would have caught
-        // a 0,0 site instantly: UTC-7 implies about -105 deg, so 0.0 sits
-        // 105 deg away while a genuine -112.09 is only 7 deg away.
+        // a 0,0 site instantly: UTC-5 implies about -75 deg, so 0.0 sits
+        // 75 deg away while a genuine -74.0 is only 1 deg away.
         if (cfg.siteValid) {
             // _get_timezone returns the CRT's default (PST) until the
             // timezone is initialised, so a process that has not yet

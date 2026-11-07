@@ -37,8 +37,14 @@ bool PreviewRenderer::CreateBrushes() {
     if (FAILED(hr)) return false;
     hr = m_renderTarget->CreateSolidColorBrush(Theme::Color(Theme::TEXT_DIM), &m_dimBrush);
     if (FAILED(hr)) return false;
+    // Phase 132.1: the reticle keeps its full-strength red at night --
+    // it is what the eye lines the planet up against, so it is not
+    // put through NVf, which would dim it to a third -- but loses the
+    // tenth of green and blue it carried in both modes. Day is unchanged.
     hr = m_renderTarget->CreateSolidColorBrush(
-        D2D1::ColorF(1.0f, 0.1f, 0.1f, 1.0f), &m_reticleBrush);
+        Theme::NightVisionOn() ? D2D1::ColorF(1.0f, 0.0f, 0.0f, 1.0f)
+                               : D2D1::ColorF(1.0f, 0.1f, 0.1f, 1.0f),
+        &m_reticleBrush);
     if (FAILED(hr)) return false;
     // These three go through NVf as of the side panels. They were raw
     // literals, so night vision left them green/amber at full strength.
@@ -790,11 +796,14 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                 if (stretchOn) {
                     r = lut[r]; g = lut[g]; b = lut[b];
                 }
-                // Phase 26: Night Vision — Rec.709 luminance → red channel only
+                // Phase 26: Night Vision — Rec.709 luminance → red channel only.
+                // Phase 132.1: the green fraction is Theme's token, now 0,
+                // so the image and the chrome around it agree. A constexpr
+                // zero, so this costs no more per pixel than before.
                 if (m_nightVision) {
                     uint8_t lum = (uint8_t)(0.2126f*r + 0.7152f*g + 0.0722f*b);
                     r = lum;
-                    g = (uint8_t)(lum * 0.10f);
+                    g = (uint8_t)(lum * Theme::kNightGreenFraction);
                     b = 0;
                 }
                 // Phase 38: Single-Channel Display Mode

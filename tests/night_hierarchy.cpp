@@ -227,8 +227,39 @@ int main() {
               "an unlisted colour still derives from its luminance");
         Check(GetBValue(Theme::NV(odd)) == 0,
               "with no blue left in it at all");
-        Check(GetGValue(Theme::NV(odd)) == want / 10,
-              "and a tenth in green, so near-blacks do not crush");
+        Check(GetGValue(Theme::NV(odd)) == 0,
+              "and no green either (phase 132.1)");
+    }
+
+    // ---- phase 132.1: nothing but red ---------------------------
+    printf("\n6b. Night vision emits red and nothing else\n");
+    {
+        // The tenth of green this used to carry sat near the rods'
+        // peak sensitivity, on exactly the brightest things on screen.
+        // Every path is checked, because the defect this phase fixes
+        // was three paths each spelling the fraction for themselves.
+        Theme::SetNightVision(true);
+        Check(Theme::kNightGreenFraction == 0.0f, "the token ships at zero");
+
+        bool gdi = true, d2d = true, lit = true;
+        for (const auto& s : Theme::detail::kNightLadder) {
+            const COLORREF day = RGB(s.r, s.g, s.b);
+            const COLORREF n = Theme::NV(day);
+            if (GetGValue(n) != 0 || GetBValue(n) != 0 || GetRValue(n) != s.lum) gdi = false;
+            const D2D1_COLOR_F f = Theme::NVf(D2D1::ColorF(s.r / 255.0f, s.g / 255.0f, s.b / 255.0f));
+            if (f.g != 0.0f || f.b != 0.0f) d2d = false;
+            const COLORREF h = Theme::HighlightOver(day, 1.0f);
+            if (GetGValue(h) != 0 || GetBValue(h) != 0) lit = false;
+        }
+        Check(gdi, "GDI: every ladder token is (lum, 0, 0), at its designed luminance");
+        Check(d2d, "Direct2D: every ladder token has no green and no blue");
+        Check(lit, "a full-weight highlight cannot put green back");
+
+        // The danger red was the worst case: 24 units of green on the
+        // brightest token in the app.
+        Check(Theme::NV(Theme::Rgb::ACCENT4) == RGB(240, 0, 0), "danger is pure red at 240");
+        Check(Theme::NV(RGB(255, 255, 255)) == RGB(255, 0, 0),
+              "a white with no token is pure red, as the preview's whites now are");
     }
 
     // ---- the two painting stacks agree -------------------------

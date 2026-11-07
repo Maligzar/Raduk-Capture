@@ -322,3 +322,51 @@ touching `main.cpp`, which this stage avoided.
    both runs show the same windows.
 3. The same command again without `-Save`. On an unchanged build it should report
    nothing unexpected, which is the check that the noise floor is wide enough.
+
+### 132.1, 2026-11-07
+
+Night vision now emits red and nothing else. `Theme::kNightGreenFraction` is
+0, and all three paths read it: `NV` (GDI), `NVf` (Direct2D) and the preview's
+night-vision pixel loop.
+
+**The plan's premise was half wrong.** The green's stated purpose was to keep
+near-blacks from reading as pure black, and the plan was to lift the bottom
+surface steps in red to replace it. Measured, it never did that job. Integer
+`lum / 10` gave the four surface steps (8, 14, 24, 34) a green of 0, 1, 2
+and 3. So there was nothing to replace, and **no ladder luminance changed**.
+The green that reached the eye was on the bright signals: 24 on danger, 20 on
+primary text, and 25 on every white in the preview image.
+
+**Wider than the plan in two places, both on purpose.**
+
+- **The preview image.** The plan kept `PreviewRenderer` off limits. But the
+  image is the largest bright area on the screen at night, and it carried the
+  same tenth of green. Leaving it would have fixed the chrome and kept most of
+  the light. The change is one constant in the existing night-vision branch,
+  now read from the token. It is a `constexpr` zero, so the per-pixel cost is
+  unchanged. Day mode does not run that branch.
+- **The reticle** was `ColorF(1, 0.1, 0.1)` in both modes and never went
+  through `NVf`. At night it is now pure red at full strength. Sending it
+  through `NVf` would have dimmed it to about 0.29, and the eye lines the
+  planet up against it. Day mode is unchanged.
+
+Comments that quoted `(lum, lum/10, 0)` (`Theme::Raw`, `HighlightOver`,
+`MountController.h`) now say `(lum, 0, 0)`. `Raw`'s double-tint warning is
+corrected from 0.284 to 0.2126 of the brightness.
+
+**Gated.** `tests/night_hierarchy.cpp` section 6b checks that the token ships
+at zero, that every ladder token is `(lum, 0, 0)` at its designed luminance in
+GDI and has no green or blue in Direct2D, that a full-weight highlight cannot
+put green back, that danger is `(240, 0, 0)`, and that an untokened white is
+`(255, 0, 0)`. Section 6's "a tenth in green" check is now "no green".
+`night_hierarchy`, `operator_palette`, `visual_tokens`, `audience_layout`
+and `motion` pass under mingw-w64 and wine. `window_chrome` fails there exactly
+as it does on unchanged master: wine cannot load the embedded fonts. CI runs it
+under MSVC.
+
+**Expected in the 132.0 diff:** every `night/` shot changes, slightly, on its
+brightest elements. No `day/` shot changes.
+
+**Owed.** A look at the eyepiece on a dark night. Danger and primary text lose
+a little warmth, which is the whole change. The preview's planet loses the
+orange cast the green gave it and reads as pure red.

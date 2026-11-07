@@ -1,4 +1,4 @@
-param([int]$Seconds = 15)
+param([int]$Seconds = 15, [string]$Dir = "")
 Add-Type @'
 using System; using System.Text; using System.Runtime.InteropServices;
 public class RT {
@@ -28,7 +28,9 @@ $ccb=[RT+EnumProc]{ param($c,$l)
 if ($script:panel -eq [IntPtr]::Zero) { "control panel not found"; exit 1 }
 "control panel found: $($script:panel)"
 
-$dir = "D:\RadukCapture\captures"
+# Defaults to captures\ in the clone, which is where recordings land when
+# DataRoot points at the clone. Pass -Dir for any other data root.
+if (-not $Dir) { $Dir = Join-Path (Split-Path -Parent $PSScriptRoot) "captures" }
 $before = @(Get-ChildItem $dir -Filter *.ser -ErrorAction SilentlyContinue)
 "ser files before: $($before.Count)"
 

@@ -21,10 +21,41 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 
 using namespace raduk::core;
 
 static int g_fail = 0;
+
+// The docs folder beside tests, found from this file's own path. run-tests.ps1
+// compiles with an absolute source path, so __FILE__ is absolute.
+static std::wstring RepoDocsDir() {
+    std::filesystem::path here(__FILE__);
+    return (here.parent_path().parent_path() / "docs").wstring();
+}
+
+// A session log shaped like SessionLog's output, in a fresh temp
+// directory. Tens of thousands of lines, as a real night's log is, with
+// a handful about autofocus for the retrieval to find.
+static std::wstring WriteSyntheticSessionLog() {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path dir = fs::temp_directory_path(ec) / "raduk_ai_context_facts";
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+    std::ofstream f(dir / "session_20261010_210000.log");
+    for (int i = 0; i < 20000; i++) {
+        f << "[21:" << (10 + i / 600 % 50) << ":" << (10 + i / 10 % 50)
+          << "] [CAPTURE     ] frame " << i << " written, 1280x960 8-bit\n";
+        if (i == 9000) {
+            f << "[22:15:00] [AUTOFOCUS   ] V-curve sweep started at 168032\n"
+              << "[22:16:40] [AUTOFOCUS   ] parabola fit accepted, best 168110\n"
+              << "[22:16:41] [AUTOFOCUS   ] focus improved 6.2% over start\n";
+        }
+    }
+    return dir.wstring();
+}
 
 static void Check(bool ok, const std::string& what, const std::string& detail) {
     printf("  [%s] %-58s %s\n", ok ? "PASS" : "FAIL", what.c_str(), detail.c_str());
@@ -200,9 +231,17 @@ int main() {
     // smuggle the observing site in.
     printf("\n6. Retrieval over the local corpus\n");
     {
+        // Hermetic on purpose. This read the docs and logs folders under
+        // D:/RadukCapture, so the gate passed on one machine only and
+        // failed on every fresh clone. The documents now come from the
+        // clone this test was compiled in, and the session history is
+        // a synthetic log written here, large enough that "selected,
+        // not dumped" below still means something.
+        const std::wstring docsDir = RepoDocsDir();
+        const std::wstring logsDir = WriteSyntheticSessionLog();
         AIContextBuilder b2;
-        b2.LoadDocuments(L"D:\\RadukCapture\\docs");
-        b2.LoadSessionLogs(L"D:\\RadukCapture\\logs");
+        b2.LoadDocuments(docsDir);
+        b2.LoadSessionLogs(logsDir);
 
         // A question the help file cannot answer and the project's own
         // notes can.

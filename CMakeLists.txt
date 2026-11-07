@@ -271,11 +271,24 @@ add_custom_target(copy_sqlite ALL
 )
 add_dependencies(copy_sqlite RadukCapture)
 
-# ── Create output directories ──────────────────────────────────
-
-add_custom_command(TARGET RadukCapture POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "D:/RadukCapture/captures"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "D:/RadukCapture/logs"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "D:/RadukCapture/profiles"
-    COMMENT "Creating RadukCapture data directories"
+# ── Object knowledge database (both builds) ────────────────────
+#
+# With DataRoot unset and no D:\RadukCapture, the data root is the
+# directory holding the exe (src/core/Paths.h), so the object panel and
+# the assistant look for data\object_knowledge.db there. Without this
+# copy a fresh clone never had one: the panel fell back to ephemeris
+# only. The app creates captures, logs and profiles itself at runtime.
+#
+# This step used to create D:/RadukCapture/{captures,logs,profiles}.
+# On a machine with no D: drive that failed the build, and where it
+# succeeded it created the very folder Paths.h treats as "the original
+# rig", so every later run wrote there instead of beside the exe.
+add_custom_target(copy_knowledge_db ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:RadukCapture>/data"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/data/object_knowledge.db"
+        "$<TARGET_FILE_DIR:RadukCapture>/data"
+    DEPENDS "${CMAKE_SOURCE_DIR}/data/object_knowledge.db"
+    COMMENT "Copying object_knowledge.db next to the exe"
 )
+add_dependencies(copy_knowledge_db RadukCapture)

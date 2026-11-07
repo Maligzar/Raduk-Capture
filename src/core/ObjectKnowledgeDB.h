@@ -2,7 +2,7 @@
 // ============================================================
 // ObjectKnowledgeDB.h — Phase 50a: Star Professor Knowledge Base
 //
-// Queries D:\RadukCapture\data\object_knowledge.db built by
+// Queries <data root>\data\object_knowledge.db built by
 // tools\build_knowledge_db.py
 //
 // Returns a rich multi-paragraph context block for any object:

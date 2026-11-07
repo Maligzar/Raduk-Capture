@@ -1,13 +1,13 @@
 @echo off
 REM launch_emulator.bat — Launch RadukCapture in emulator mode (no rebuild)
-REM Run from D:\RadukCapture
+REM Works from any folder: paths are relative to this script.
 REM
 REM Use this for day-to-day development when the telescope is packed away.
 REM If the emulator exe is missing or stale, run build_emulator.bat first.
 
 setlocal
 
-set EXE=D:\RadukCapture\build_emu\Release\RadukCapture.exe
+set EXE=%~dp0build_emu\Release\RadukCapture.exe
 
 if not exist "%EXE%" (
     echo.

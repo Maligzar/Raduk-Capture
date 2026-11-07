@@ -154,24 +154,78 @@ wedge. Calibration frames are a preview aid only; recordings stay raw. Full
 stacking is deliberately out of scope, since AutoStakkert does it better.
 There is no installer or binary download yet.
 
-## Building
+## Getting started from a fresh clone
 
-Requires Windows, Visual Studio (MSVC, C++20) and CMake.
+### Prerequisites
+
+- Windows 10 or 11, x64
+- Visual Studio 2022 or later with the **Desktop development with C++**
+  workload (MSVC, C++20, and the Windows SDK)
+- CMake 3.21 or later (the one bundled with Visual Studio works)
+
+The ZWO camera and EAF SDKs and SQLite are already in `external/`. Nothing
+else needs downloading to build.
+
+### Try it with no hardware
+
+The emulator build simulates the camera, focuser and mount, so the whole
+application runs on any Windows PC.
 
 ```bat
-:: Emulator build: no hardware or SDKs needed
+git clone https://github.com/Maligzar/Raduk-Capture.git
+cd Raduk-Capture
+build_emulator.bat
+launch_emulator.bat
+```
+
+Or by hand:
+
+```bat
 cmake -S . -B build_emu -DRADUK_EMULATOR=ON
 cmake --build build_emu --config Release
 build_emu\Release\RadukCapture.exe
+```
 
-:: Hardware build: uses the ZWO SDKs in external/
+On first launch, set your observing site (latitude, longitude, elevation)
+so the ephemeris, sky map and satellite passes are right. Until then the
+site is 0,0.
+
+### Build for the real rig
+
+```bat
 cmake -S . -B build
 cmake --build build --config Release
 ```
 
-Optional companions: [ASTAP](https://www.hnsky.org/astap.htm) with a star
-catalogue for plate solving, [Ollama](https://ollama.com) for the assistant,
-and AutoStakkert for stacking.
+`build_all.bat` builds both configurations and fails loudly if either
+breaks. Before connecting hardware, install ZWO's camera driver and the
+USB-serial driver for your mount's hand control, and set `FilterName`,
+`FilterLowNm` and `FilterHighNm` in `rig.ini` to the filter actually fitted.
+
+### Where your files go
+
+With `DataRoot` blank, captures, logs, profiles and the object knowledge
+database live beside the executable (for example
+`build_emu\Release\captures`). Set `DataRoot` in `rig.ini` to keep them on
+another disk. Nothing in those folders is tracked by git.
+
+### Optional companions
+
+| Tool | Enables | Without it |
+|---|---|---|
+| [ASTAP](https://www.hnsky.org/astap.htm) with a star catalogue (H18 or D80) | Plate solving and mount sync | Solves fail with a clear message |
+| [Ollama](https://ollama.com) on `localhost:11434` | The local AI assistant | The chat panel reports no model |
+| AutoStakkert! 4 | One-button handoff of a finished recording | The button reports it could not find it |
+
+### Running the tests
+
+```bat
+tests\run-tests.bat
+```
+
+Bench tests need no hardware and exit non-zero on any failure. GitHub
+Actions builds both configurations and runs them on every push and pull
+request.
 
 ## Configuration
 

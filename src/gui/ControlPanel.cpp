@@ -6,12 +6,12 @@
 // ============================================================
 
 #include "ButtonIcons.h"
-#include "FlatButton.h"
 #include "ToolbarLayout.h"
 #include "ControlPanel.h"
 #include "../core/ExposureScale.h"
 #include "../core/CameraEntry.h"
 #include "Theme.h"
+#include "FlatButton.h"
 #include "core/RigConfig.h"
 #include "core/Paths.h"
 #include "core/TextConv.h"

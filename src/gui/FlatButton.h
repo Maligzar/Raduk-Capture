@@ -16,6 +16,12 @@
 // and text weight, so both survive the dark.
 // ============================================================
 
+// Before anything pulls in windows.h: without NOMINMAX its min and max
+// macros break std::min in any header included after this one (132.3b's
+// first CI run failed on exactly that, in EAFEmulator.h).
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include "gui/ButtonIcons.h"
 #include "gui/Theme.h"
 

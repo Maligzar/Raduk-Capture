@@ -37,6 +37,9 @@ absent 8   [STATUS] LOCKED - guiding
 press  PLANET LOCK
 expect 10  [BUTTON] PLANET LOCK -> TRACKING (lit)
 expect 90  Acquisition: Locked
+# Let the lock's own status lines arrive first: Escape is posted and
+# handled a moment later.
+wait   2
 key    ESC
 expect 10  EMERGENCY STOP
 expect 10  [BUTTON] PLANET LOCK -> PLANET LOCK

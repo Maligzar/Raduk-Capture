@@ -1,0 +1,30 @@
+# Checklist 43 (the emulator half): track whatever is in the frame from
+# the image alone. Needs tonight's guide calibration, which locking on a
+# target provides; then it is followed with no prediction. Kochab
+# (dec +74), because at this site it is in the tracking band at any hour
+# -- the emulated mount points where a target really is, and a planet
+# below the horizon is rightly refused. Phase 127 found the emulator's
+# guide pulses moved RA and Dec while the real fork's move azimuth and
+# altitude, which threw this star out of the frame; fixed in the emulator.
+name    Motion: track what is in the frame
+timeout 300
+
+profile star.ini focuser position=168000
+
+expect 30  [SCENARIO] Motion
+wait   3
+goto   Kochab
+expect 120 SEARCHING
+wait   3
+press  PLANET LOCK
+expect 90  Acquisition: Locked
+wait   3
+press  GOTO:PASSES
+press  GOTO:TRACK WHAT IS IN FRAME
+expect 10  Moving target: following what is in the frame.
+absent 5   nothing bright enough in the frame
+absent 1   Not following
+wait   10
+shot   following
+press  GOTO:TRACK WHAT IS IN FRAME
+expect 20  Worst error on target

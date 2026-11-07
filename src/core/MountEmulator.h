@@ -420,15 +420,25 @@ private:
         // Emulator: simulate a guide pulse by nudging position
         if (!m_connected) return false;
         std::lock_guard<std::mutex> lk(m_mutex);
-        // Convert durationMs to a small position nudge
-        // At sidereal rate, 1000ms ≈ 15 arcsec ≈ 0.00417 deg
-        double nudgeDeg = (durationMs / 1000.0) * 15.0 / 3600.0;
+        // Phase 127, found by a scenario. This nudged RA and Dec at 15"/s,
+        // but the real 8SE's PulseGuide (NexStarMount) is a fixed-rate
+        // slew of the azimuth or altitude motor at guide rate 1. So the
+        // emulator measured a guide rate of 3.8"/s against 7.5, its RA
+        // response shrank with cos(dec) where the real azimuth response
+        // shrinks with cos(alt), and image-only tracking, which converts
+        // pulses into azimuth and altitude, drove a star at dec +74 out
+        // of the frame. Now the axes and the rate are the real ones.
+        const double nudgeDeg = (durationMs / 1000.0) *
+                                RigConfig::Get().guideRateArcsecPerSec / 3600.0;
+        double alt = 0.0, az = 0.0;
+        RADecToAltAzNow(m_raHours, m_decDeg, alt, az);
         switch (dir) {
-            case GuideDirection::North: m_decDeg   += nudgeDeg; break;
-            case GuideDirection::South: m_decDeg   -= nudgeDeg; break;
-            case GuideDirection::East:  m_raHours  += nudgeDeg / 15.0; break;
-            case GuideDirection::West:  m_raHours  -= nudgeDeg / 15.0; break;
+            case GuideDirection::North: alt += nudgeDeg; break;
+            case GuideDirection::South: alt -= nudgeDeg; break;
+            case GuideDirection::East:  az  += nudgeDeg; break;
+            case GuideDirection::West:  az  -= nudgeDeg; break;
         }
+        AltAzToRADecNow(alt, az, m_raHours, m_decDeg);
         printf("[MountEmulator] PulseGuide dir=%d %dms\n", (int)dir, durationMs);
         return true;
     }

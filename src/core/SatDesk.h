@@ -617,9 +617,14 @@ private:
         const char* how = tr.State() == SatTracker::Phase::Complete ? "complete"
                         : tr.State() == SatTracker::Phase::Aborted  ? "stopped"
                         : "FAILED";
-        snprintf(b, sizeof(b), "%s %s%s%s. Worst error on target "
-                 "%.2f deg.", src.what.c_str(), how, tr.Reason().empty() ? "" : ": ",
-                 tr.Reason().c_str(), tr.PeakErrorDeg());
+        if (tr.WasOnTarget())
+            snprintf(b, sizeof(b), "%s %s%s%s. Worst error on target "
+                     "%.2f deg.", src.what.c_str(), how, tr.Reason().empty() ? "" : ": ",
+                     tr.Reason().c_str(), tr.PeakErrorDeg());
+        else
+            snprintf(b, sizeof(b), "%s %s%s%s. It never reached the target.",
+                     src.what.c_str(), how, tr.Reason().empty() ? "" : ": ",
+                     tr.Reason().c_str());
         Say(b);
         SetStatus(b);
     }

@@ -24,6 +24,10 @@
 //  WHAT A STEP CAN DO. Press a named button, send a key, GoTo a target,
 //  open a panel tab, wait, and take screenshots of every window, which
 //  is how layout gets checked without anyone looking at the screen.
+//  Phase 127: `press GOTO:<label>` for the GoTo panel's own buttons and
+//  tabs, `type JPL <text>` into its target box, and `arm-pass S`, which
+//  moves the satellite clock so the first trackable pass opens in S
+//  seconds -- a real pass can be hours away.
 //
 //  The script:
 //
@@ -46,7 +50,8 @@
 //  earlier expect has used. Lines from one action can come in either
 //  order -- two things logged in the same instant often do -- and a line
 //  that repeats, like a second "Recording started", needs a second one.
-//  `absent S TEXT` fails if such a line arrives within S seconds.
+//  `absent S TEXT` fails if such a line has appeared since the last
+//  action, or appears within S seconds.
 //
 //  Pure: no Windows, so tests/scenario_runner.cpp gates it on a fake
 //  clock. main.cpp performs the actions.
@@ -65,7 +70,7 @@
 namespace raduk::core {
 
 struct ScenarioStep {
-    enum class Kind { Wait, Press, Key, Goto, Tab, Expect, Absent, Shot, Note };
+    enum class Kind { Wait, Press, Key, Goto, Tab, Expect, Absent, Shot, Note, Type, ArmPass };
     Kind        kind = Kind::Wait;
     double      sec  = 0.0;
     std::string text;
@@ -73,7 +78,7 @@ struct ScenarioStep {
 };
 
 struct ScenarioAction {
-    enum class Kind { None, Press, Key, Goto, Tab, Shot, Finish };
+    enum class Kind { None, Press, Key, Goto, Tab, Shot, Finish, Type, ArmPass };
     Kind        kind = Kind::None;
     std::string arg;
 };
@@ -136,6 +141,16 @@ public:
                     return bad("expected SECONDS TEXT");
                 s.text = Trim(rest.substr(sp2));
                 if (s.text.empty()) return bad("nothing to match");
+            } else if (word == "arm-pass") {
+                // Phase 127: emulator only, the first pass rises in SECONDS.
+                s.kind = ScenarioStep::Kind::ArmPass;
+                if (!Number(rest, s.sec) || s.sec < 0) return bad("arm-pass needs seconds");
+                s.text = rest;
+            } else if (word == "type") {
+                // type FIELD TEXT
+                s.kind = ScenarioStep::Kind::Type;
+                if (rest.find_first_of(" \t") == std::string::npos) return bad("expected FIELD TEXT");
+                s.text = rest;
             } else if (word == "press" || word == "key" || word == "goto" || word == "tab" ||
                        word == "shot" || word == "note") {
                 s.kind = word == "press" ? ScenarioStep::Kind::Press
@@ -209,7 +224,9 @@ public:
                 }
                 case ScenarioStep::Kind::Absent: {
                     size_t at;
-                    if (Find(s.text, m_absentFrom, at, false)) {
+                    // Since the last action, not only since this step:
+                    // "press X, then absent Y" means X did not cause Y.
+                    if (Find(s.text, m_anchor, at, false)) {
                         Fail("saw what must not appear: " + EventText(at));
                         break;
                     }
@@ -222,11 +239,13 @@ public:
                     break;
                 default: {
                     // An action: hand it over, and count it done.
-                    act.kind = s.kind == ScenarioStep::Kind::Press ? ScenarioAction::Kind::Press
-                             : s.kind == ScenarioStep::Kind::Key   ? ScenarioAction::Kind::Key
-                             : s.kind == ScenarioStep::Kind::Goto  ? ScenarioAction::Kind::Goto
-                             : s.kind == ScenarioStep::Kind::Tab   ? ScenarioAction::Kind::Tab
-                                                                   : ScenarioAction::Kind::Shot;
+                    act.kind = s.kind == ScenarioStep::Kind::Press   ? ScenarioAction::Kind::Press
+                             : s.kind == ScenarioStep::Kind::Key     ? ScenarioAction::Kind::Key
+                             : s.kind == ScenarioStep::Kind::Goto    ? ScenarioAction::Kind::Goto
+                             : s.kind == ScenarioStep::Kind::Tab     ? ScenarioAction::Kind::Tab
+                             : s.kind == ScenarioStep::Kind::Type    ? ScenarioAction::Kind::Type
+                             : s.kind == ScenarioStep::Kind::ArmPass ? ScenarioAction::Kind::ArmPass
+                                                                     : ScenarioAction::Kind::Shot;
                     act.arg = s.text;
                     Pass("");
                     StartStep(now);
@@ -319,6 +338,8 @@ private:
             case ScenarioStep::Kind::Absent: return "absent " + Fmt(s.sec) + " " + s.text;
             case ScenarioStep::Kind::Shot:   return "shot " + s.text;
             case ScenarioStep::Kind::Note:   return "note " + s.text;
+            case ScenarioStep::Kind::Type:   return "type " + s.text;
+            case ScenarioStep::Kind::ArmPass: return "arm-pass " + s.text;
         }
         return "";
     }

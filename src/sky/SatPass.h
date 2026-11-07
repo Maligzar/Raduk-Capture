@@ -50,11 +50,19 @@ namespace raduk::sky {
 // for a planet, and up to a degree of ISS. Milliseconds, from the
 // system clock. Its accuracy is the PC's: one second wrong is seven
 // kilometres of orbit.
+// Phase 127: added to the satellite clock, in days. Zero always, except
+// in an emulator scenario, which moves it so a pass rises within a
+// minute instead of hours from now (GoToPanel::ScenarioArmFirstPass).
+inline double& SatClockOffsetDays() {
+    static double offset = 0.0;
+    return offset;
+}
+
 inline double PreciseJdNow() {
     using namespace std::chrono;
     const double ms = (double)duration_cast<milliseconds>(
         system_clock::now().time_since_epoch()).count();
-    return 2440587.5 + ms / 86400000.0;
+    return 2440587.5 + ms / 86400000.0 + SatClockOffsetDays();
 }
 
 // ── One look ─────────────────────────────────────────────────

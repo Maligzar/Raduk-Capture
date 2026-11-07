@@ -11,7 +11,7 @@ wait   5
 arm-pass 45
 expect 5   [SCENARIO] armed
 press  GOTO:TRACK SELECTED PASS
-expect 10  slewing to where the window opens.
+expect 10  Satellite: slewing
 expect 150 on target, recording.
 # Named for the satellite, not the "Jupiter" startup default, and not
 # cut short by the 1000-frame default limit (50 s at 20 fps): phase 127.

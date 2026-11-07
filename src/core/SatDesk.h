@@ -472,6 +472,7 @@ private:
 
         // Phase 118: the number a night plan is built on.
         double fromAlt = 0.0, fromAz = 0.0, slewBegan = 0.0;
+        double aimAlt = win.startAlt, aimAz = win.startAz;   // phase 131
         const bool haveFrom = mount->GetAltAz(fromAlt, fromAz);
 
         bool capturing = false;
@@ -544,17 +545,47 @@ private:
             const SatTracker::Output o = tr.Tick(now, sky, ok, alt, az, slewing);
 
             if (o.goTo) {
-                const SatLook l = src.look(base);
+                // Phase 131: aim at where it will be when the mount lands.
+                // A pass already under way, or one whose start is closer
+                // than the slew, was met at the window's start, which the
+                // satellite had long left: the chase started 20 deg or
+                // more behind, and a fast pass could not be caught.
+                const double jdNow = PreciseJdNow() + m_timeOffset.load() / 86400.0;
+                double aimJd = base;
+                if (haveFrom && lim.slewDegPerSec > 0.1) {
+                    for (int it = 0; it < 4; ++it) {
+                        const SatLook a = src.look(aimJd);
+                        if (!a.ok) break;
+                        const double deg = (std::max)(std::fabs(WrapDeg180(a.azDeg - fromAz)),
+                                                      std::fabs(a.altDeg - fromAlt));
+                        const double land = jdNow + (deg / lim.slewDegPerSec
+                                                     + lim.slewMarginSec) / 86400.0;
+                        aimJd = (std::max)(base, land);
+                    }
+                    // Too late to meet it at all: aim at the start as
+                    // before, and let the tracker say the pass ended.
+                    if ((win.trackEndJd - aimJd) * 86400.0 < 10.0) aimJd = base;
+                }
+                const SatLook l = src.look(aimJd);
+                aimAlt = l.altDeg; aimAz = l.azDeg;
                 mount->GoToRADec(l.raHours, l.decDeg);
                 slewBegan = now;
-                say("slewing to where the window opens.");
+                if (aimJd > base + 0.5 / 86400.0) {
+                    tr.DelayStart((aimJd - base) * 86400.0);
+                    char b[160];
+                    snprintf(b, sizeof(b), "slewing ahead, to meet it %.0f s into its window.",
+                             (aimJd - base) * 86400.0);
+                    say(b);
+                } else {
+                    say("slewing to where the window opens.");
+                }
                 SetStatus("Slewing to the start of the pass");
             }
             if (phase == SatTracker::Phase::Slewing &&
                 tr.State() == SatTracker::Phase::Holding && haveFrom) {
                 const double deg = (std::max)(
-                    std::fabs(WrapDeg180(win.startAz - fromAz)),
-                    std::fabs(win.startAlt - fromAlt));
+                    std::fabs(WrapDeg180(aimAz - fromAz)),
+                    std::fabs(aimAlt - fromAlt));
                 const double sec = now - slewBegan;
                 char b[120];
                 snprintf(b, sizeof(b), "%s: slew of %.0f deg took %.0f s "

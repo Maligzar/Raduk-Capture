@@ -512,6 +512,8 @@ public:
         l.minAltDeg  = r.satMinAltDeg;
         l.maxAltDeg  = r.satMaxAltDeg;
         l.maxRateDeg = r.satMaxRateDeg;
+        if (r.satSlewDegPerSec > 0.1) l.slewDegPerSec = r.satSlewDegPerSec;
+        l.slewMarginSec = r.satSettleSec;   // what the night plan allows too
         return l;
     }
 
@@ -1548,7 +1550,15 @@ private:
     void SatTick() {
         if (m_onLog)
             for (const auto& s : m_sat.TakeMessages()) m_onLog(s);
-        if (m_sat.TakeFresh()) PopulatePasses();
+        if (m_sat.TakeFresh()) {
+            PopulatePasses();
+            // Phase 131: a map FOLLOW that was waiting for these.
+            if (!m_pendingSatFollow.empty()) {
+                const std::string n = m_pendingSatFollow;
+                m_pendingSatFollow.clear();
+                FollowSatellite(n);
+            }
+        }
         PlanTick();
         FollowTick();
         if (m_lblPassState) {
@@ -1836,6 +1846,59 @@ public:
         RequestFollow();
     }
 
+    // Phase 131: FOLLOW on a satellite on the sky map. Flies the next
+    // pass of it that reaches the band, exactly as TRACK SELECTED PASS
+    // would, waiting at the window's start if the pass is still to come.
+    // If the passes have not been worked out yet, they are, and this
+    // runs again when they arrive.
+    void FollowSatellite(const std::string& name) {
+        auto trim = [](std::string s) {
+            while (!s.empty() && (s.back() == ' ' || s.back() == '\r')) s.pop_back();
+            return s;
+        };
+        const std::string want = trim(name);
+        auto say = [&](const std::string& s) { if (m_onLog) m_onLog("Map FOLLOW " + want + ": " + s); };
+        if (m_sat.Rows().empty()) {
+            m_pendingSatFollow = want;
+            if (!m_sat.Busy()) m_sat.Refresh(SiteObserver(), SatLimits(), false);
+            say("working out the passes first");
+            ShowPassNote("Working out passes for " + want);
+            return;
+        }
+        if (m_sat.Tracking()) {
+            say("a pass is already being tracked");
+            ShowPassNote("A pass is already being tracked");
+            return;
+        }
+        PopulatePasses();
+        const double now = raduk::sky::PreciseJdNow();
+        const auto rows = m_sat.Rows();
+        bool listed = false;
+        for (size_t i = 0; i < rows.size(); ++i) {
+            const auto& r = rows[i];
+            if (trim(r.name) != want) continue;
+            listed = true;
+            if (!r.pass.trackable || (r.pass.trackEndJd - now) * 86400.0 < 10.0) continue;
+            if (m_listPasses && i < m_passRows.size())
+                ListView_SetItemState(m_listPasses, (int)i, LVIS_SELECTED | LVIS_FOCUSED,
+                                      LVIS_SELECTED | LVIS_FOCUSED);
+            const double inMin = (r.pass.trackStartJd - now) * 1440.0;
+            char b[160];
+            if (inMin > 0.5)
+                snprintf(b, sizeof(b), "its pass in %.0f min, peak %.0f deg", inMin, r.pass.peakAlt);
+            else
+                snprintf(b, sizeof(b), "its pass now, peak %.0f deg", r.pass.peakAlt);
+            say(b);
+            StartPass(r);
+            return;
+        }
+        const std::string why = listed
+            ? "no pass of " + want + " in the next 24 h reaches the tracking band"
+            : want + " has no pass worth tracking in the next 24 h";
+        say(why);
+        ShowPassNote(why);
+    }
+
     bool ScenarioType(const std::string& field, const std::string& text) {
         if (_stricmp(field.c_str(), "JPL") != 0 || !m_editTarget) return false;
         std::wstring w(text.begin(), text.end());
@@ -1855,6 +1918,7 @@ public:
             if (m_passRows[i].pass.trackable) { row = i; break; }
         if (row < 0) return "";
         const auto& r = m_passRows[(size_t)row];
+        m_scenarioArmed = r.name;
         const double now = raduk::sky::PreciseJdNow();
         raduk::sky::SatClockOffsetDays() += (r.pass.trackStartJd - now) - leadSec / 86400.0;
         ListView_SetItemState(m_listPasses, row, LVIS_SELECTED | LVIS_FOCUSED,
@@ -1864,6 +1928,7 @@ public:
                  r.name.c_str(), r.pass.peakAlt, leadSec);
         return b;
     }
+    const std::string& ScenarioArmedName() const { return m_scenarioArmed; }
 #endif
 
 private:
@@ -3268,6 +3333,8 @@ private:
     bool m_planShown = false;
     HWND m_lblPassState   = nullptr;
     std::string m_passStateShown;
+    std::string m_pendingSatFollow;   // phase 131
+    std::string m_scenarioArmed;      // phase 131: the satellite arm-pass picked
     bool m_passTrackShown = false;
     std::vector<raduk::core::SatPassRow> m_passRows;
     std::function<std::string(const raduk::sky::SatPassInfo&)> m_satPreflight;

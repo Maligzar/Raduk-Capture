@@ -237,18 +237,62 @@ public:
         return out;
     }
 
-    static std::string ReadWholeFile(const std::wstring& path, DWORD maxBytes) {
+    // Which end of an oversized file to keep.
+    enum class KeepEnd { Head, Tail };
+
+    // Read at most maxBytes of a file. A file within the cap comes back
+    // whole. A larger one comes back TRUNCATED, never empty: the first
+    // version returned "" for anything at or over the cap, and the
+    // callers skip an empty body, so the biggest session logs -- the
+    // longest, most eventful nights -- were the ones the assistant could
+    // not see, without a word in the console.
+    //
+    // Tail: the last maxBytes, starting at the first whole line.
+    // Head: the first maxBytes, ending at the last markdown heading
+    // boundary (or, failing that, the last whole line), so no section
+    // arrives cut in half.
+    //
+    // fullSize, when given, receives the file's real size, so a caller
+    // can tell truncated from whole (fullSize > body.size()).
+    static std::string ReadFileCapped(const std::wstring& path, size_t maxBytes,
+                                      KeepEnd keep,
+                                      unsigned long long* fullSize = nullptr) {
+        if (fullSize) *fullSize = 0;
         HANDLE hf = CreateFileW(path.c_str(), GENERIC_READ,
                                 FILE_SHARE_READ | FILE_SHARE_WRITE,
                                 nullptr, OPEN_EXISTING, 0, nullptr);
         if (hf == INVALID_HANDLE_VALUE) return "";
         std::string out;
-        const DWORD sz = GetFileSize(hf, nullptr);
-        if (sz > 0 && sz < maxBytes) {
-            std::vector<char> buf(sz + 1, 0);
+        LARGE_INTEGER li = {};
+        if (GetFileSizeEx(hf, &li) && li.QuadPart > 0 && maxBytes > 0) {
+            const unsigned long long sz = (unsigned long long)li.QuadPart;
+            if (fullSize) *fullSize = sz;
+            const bool over = sz > maxBytes;
+            const DWORD want = (DWORD)(over ? maxBytes : sz);
+            bool seekOk = true;
+            if (over && keep == KeepEnd::Tail) {
+                LARGE_INTEGER at;
+                at.QuadPart = (LONGLONG)(sz - maxBytes);
+                seekOk = SetFilePointerEx(hf, at, nullptr, FILE_BEGIN) != 0;
+            }
+            std::vector<char> buf(want);
             DWORD read = 0;
-            if (ReadFile(hf, buf.data(), sz, &read, nullptr))
+            if (seekOk && ReadFile(hf, buf.data(), want, &read, nullptr))
                 out.assign(buf.data(), read);
+            if (over && !out.empty()) {
+                if (keep == KeepEnd::Tail) {
+                    // The seek almost always lands mid-line; a torn
+                    // first line would be quoted as if it were real.
+                    const size_t nl = out.find('\n');
+                    out = (nl == std::string::npos) ? std::string()
+                                                    : out.substr(nl + 1);
+                } else {
+                    size_t cut = out.rfind("\n#");
+                    if (cut == std::string::npos || cut == 0)
+                        cut = out.rfind('\n');
+                    if (cut != std::string::npos) out.resize(cut + 1);
+                }
+            }
         }
         CloseHandle(hf);
         return out;
@@ -385,6 +429,11 @@ public:
     // markdown with headings, which is what RelevantHelp already
     // splits and scores -- so widening the corpus is mostly a matter
     // of handing it more text.
+    // Read caps for the local corpus. Public so a test can build a file
+    // that is over them on purpose.
+    static constexpr size_t kDocumentCapBytes   = 512 * 1024;
+    static constexpr size_t kSessionLogCapBytes = 1024 * 1024;
+
     void LoadDocuments(const std::wstring& docsDir) {
         m_docsText.clear();
         WIN32_FIND_DATAW fd = {};
@@ -396,9 +445,22 @@ public:
         int files = 0;
         do {
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
-            std::string body = ReadWholeFile(docsDir + L"\\" + fd.cFileName,
-                                             512 * 1024);
+            // Documents keep their HEAD when oversized. They are read
+            // as headed sections, each scored on its own, so the first
+            // 512 KB cut at a heading is a set of whole sections the
+            // assistant can still use; skipping the file would throw
+            // away every one of them because of the last. Nothing in
+            // docs/ is near the cap today (the largest is ~120 KB), so
+            // this is the line that says so if one ever gets there.
+            unsigned long long full = 0;
+            std::string body = ReadFileCapped(docsDir + L"\\" + fd.cFileName,
+                                              kDocumentCapBytes,
+                                              KeepEnd::Head, &full);
             if (body.empty()) continue;
+            if (full > body.size())
+                printf("[AIContextBuilder] %ls is %llu bytes, over the %zu-byte "
+                       "cap: kept the first %zu bytes (whole sections only)\n",
+                       fd.cFileName, full, kDocumentCapBytes, body.size());
             // A heading naming the file, so a matched section can be
             // attributed and the model can say where it read it.
             char hdr[320];
@@ -439,10 +501,21 @@ public:
         if ((int)names.size() > maxSessions) names.resize(maxSessions);
 
         for (const auto& n : names) {
-            std::string body = ReadWholeFile(logsDir + L"\\" + n, 1024 * 1024);
+            // Logs keep their TAIL when oversized: a log only grows at
+            // the end, so the last megabyte is the latest part of the
+            // night, and a megabyte or more is exactly the long nights
+            // that are worth asking about.
+            unsigned long long full = 0;
+            std::string body = ReadFileCapped(logsDir + L"\\" + n,
+                                              kSessionLogCapBytes,
+                                              KeepEnd::Tail, &full);
             if (body.empty()) continue;
             char label[200];
             snprintf(label, sizeof(label), "%ls", n.c_str());
+            if (full > body.size())
+                printf("[AIContextBuilder] %s is %llu bytes, over the %zu-byte "
+                       "cap: kept the last %zu bytes\n",
+                       label, full, kSessionLogCapBytes, body.size());
             m_sessions.push_back({ label, body });
         }
         printf("[AIContextBuilder] %zu session log(s) loaded\n",

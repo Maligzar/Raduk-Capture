@@ -37,8 +37,8 @@ static std::wstring RepoDocsDir() {
 
 // A session log shaped like SessionLog's output, in a fresh temp
 // directory. Twelve thousand lines with a handful about autofocus for the
-// retrieval to find. Kept under 1 MB: ReadWholeFile returns nothing for
-// a file of 1 MB or more, so a larger log would load as no session.
+// retrieval to find. Under the session-log cap, so it loads whole; the
+// oversized case has its own log below.
 static std::wstring WriteSyntheticSessionLog() {
     namespace fs = std::filesystem;
     std::error_code ec;
@@ -55,6 +55,45 @@ static std::wstring WriteSyntheticSessionLog() {
               << "[22:16:41] [AUTOFOCUS   ] focus improved 6.2% over start\n";
         }
     }
+    return dir.wstring();
+}
+
+// A session log OVER the read cap, in its own temp directory.
+//
+// The loader used to return nothing for a log of 1 MB or more, and the
+// caller skipped it, so the longest nights were exactly the ones the
+// assistant could not see. ~60-byte lines, past the cap by half again,
+// with one distinctive event near the START (which must be cut) and one
+// near the END (which must survive).
+static std::wstring WriteOversizedSessionLog(size_t* bytesOut) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path dir = fs::temp_directory_path(ec) / "raduk_ai_context_facts_big";
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+    const fs::path file = dir / "session_20261011_200000.log";
+    {
+        std::ofstream f(file, std::ios::binary);
+        const size_t target = AIContextBuilder::kSessionLogCapBytes * 3 / 2;
+        size_t written = 0;
+        int i = 0;
+        while (written < target) {
+            char line[128];
+            int n = snprintf(line, sizeof(line),
+                             "[23:%02d:%02d] [CAPTURE     ] frame %d written, 1280x960 8-bit\n",
+                             i / 600 % 60, i / 10 % 60, i);
+            f.write(line, n);
+            written += (size_t)n;
+            if (i == 100)
+                f << "[20:05:00] [DEWHEATER   ] dewheater fault early in the night\n";
+            i++;
+        }
+        f << "[03:58:10] [MERIDIAN    ] meridianflip completed, guiding resumed\n";
+        for (int k = 0; k < 200; k++)
+            f << "[03:59:00] [CAPTURE     ] frame " << (i + k)
+              << " written, 1280x960 8-bit\n";
+    }
+    *bytesOut = (size_t)fs::file_size(file, ec);
     return dir.wstring();
 }
 
@@ -299,6 +338,41 @@ int main() {
         Check(!tooPrecise,
               "and the site rule still holds with documents and logs in",
               offender);
+    }
+
+    // ── 7. A session log over the read cap ────────────────────
+    //
+    // Before this, a log of 1 MB or more loaded as "0 session log(s)"
+    // and the question below came back with no history at all.
+    printf("\n7. A session log larger than the read cap\n");
+    {
+        size_t bytes = 0;
+        const std::wstring bigDir = WriteOversizedSessionLog(&bytes);
+        Check(bytes > AIContextBuilder::kSessionLogCapBytes,
+              "the synthetic log really is over the cap",
+              std::to_string(bytes) + " bytes vs " +
+              std::to_string(AIContextBuilder::kSessionLogCapBytes));
+
+        AIContextBuilder b3;
+        b3.LoadSessionLogs(bigDir);
+        const std::string late =
+            b3.Build(s, planner, "when did the meridianflip happen?");
+        Check(Has(late, "[SESSION HISTORY]"),
+              "an oversized log still reaches [SESSION HISTORY]", "");
+        Check(Has(late, "meridianflip completed"),
+              "  with the event near its end", "");
+        Check(Has(late, "session_20261011_200000.log"),
+              "  attributed to the right session", "");
+
+        // The cap still means something: the tail is kept, the head
+        // is not, so the early event is out of reach.
+        const std::string early =
+            b3.Build(s, planner, "what about the dewheater?");
+        Check(!Has(early, "dewheater fault"),
+              "and the start beyond the cap is dropped, not dumped", "");
+        Check(late.size() < 60000,
+              "the prompt stays bounded with a huge log loaded",
+              std::to_string(late.size()) + " bytes");
     }
 
     printf("\n");

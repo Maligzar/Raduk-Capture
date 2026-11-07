@@ -395,6 +395,11 @@ of its drawing code knows it is fading.
 
 ### Still open
 
+**96.4b is now stage 132.3** of
+[`Phase132-Plan-Instrument-UI.md`](Phase132-Plan-Instrument-UI.md),
+planned 2026-11-07 and done in that plan's direction, behind its 132.0
+screenshot harness. What follows is the original note.
+
 **96.4b**, the type and spacing retrofit on the operator surfaces,
 remains deferred. `ControlPanel.cpp` lays out by hard pixel offsets
 (six measured-text calls in 2,424 lines), every off-ramp font site is

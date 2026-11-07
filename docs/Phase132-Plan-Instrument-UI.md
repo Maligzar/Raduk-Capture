@@ -20,7 +20,7 @@ pages it opens in Edge. Three constraints shape the plan:
 
 1. **Nothing breaks.** It is a capture instrument. A visual change must never touch
    capture, tracking, or the preview hot path.
-2. **Pause at any time.** Clear sky is unpredictable. Every stage leaves `main`
+2. **Pause at any time.** Clear sky is unpredictable. Every stage leaves `master`
    field-ready, so the owner can stop after any stage and go observing.
 3. **The app does the work.** The HTML pages should be written by the app from its
    own tokens and fonts, not hand-kept static files.
@@ -50,7 +50,7 @@ every window to PNG.
 
 ## Safety rails, for every stage
 
-- **One stage is one PR,** merged only after the owner has looked at it. `main` is
+- **One stage is one PR,** merged only after the owner has looked at it. `master` is
   field-ready between stages. Each merge is tagged `ui-132.N`, so the previous build
   is always one checkout away if something looks wrong at the telescope.
 - **Out of bounds:** `PreviewRenderer` drawing, `src/core` capture, tracking, mount,
@@ -132,8 +132,9 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
 - Take out glow and decorative effects, add engraved hairlines (1 px shadow line plus
   1 px highlight), and use small-caps tracked section labels.
 - **Night ladder luminances stay put** (`kNightLadder` keys by RGB, so each new day
-  value is mapped to its existing night luminance). Night vision looks the same.
-  The ladder test proves it.
+  value is mapped to its existing night luminance). Night vision keeps the same
+  brightness for every role; only 132.1 changes its colour. The ladder test
+  proves the luminances.
 - Sub-stages, each its own PR: 132.3a tokens and control panel; 132.3b GoTo and sky
   map (45 `ColorF` sites in `SkyMapWindow.h`); 132.3c telemetry windows; 132.3d
   dialogs, help, and assistant; 132.3e audience surfaces (object panel, share view)
@@ -212,6 +213,24 @@ Each block ends at a natural pause point. The ★ stages change what the owner s
   message (`src/net/WsProtocol.h`), and the dashboard follows the app's toggle.
   Older dashboards ignore the field.
 
+## Not covered, and still open elsewhere
+
+Found by the review on 2026-11-07. These are open UI items this plan does not
+take in. They are listed so they are not taken to be covered. Whether any of
+them joins a stage is the owner's call.
+
+- **Per-monitor DPI (119.6).** It was always paired with 96.4b, and 119 says it
+  depends on that retrofit. 132.3 does the retrofit and leaves DPI out, so it is
+  the natural follow-on to 132.3.
+- **List headers and tab strips (rest of 119.4, roadmap D2).** These are most of
+  why GoTo is still 39% non-red at night. 132.6's `DarkMode_Explorer` may help
+  the stock list headers, but nobody has checked that against night vision.
+- **Phase 120 leftovers.** `TGT` and CAPTURE's `Target` are still two boxes,
+  temperature shows in three places, and the view strip does not hide in
+  fullscreen. These fit 132.3a, which touches the control panel anyway.
+- **B1 tail.** In the object panel, a derived line long enough to wrap loses its
+  second row. This fits 132.3e.
+
 ## Not doing
 Glass, blur, translucency, and cursor spotlights on operator windows (banned by 119
 and harmful at night). A screenshot-tool region HUD or capture shelf. Any change to
@@ -225,5 +244,5 @@ the preview frame path. New colour-coded meaning.
   day and night.
 - Each stage ships with an "as built" section in `docs/Phase132-Plan-Instrument-UI.md`
   and an update to `PHASE-STATUS.md`.
-- Work happens on `claude/relaxed-wozniak-j7sldq`, one draft PR per stage. The first
-  PR is 132.0 together with this plan committed as the phase document.
+- One draft PR per stage, each on its own branch cut from `master`. The plan
+  merged on its own in #88, so the first stage PR is 132.0 alone.

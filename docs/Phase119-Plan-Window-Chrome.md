@@ -136,9 +136,9 @@ The rest is the owner's eye, in the dark, on the real monitors.
 | **119.1** | Bundle Barlow Condensed and Space Mono privately, for both GDI and DirectWrite. Both are open-font-licensed, which needs checking against the project's licence notice | S | The biggest gain for the least code, and every later stage is judged in the true type |
 | **119.2** | Windows 11 caption, text and border colours through one call, following night vision, with rounded corners | S | Fixes the bright white captions at once. Still worthwhile if 119.3 is dropped |
 | **119.3** | `WindowChrome`: custom title bars and frames, migrated window by window, starting with the histogram as the pattern | L | The heart of the request. 19 files, and Snap and DPI must keep working |
-| **119.4** | Owner-drawn buttons, list headers and tab strips | M | Finishes what phase 96 deferred, and takes GoTo out of system grey |
-| **119.5** | Direct2D 1.1 and flip model on the share view and object panel, with real shadows and dithered gradients | M | Where the cards show. Audience surfaces first, because nothing an operator needs depends on them |
-| **119.6** | **Future plan, not scheduled.** 96.4b and per-monitor DPI on every window | M | What makes it 4K-ready. Needs someone watching the screen, as 96.4b always did |
+| **119.4** | Owner-drawn buttons, list headers and tab strips | M | Finishes what phase 96 deferred, and takes GoTo out of system grey. **Control panel buttons done; hover and press move to 132.5. List headers and tab strips are in no plan yet** |
+| **119.5** | Direct2D 1.1 and flip model on the share view and object panel, with real shadows and dithered gradients | M | Where the cards show. Audience surfaces first, because nothing an operator needs depends on them. **Moved to 132.3e** |
+| **119.6** | **Future plan, not scheduled.** 96.4b and per-monitor DPI on every window | M | What makes it 4K-ready. Needs someone watching the screen, as 96.4b always did. **96.4b moved to 132.3; per-monitor DPI is in no plan yet** |
 
 Dependencies: 119.1 first. 119.2 and 119.5 stand alone. 119.3 before 119.4 and
 any later 119.6, which would otherwise be redone. New chrome from 119.3 on takes

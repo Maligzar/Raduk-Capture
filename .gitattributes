@@ -1,0 +1,12 @@
+# Windows batch files need CRLF: cmd.exe mis-parses labels and GOTO in
+# LF-only files. Stored as LF in the repo, checked out as CRLF everywhere.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binaries: never touch line endings or diff them as text.
+*.dll binary
+*.lib binary
+*.db  binary
+*.ico binary
+*.ttf binary
+*.png binary

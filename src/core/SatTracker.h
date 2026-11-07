@@ -122,6 +122,7 @@ public:
         m_errDeg = 0.0;
         m_peakErrDeg = 0.0;
         m_saturated = false;
+        m_wasOnTarget = false;
     }
 
     void Abort(const char* why) {
@@ -190,6 +191,9 @@ public:
     bool TelescopeFault() const { return m_fault; }
     double ErrorDeg() const { return m_errDeg; }         // on the sky
     double PeakErrorDeg() const { return m_peakErrDeg; } // once on target
+    // Phase 127: whether it ever got there. A run stopped while slewing or
+    // holding reported "worst error 0.00 deg", which read as perfect.
+    bool   WasOnTarget()  const { return m_wasOnTarget; }
     bool Saturated() const { return m_saturated; }
 
 private:
@@ -281,6 +285,7 @@ private:
                 if (m_nearSince < 0.0) m_nearSince = now;
                 if (now - m_nearSince >= m_cfg.acquireHoldSec) {
                     Enter(Phase::Tracking, now);
+                    m_wasOnTarget = true;
                     o.beginCapture = true;
                     m_capturing = true;
                     m_lostSince = -1.0;
@@ -314,6 +319,7 @@ private:
     double m_nearSince = -1.0, m_lostSince = -1.0;
     double m_cmdAz = 0.0, m_cmdAlt = 0.0;
     double m_errDeg = 0.0, m_peakErrDeg = 0.0;
+    bool   m_wasOnTarget = false;
     bool   m_issued = false, m_sawSlew = false;
     bool   m_capturing = false, m_abort = false, m_saturated = false;
     bool   m_fault = false, m_harmless = false;

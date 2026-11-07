@@ -115,10 +115,18 @@ int main() {
     }
     {
         ScenarioRunner r;
-        LoadOk(r, "absent 5 Recording started\n");
+        LoadOk(r, "press RECORD\nabsent 5 Recording started\n");
         r.Observe("[CAPTURE] Recording started: earlier.ser", 0);
-        r.Tick(0.5);
-        Check(r.Tick(5.6).kind == K::Finish && r.Passed(), "but one from before the step does not count");
+        r.Tick(0.1);
+        Check(r.Tick(5.6).kind == K::Finish && r.Passed(), "but one from before the last action does not count");
+    }
+    {
+        ScenarioRunner r;
+        LoadOk(r, "press RECORD\nwait 2\nabsent 5 Jupiter_\n");
+        r.Tick(0);
+        r.Observe("[CAPTURE] Recording started: Jupiter_1.ser", 0.5);
+        Check(r.Tick(2.1).kind == K::Finish && !r.Passed(),
+              "one after the action counts even if it came before the absent step");
     }
     {
         ScenarioRunner r;

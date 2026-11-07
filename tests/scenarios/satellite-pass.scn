@@ -1,0 +1,24 @@
+# Checklist 39 (the emulator half): fly one satellite pass on the
+# emulated mount. arm-pass moves the satellite clock so the first
+# trackable pass opens in 45 s; a real one can be hours away.
+name    Satellite pass: one, on the emulated mount
+timeout 420
+
+expect 30  [SCENARIO] Satellite
+wait   5
+press  GOTO:PASSES
+wait   5
+arm-pass 45
+expect 5   [SCENARIO] armed
+press  GOTO:TRACK SELECTED PASS
+expect 10  slewing to where the window opens.
+expect 150 on target, recording.
+# Named for the satellite, not the "Jupiter" startup default, and not
+# cut short by the 1000-frame default limit (50 s at 20 fps): phase 127.
+# A low pass may simply end sooner, so it is the exact limit that fails.
+expect 10  Recording started
+absent 1   captures\Jupiter_
+absent 60  Recording stopped: 1000 frames
+shot   tracking
+press  GOTO:STOP TRACKING
+wait   5

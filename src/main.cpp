@@ -5422,6 +5422,19 @@ static int RunApp(bool useEmulator) {
             {
                 CaptureConfig mc = capturer.Config();
                 mc.derotationStopSec = 0.0;
+                // Phase 127, found by a scenario: this kept whatever the
+                // last run or startup left -- the "Jupiter" prefix and a
+                // 1000-frame limit -- so a pass was filed as Jupiter and
+                // stopped recording after a few seconds at a high frame
+                // rate. It is named for what is tracked, and the pass's
+                // own end (WM_USER+13) or STOP closes it; the hour is
+                // only a backstop.
+                std::string name = gotoPanel.CurrentTarget();
+                for (char& ch : name)
+                    if (!isalnum((unsigned char)ch) && ch != '-') ch = '_';
+                if (!name.empty()) mc.filePrefix = name;
+                mc.limitType    = LimitType::Time;
+                mc.limitTimeSec = 3600.0;
                 capturer.SetConfig(mc);
             }
             if (!capturer.IsRecording() &&
@@ -5669,9 +5682,34 @@ static int RunApp(bool useEmulator) {
         case AK::None: break;
         case AK::Press: {
             Log("[SCENARIO] press %s\n", a.arg.c_str());
+            if (a.arg.rfind("GOTO:", 0) == 0) {
+                if (!gotoPanel.ScenarioPress(a.arg.substr(5)))
+                    g_scenario->ActionFailed("no GoTo panel button called '" + a.arg.substr(5) + "'");
+                break;
+            }
             std::wstring w(a.arg.begin(), a.arg.end());
             if (!toolbar.PressByLabel(w) && !controls.PressByName(a.arg))
                 g_scenario->ActionFailed("no button called '" + a.arg + "'");
+            break;
+        }
+        case AK::Type: {
+            const size_t sp = a.arg.find_first_of(" \t");
+            const std::string field = a.arg.substr(0, sp);
+            const std::string text = a.arg.substr(a.arg.find_first_not_of(" \t", sp));
+            Log("[SCENARIO] type %s: %s\n", field.c_str(), text.c_str());
+            if (!gotoPanel.ScenarioType(field, text))
+                g_scenario->ActionFailed("no field called '" + field + "'");
+            break;
+        }
+        case AK::ArmPass: {
+#ifndef RADUK_EMULATOR
+            const std::string what;   // scenarios run only in the emulator build
+#else
+            const std::string what = gotoPanel.ScenarioArmFirstPass(atof(a.arg.c_str()));
+#endif
+            if (what.empty()) g_scenario->ActionFailed("no trackable pass to arm");
+            else Log("[SCENARIO] armed %s (satellite clock moved %.2f h)\n", what.c_str(),
+                     raduk::sky::SatClockOffsetDays() * 24.0);
             break;
         }
         case AK::Key: {
@@ -7422,6 +7460,8 @@ static int SetUpScenario(const wchar_t* scriptPathW, raduk::core::ScenarioRunner
                   box / "data" / "object_knowledge.db", ec);
     fs::copy_file(fs::path(exeDir) / "rig.ini", box / "rig.ini", ec);
     fs::copy_file(fs::path(exeDir) / "workspace.ini", box / "workspace.ini", ec);
+    // Phase 127: the satellite elements, so passes need no download.
+    fs::copy_file(fs::path(realRoot) / "satellites.tle", box / "satellites.tle", ec);
     const std::string ini = (box / "rig.ini").string();
     for (const auto& kv : sc.Rig())
         WritePrivateProfileStringA("Rig", kv.first.c_str(), kv.second.c_str(), ini.c_str());

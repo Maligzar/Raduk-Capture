@@ -1,0 +1,19 @@
+# Checklist 41 (the emulator half): plan the night's satellites, start the
+# plan, and stop it. The passes themselves are hours apart, so this checks
+# the plan is made and the runner starts and stops cleanly.
+name    Night plan: plan, run, stop
+timeout 200
+
+expect 30  [SCENARIO] Night plan
+wait   5
+press  GOTO:PASSES
+wait   5
+press  GOTO:PLAN THE NIGHT
+expect 30  Satellite plan:
+press  GOTO:RUN THE PLAN
+expect 10  Satellite plan running:
+wait   8
+shot   plan-running
+press  GOTO:RUN THE PLAN
+expect 20  stopped by the operator
+absent 10  slewing to where the window opens.

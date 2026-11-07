@@ -1144,6 +1144,7 @@ For contrast, so this list is not read as "nothing works":
     slewing, then the status should count down, then read `Closing in`,
     `Tracking`, and `complete`. Press Escape during one: it should stop at
     once and the status should say so. Jog during one: same.
+    *Emulator: `satellite-pass.scn` (phase 127). The sky half still stands.*
 
     On the real mount, **in daylight first, with the camera off the tube or
     the tube balanced and your hand on the power switch.** Pick a low, slow
@@ -1181,6 +1182,7 @@ For contrast, so this list is not read as "nothing works":
     real speed in `SatSlewDegPerSec`, then set `SatSettleSec` and
     `SatBufferSec` to what this tube needs. The whole night is unattended slewing, so
     stay with it the first time.
+    *Emulator: `night-plan.scn` (phase 127). The sky half still stands.*
 
 42. **Following a JPL target** (phase 121). Indoors: type `99942;` on the
     Passes tab and press FOLLOW. The log should name Apophis and say it is not
@@ -1189,6 +1191,7 @@ For contrast, so this list is not read as "nothing works":
     ISS by its JPL ID (`-125544`), FOLLOW it, and see it land in the frame. The
     ISS is the hard case, because the table's UTC tags lag about 0.06 degrees
     on it. Anything slower should sit well inside the frame.
+    *Emulator: `jpl-follow.scn` (phase 127). The sky half still stands.*
 
 43. **Tracking from the image alone** (phase 122). After items 39 and 40, with
     tonight's guide calibration. Indoors first: with nothing bright in frame,
@@ -1197,6 +1200,7 @@ For contrast, so this list is not read as "nothing works":
     put a bright satellite in frame by hand or by a pass, press the button, and
     watch it hold. Cover the objective for a second: it should coast. Cover it
     for longer: it should stop. Only then a rocket.
+    *Emulator: `motion.scn` (phase 127). The sky half still stands.*
 
 44. **Does the pointing map help** (phase 123). Leave `PointingMapApply=0`.
     Run SKY SURVEY, or let planet locks accumulate; each solve logs two lines,
@@ -1207,6 +1211,7 @@ For contrast, so this list is not read as "nothing works":
     `PointingMapApply` to the number it gives, GoTo a planet, and confirm it
     lands nearer the centre than before. A map that is applied and makes
     things worse means the sign is wrong: set it back to 0 and report it.
+    *Phase 127 fixed SKY SURVEY, which started image-only tracking instead.*
 
 45. **Session statistics** (phase 124). Indoors, either build: press `[STATS]`
     on the rail. A page should open in the browser with two sections, the rig

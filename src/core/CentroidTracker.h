@@ -161,6 +161,14 @@ public:
     static constexpr int   CAL_STEP_TIMEOUT_MS = 8000;  // max wait for samples per step
     static constexpr float CAL_MIN_MOVE_PX     = 2.5f;  // min measurable pulse response
     static constexpr float CAL_MIN_SIN_ANGLE   = 0.25f; // axes must be >~15 deg apart
+    // Phase 127, found by a scenario: a calibration where one axis barely
+    // moves the target passed every other check, and image-only tracking
+    // then drove the mount degrees off. On this alt-az fork the pulses
+    // turn the azimuth and altitude motors, and an azimuth move shifts the
+    // sky by cos(alt), so near the zenith that axis all but vanishes. The
+    // weaker axis must be at least this fraction of the stronger: refused
+    // above about altitude 78.
+    static constexpr float CAL_MIN_AXIS_RATIO  = 0.20f;
     static constexpr int   CAL_STALE_MIN       = 15;    // alt-az field rotation ages it out
     // Nominal on-sky guide rate behind PulseGuide (NexStar rate 1 ≈ 0.5x
     // sidereal). Only feeds the cosmetic arcsec/px estimate. Overridden by

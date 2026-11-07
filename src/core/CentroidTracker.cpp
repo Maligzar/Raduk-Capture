@@ -397,6 +397,15 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
     if (std::abs(cross) / (eMag * nMag) < CAL_MIN_SIN_ANGLE)
         return finish(false, "axis responses nearly parallel — bad calibration");
 
+    if ((std::min)(eMag, nMag) < CAL_MIN_AXIS_RATIO * (std::max)(eMag, nMag)) {
+        char why[200];
+        snprintf(why, sizeof(why),
+                 "one axis barely moves the target (East %.1f px, North %.1f px), as "
+                 "near the zenith - calibrate on a target lower in the sky",
+                 eMag, nMag);
+        return finish(false, why);
+    }
+
     GuideCalibration cal;
     cal.valid   = true;
     cal.exPerMs = ex / (float)CAL_PULSE_MS;

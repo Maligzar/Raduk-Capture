@@ -3,9 +3,8 @@
 // ADCAssistant.h — Atmospheric Dispersion Corrector guide
 //
 // Computes R vs B chromatic separation caused by atmospheric
-// refraction at a given altitude angle. Default site profile:
-//   Elevation: 1,732 ft (528 m)
-//   Latitude:  33.87°N
+// refraction at a given altitude angle. The site's elevation comes
+// from rig.ini (SiteElevationM); latitude does not enter the model.
 //   Standard atmosphere model (Owens 1967 / Filippenko 1982)
 //
 // Output: arcseconds of R-B separation and a dispersion vector

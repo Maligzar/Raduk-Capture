@@ -314,29 +314,55 @@ int main() {
         // And the site rule still holds with all of it present. This
         // is the check that matters most: the corpus grew, and
         // everything in the prompt can be quoted back.
+        //
+        // The broad scan below flags ANY number from 10 to 180 with two
+        // decimals, which is right for text this rig produced at runtime
+        // (logs, state) where a site could appear in any form. It is
+        // wrong for the project's own documents, which are reviewed,
+        // committed text full of measurements and stage numbers: it
+        // tripped on "132.10", a Phase 132 stage. So the documents block
+        // is held to the exact rule -- the configured site does not
+        // appear at more than one decimal anywhere in the prompt -- and
+        // the broad scan runs over everything else.
+        Check(!Has(p3, "41.87") && !Has(p3, "87.65"),
+              "the configured site is nowhere in the prompt at two decimals", "");
+        std::string scan = p3;
+        const size_t docs = scan.find("[LOCAL DOCUMENTS]\n");
+        if (docs != std::string::npos) {
+            // Up to the next section the builder writes. Markdown can
+            // itself contain "\n\n[", so a generic search would stop
+            // inside the documents.
+            size_t next = scan.find("[SESSION HISTORY]\n", docs);
+            if (next == std::string::npos) next = scan.find("[SESSION STATE]\n", docs);
+            scan.erase(docs, next == std::string::npos ? std::string::npos
+                                                      : next - docs);
+        }
+        Check(scan.size() < p3.size() || !Has(p3, "[LOCAL DOCUMENTS]"),
+              "  and the documents block was found to set aside", "");
+
         bool tooPrecise = false;
         std::string offender;
-        for (size_t i = 0; i + 4 < p3.size(); i++) {
-            if (!isdigit((unsigned char)p3[i])) continue;
-            if (i > 0 && (isdigit((unsigned char)p3[i-1]) || p3[i-1] == '.')) continue;
+        for (size_t i = 0; i + 4 < scan.size(); i++) {
+            if (!isdigit((unsigned char)scan[i])) continue;
+            if (i > 0 && (isdigit((unsigned char)scan[i-1]) || scan[i-1] == '.')) continue;
             size_t j = i;
-            while (j < p3.size() && isdigit((unsigned char)p3[j])) j++;
-            if (j >= p3.size() || p3[j] != '.') continue;
+            while (j < scan.size() && isdigit((unsigned char)scan[j])) j++;
+            if (j >= scan.size() || scan[j] != '.') continue;
             size_t k = j + 1, dec = 0;
-            while (k < p3.size() && isdigit((unsigned char)p3[k])) { k++; dec++; }
+            while (k < scan.size() && isdigit((unsigned char)scan[k])) { k++; dec++; }
             if (dec < 2) continue;
-            const double v = atof(p3.substr(i, k - i).c_str());
+            const double v = atof(scan.substr(i, k - i).c_str());
             if (v >= 10.0 && v <= 180.0) {
                 tooPrecise = true;
                 const size_t a = i >= 40 ? i - 40 : 0;
-                offender = p3.substr(i, k - i) + " in \"" +
-                           p3.substr(a, std::min<size_t>(k + 40, p3.size()) - a) + "\"";
+                offender = scan.substr(i, k - i) + " in \"" +
+                           scan.substr(a, std::min<size_t>(k + 40, scan.size()) - a) + "\"";
                 for (char& c : offender) if (c == '\n' || c == '\r') c = ' ';
                 break;
             }
         }
         Check(!tooPrecise,
-              "and the site rule still holds with documents and logs in",
+              "and nothing from the logs or state is coordinate-precise",
               offender);
     }
 

@@ -527,6 +527,19 @@ theme's grey (160, 160, 160) in both. The `WM_CTLCOLORSTATIC` brush does go
 through `NV`, but the trackbar keeps the background it took in day mode, and
 the visual style draws the rail and thumb itself. Every slider on the control
 panel is affected; there are nine on the Camera tab alone. The tests cannot see this, because the colours are drawn by
-the common control, not by the app. The fix is to custom-draw the trackbar
-(`NM_CUSTOMDRAW`: channel and thumb from the tokens) and to repaint it on a
-palette change.
+the common control, not by the app.
+
+**Fixed in 132.3a.** Sliders are de-themed and custom-drawn
+(`Theme::DrawSlider` on `NM_CUSTOMDRAW`, colours from `Theme::SliderColor`).
+Invalidating was not enough: a trackbar keeps its own rendering, so
+`ForceRepaint` now resets each slider's range to itself with redraw on
+(`Theme::RepaintSliders`), and the slider rebuilds without moving. The same
+scan found a second leak: the edit boxes' sunken `WS_EX_CLIENTEDGE` frame,
+which Windows draws in system white and greys. `Theme::StyleEditFrame` paints
+that frame from `BORDER` and `BG_VOID` on `WM_NCPAINT`, and the same repaint
+redraws it with `RDW_FRAME`. A pixel scan of the whole night control panel
+(567,088 pixels) now finds **no pixel with green or blue**. In day mode, the
+thumbs are now flat graphite blocks and the edit frames are a flat token
+hairline, both in the Steel look. Gated by `tests/night_hierarchy.cpp`
+section 9 (every slider part is red only at night, and the thumb stands out
+from its groove).

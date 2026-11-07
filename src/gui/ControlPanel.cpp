@@ -684,6 +684,12 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
         case WM_HSCROLL:
             if (self->HandleScroll(wParam, lParam)) return 0;
             break;
+        case WM_NOTIFY: {
+            auto* nh = reinterpret_cast<NMHDR*>(lParam);
+            if (nh && nh->code == NM_CUSTOMDRAW && Theme::IsSlider(nh->hwndFrom))
+                return Theme::DrawSlider(reinterpret_cast<NMCUSTOMDRAW*>(lParam));
+            break;
+        }
         case WM_CLOSE:
             // Phase 100: the two docking writes here are gone with the
             // rest of it. The panel is a child window and cannot be
@@ -1336,6 +1342,7 @@ HWND ControlPanel::MakeCameraEdit(int x, int y, int w, int h, int id,
         (HMENU)(INT_PTR)id, GetModuleHandle(nullptr), nullptr);
     SetWindowTheme(e, L"", L"");
     SetWindowSubclass(e, CameraEditProc, 1, reinterpret_cast<DWORD_PTR>(this));
+    Theme::StyleEditFrame(e);   // the sunken edge was system white at night
     TagControl(e, Section::Camera);
     return e;
 }
@@ -1926,10 +1933,16 @@ HWND ControlPanel::MakeValueLabel(const wchar_t* text, int x, int y, int w, int 
 }
 
 HWND ControlPanel::MakeEditBox(const wchar_t* text, int x, int y, int w, int h, int id) {
-    return CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", text,
+    HWND e = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", text,
         WS_CHILD | WS_VISIBLE | ES_LEFT | ES_NUMBER | ES_AUTOHSCROLL,
         x, y, w, h, m_panelHwnd,
         (HMENU)(INT_PTR)id, GetModuleHandle(nullptr), nullptr);
+    Theme::StyleEditFrame(e);   // the sunken edge was system white at night
+    return e;
+}
+
+void ControlPanel::RepaintSliders() {
+    Theme::RepaintSliders(m_panelHwnd);
 }
 
 HWND ControlPanel::MakeSlider(int x, int y, int w, int h,
@@ -1938,6 +1951,9 @@ HWND ControlPanel::MakeSlider(int x, int y, int w, int h,
         WS_CHILD | WS_VISIBLE | TBS_HORZ | TBS_NOTICKS,
         x, y, w, h, m_panelHwnd,
         (HMENU)(INT_PTR)id, GetModuleHandle(nullptr), nullptr);
+    // Phase 132.3a: de-themed and custom-drawn (WM_NOTIFY), so the track
+    // follows night vision and the rail and thumb come from the tokens.
+    Theme::StyleSlider(s);
     // TBM_SETRANGE packs both bounds into MAKELPARAM, which is two
     // SIGNED 16-BIT halves. The exposure slider asks for 1..60000 us,
     // and 60000 does not fit: it came back as 60000 - 65536 = -5536, so

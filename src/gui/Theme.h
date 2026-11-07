@@ -981,5 +981,143 @@ namespace Theme {
         }, 0);
     }
 
+    // ── Sliders (trackbars) ───────────────────────────────────
+    //
+    // Phase 132.3a found these leaking at night. The themed trackbar
+    // keeps the background brush it took in day mode, so its track
+    // stayed the day DEEP colour, and the visual style drew its rail
+    // and thumb in grey (160, 160, 160). Both carry green and blue,
+    // which 132.1 removed from everything else.
+    //
+    // A slider is therefore de-themed (a classic trackbar asks for
+    // WM_CTLCOLORSTATIC on every paint) and its groove and thumb are
+    // custom-drawn from the tokens, through NV like any other paint.
+    enum class SliderPart { Track, Groove, GrooveEdge, Thumb, ThumbActive, ThumbEdge };
+
+    inline COLORREF SliderColor(SliderPart p) {
+        switch (p) {
+            case SliderPart::Track:       return NV(Rgb::DEEP);
+            case SliderPart::Groove:      return NV(Rgb::BG_VOID);
+            case SliderPart::GrooveEdge:  return NV(Rgb::BORDER);
+            case SliderPart::Thumb:       return NV(Rgb::TEXT_DIM);
+            case SliderPart::ThumbActive: return NV(Rgb::TEXT);
+            case SliderPart::ThumbEdge:   return NV(Rgb::BORDER);
+        }
+        return NV(Rgb::DEEP);
+    }
+
+    inline void StyleSlider(HWND s) {
+        SetWindowTheme(s, L"", L"");
+    }
+
+    // The NM_CUSTOMDRAW reply for a trackbar. The owner returns this
+    // from WM_NOTIFY when the sender is a slider.
+    inline LRESULT DrawSlider(NMCUSTOMDRAW* cd) {
+        switch (cd->dwDrawStage) {
+            case CDDS_PREPAINT:
+                return CDRF_NOTIFYITEMDRAW;
+            case CDDS_ITEMPREPAINT: {
+                HDC dc = cd->hdc;
+                RECT r = cd->rc;
+                auto fill = [&](const RECT& rc, COLORREF c) {
+                    HBRUSH b = CreateSolidBrush(c);
+                    FillRect(dc, &rc, b);
+                    DeleteObject(b);
+                };
+                auto frame = [&](const RECT& rc, COLORREF c) {
+                    HBRUSH b = CreateSolidBrush(c);
+                    FrameRect(dc, &rc, b);
+                    DeleteObject(b);
+                };
+                if (cd->dwItemSpec == TBCD_CHANNEL) {
+                    fill(r, SliderColor(SliderPart::Groove));
+                    frame(r, SliderColor(SliderPart::GrooveEdge));
+                    return CDRF_SKIPDEFAULT;
+                }
+                if (cd->dwItemSpec == TBCD_THUMB) {
+                    const bool active = (cd->uItemState & (CDIS_SELECTED | CDIS_HOT)) != 0;
+                    fill(r, SliderColor(active ? SliderPart::ThumbActive : SliderPart::Thumb));
+                    frame(r, SliderColor(SliderPart::ThumbEdge));
+                    return CDRF_SKIPDEFAULT;
+                }
+                if (cd->dwItemSpec == TBCD_TICS) return CDRF_SKIPDEFAULT;
+                return CDRF_DODEFAULT;
+            }
+        }
+        return CDRF_DODEFAULT;
+    }
+
+    inline bool IsSlider(HWND h) {
+        wchar_t cls[32] = {};
+        return h && GetClassNameW(h, cls, 32) > 0 && _wcsicmp(cls, TRACKBAR_CLASSW) == 0;
+    }
+
+    // A trackbar keeps its own rendering and ignores InvalidateRect,
+    // which is why its track stayed in day colours through every
+    // repaint the night toggle sent. Setting its range to what it
+    // already is, with redraw on, makes it rebuild that rendering, and
+    // so ask WM_CTLCOLORSTATIC and NM_CUSTOMDRAW again. Nothing moves.
+    // ── Edit box frames ───────────────────────────────────────
+    //
+    // Found with the sliders: a WS_EX_CLIENTEDGE edit's sunken border
+    // is drawn by Windows in system colours, white (255, 255, 255),
+    // (227, 227, 227), (160, 160, 160) and (105, 105, 105), in night
+    // vision as in day. White is the brightest light on the panel.
+    // The frame is the edit's non-client area, so this paints it from
+    // the tokens on WM_NCPAINT: a BORDER line outside, the box's own
+    // BG_VOID inside, the same two pixels the client edge took.
+    inline constexpr UINT_PTR kEditFrameSubclass = 0x52464544;   // 'RFED'
+
+    inline LRESULT CALLBACK EditFrameProc(HWND h, UINT msg, WPARAM wp, LPARAM lp,
+                                          UINT_PTR, DWORD_PTR) {
+        if (msg == WM_NCPAINT) {
+            HDC dc = GetWindowDC(h);
+            if (dc) {
+                RECT r; GetWindowRect(h, &r);
+                OffsetRect(&r, -r.left, -r.top);
+                HBRUSH outer = CreateSolidBrush(NV(Rgb::BORDER));
+                HBRUSH inner = CreateSolidBrush(NV(Rgb::BG_VOID));
+                FrameRect(dc, &r, outer);
+                InflateRect(&r, -1, -1);
+                FrameRect(dc, &r, inner);
+                DeleteObject(outer);
+                DeleteObject(inner);
+                ReleaseDC(h, dc);
+            }
+            return 0;
+        }
+        if (msg == WM_NCDESTROY) RemoveWindowSubclass(h, EditFrameProc, kEditFrameSubclass);
+        return DefSubclassProc(h, msg, wp, lp);
+    }
+
+    inline void StyleEditFrame(HWND e) {
+        if (e) SetWindowSubclass(e, EditFrameProc, kEditFrameSubclass, 0);
+    }
+
+    inline bool HasEditFrame(HWND h) {
+        DWORD_PTR ref = 0;
+        return GetWindowSubclass(h, EditFrameProc, kEditFrameSubclass, &ref) != FALSE;
+    }
+
+    // Brings both back after a palette change. A trackbar keeps its own
+    // rendering and ignores InvalidateRect, which is why its track
+    // stayed in day colours through every repaint the night toggle
+    // sent; setting its range to what it already is, with redraw on,
+    // makes it rebuild that and ask WM_CTLCOLORSTATIC and NM_CUSTOMDRAW
+    // again, and nothing moves. An edit's frame is non-client, which a
+    // plain invalidate never repaints.
+    inline void RepaintSliders(HWND top) {
+        if (!top) return;
+        EnumChildWindows(top, [](HWND c, LPARAM) -> BOOL {
+            if (IsSlider(c)) {
+                const LRESULT hi = SendMessageW(c, TBM_GETRANGEMAX, 0, 0);
+                SendMessageW(c, TBM_SETRANGEMAX, TRUE, hi);
+            } else if (HasEditFrame(c)) {
+                RedrawWindow(c, nullptr, nullptr, RDW_FRAME | RDW_INVALIDATE);
+            }
+            return TRUE;
+        }, 0);
+    }
+
 } // namespace Theme
 } // namespace raduk::gui

@@ -6,6 +6,7 @@
 // ============================================================
 
 #include "ButtonIcons.h"
+#include "FlatButton.h"
 #include "ToolbarLayout.h"
 #include "ControlPanel.h"
 #include "../core/ExposureScale.h"
@@ -447,57 +448,9 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
             // thing night vision could not reach. Pressed and disabled
             // read from fill and text weight, so both survive it.
             if (dis->CtlType == ODT_BUTTON) {
-                HDC  hdc = dis->hDC;
-                RECT r   = dis->rcItem;
-                const bool down = (dis->itemState & ODS_SELECTED) != 0;
-                const bool off  = (dis->itemState & ODS_DISABLED) != 0;
-                FillRect(hdc, &r, Theme::Brush(down ? Theme::Rgb::BORDER : Theme::Rgb::PANEL));
-                FrameRect(hdc, &r, Theme::Brush(Theme::Rgb::BORDER));
-
-                // The open tab: shape, not hue, so it survives the dark.
-                if ((int)dis->CtlID == kTabFirstId + self->m_tab) {
-                    RECT bar = {r.left, r.bottom - 3, r.right, r.bottom};
-                    FillRect(hdc, &bar, Theme::Brush(Theme::Rgb::ACCENT));
-                }
-
-                wchar_t text[64] = {};
-                const int n = GetWindowTextW(dis->hwndItem, text, 64);
-                wchar_t icon = IconForLabel(text);
-                SetBkMode(hdc, TRANSPARENT);
-                SetTextColor(hdc, Theme::NV(off ? Theme::Rgb::TEXT_DIM : Theme::Rgb::TEXT));
-
-                HFONT labelFont = (HFONT)SendMessageW(dis->hwndItem, WM_GETFONT, 0, 0);
-                HFONT oldf = (HFONT)SelectObject(hdc, labelFont);
-                SIZE sz = {};
-                GetTextExtentPoint32W(hdc, text, n, &sz);
-
-                // Icon and word centred together, so a row of buttons
-                // keeps its rhythm whatever the words are.
-                // In a narrow button the word wins: "SA..." with an icon
-                // says less than SAVE without one.
-                if (sz.cx + Theme::Type::TITLE + Theme::Space::XS * 3 > r.right - r.left)
-                    icon = 0;
-                const int iconW = icon ? Theme::Type::TITLE + Theme::Space::XS : 0;
-                int cx = r.left + ((r.right - r.left) - sz.cx - iconW) / 2;
-                if (cx < r.left + Theme::Space::XS) cx = r.left + Theme::Space::XS;
-                if (icon) {
-                    HFONT g = CreateFontW(-Theme::Type::STRONG, 0, 0, 0, FW_NORMAL, FALSE, FALSE,
-                        FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe MDL2 Assets");
-                    SelectObject(hdc, g);
-                    RECT ir = {cx, r.top, cx + Theme::Type::TITLE, r.bottom};
-                    DrawTextW(hdc, &icon, 1, &ir, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-                    SelectObject(hdc, labelFont);
-                    DeleteObject(g);
-                }
-                RECT tr = {cx + iconW, r.top, r.right - Theme::Space::XS, r.bottom};
-                DrawTextW(hdc, text, n, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-                SelectObject(hdc, oldf);
-                if (dis->itemState & ODS_FOCUS) {
-                    RECT fr = r;
-                    InflateRect(&fr, -2, -2);
-                    DrawFocusRect(hdc, &fr);
-                }
+                // Phase 132.3b: the face lives in FlatButton.h, shared
+                // with the GoTo window.
+                DrawFlatButton(dis, (int)dis->CtlID == kTabFirstId + self->m_tab);
                 return TRUE;
             }
             break;

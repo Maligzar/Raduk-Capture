@@ -92,6 +92,7 @@ $Tests = @(
     @{ Name = "capture_writer";  Sources = @("src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "shot_diff";       Sources = @() }
     @{ Name = "web_theme";       Sources = @() }
+    @{ Name = "night_coverage";  Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

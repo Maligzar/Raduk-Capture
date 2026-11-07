@@ -543,3 +543,72 @@ thumbs are now flat graphite blocks and the edit frames are a flat token
 hairline, both in the Steel look. Gated by `tests/night_hierarchy.cpp`
 section 9 (every slider part is red only at night, and the thumb stands out
 from its groove).
+
+### 132.3b, 2026-11-07: GoTo and the sky map
+
+**The sky map had eight brushes that skipped night vision.** These were the
+Sun's fill and label, the Moon's lit disk, shadow and label, each planet's fill
+and glow ring, and `DrawObjectLabel`, which paints every object's name. None of
+them went through `Theme::NVf`. In night vision the Sun was yellow, Neptune and
+Uranus were blue, Mars was orange, and the labels were their day colours. All
+eight now go through `NVf`. The Moon's unlit limb is now the map's own Deep at
+the same opacity, so it reads as shadow on any palette.
+
+**A gate so this cannot ship again.** `tests/night_coverage.cpp` reads the source
+of the nine Direct2D windows. It fails on any `CreateSolidColorBrush` or `Clear`
+that takes a bare `D2D1::ColorF` literal outside `Theme::NVf`. Pure black is
+allowed, because it is black in both modes, and so is a variable, whose colour
+is set elsewhere. **Run against master it fails at exactly those eight sites**
+(SkyMapWindow.h lines 639, 664, 685, 687, 714, 748, 756 and 1122), and it passes
+on this branch. A source scan cannot see a literal hidden inside a helper. What
+it does is stop this particular mistake from shipping again.
+
+**The sky map's own colours are now tokens, apart from the data.**
+
+- The map and sky disk were deep-space blue. They are now Void and Deep.
+- Altitude rings and cardinal lines use Line, and the horizon uses the signal
+  colour.
+- Stars use Text and deep-sky objects use the signal colour. Faded deep-sky
+  objects use Dim.
+- The scope crosshair and field of view are Live, because that is the mount's
+  position.
+- The status line, the info box heading and the compass letters are legends, so
+  they use Dim. The info box frame uses Line.
+- The confirm popup sits on Panel with a Line frame. Below the horizon it turns
+  Fault. SLEW is Live on a Live-tinted face. CANCEL is Dim on Line: cancelling
+  is not a fault, and it was red.
+- **Kept as data:** the planets' own colours (Mars red and Neptune blue are
+  information), the Sun, the Moon, the near-Earth objects and the satellites.
+  They are now tinted at night like everything else.
+
+**GoTo.**
+
+- **Buttons are owner-drawn.** These were the system-grey buttons 119.4 left in
+  this window, and night vision could not reach them. The face was the control
+  panel's, inline in its `WM_DRAWITEM`. It now lives in `src/gui/FlatButton.h`,
+  which the control panel, the GoTo window and its action popup (Slew, Info,
+  Cancel) all call. The face gains a lit top edge, which the control panel's
+  buttons pick up too.
+- **Labels and status lines** were all drawn in the signal colour. They are now
+  Text.
+- **Lists:** `Theme::StyleStockControls` coloured every list view in the app with
+  `(10, 18, 28)` on `(190, 214, 230)`. Those were off-token, so every list stayed
+  blue-black under the 132.3a palette and took a derived night shade. Lists are
+  now Deep and Text.
+
+**Not in this stage:** list headers and the GoTo tab strip. These still use the
+system face. Both need custom drawing: a header is a separate control that
+notifies the list view rather than this window, and a de-themed tab strip falls
+back to classic grey. They are 119.4's last open item. They get a stage of their
+own after 132.3e, rather than being added to this one.
+
+**Checked here.** `night_coverage` passes natively, and it fails on master as
+described above. `night_hierarchy`, `operator_palette`, `visual_tokens`,
+`audience_layout` and `web_theme` pass under mingw-w64 and wine. `window_chrome`
+fails under wine exactly as it does on master: wine cannot load the embedded
+fonts. `ControlPanel.cpp` and `main.cpp`, which includes the GoTo and sky map
+headers, compile cleanly with mingw.
+
+**Expected in the 132.0 diff:** the sky map in both modes (night changes on its
+data objects), GoTo and its popup by day, every window with a list, and the
+control panel's buttons gaining the lit top edge.

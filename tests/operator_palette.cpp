@@ -152,10 +152,15 @@ int main() {
         // It was (7, 8, 14); eighteen sites painted (7, 13, 22) and
         // called it --bg-deep. The token moved to the code, because
         // the code is what has shipped and nothing painted the token.
-        Check(GetRValue(Theme::Rgb::DEEP) == 7 &&
-              GetGValue(Theme::Rgb::DEEP) == 13 &&
-              GetBValue(Theme::Rgb::DEEP) == 22,
-              "DEEP is now the colour the panels actually paint");
+        //
+        // Phase 132.3 moved every token to the instrument palette, so
+        // the point now is that DEEP is a token at all -- the panels
+        // paint Rgb::DEEP -- and that it is the token, not a copy.
+        Check(Theme::Rgb::DEEP == Theme::Rgb::FromArgb(Theme::DEEP) &&
+              GetRValue(Theme::Rgb::DEEP) == 0x12 &&
+              GetGValue(Theme::Rgb::DEEP) == 0x13 &&
+              GetBValue(Theme::Rgb::DEEP) == 0x16,
+              "DEEP is the token the panels paint (132.3: #121316)");
         printf("  --    old token (7,8,14) would derive to %d; the painted"
                " colour derived to %d; designed is %d\n",
                Derived(7, 8, 14), Derived(7, 13, 22), NL(Theme::Rgb::DEEP));
@@ -205,9 +210,13 @@ int main() {
         Check(std::fabs((float)gotRight / (float)surface - 0.65f) < 0.03f,
               "composited after the transform, the ratio asked for is"
               " the ratio that appears");
-        Check(gotWrong < gotRight,
-              "and the other order is measurably darker, which is why"
-              " it is worth a test rather than a comment");
+        // On 96.4's blue-black panel the wrong order came out darker;
+        // on 132.3's graphite it comes out brighter, because graphite's
+        // derived luminance sits above its designed one. Either way it
+        // misses the ratio, which is the property.
+        Check(std::fabs((float)gotWrong / (float)surface - 0.65f) > 0.03f,
+              "and the other order misses it, which is why it is worth"
+              " a test rather than a comment");
         Theme::SetNightVision(false);
     }
 

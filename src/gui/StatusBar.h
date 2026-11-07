@@ -54,27 +54,27 @@ public:
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.043f, 0.137f, 0.208f)), &m_borderBrush); // --border color
+            Theme::Color(Theme::BORDER), &m_borderBrush);
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.0f, 0.898f, 1.0f)), &m_accentBrush);    // --accent cyan
+            Theme::Color(Theme::ACCENT), &m_accentBrush);
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.722f, 0.831f, 0.910f)), &m_textBrush);  // --text
+            Theme::Color(Theme::TEXT), &m_textBrush);
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.550f, 0.686f, 0.745f)), &m_dimBrush);   // --dim #8CAFBE
+            Theme::Color(Theme::TEXT_DIM), &m_dimBrush);
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.302f, 1.0f, 0.569f)), &m_greenBrush);   // --green #4DFF91
+            Theme::Color(Theme::GREEN), &m_greenBrush);
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(1.0f, 0.725f, 0.0f)), &m_amberBrush);     // --amber #FFB900
+            Theme::Color(Theme::AMBER), &m_amberBrush);
         if (FAILED(hr)) return false;
 
         hr = m_dw->CreateTextFormat(
@@ -189,8 +189,8 @@ public:
 
         // ── Live indicator ─────────────────────────────────────
         auto dot = m_emulator
-            ? Theme::NVf(D2D1::ColorF(1.0f, 0.667f, 0.0f))   // amber = emulator
-            : Theme::NVf(D2D1::ColorF(0.302f, 1.0f, 0.569f)); // green = live hardware
+            ? Theme::Color(Theme::AMBER)   // caution = emulator
+            : Theme::Color(Theme::GREEN);  // live = real hardware
         ID2D1SolidColorBrush* dotBrush = m_emulator ? m_amberBrush : m_greenBrush;
 
         // Draw filled circle as live dot

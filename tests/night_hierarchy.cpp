@@ -303,6 +303,33 @@ int main() {
         Check(Theme::PaletteGeneration() != g2, "in both directions");
     }
 
+    // Phase 132.3a found the sliders leaking: the themed trackbar kept
+    // its day track colour and drew a grey rail and thumb at night.
+    // They are now custom-drawn from SliderColor, so that is what this
+    // holds to red only.
+    printf("\n9. Sliders are red only at night\n");
+    {
+        using P = Theme::SliderPart;
+        const P parts[] = { P::Track, P::Groove, P::GrooveEdge, P::Thumb, P::ThumbActive, P::ThumbEdge };
+        Theme::SetNightVision(true);
+        bool redOnly = true;
+        for (P p : parts) {
+            const COLORREF c = Theme::SliderColor(p);
+            if (GetGValue(c) != 0 || GetBValue(c) != 0) redOnly = false;
+        }
+        Check(redOnly, "every slider part is (lum, 0, 0) in night vision");
+        Check(GetRValue(Theme::SliderColor(P::Thumb)) > GetRValue(Theme::SliderColor(P::Groove)),
+              "the thumb stands out from its groove");
+        Check(GetRValue(Theme::SliderColor(P::ThumbActive)) > GetRValue(Theme::SliderColor(P::Thumb)),
+              "and a held thumb is brighter still");
+        Check(Theme::SliderColor(P::Track) == Theme::NV(Theme::Rgb::DEEP),
+              "the track is the panel's own surface, so a slider has no box around it");
+        Theme::SetNightVision(false);
+        Check(Theme::SliderColor(P::Thumb) == Theme::Rgb::TEXT_DIM &&
+              Theme::SliderColor(P::Groove) == Theme::Rgb::BG_VOID,
+              "in daylight the parts are the tokens themselves");
+    }
+
     Theme::SetNightVision(false);
     if (g_fail == 0) printf("\nPASS\n"); else printf("\nFAIL: %d\n", g_fail);
     return g_fail == 0 ? 0 : 1;

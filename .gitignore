@@ -46,6 +46,7 @@ workspace.ini
 # simulated sky, and the stats page is rebuilt on every press of [STATS].
 data/pointing_model_emu.csv
 data/session_stats.html
+data/specimen.html
 
 # Phase 125: scenario sandboxes, one folder per run.
 test_runs/

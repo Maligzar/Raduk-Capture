@@ -370,3 +370,56 @@ brightest elements. No `day/` shot changes.
 **Owed.** A look at the eyepiece on a dark night. Danger and primary text lose
 a little warmth, which is the whole change. The preview's planet loses the
 orange cast the green gave it and reads as pure red.
+
+### 132.2, 2026-11-07
+
+No application pixel changes. The app does not yet read any of this. 132.3 and
+132.9 are the first stages that use it.
+
+- **`docs/design/Instrument-Design-Language.md`**, the one-page rule book. It
+  covers the ten colour roles and what each is not for, the one-signal-colour
+  rule, state shown as shape and text before colour (circle for fault, triangle
+  for warning, square for live, diamond for signal), the type rules, the surface
+  rules, motion, and night.
+- **`src/core/WebTheme.h`**, pure. A `Palette` of ten roles. `PaletteCss` writes
+  day values on `:root` and the night ladder in red only under
+  `:root[data-mode="night"]`. `FontFaceCss` embeds a font as base64.
+  `BaseCss` holds the shared instrument styles, with `.sig` signals that differ
+  in shape. There is also a WCAG contrast check with floors: 7:1 for Text and
+  4.5:1 for the other foreground roles, against Deep.
+- **`src/gui/WebPalette.h`**, the only bridge from `Theme.h` to the web side.
+  It is separate so that a candidate palette can be rendered before it is a token.
+- **`tools/specimen.cpp`** and **`tests/specimen.ps1`** write
+  `data\specimen.html`. It shows today's palette and three candidates as sample
+  panels in day and night, with swatches and contrast, all four fonts embedded,
+  and no network requests. The candidates are **A. Brass**, **B. Verdigris** and
+  **C. Steel**. All three are the same warm graphite family and differ only in
+  the signal colour. Every one clears the floors: text about 14:1, and Fault
+  is the lowest at 4.7 to 4.8:1.
+
+**Found by drawing it.** Today's night ladder puts Signal (140) below Text
+(200). In night vision a primary button labelled in the signal colour is
+therefore dimmer than an ordinary one beside it. You can see it on the
+specimen: RECORD is dimmer than AUTOFOCUS. This is the ladder as 96.1 designed
+it, not something this stage introduced, but the instrument rule that state
+shows as shape first is what has to carry a primary control at night. 132.3
+gives the primary button a heavier outline rather than moving the ladder.
+
+**Gated.** `tests/web_theme.cpp`, 30 checks:
+- the colour arithmetic, including the 4.54:1 edge of `#767676` on white;
+- all ten roles equal their `Theme.h` tokens in both spellings;
+- every role's night luminance equals Theme's ladder;
+- a page's night colours are exactly what `Theme::NV` paints;
+- every role is declared for both day and night, and night is red only;
+- fault and warning differ in shape;
+- there is no URL and no `@import`;
+- base64 padding;
+- an empty font declares no face;
+- the contrast floor catches a label nearly the colour of its panel.
+
+It passes under mingw-w64 and wine. The specimen was generated the same way,
+then checked in a Playwright render: 1280 px wide, and 390 px with no
+horizontal scroll.
+
+**Owed: the owner picks A, B, C, or asks for changes.** 132.3 starts from that
+choice.

@@ -737,7 +737,7 @@ private:
             if (obj.type != "Planet") continue;
             if (!InCircle(obj.px, obj.py)) continue;
 
-            UINT32 col  = 0x00E5FF;
+            UINT32 col  = Theme::ACCENT & 0x00FFFFFFu;
             float  sz   = 7.0f;
             for (auto& ps : kPlanetStyle) {
                 if (obj.name == ps.name) { col = ps.color; sz = ps.sz; break; }

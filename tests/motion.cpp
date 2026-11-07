@@ -139,9 +139,10 @@ static void TestCurve() {
     // luminance the night ladder assigns it: TEXT 200 over DEEP 14.
     const double yNightFg = Luminance(200, 0, 0);
     const double yNightBg = Luminance(14,  0, 0);
-    // Day: TEXT 0xC8E8F0 over DEEP 0x070D16.
-    const double yDayFg = Luminance(0xC8, 0xE8, 0xF0);
-    const double yDayBg = Luminance(0x07, 0x0D, 0x16);
+    // Day: TEXT 0xE2E2DF over DEEP 0x121316 (132.3's palette; the
+    // premise held for 96.5's 0xC8E8F0 over 0x070D16 as well).
+    const double yDayFg = Luminance(0xE2, 0xE2, 0xDF);
+    const double yDayBg = Luminance(0x12, 0x13, 0x16);
 
     // A plain power law is only adequate because the surfaces are
     // near-black. If a later phase lifts the panel background, this is

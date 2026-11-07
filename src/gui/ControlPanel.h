@@ -364,7 +364,9 @@ public:
             if (kv.first) InvalidateRect(kv.first, nullptr, TRUE);
         for (HWND h : m_sectionHeaders)
             if (h) InvalidateRect(h, nullptr, TRUE);
+        RepaintSliders();
     }
+    void RepaintSliders();   // ControlPanel.cpp: trackbars ignore InvalidateRect
 
     void RefreshFilterLabel();
 

@@ -423,3 +423,123 @@ horizontal scroll.
 
 **Owed: the owner picks A, B, C, or asks for changes.** 132.3 starts from that
 choice.
+
+### 132.3a, 2026-11-07: the Steel palette, and the control panel
+
+The owner picked **C. Steel** from the specimen.
+
+**Tokens.** All ten `Theme.h` values now hold Steel. The old values are kept in a
+comment beside them. `Rgb::` and the night ladder are now **built from the
+tokens** rather than spelling the same bytes a second time, so any later palette
+change is a single edit. The night luminances were kept, so **night vision looks
+the same**. A new overload, `Theme::Color(argb, alpha)`, gives a token at its own
+opacity.
+
+**This changes every surface, not only the control panel.** The tokens are
+global, so every window already painting through them changed with the swap.
+What the remaining sub-stages (132.3b to 132.3e) owe is each surface's
+**literal** colours and its instrument detailing. Until those land, the sky map's
+own deep blue and its per-planet colours, among other spots, will sit on
+graphite chrome. That is a mixed look, not a broken one.
+
+**Fourteen literal spellings of the old token colours would have broken at
+night**, and they were moved onto the tokens in this same change. A literal that
+happened to equal a token's old bytes reached that token's designed night
+luminance only by coincidence. Once the token moved, the literal would have
+dropped to a derived luminance, which is the defect 96.4 fixed. Measured before
+the swap, these were in:
+
+- the histogram, sharpness and temperature backgrounds, and their red;
+- the preview's red brush;
+- the status bar's six brushes and its live dot;
+- the sky map's default planet colour;
+- the GoTo dialog background in `main.cpp`.
+
+Also fixed along the way:
+
+- The preview's bar highlight was raw cyan in night vision. It is now the signal
+  token, tinted.
+- The status bar's border and text were off-token literals. They now use the
+  tokens.
+
+**Control panel, the instrument rules applied:**
+
+- **Section headers** were a coloured circle with an initial, and a title in the
+  section's own colour: cyan for camera, amber for the focuser, green for the
+  mount, red for capture. Night vision turned those into six shades of one red.
+  They are now an engraved legend: a dim, bold Barlow Condensed title tracked by
+  one pixel, a dim chevron, and a hairline with a lit edge under it.
+- **Labels inside a section** no longer take the section's colour. They are all
+  `TEXT_DIM`. The focuser position is a readout, so it is now `TEXT`.
+- **RECORD** at rest has a neutral face, a 2 px signal-colour outline (the
+  heaviest line on the panel) and its word in `TEXT`. That fixes the problem
+  132.2 found, where the primary control was dimmer than an ordinary one at
+  night. Recording and paused tint the face toward Fault and Warning.
+- **AUTO FOCUS** is neutral at rest and shows Warning only while the focuser is
+  moving.
+- **AE** is dim when off, the signal colour when advisory, and Live when on auto.
+- **PLANET LOCK is now Live with a square (■ TRACKING), not red with a dot.** This
+  is a change of meaning, made on purpose: the design language gives tracking to
+  Live and keeps Fault for danger and recording. The mount-control caption
+  follows it.
+- Every hand-mixed teal, navy, brown and crimson fill on those buttons is now
+  `Theme::Mix` between the panel and a token. At night that keeps them on the
+  ladder and red-only.
+
+**Not changed:** the histogram's per-channel R, G and B tints (that is data, and
+hue is the information), the dead `DrawSectionHeader`, and type sizes (96.4b).
+
+**Tests updated, each because it pinned the old bytes:**
+
+- `operator_palette` section 3 now checks that DEEP *is* the token. In section 4,
+  "the wrong order is darker" became "the wrong order misses the ratio": on
+  graphite it comes out brighter, not darker. The property under test is the
+  miss.
+- `audience_layout` reads the tokens instead of old literals. Those literals
+  had silently fallen through to derived luminances.
+- `web_theme` and `motion` read the new values.
+
+Run under mingw-w64 and wine, all of these pass: `night_hierarchy`,
+`operator_palette`, `visual_tokens`, `audience_layout`, `motion`, `web_theme`,
+`object_panel_fit`, `share_caption`, `toolbar_layout` and `camera_panel`.
+`ControlPanel.cpp`, `PreviewRenderer.cpp` and `main.cpp` (which includes every
+window header) compile cleanly with mingw.
+
+**Owed on the rig:** run `.\tests\ui-baseline.ps1 -Save` on master *before* this
+merges, then `-Expect` set to every window, since a token swap is meant to change
+all of them. Look at the control panel in daylight and in night vision, and
+check the new section headers for text clipping.
+
+**Run on the rig, 2026-11-07.** Both configurations build under MSVC, and
+`run-tests` passes all 70. The reference was saved from `a565bae` (132.2), and
+the diff was run with `-Expect "day/"`, so that any night change would be
+flagged. That run used the build-stamp key fix from #101. Every day window
+changed. In night vision, everything read `same` except two windows. GoTo's
+change is its object list reordering as the sky turned, not this stage. The
+main window's change is all in the control panel: the legends, the dimmed
+labels, RECORD and AE, which is what this stage set out to change. The section
+headers do not clip, in day or night.
+
+**Found, not caused by this stage: the sliders leak non-red light at night.**
+Sampled from the night shots, a slider's track background is the *day* DEEP
+colour: (7, 13, 22) before this stage, (18, 19, 22) after. The rail is the
+theme's grey (160, 160, 160) in both. The `WM_CTLCOLORSTATIC` brush does go
+through `NV`, but the trackbar keeps the background it took in day mode, and
+the visual style draws the rail and thumb itself. Every slider on the control
+panel is affected; there are nine on the Camera tab alone. The tests cannot see this, because the colours are drawn by
+the common control, not by the app.
+
+**Fixed in 132.3a.** Sliders are de-themed and custom-drawn
+(`Theme::DrawSlider` on `NM_CUSTOMDRAW`, colours from `Theme::SliderColor`).
+Invalidating was not enough: a trackbar keeps its own rendering, so
+`ForceRepaint` now resets each slider's range to itself with redraw on
+(`Theme::RepaintSliders`), and the slider rebuilds without moving. The same
+scan found a second leak: the edit boxes' sunken `WS_EX_CLIENTEDGE` frame,
+which Windows draws in system white and greys. `Theme::StyleEditFrame` paints
+that frame from `BORDER` and `BG_VOID` on `WM_NCPAINT`, and the same repaint
+redraws it with `RDW_FRAME`. A pixel scan of the whole night control panel
+(567,088 pixels) now finds **no pixel with green or blue**. In day mode, the
+thumbs are now flat graphite blocks and the edit frames are a flat token
+hairline, both in the Steel look. Gated by `tests/night_hierarchy.cpp`
+section 9 (every slider part is red only at night, and the thumb stands out
+from its groove).

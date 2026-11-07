@@ -194,7 +194,7 @@ private:
             CreateBrushes();
         }
         m_rt->BeginDraw();
-        m_rt->Clear(Theme::NVf(D2D1::ColorF(0.016f, 0.031f, 0.059f, 1.0f)));
+        m_rt->Clear(Theme::Color(Theme::BG_VOID));
 
         temperature::Brushes br;
         br.cam = m_cam; br.foc = m_foc; br.dim = m_dim;

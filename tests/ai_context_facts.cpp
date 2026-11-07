@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <iterator>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 
@@ -37,8 +39,8 @@ static std::wstring RepoDocsDir() {
 
 // A session log shaped like SessionLog's output, in a fresh temp
 // directory. Twelve thousand lines with a handful about autofocus for the
-// retrieval to find. Kept under 1 MB: ReadWholeFile returns nothing for
-// a file of 1 MB or more, so a larger log would load as no session.
+// retrieval to find. Under the session-log cap, so it loads whole; the
+// oversized case has its own log below.
 static std::wstring WriteSyntheticSessionLog() {
     namespace fs = std::filesystem;
     std::error_code ec;
@@ -56,6 +58,164 @@ static std::wstring WriteSyntheticSessionLog() {
         }
     }
     return dir.wstring();
+}
+
+// A session log OVER the read cap, in its own temp directory.
+//
+// The loader used to return nothing for a log of 1 MB or more, and the
+// caller skipped it, so the longest nights were exactly the ones the
+// assistant could not see. ~60-byte lines, past the cap by half again,
+// with one distinctive event near the START (which must be cut) and one
+// near the END (which must survive).
+static std::wstring WriteOversizedSessionLog(size_t* bytesOut) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path dir = fs::temp_directory_path(ec) / "raduk_ai_context_facts_big";
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+    const fs::path file = dir / "session_20261011_200000.log";
+    {
+        std::ofstream f(file, std::ios::binary);
+        const size_t target = AIContextBuilder::kSessionLogCapBytes * 3 / 2;
+        size_t written = 0;
+        int i = 0;
+        while (written < target) {
+            char line[128];
+            int n = snprintf(line, sizeof(line),
+                             "[23:%02d:%02d] [CAPTURE     ] frame %d written, 1280x960 8-bit\n",
+                             i / 600 % 60, i / 10 % 60, i);
+            f.write(line, n);
+            written += (size_t)n;
+            if (i == 100)
+                f << "[20:05:00] [DEWHEATER   ] dewheater fault early in the night\n";
+            i++;
+        }
+        f << "[03:58:10] [MERIDIAN    ] meridianflip completed, guiding resumed\n";
+        for (int k = 0; k < 200; k++)
+            f << "[03:59:00] [CAPTURE     ] frame " << (i + k)
+              << " written, 1280x960 8-bit\n";
+    }
+    *bytesOut = (size_t)fs::file_size(file, ec);
+    return dir.wstring();
+}
+
+// ── What a leaked site looks like ────────────────────────────
+//
+// Section 6 sets the documents block aside from the broad any-decimal
+// scan, because the project's documents are prose full of such numbers
+// ("132.10" as a plan section, "12.99' x 7.31'", "15.04"/s", "MSVC
+// 14.50"), and holds it to the configured site instead. On a bench or
+// CI machine the configured site is the invented one above, so on its
+// own that leaves the documents unchecked for any OTHER position --
+// a real site pasted into a plan, say.
+//
+// So for the documents the test also looks for a number written AS A
+// POSITION,
+// at more than the one decimal the site rule allows:
+//   - a pair: two such numbers separated only by a comma, semicolon,
+//     spaces, degree signs or hemisphere letters, the first a valid
+//     latitude and the second a valid longitude ("41.88, -87.65",
+//     "41.88N 87.65W"). Not a slash: "1.45/2.00 TB" is a ratio, and
+//     nobody writes a position that way;
+//   - a hemisphere suffix: "41.88°N", "87.65 W";
+//   - a label right before it: lat, lon, lng, latitude, longitude,
+//     site, coordinates, coords or location, as a whole word, with
+//     only a few spaces, ':', '=', '(' or quotes between
+//     ("lat=41.876", "Site: 41.88").
+// What it deliberately no longer flags is a lone, unlabelled
+// coordinate-sized number. Half a position with nothing saying it is
+// one is not a location, and it is indistinguishable from the corpus's
+// own figures. Dotted identifiers ("132.10.1") are not numbers at all.
+//
+// Returns a description of the first hit, or "" if there is none.
+static std::string FindWrittenPosition(const std::string& t) {
+    struct Num { size_t start, end; double v; int dec; };
+    std::vector<Num> nums;
+    for (size_t i = 0; i < t.size(); i++) {
+        if (!isdigit((unsigned char)t[i])) continue;
+        if (i > 0 && (isdigit((unsigned char)t[i-1]) || t[i-1] == '.')) continue;
+        size_t j = i;
+        while (j < t.size() && isdigit((unsigned char)t[j])) j++;
+        int dec = 0;
+        size_t k = j;
+        if (j + 1 < t.size() && t[j] == '.' && isdigit((unsigned char)t[j+1])) {
+            k = j + 1;
+            while (k < t.size() && isdigit((unsigned char)t[k])) { k++; dec++; }
+            // A dotted identifier, not a number.
+            if (k + 1 < t.size() && t[k] == '.' && isdigit((unsigned char)t[k+1])) {
+                i = k;
+                continue;
+            }
+        }
+        const bool neg = i > 0 && t[i-1] == '-';
+        const size_t st = neg ? i - 1 : i;
+        const double v = atof(t.substr(st, k - st).c_str());
+        nums.push_back({ st, k, v, dec });
+        i = k - 1;
+    }
+
+    auto context = [&](size_t a, size_t b) {
+        const size_t lo = a >= 30 ? a - 30 : 0;
+        const size_t hi = (std::min)(b + 30, t.size());
+        std::string c = t.substr(a, b - a) + " in \"" + t.substr(lo, hi - lo) + "\"";
+        for (char& ch : c) if (ch == '\n' || ch == '\r') ch = ' ';
+        return c;
+    };
+    // UTF-8 degree sign is C2 B0.
+    auto skipDegree = [&](size_t p) {
+        if (p + 1 < t.size() && (unsigned char)t[p] == 0xC2 &&
+            (unsigned char)t[p+1] == 0xB0) return p + 2;
+        return p;
+    };
+    auto hemisphereAt = [&](size_t p, const char* set) {
+        p = skipDegree(p);
+        while (p < t.size() && t[p] == ' ') p++;
+        if (p >= t.size() || !strchr(set, t[p])) return false;
+        return p + 1 >= t.size() || !isalpha((unsigned char)t[p+1]);
+    };
+    static const char* kLabels[] = { "lat", "lon", "lng", "latitude",
+                                     "longitude", "site", "coordinates",
+                                     "coords", "location" };
+    auto labelled = [&](size_t start) {
+        // The label must be right before the number, with nothing
+        // between but a few spaces or ':', '=', '(' or quotes:
+        // "Site: 41.88", "lat=41.877". A label further back is prose
+        // ("seen from the site | within 0.004 degrees").
+        size_t p = start, gap = 0;
+        while (p > 0 && gap < 4 && strchr(" \t:=(\"'", t[p-1])) { p--; gap++; }
+        size_t q = p;
+        while (q > 0 && isalpha((unsigned char)t[q-1])) q--;
+        if (q == p) return false;
+        std::string w = t.substr(q, p - q);
+        for (auto& c : w) c = (char)tolower((unsigned char)c);
+        for (const char* l : kLabels) if (w == l) return true;
+        return false;
+    };
+
+    for (size_t n = 0; n < nums.size(); n++) {
+        const Num& a = nums[n];
+        if (a.dec < 2 || std::fabs(a.v) > 180.0) continue;
+        if (hemisphereAt(a.end, "NSEW"))
+            return "a hemisphere-marked " + context(a.start, a.end);
+        if (labelled(a.start))
+            return "a labelled " + context(a.start, a.end);
+        if (n + 1 < nums.size() && std::fabs(a.v) <= 90.0) {
+            const Num& b = nums[n + 1];
+            if (b.dec >= 2 && std::fabs(b.v) <= 180.0 && b.start - a.end <= 8) {
+                bool onlySeparators = true;
+                for (size_t p = a.end; p < b.start; p++) {
+                    const unsigned char c = (unsigned char)t[p];
+                    if (!(c == ',' || c == ';' || c == ' ' ||
+                          c == '\t' || c == 0xC2 || c == 0xB0 ||
+                          c == 'N' || c == 'S' || c == 'E' || c == 'W'))
+                        onlySeparators = false;
+                }
+                if (onlySeparators)
+                    return "a coordinate pair " + context(a.start, b.end);
+            }
+        }
+    }
+    return "";
 }
 
 static void Check(bool ok, const std::string& what, const std::string& detail) {
@@ -325,6 +485,113 @@ int main() {
         Check(!tooPrecise,
               "and nothing from the logs or state is coordinate-precise",
               offender);
+
+        // The position scanner (FindWrittenPosition, above) is checked
+        // first against the shapes it must
+        // catch and the corpus figures it must not, so a scanner that
+        // stopped matching anything would fail here rather than pass
+        // everything. The positions are the invented test site above.
+        struct Probe { const char* text; bool leak; };
+        const Probe probes[] = {
+            { "Observing site: 41.88, -87.65",            true  },
+            { "at 41.876543, -87.654321 tonight",         true  },
+            { "41.88N 87.65W",                            true  },
+            { "lat=41.877 lon=-87.654",                   true  },
+            { "lat 41.88",                                true  },
+            { "longitude: -87.65",                        true  },
+            { "41.88\xC2\xB0N",                           true  },
+            { "one additive field in\n  132.10.\n- **Gates", false },
+            { "### 132.10 Dashboard written by the app",  false },
+            { "(132.2, 132.9, 132.10)",                   false },
+            { "the full sensor sees 12.99' x 7.31' at 0.203\"/px", false },
+            { "sidereal 15.04\"/s = 74.1 px/s",           false },
+            { "MSVC 14.50 and 22.04 ships 3.22",          false },
+            { "plate scale 0.203 arcsec/pixel",           false },
+            { "site: 41.9, -87.7 (approx, from rig.ini)", false },
+            { "version 132.10.1",                         false },
+            { "S: 1.45/2.00 TB, percentages 71/64/72",    false },
+            { "view from the site | Within 0.004 degrees", false },
+        };
+        int probeMisses = 0;
+        std::string firstMiss;
+        for (const Probe& pr : probes) {
+            const bool hit = !FindWrittenPosition(pr.text).empty();
+            if (hit != pr.leak) {
+                if (probeMisses++ == 0)
+                    firstMiss = std::string(pr.leak ? "missed: " : "false hit: ") + pr.text;
+            }
+        }
+        for (char& c : firstMiss) if (c == '\n') c = ' ';
+        Check(probeMisses == 0,
+              "the position scanner catches leaks and ignores figures",
+              probeMisses ? firstMiss : std::to_string(sizeof(probes) / sizeof(probes[0])) + " probes");
+
+        // The documents block the broad scan set aside: no position
+        // written out in it, whoever's site it is.
+        const std::string written = FindWrittenPosition(
+            docs == std::string::npos ? std::string()
+                                      : p3.substr(docs, p3.size() - scan.size()));
+        Check(written.empty(),
+              "  and the documents retrieved write out no position",
+              written);
+
+        // Retrieval only shows what one question happened to pull in.
+        // The whole corpus is what a question COULD pull in, so scan
+        // every document, not just the selected sections.
+        std::string docOffender;
+        {
+            namespace fs = std::filesystem;
+            std::error_code ec;
+            for (const auto& e : fs::directory_iterator(fs::path(docsDir), ec)) {
+                if (e.path().extension() != ".md") continue;
+                std::ifstream f(e.path(), std::ios::binary);
+                std::string body((std::istreambuf_iterator<char>(f)),
+                                 std::istreambuf_iterator<char>());
+                const std::string hit = FindWrittenPosition(body);
+                if (!hit.empty()) {
+                    docOffender = e.path().filename().string() + ": " + hit;
+                    break;
+                }
+            }
+        }
+        Check(docOffender.empty(),
+              "and no document in the corpus writes out a position",
+              docOffender);
+    }
+
+    // ── 7. A session log over the read cap ────────────────────
+    //
+    // Before this, a log of 1 MB or more loaded as "0 session log(s)"
+    // and the question below came back with no history at all.
+    printf("\n7. A session log larger than the read cap\n");
+    {
+        size_t bytes = 0;
+        const std::wstring bigDir = WriteOversizedSessionLog(&bytes);
+        Check(bytes > AIContextBuilder::kSessionLogCapBytes,
+              "the synthetic log really is over the cap",
+              std::to_string(bytes) + " bytes vs " +
+              std::to_string(AIContextBuilder::kSessionLogCapBytes));
+
+        AIContextBuilder b3;
+        b3.LoadSessionLogs(bigDir);
+        const std::string late =
+            b3.Build(s, planner, "when did the meridianflip happen?");
+        Check(Has(late, "[SESSION HISTORY]"),
+              "an oversized log still reaches [SESSION HISTORY]", "");
+        Check(Has(late, "meridianflip completed"),
+              "  with the event near its end", "");
+        Check(Has(late, "session_20261011_200000.log"),
+              "  attributed to the right session", "");
+
+        // The cap still means something: the tail is kept, the head
+        // is not, so the early event is out of reach.
+        const std::string early =
+            b3.Build(s, planner, "what about the dewheater?");
+        Check(!Has(early, "dewheater fault"),
+              "and the start beyond the cap is dropped, not dumped", "");
+        Check(late.size() < 60000,
+              "the prompt stays bounded with a huge log loaded",
+              std::to_string(late.size()) + " bytes");
     }
 
     printf("\n");

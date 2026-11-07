@@ -1,6 +1,6 @@
 # Raduk-Capture: Planetary Capture Software for the ZWO ASI678MC
 
-**RadukCapture is a native Windows planetary astrophotography capture
+**Raduk-Capture is a native Windows planetary astrophotography capture
 application, written in C++20 on pure Win32 and Direct2D, built for the ZWO
 ASI678MC camera (Sony IMX678 sensor), the ZWO EAF electronic focuser, and the
 Celestron NexStar 8SE telescope.** It records lucky-imaging video of Jupiter,

@@ -1,0 +1,27 @@
+# Checklist 35, the half phase 125 left: typing into the camera boxes.
+# Enter applies, out-of-range clamps, nonsense and Escape put the camera's
+# value back. Before and after shots show gamma and WB red in the picture.
+name    Camera boxes: type, Enter, Escape
+timeout 180
+
+expect 30  [SCENARIO] Camera
+wait   4
+tab    CAMERA
+shot   before
+type   GAIN 900
+expect 5   field GAIN shows 570
+type   GAIN abc
+expect 5   field GAIN shows 570
+type   ESC:GAIN 300
+# Escape restores on the panel's next sync from the camera.
+wait   1.5
+type   GAIN ?
+expect 5   field GAIN shows 570
+type   GAIN 200
+expect 5   field GAIN shows 200
+type   GAMMA 100
+expect 5   field GAMMA shows 100
+type   WBR 99
+expect 5   field WBR shows 99
+wait   3
+shot   after

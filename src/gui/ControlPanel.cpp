@@ -1323,6 +1323,11 @@ LRESULT CALLBACK ControlPanel::CameraEditProc(HWND h, UINT msg, WPARAM wp,
             // caret, and ShowFieldFromSlider would lose a '+' mark.
             SendMessage(h, EM_SETMODIFY, FALSE, 0);
             SetFocus(self->m_panelHwnd);
+            // Phase 129, found by a scenario: this relied on a later sync
+            // to put the camera's value back, and nothing syncs on a timer
+            // -- so Escape left the abandoned number showing over the
+            // setting actually in force. Now, with the caret gone.
+            self->SyncFromCamera();
             return 0;
         }
     }

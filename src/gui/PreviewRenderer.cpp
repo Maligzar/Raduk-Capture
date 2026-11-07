@@ -1717,7 +1717,20 @@ bool PreviewRenderer::SaveSnapshotPNG(const std::wstring& path) {
 
         UINT stride = (UINT)m_frameWidth * 3;
         UINT bufSize = stride * (UINT)m_frameHeight;
-        hr = frame->WritePixels((UINT)m_frameHeight, stride, bufSize, m_rgbBuffer);
+        // Phase 129, found by a scenario screenshot: the PNG encoder does
+        // not take 24bpp RGB, so SetPixelFormat hands back 24bpp BGR -- and
+        // this wrote the RGB buffer anyway, so every snapshot had red and
+        // blue swapped (Jupiter came out blue). The format it chose is
+        // honoured now.
+        std::vector<uint8_t> bgr;
+        const uint8_t* src = m_rgbBuffer;
+        if (IsEqualGUID(fmt, GUID_WICPixelFormat24bppBGR)) {
+            bgr.assign(m_rgbBuffer, m_rgbBuffer + bufSize);
+            for (size_t i = 0; i + 2 < bgr.size(); i += 3) std::swap(bgr[i], bgr[i + 2]);
+            src = bgr.data();
+        }
+        hr = frame->WritePixels((UINT)m_frameHeight, stride, bufSize,
+                                const_cast<BYTE*>(src));
         if (FAILED(hr)) { printf("[Snapshot] WritePixels failed: 0x%lx\n", hr); goto cleanup; }
     }
 

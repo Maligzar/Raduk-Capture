@@ -286,6 +286,11 @@ AutoStakkert, ASTAP plate solving, satellite tracking telescope, ISS imaging,
 SGP4, JPL Horizons, near-Earth asteroid tracking, lunar mosaic, atmospheric
 dispersion corrector, Win32, Direct2D, Direct3D 11.
 
+## Contributing
+
+Pull requests are welcome. CI builds both configurations and runs the bench
+tests on every pull request.
+
 ## License
 
 Copyright 2026 Kenneth C Wood Jr. Licensed under PolyForm Noncommercial 1.0.0;

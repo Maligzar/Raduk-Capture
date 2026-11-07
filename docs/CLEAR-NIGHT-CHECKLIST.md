@@ -918,7 +918,8 @@ For contrast, so this list is not read as "nothing works":
     confirmation. It should fade in over about 150 ms, hold for five
     seconds, and fade out. Clicking it should still dismiss it at once.
 
-23. **The two buttons that did nothing** (phase 102). On the control
+23. **The two buttons that did nothing** (phase 102). *On the emulator this
+    is now `tests\scenarios\buttons.scn` (phase 125).* On the control
     panel, press **POINT SOLVE → SYNC**: it should report a real
     outcome, including its refusals ("No frame yet", "ASTAP not found",
     "Solve already running"). Before this it was completely inert, not
@@ -931,7 +932,8 @@ For contrast, so this list is not read as "nothing works":
     regardless and reported PLANET LOCK ACTIVE over a tracker that was
     doing nothing.
 
-24. **Emergency stop disengages the lock** (phase 102). Acquire a
+24. **Emergency stop disengages the lock** (phase 102). *Emulator:
+    `buttons.scn`, which found Escape leaving PLANET LOCK lit (fixed in 125).* Acquire a
     planet, confirm PLANET LOCK is lit and guiding is live, then press
     emergency stop. The lock must drop and the guiding corrections must
     stop. Before this the stop cleared the button and told the tracker
@@ -1046,7 +1048,9 @@ For contrast, so this list is not read as "nothing works":
     should fill in the date and time from the name: the format comes
     from forum reports, not from WinJUPOS's own documentation.
 
-33. **Surface lock** (phase 109). Emulator first: load the Moon on a
+33. **Surface lock** (phase 109). *Emulator: `_known-surface-follow.scn`
+    answered the first question below. It does not lock: calibration fails on a
+    full-frame Moon. Needs fixing before the real Moon is worth trying.* Emulator first: load the Moon on a
     640x480 crop with `RADUK_EMU_DRIFT_PX_S` set and `[FOLLOW]` on, lock,
     and the notification bar should say it is following the surface.
     A crater should stay put in the frame while the window walks. If
@@ -1065,7 +1069,8 @@ For contrast, so this list is not read as "nothing works":
     outline and the lit bar should be told apart at a glance, and no
     button should be brighter than the rest of the screen wants.
 
-35. **The camera controls** (phase 112). Emulator first. Open CAMERA and
+35. **The camera controls** (phase 112). *Emulator: `autofocus.scn` covers the
+    AE and autofocus half; typing into the boxes is still by hand.* Emulator first. Open CAMERA and
     the values should match the log's `[CAMERA] startup` line, not gain
     100. Type into each of the six boxes: Enter applies, Escape restores,
     `900` in gain shows 570, `abc` restores. Gamma 100 should visibly
@@ -1084,7 +1089,8 @@ For contrast, so this list is not read as "nothing works":
     where AE settles and the sharpness there: the knees of 20 ms and gain
     350 in `RailsFor` are guesses, and this is what tests them.
 
-36. **A sequence of runs** (phase 113). Emulator first: load Jupiter, set
+36. **A sequence of runs** (phase 113). *Emulator: `autorun.scn` (phase 125).
+    The sky half below still stands.* Emulator first: load Jupiter, set
     `AutorunRuns=3` in `rig.ini`, centre it, press `RUNS`. The button
     should light as `#1`, autofocus should run first, then a run that
     stops at the derotation window even with `[DEROT]` on `WARN`, then a
@@ -1098,7 +1104,8 @@ For contrast, so this list is not read as "nothing works":
     Moon, see whether a full frame still counts as the target being seen,
     because that is what the check asks.
 
-37. **Seeing-aware runs** (phase 114). Emulator first: start it with
+37. **Seeing-aware runs** (phase 114). *Emulator: `seeing-hold.scn` (phase
+    125). The sky half below still stands.* Emulator first: start it with
     `RADUK_EMU_SEEING_AS=1`, press `RUNS`, and read the `[AUTORUN] start`
     line. The first run should begin within a few seconds, because nothing
     has set a bar yet. The emulator's seeing cannot be changed while it

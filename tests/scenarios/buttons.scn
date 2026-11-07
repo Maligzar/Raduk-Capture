@@ -1,0 +1,44 @@
+# Checklist 23 and 24: the buttons that once did nothing, and the
+# emergency stop that once left guiding running.
+name    Buttons: solve, lock, emergency stop
+timeout 300
+
+profile jupiter.ini roi width=640
+profile jupiter.ini roi height=480
+profile jupiter.ini roi img_type=0
+
+expect 30  [SCENARIO] Buttons
+wait   3
+
+# POINT SOLVE always answers, never silence (23).
+press  POINT SOLVE
+expect 10  [STATUS]
+press  POINT SOLVE
+expect 10  [STATUS]
+
+# PLANET LOCK after a GoTo runs the whole sequence (phase 125's fix).
+goto   Jupiter
+expect 120 SEARCHING
+wait   3
+press  PLANET LOCK
+expect 10  [ACQ] PLANET LOCK: the search under way
+expect 10  [BUTTON] PLANET LOCK -> TRACKING (lit)
+expect 90  Acquisition: Locked
+expect 10  [STATUS] LOCKED - guiding
+shot   locked
+
+# The panel's STOP drops the lock and the guiding with it (24).
+press  STOP
+expect 10  [BUTTON] PLANET LOCK -> PLANET LOCK
+expect 10  [ACQ] Cancelled
+absent 8   [STATUS] LOCKED - guiding
+
+# PLANET LOCK from nothing at all, then Escape, the emergency stop.
+press  PLANET LOCK
+expect 10  [BUTTON] PLANET LOCK -> TRACKING (lit)
+expect 90  Acquisition: Locked
+key    ESC
+expect 10  EMERGENCY STOP
+expect 10  [BUTTON] PLANET LOCK -> PLANET LOCK
+absent 8   [STATUS] LOCKED - guiding
+shot   stopped

@@ -1,7 +1,7 @@
 # RadukCapture: Architecture and Roadmap
 
 Planetary capture software for the ZWO ASI678MC, ZWO EAF and Celestron 8SE.
-Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 124.
+Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 125.
 
 This file describes how the application is built, what exists, and what is
 left to do. It was rewritten because its old build plan had stopped at about
@@ -554,12 +554,13 @@ The largest debt in the project, and it costs little code. In order:
 
 ### 13.2 Can be done indoors now
 
-Running what already exists. Most of this is emulator time, and it is the
-cheapest way to shrink the status file's debt.
+Running what already exists. Since phase 125 most of this is a scenario
+Claude runs (`tests\run-scenarios.ps1`), not a list for the owner: 23, 24,
+28, 32, 35 (AE and autofocus), 36 and 37 are covered on the emulator. Adding a
+scenario is the way to retire a row below.
 
 | Item | Needs |
 |---|---|
-| Autorun and seeing hold wiring in `main.cpp` | Checklist 36, 37. Neither has been run |
 | Camera controls, panel and autofocus path | Checklist 35 |
 | ROI following, derotation limit, surface lock | Checklist 31, 32, 33 |
 | `[HW]` button | One press in the running app |

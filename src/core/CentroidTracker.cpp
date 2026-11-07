@@ -35,6 +35,27 @@ bool CentroidTracker::StartAutoAcquire(std::string& whyNot) {
     return true;
 }
 
+bool CentroidTracker::PromoteToAutoAcquire(std::string& whyNot) {
+    if (m_stage.load() != AcquisitionStage::Searching) {
+        whyNot = "not searching";
+        return false;
+    }
+    IMount* mnt = nullptr;
+    { std::lock_guard<std::mutex> lk(m_mutex); mnt = m_mount; }
+    if (!mnt || !mnt->IsConnected()) {
+        whyNot = "mount not connected";
+        return false;
+    }
+    if (mnt->GetTrackingMode() == IMount::OFF) {
+        whyNot = "mount is not tracking - align it on the hand control "
+                 "first (Align > Quick Align needs no stars)";
+        return false;
+    }
+    m_autoAdvance.store(true);
+    printf("[CentroidTracker] Search promoted to auto-acquire\n");
+    return true;
+}
+
 void CentroidTracker::StartSearching() {
     if (m_stage.load() != AcquisitionStage::Off) return;
     _ResetCounters();

@@ -1,0 +1,51 @@
+# Checklist 36: a sequence of runs, on the emulator.
+# Jupiter, locked, then two short runs: autofocus first, a run, a gap, a
+# run, the end line and the ranked list. Then stopping one partway.
+name    Autorun: a sequence of runs
+timeout 480
+
+rig     AutorunRuns=2
+rig     AutorunGapSec=4
+rig     AutorunRefocusEvery=3
+rig     AutorunSeeingPct=0
+profile jupiter.ini roi width=640
+profile jupiter.ini roi height=480
+profile jupiter.ini roi img_type=0
+profile jupiter.ini capture limit_value=150
+
+expect 30  [SCENARIO] Autorun
+wait   3
+goto   Jupiter
+expect 120 SEARCHING
+wait   3
+press  PLANET LOCK
+expect 90  Acquisition: Locked
+wait   3
+
+press  RUNS
+expect 10  [AUTORUN] start: 2 runs
+expect 10  [BUTTON] RUNS -> #1
+expect 10  [AUTORUN] focus before run 1
+# Named for the target and stopped at the profile's 150 frames, from
+# whichever tab is open: phase 125 found both fell back to defaults.
+expect 120 Recording started: 
+expect 10  captures\Jupiter_
+expect 10  [AUTORUN] run 1 of 2
+expect 90  Recording stopped: 150 frames
+expect 30  [BUTTON] RUNS -> #2
+expect 60  Recording started: 
+expect 10  [AUTORUN] run 2 of 2
+expect 90  Recording stopped: 150 frames
+expect 30  [AUTORUN] end: 2 of 2 runs
+expect 10  [AUTORUN] runs ranked in
+expect 10  [BUTTON] RUNS -> RUNS
+shot   after-sequence
+
+# Stopped partway: RUNS again during the first run.
+press  RUNS
+expect 120 Recording started
+wait   3
+press  RUNS
+expect 10  Recording stopped
+expect 10  [AUTORUN] end:
+absent 10  Recording started

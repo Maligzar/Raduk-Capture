@@ -1,0 +1,35 @@
+# Checklist 37: a sequence that waits for the seeing. The emulator's sky
+# varies with RADUK_EMU_SEEING_AS; a bar of 100% only the night's best
+# moment clears, so runs wait and give up after the 10 s hold.
+name    Seeing hold: a sequence waits for the sky
+timeout 400
+
+env     RADUK_EMU_SEEING_AS=1
+rig     AutorunRuns=2
+rig     AutorunGapSec=4
+rig     AutorunRefocusEvery=0
+rig     AutorunSeeingPct=100
+rig     AutorunSeeingHoldSec=10
+profile jupiter.ini roi width=640
+profile jupiter.ini roi height=480
+profile jupiter.ini roi img_type=0
+profile jupiter.ini capture limit_value=100
+
+expect 30  [SCENARIO] Seeing hold
+wait   3
+goto   Jupiter
+expect 120 SEARCHING
+wait   3
+press  PLANET LOCK
+expect 90  Acquisition: Locked
+wait   3
+
+# One line can satisfy only one expect, so each checks something different.
+press  RUNS
+expect 10  seeing bar 100%
+expect 60  : waiting
+expect 10  [NOTICE] Sequence is waiting for the seeing
+expect 120 Recording stopped: 100 frames
+expect 120 Recording stopped: 100 frames
+expect 60  [AUTORUN] end: 2 of 2 runs
+expect 10  [AUTORUN] runs ranked in

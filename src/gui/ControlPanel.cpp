@@ -1702,14 +1702,35 @@ void ControlPanel::UpdateCaptureStatus(bool recording, uint32_t framesRecorded,
 }
 
 // ── Capture config getters ─────────────────────────────────────
+//
+// Phase 125, found by the first scenario. Since phase 120 the OUTPUT
+// tab's controls exist only while that tab is open, and these read the
+// controls and nothing else -- so on any other tab every one of them
+// gave its fallback. A recording made from the CAMERA tab took 1000
+// frames whatever the profile said, was named "Capture_" not
+// "Jupiter_", and a sequence planned its runs from the wrong limit.
+// The values were never lost: m_ui caches each one on every tab change
+// and every profile load. Each getter now reads the live control when
+// it exists and that cache when it does not.
+
+static std::wstring LiveText(HWND h, const std::wstring& cached) {
+    if (!h) return cached;
+    const int len = GetWindowTextLengthW(h);
+    std::wstring s((size_t)len + 1, L'\0');
+    GetWindowTextW(h, &s[0], len + 1);
+    s.resize((size_t)len);
+    return s;
+}
+
+static std::string Narrow(const std::wstring& w) {
+    std::string out;
+    for (wchar_t c : w) out += (char)c;
+    return out;
+}
 
 std::string ControlPanel::GetFilePrefix() const {
-    if (!m_editFilePrefix) return "Capture";
-    wchar_t buf[64] = {};
-    GetWindowTextW(m_editFilePrefix, buf, 64);
-    char out[64] = {};
-    for (int i = 0; i < 63 && buf[i]; i++) out[i] = (char)buf[i];
-    return std::string(out[0] ? out : "Capture");
+    const std::string s = Narrow(LiveText(m_editFilePrefix, m_ui.filePrefix));
+    return s.empty() ? "Capture" : s;
 }
 
 void ControlPanel::SetCaptureFits(bool fits) {
@@ -1719,8 +1740,9 @@ void ControlPanel::SetCaptureFits(bool fits) {
 }
 
 std::string ControlPanel::GetFrameType() const {
-    if (!m_comboFrameType) return "Light";
-    int sel = (int)SendMessage(m_comboFrameType, CB_GETCURSEL, 0, 0);
+    const int sel = m_comboFrameType
+        ? (int)SendMessage(m_comboFrameType, CB_GETCURSEL, 0, 0)
+        : m_ui.frameType;
     switch (sel) {
         case 1:  return "Dark";
         case 2:  return "Flat";
@@ -1730,33 +1752,23 @@ std::string ControlPanel::GetFrameType() const {
 }
 
 std::string ControlPanel::GetOutputDir() const {
-    if (!m_editOutputDir) return raduk::core::Paths::Captures();
-    wchar_t buf[MAX_PATH] = {};
-    GetWindowTextW(m_editOutputDir, buf, MAX_PATH);
-    char out[MAX_PATH] = {};
-    for (int i = 0; i < MAX_PATH-1 && buf[i]; i++) out[i] = (char)buf[i];
-    return out[0] ? std::string(out) : raduk::core::Paths::Captures();
+    const std::string s = Narrow(LiveText(m_editOutputDir, m_ui.outputDir));
+    return s.empty() ? raduk::core::Paths::Captures() : s;
 }
 
 uint32_t ControlPanel::GetLimitFrames() const {
-    if (!m_editLimitFrames) return 1000;
-    wchar_t buf[16] = {};
-    GetWindowTextW(m_editLimitFrames, buf, 16);
-    int v = _wtoi(buf);
+    const int v = _wtoi(LiveText(m_editLimitFrames, m_ui.limitFrames).c_str());
     return (v > 0) ? (uint32_t)v : 1000;
 }
 
 double ControlPanel::GetLimitTimeSec() const {
-    if (!m_editLimitTime) return 60.0;
-    wchar_t buf[16] = {};
-    GetWindowTextW(m_editLimitTime, buf, 16);
-    double v = _wtof(buf);
+    const double v = _wtof(LiveText(m_editLimitTime, m_ui.limitTime).c_str());
     return (v > 0) ? v : 60.0;
 }
 
 bool ControlPanel::GetLimitByFrames() const {
-    if (!m_radioFrames) return true;
-    return SendMessage(m_radioFrames, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    if (m_radioFrames) return SendMessage(m_radioFrames, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    return m_ui.limitByFrames != 0;   // unknown (-1) reads as frames, as before
 }
 
 // ── Phase 85: profile → panel ──────────────────────────
@@ -2000,6 +2012,8 @@ void ControlPanel::SetRCControl(bool take) {
 }
 
 void ControlPanel::UpdatePlanetLockUI() {
+    raduk::core::ProbeW("[BUTTON]", m_planetLock ? L"PLANET LOCK -> TRACKING (lit)"
+                                                 : L"PLANET LOCK -> PLANET LOCK");
     if (!m_btnSync || !m_lblMountControl) return;
     InvalidateRect(m_btnSync, nullptr, TRUE); // triggers WM_DRAWITEM repaint
     // Phase 70: the label is driven by SetAcquisitionStatus now, which
@@ -3006,6 +3020,35 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     // user typed or chose. Must come last: the controls have to exist.
     RestoreUi();
     SyncFromCamera();
+}
+
+
+// Phase 125. Scenarios press by the words on the button, upper case.
+bool ControlPanel::PressByName(const std::string& name) {
+    struct N { const char* name; int id; };
+    static const N kNames[] = {
+        { "RECORD",      ID_BTN_RECORD },
+        { "AUTO FOCUS",  ID_BTN_AUTOFOCUS },
+        { "AUTOFOCUS",   ID_BTN_AUTOFOCUS },
+        { "AE AUTO",     ID_BTN_AE_AUTO },
+        { "PLANET LOCK", ID_BTN_SYNC },
+        { "POINT SOLVE", ID_BTN_SOLVE_SYNC },
+        { "STOP",        ID_BTN_MOUNT_STOP },
+        { "TRACKING",    ID_BTN_TRACKING },
+        { "FOCUS STOP",  ID_BTN_FOCUS_STOP },
+    };
+    for (const N& n : kNames)
+        if (_stricmp(n.name, name.c_str()) == 0)
+            return HandleCommand(MAKEWPARAM(n.id, BN_CLICKED),
+                                 (LPARAM)GetDlgItem(m_panelHwnd, n.id));
+    return false;
+}
+
+bool ControlPanel::OpenTabByName(const std::string& name) {
+    static const char* kTabNames[4] = { "CAMERA", "FOCUS", "MOUNT", "OUTPUT" };
+    for (int i = 0; i < 4; ++i)
+        if (_stricmp(kTabNames[i], name.c_str()) == 0) { SetTab(i); return true; }
+    return false;
 }
 
 } // namespace raduk::gui

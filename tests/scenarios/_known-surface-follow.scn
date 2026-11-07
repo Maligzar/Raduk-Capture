@@ -1,0 +1,31 @@
+# Checklist 33: following the surface. The Moon fills a 640x480 crop, the
+# emulated mount drifts it 5 px a second, and with FOLLOW on the crop
+# window should walk with the surface once acquisition locks.
+#
+# KNOWN TO FAIL (phase 125). It never locks: guide calibration on a frame
+# the Moon fills repeats "North response too small". Pulsing the mount
+# barely moves the brightness-weighted centre of a crop that is all
+# surface, so calibration measures nothing, and surface following only
+# starts after a lock. The leading _ keeps it out of the suite; run it by
+# name. It passes once acquisition can lock on a full frame.
+name    Surface follow: the Moon, drifting
+timeout 400
+
+env     RADUK_EMU_DRIFT_PX_S=5
+env     RADUK_EMU_LUNAR_PHASE=0.30
+rig     RoiFollow=1
+profile moon.ini roi width=640
+profile moon.ini roi height=480
+profile moon.ini roi img_type=0
+
+expect 30  [SCENARIO] Surface follow
+wait   3
+goto   Moon
+expect 120 SEARCHING
+wait   3
+press  PLANET LOCK
+expect 120 Acquisition: Locked
+expect 30  [NOTICE] Following the surface
+wait   15
+shot   following
+absent 5   [FOLLOW] gave up

@@ -42,6 +42,7 @@
 #include <chrono>
 #include "../sky/PointingModel.h"
 #include "../core/IMount.h"
+#include "../core/TestProbe.h"
 #include "../core/FrameSlot.h"
 #include "WindowChrome.h"
 #include "Theme.h"
@@ -2813,6 +2814,7 @@ private:
     }
 
     void SetStatus(const wchar_t* msg) {
+        raduk::core::ProbeW("[STATUS]", msg ? msg : L"");
         if (m_lblStatus) SetWindowTextW(m_lblStatus, msg);
     }
 

@@ -207,6 +207,12 @@ public:
     // and none of them can say why.
     bool StartAutoAcquire(std::string& whyNot);
 
+    // Phase 125. A GoTo starts a plain search that waits for LOCK.
+    // PLANET LOCK pressed during it means "do the rest": this turns the
+    // search already under way into the full sequence, after the same
+    // mount checks StartAutoAcquire makes. False with a reason otherwise.
+    bool PromoteToAutoAcquire(std::string& whyNot);
+
     bool AutoAdvancing() const { return m_autoAdvance.load(); }
 
     void StartSearching();

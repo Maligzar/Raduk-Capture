@@ -104,7 +104,12 @@ private:
         return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
     }
 
+public:
+    // Phase 125: a scenario run points everything at its sandbox. Read
+    // before anything resolves the root, which is cached from then on.
     static std::string Resolve() {
+        char env[MAX_PATH] = {};
+        if (GetEnvironmentVariableA("RADUK_DATA_ROOT", env, MAX_PATH) > 0) return Trim(env);
         std::string ini = ExeDir() + "\\rig.ini";
         char buf[MAX_PATH] = {};
         GetPrivateProfileStringA("Rig", "DataRoot", "", buf, MAX_PATH, ini.c_str());

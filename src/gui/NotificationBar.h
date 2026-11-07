@@ -35,6 +35,7 @@
 #include <windows.h>
 #include "Theme.h"
 #include "ToolbarLayout.h"
+#include "../core/TestProbe.h"
 #include <shellapi.h>
 #include <functional>
 #include <string>
@@ -151,6 +152,7 @@ private:
 
     void Show(NotifLevel level, const std::wstring& text,
               const std::wstring& folderPath) {
+        raduk::core::ProbeW("[NOTICE]", text);
         m_level      = level;
         m_text       = text;
         m_folderPath = folderPath;

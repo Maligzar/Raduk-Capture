@@ -5698,6 +5698,13 @@ static int RunApp(bool useEmulator) {
         case AK::None: break;
         case AK::Press: {
             Log("[SCENARIO] press %s\n", a.arg.c_str());
+            // Phase 129: Shift+V, which a posted key cannot carry.
+            if (a.arg == "SHARE VIEW" || a.arg == "SHARE VIEW ON") {
+                if (a.arg == "SHARE VIEW ON") shareView.Show();
+                else shareView.Toggle();
+                Log("[SHARE] view %s\n", shareView.IsVisible() ? "on" : "off");
+                break;
+            }
             // Phase 128: LOAD on a named profile, as the panel does it.
             if (a.arg.rfind("LOAD PROFILE ", 0) == 0) {
                 const std::string want = a.arg.substr(13);
@@ -5731,8 +5738,18 @@ static int RunApp(bool useEmulator) {
             const std::string field = a.arg.substr(0, sp);
             const std::string text = a.arg.substr(a.arg.find_first_not_of(" \t", sp));
             Log("[SCENARIO] type %s: %s\n", field.c_str(), text.c_str());
-            if (!gotoPanel.ScenarioType(field, text))
-                g_scenario->ActionFailed("no field called '" + field + "'");
+            if (gotoPanel.ScenarioType(field, text)) break;
+            // Phase 129: the camera boxes. "ESC:GAIN" types, then Escape.
+            const bool esc = field.rfind("ESC:", 0) == 0;
+            std::wstring shows;
+            if (controls.ScenarioTypeCameraField(esc ? field.substr(4) : field,
+                                                 std::wstring(text.begin(), text.end()),
+                                                 esc, shows)) {
+                Log("[SCENARIO] field %s shows %ls\n", esc ? field.substr(4).c_str() : field.c_str(),
+                    shows.c_str());
+                break;
+            }
+            g_scenario->ActionFailed("no field called '" + field + "' on screen");
             break;
         }
         case AK::ArmPass: {

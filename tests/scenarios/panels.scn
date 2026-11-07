@@ -1,0 +1,18 @@
+# Checklist 26 and 27, by screenshot: Jupiter's info panel keeps its long
+# narrative inside the panel, and the share view's caption fits. Phase
+# 129 has no long-name target to give the share view; Jupiter checks the
+# ordinary name is still drawn full size.
+name    Panels: Jupiter's info panel and the share view
+timeout 180
+
+expect 30  [SCENARIO] Panels
+wait   3
+goto   Jupiter
+expect 120 Slew to 'Jupiter' complete
+wait   4
+shot   object
+press  SHARE VIEW ON
+expect 5   [SHARE] view on
+wait   3
+shot   share
+press  SHARE VIEW

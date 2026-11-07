@@ -1,0 +1,14 @@
+# The [HW] button: one press disconnects everything, the next connects it
+# all again. On the emulated devices.
+name    HW button: off and on again
+timeout 180
+
+expect 30  [SCENARIO] HW
+wait   4
+press  HW OFF
+expect 15  [BUTTON] HW OFF -> HW OFF
+shot   off
+wait   2
+press  HW OFF
+expect 30  [HW] Camera:
+expect 30  [BUTTON] HW OFF -> HW 3/3

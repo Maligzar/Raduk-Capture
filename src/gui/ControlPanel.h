@@ -56,6 +56,37 @@ public:
     // Phase 125: a scenario presses panel buttons by name, and opens tabs.
     bool PressByName(const std::string& name);
     bool OpenTabByName(const std::string& name);
+    // Phase 129: type into one of the six camera boxes and press Enter,
+    // or Escape when `escape`, exactly as the keyboard does. Returns what
+    // the box shows afterwards, or false when that box is not on screen.
+    bool ScenarioTypeCameraField(const std::string& field, const std::wstring& text,
+                                 bool escape, std::wstring& shows) {
+        HWND e = nullptr;
+        if      (_stricmp(field.c_str(), "GAIN") == 0)     e = m_editGain;
+        else if (_stricmp(field.c_str(), "EXPOSURE") == 0) e = m_editExposure;
+        else if (_stricmp(field.c_str(), "GAMMA") == 0)    e = m_editGamma;
+        else if (_stricmp(field.c_str(), "WBR") == 0)      e = m_editWBR;
+        else if (_stricmp(field.c_str(), "WBB") == 0)      e = m_editWBB;
+        else if (_stricmp(field.c_str(), "USB") == 0)      e = m_editUSB;
+        if (!e) return false;
+        // "?" only reads the box: Escape's restore lands on the next
+        // sync from the camera, half a second on, not at the key.
+        if (text == L"?") {
+            wchar_t now[48] = {};
+            GetWindowTextW(e, now, 48);
+            shows = now;
+            return true;
+        }
+        SetWindowTextW(e, text.c_str());
+        SendMessageW(e, EM_SETMODIFY, TRUE, 0);
+        // Through the subclass, as a key press reaches it.
+        SendMessageW(e, WM_KEYDOWN, escape ? VK_ESCAPE : VK_RETURN, 1);
+        wchar_t buf[48] = {};
+        GetWindowTextW(e, buf, 48);
+        shows = buf;
+        return true;
+    }
+
     // Phase 128: what LOAD does with this profile selected, from any tab.
     bool LoadProfileIndex(int idx) {
         if (!m_onProfileLoad || idx < 0) return false;

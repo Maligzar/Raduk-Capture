@@ -134,7 +134,7 @@ rig (2032 mm at f/10 with 2.0 um pixels).
 
 ## Status
 
-RadukCapture is in active development and in use on one rig. Capture,
+Raduk-Capture is in active development and in use on one rig. Capture,
 tracking, GoTo, autofocus, the ADC advisor, the quick-look stacker, the
 readiness check and the emulators are built and in use.
 

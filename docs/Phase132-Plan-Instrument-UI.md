@@ -815,3 +815,46 @@ the same id replaces the old one. Every colour goes through `Theme::NV` or
 scans 45 files, this one included, and passes. **Not seen on screen.** Owner
 check: in GoTo, look at the three tabs and the column headers of the GoTo,
 Tonight and Passes lists, in day and in night vision.
+
+### 132.4, 2026-11-08: motion, corrected
+
+**The plan was half wrong.** It said "`EaseOut` for arrivals, applied to the
+toast and the notification bar". But the toast already fades on 96.5's curve,
+and that curve is a square for a measured reason: the perceptual exponent of
+alpha against these backgrounds is about 2 (`tests/motion.cpp` checks this
+against the tokens). Swapping it for an ease-out would undo that work. So fades
+stay as they are, and ease-out goes where it belongs: on movement, of which the
+chrome had none.
+
+- **`Theme::Motion::EaseOut`** is 1−(1−t)³, clamped, with no overshoot.
+  **`SlideRemaining`** is the distance still to travel, on that curve.
+- **The confirm toast** opens 12 px low and rises into place over the same
+  150 ms edge it fades in on, using `SetWindowPos` on its own layered popup.
+  The fade, dwell and fade-out are unchanged.
+- **The notification bar's** text eases in from 14 px to the left over 150 ms,
+  on a frame timer that stops once the text settles. The bar's own size never
+  animates. Animating it would make `main.cpp` re-lay-out the camera preview
+  every frame, and the preview path is off limits. So this repaints the bar and
+  nothing else.
+- **`rig.ini` `UiMotion=0`** turns all of it off: no rise, no slide, no fade.
+  The toast shows at full strength for its dwell and is then gone. The setting
+  is applied once at startup, through `Theme::Motion::SetOn`.
+
+**Gated.** `tests/motion.cpp` gains 10 checks, 7,739 in all, none failing:
+
+- ease-out's endpoints and clamping;
+- that it never moves backwards;
+- that it is 70% of the way there by a third of the time, and faster to start
+  than the fade's square;
+- that a slide starts at its full distance, ends at 0 and stays there;
+- the on/off switch.
+
+The suite passes under mingw-w64 and wine. `main.cpp` compiles cleanly with
+mingw, and `night_coverage` passes.
+
+**Not seen on screen.** Owner check:
+
+- trigger a toast (any confirm, such as a profile save) and a notification;
+- the toast should rise slightly as it appears, and the notice text should slide
+  in;
+- with `UiMotion=0`, both should appear at once.

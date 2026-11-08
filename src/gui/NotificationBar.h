@@ -37,6 +37,7 @@
 #include "ToolbarLayout.h"
 #include "../core/TestProbe.h"
 #include <shellapi.h>
+#include <chrono>
 #include <functional>
 #include <string>
 #include <cstdio>
@@ -176,6 +177,11 @@ private:
         // (Re)start auto-dismiss timer
         KillTimer(m_hwnd, NOTIF_TIMER_ID);
         SetTimer(m_hwnd, NOTIF_TIMER_ID, NOTIF_TIMEOUT_MS, nullptr);
+
+        // 132.4: frames for the text's slide, stopped once it settles.
+        m_shownAt = std::chrono::steady_clock::now();
+        if (Theme::Motion::On())
+            SetTimer(m_hwnd, kSlideTimerId, Theme::Motion::FRAME_MS, nullptr);
     }
 
     void Hide() {
@@ -239,7 +245,16 @@ private:
         if (!m_folderPath.empty())
             display += L"    \u2192 Open folder";
 
-        RECT textRect = { 10, 0, cr.right - 10, cr.bottom };
+        // Phase 132.4: the words ease in from the left over FAST. The
+        // bar's own size never animates -- that would re-lay-out the
+        // preview every frame -- so this repaints the bar and nothing else.
+        const int slide = Theme::Motion::On()
+            ? (int)(Theme::Motion::SlideRemaining(
+                  std::chrono::duration<double, std::milli>(
+                      std::chrono::steady_clock::now() - m_shownAt).count(),
+                  Theme::Motion::FAST, (float)kSlidePx) + 0.5f)
+            : 0;
+        RECT textRect = { 10 + slide, 0, cr.right - 10, cr.bottom };
         DrawTextW(hdc, display.c_str(), (int)display.size(),
                   &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
@@ -283,6 +298,13 @@ private:
                 return 0;
             case WM_TIMER:
                 if (wp == NOTIF_TIMER_ID && self) self->Hide();
+                // 132.4: one more frame of the text's slide, until it settles.
+                if (wp == kSlideTimerId && self) {
+                    InvalidateRect(hwnd, nullptr, FALSE);
+                    if (std::chrono::steady_clock::now() - self->m_shownAt >
+                        std::chrono::milliseconds(Theme::Motion::FAST + Theme::Motion::FRAME_MS))
+                        KillTimer(hwnd, kSlideTimerId);
+                }
                 return 0;
             case WM_SETCURSOR:
                 SetCursor(LoadCursor(nullptr, IDC_HAND));
@@ -301,6 +323,9 @@ private:
     std::wstring m_folderPath;
 
     std::function<void()> m_onDismiss;
+    std::chrono::steady_clock::time_point m_shownAt{};   // 132.4
+    static constexpr UINT_PTR kSlideTimerId = 902;
+    static constexpr int      kSlidePx      = 14;
 };
 
 } // namespace raduk::gui

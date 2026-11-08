@@ -39,6 +39,23 @@ static std::string F(double v) {
     return b;
 }
 
+// Returns the instant just after the emulator's next 0.1 s tick, by
+// spinning until the encoders change. A window opened and closed at
+// arbitrary moments can gain or lose a whole tick -- 5% of a 2 s window,
+// which is more than the 2% and 4% the tracking checks measure. Opened
+// and closed on ticks, the error is only how fast this loop notices.
+static std::chrono::steady_clock::time_point OnTick(MountEmulator& m, double& alt, double& az) {
+    double a0 = 0, z0 = 0;
+    m.GetAltAz(a0, z0);
+    const auto give = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+    for (;;) {
+        m.GetAltAz(alt, az);
+        const auto now = std::chrono::steady_clock::now();
+        if (alt != a0 || az != z0 || now > give) return now;
+        std::this_thread::yield();
+    }
+}
+
 // Encoder rates, arcsec/s, over `sec` seconds.
 static void Rates(MountEmulator& m, double sec, double& azRate, double& altRate) {
     double a0 = 0, z0 = 0, a1 = 0, z1 = 0;
@@ -75,13 +92,12 @@ int main() {
     {
         double pra = 0, pdec = 0, s0a, s0z, s1a, s1z, e0a, e0z, e1a, e1z;
         m.GetRADec(pra, pdec);
+        const auto t0 = OnTick(m, e0a, e0z);
         RADecToAltAzNow(pra, pdec, s0a, s0z);
-        m.GetAltAz(e0a, e0z);
-        const auto t0 = std::chrono::steady_clock::now();
-        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(2950));
+        const auto t1 = OnTick(m, e1a, e1z);
         RADecToAltAzNow(pra, pdec, s1a, s1z);
-        m.GetAltAz(e1a, e1z);
-        const double dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        const double dt = std::chrono::duration<double>(t1 - t0).count();
         skyAz  = ShortestTurnDeg(s0z, s1z) * 3600.0 / dt;
         skyAlt = (s1a - s0a) * 3600.0 / dt;
         az     = ShortestTurnDeg(e0z, e1z) * 3600.0 / dt;
@@ -89,8 +105,10 @@ int main() {
     }
     Check(std::fabs(az) > 1.0, "the azimuth encoder moves", F(az) + " (sky " + F(skyAz) + ")");
     // Measured: 16.0 against 16.3 in azimuth (0.98), 5.0 against 5.2 in
-    // altitude (0.96). Up to a tick (0.1 s) of the window is lost to the
-    // emulator's 10 Hz loop, so the band is generous.
+    // altitude (0.96). The window opens and closes on the emulator's
+    // ticks (OnTick), so the ratio is the emulator's own, give or take how
+    // quickly the loop notices a tick; the band is still generous below.
+    // CI once measured 1.03 here when the window was not tick-aligned.
     Check(az / skyAz > 0.88 && az / skyAz < 1.0,
           "azimuth a little short of the sky: tracking is mis-set", F(az) + " vs " + F(skyAz));
     Check(alt / skyAlt > 0.86 && alt / skyAlt < 1.0,

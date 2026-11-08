@@ -140,7 +140,11 @@ int main() {
     std::thread feeder([&] {
         while (run.load()) {
             float x, y; m.Pixel(x, y);
-            t.SubmitCentroid(x, y, 1280, 960);
+            // Seeing: +-3 px of jitter on every centroid.
+            static unsigned seed = 12345u;
+            auto jit = [&]() { seed = seed * 1103515245u + 12345u;
+                               return ((int)((seed >> 16) % 601) - 300) / 100.0f; };
+            t.SubmitCentroid(x + jit(), y + jit(), 1280, 960);
             t.Tick();
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
@@ -174,6 +178,7 @@ int main() {
     }
     std::printf("   ended at (%.0f, %.0f), stage %s\n", x, y, AcquisitionStageName(t.Stage()));
     CHECK(centred, "never came within 10 px of centre");
+    CHECK(t.IsDwellMet(), "centred, but the dwell rule for LOCKED was never met (jitter)");
 
     std::printf("3. held for 20 s\n");
     float worst = 0;

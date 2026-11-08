@@ -288,6 +288,8 @@ public:
     static constexpr int   DIR_CHECK_MS    = 1000;
     static constexpr int   CAL_OFFSET_MS    = 4000;  // one offset per axis, 40" at 10"/s
     static constexpr int   TAKEOVER_SETTLE_MS = 4000;
+    static constexpr int   DRIFT_WINDOWS    = 3;     // after takeover, logged each
+    static constexpr float GUIDE_DEADBAND_AS = 0.6f;  // continuous control needs little
     static constexpr float GUIDE_KP         = 0.5f;   // 1/s: "/s of correction per " of error
     static constexpr float GUIDE_KP_LOCKED  = 0.3f;
     static constexpr float GUIDE_KI         = 0.05f;  // 1/s^2

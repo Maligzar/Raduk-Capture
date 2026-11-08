@@ -147,6 +147,7 @@ bool CentroidTracker::IsRunning() const {
 }
 
 bool CentroidTracker::SubmitCentroid(float cx, float cy, uint32_t fw, uint32_t fh) {
+    float avgX = cx, avgY = cy;
     {
         std::lock_guard<std::mutex> lk(m_mutex);
         auto now = std::chrono::steady_clock::now();
@@ -163,6 +164,9 @@ bool CentroidTracker::SubmitCentroid(float cx, float cy, uint32_t fw, uint32_t f
                std::chrono::duration_cast<std::chrono::milliseconds>(
                    now - m_samples.front().t).count() > AVG_WINDOW_MS)
             m_samples.pop_front();
+        double sx = 0, sy = 0;
+        for (const auto& q : m_samples) { sx += q.x; sy += q.y; }
+        avgX = (float)(sx / m_samples.size()); avgY = (float)(sy / m_samples.size());
     }
 
     auto stage = m_stage.load();
@@ -176,8 +180,11 @@ bool CentroidTracker::SubmitCentroid(float cx, float cy, uint32_t fw, uint32_t f
     }
 
     if (stage == AcquisitionStage::Centering) {
-        float dxPx = cx - fw * 0.5f;
-        float dyPx = cy - fh * 0.5f;
+        // The averaged position, as the guider steers by: single
+        // centroids jitter with seeing and broke the streak every few
+        // frames, so a centred planet never reached LOCKED (2026-11-07).
+        float dxPx = avgX - fw * 0.5f;
+        float dyPx = avgY - fh * 0.5f;
         float distPx = std::sqrt(dxPx*dxPx + dyPx*dyPx);
         if (distPx <= CENTRE_THRESHOLD_PX) {
             if (m_dwellCount < DWELL_FRAMES) {
@@ -514,38 +521,39 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
     }
     _DriveAxes(mount, rAz, rAlt);
 
-    // 3. Drift while this app tracks: it measured the rates over a few
-    //    seconds, so a small residual is expected and taken out.
-    // Let the axes settle onto the app's rates before measuring drift:
-    // on 2026-11-07 the drift measured right after taking them was 7-9"/s
-    // with the encoders already exactly on the commanded rates.
+    // 3. Drift while this app tracks, in DRIFT_WINDOWS consecutive
+    //    windows after a settle. On 2026-11-07 the image drifted 7-9"/s
+    //    right after takeover with the encoders exactly on the commanded
+    //    rates; the windows show whether that dies away or stays.
     if (!_CalSettle(TAKEOVER_SETTLE_MS)) return finish(false, "aborted");
     float bx, by;
     if (!_WaitCentroidAvg(CAL_SAMPLES, bx, by)) return finish(false, "target lost after taking the axes");
-    clk::time_point tB1 = clk::now();
-    double daz0 = 0, dal0 = 0, daz1 = 0, dal1 = 0; clk::time_point de0, de1;
-    const bool encA = _ReadAxes(mount, daz0, dal0, de0);
-    if (!_CalSettle(CAL_DRIFT_MS)) return finish(false, "aborted while measuring drift");
-    float b2x, b2y;
-    if (!_WaitCentroidAvg(CAL_SAMPLES, b2x, b2y)) return finish(false, "target lost while measuring drift");
-    clk::time_point tB2 = clk::now();
-    const bool encB = _ReadAxes(mount, daz1, dal1, de1);
-    const float driftDt = secs(tB1, tB2);
-    const float driftVx = (b2x - bx) / driftDt, driftVy = (b2y - by) / driftDt;
-    // Do the encoders follow what this app commands? If they do while the
-    // image drifts, GetAltAz is the hand control's model, not the axes.
-    if (encA && encB) {
-        const float t = secs(de0, de1);
-        CoreLog("[CAL] while app-tracking the encoders moved az %.2f alt %.2f \"/s "
-                "(commanded az %.2f alt %.2f)\n",
-                (float)(WrapDeg180(daz1 - daz0) * 3600.0 / t),
-                (float)((dal1 - dal0) * 3600.0 / t), rAz, rAlt);
+    clk::time_point tB = clk::now();
+    float driftVx = 0.0f, driftVy = 0.0f;
+    for (int w = 0; w < DRIFT_WINDOWS; ++w) {
+        double az0w = 0, al0w = 0, az1w = 0, al1w = 0; clk::time_point e0, e1;
+        const bool okA = _ReadAxes(mount, az0w, al0w, e0);
+        if (!_CalSettle(CAL_DRIFT_MS)) return finish(false, "aborted while measuring drift");
+        float nx2, ny2;
+        if (!_WaitCentroidAvg(CAL_SAMPLES, nx2, ny2)) return finish(false, "target lost while measuring drift");
+        const clk::time_point tN = clk::now();
+        const bool okB = _ReadAxes(mount, az1w, al1w, e1);
+        const float dt = secs(tB, tN);
+        driftVx = (nx2 - bx) / dt; driftVy = (ny2 - by) / dt;
+        const float et = secs(e0, e1);
+        CoreLog("[CAL] app-tracking window %d: drift (%.1f, %.1f) px/s over %.1f s; encoders az %.2f alt %.2f \"/s (commanded %.2f %.2f)\n",
+                w + 1, driftVx, driftVy, dt,
+                (okA && okB) ? (float)(WrapDeg180(az1w - az0w) * 3600.0 / et) : 0.0f,
+                (okA && okB) ? (float)((al1w - al0w) * 3600.0 / et) : 0.0f, rAz, rAlt);
+        bx = nx2; by = ny2; tB = tN;
     }
-    CoreLog("[CAL] drift while app-tracking: (%.1f, %.1f) px/s over %.1f s\n",
-            driftVx, driftVy, driftDt);
+    float b2x = bx, b2y = by;
+    clk::time_point tB2 = tB;
 
-    // 4. One axis at a time: tracking rate plus GUIDE_OFFSET_AS for
-    //    CAL_OFFSET_MS, then back. The image moves by the offset alone.
+    // 4. One axis at a time: its rate plus an offset for CAL_OFFSET_MS,
+    //    then back. Drift is measured again right after the step and the
+    //    mean of before and after is taken out, so a drift that is still
+    //    changing slowly is not mistaken for the response.
     auto measure = [&](int axis, float fromX, float fromY, clk::time_point tFrom,
                        float& vx, float& vy, float& endX, float& endY,
                        clk::time_point& tEnd) -> bool {
@@ -562,14 +570,25 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
         if (!_CalSettle(CAL_SETTLE_MS)) return false;
         if (!_WaitCentroidAvg(CAL_SAMPLES, endX, endY)) return false;
         tEnd = clk::now();
+        // Drift after the step, from here.
+        if (!_CalSettle(CAL_DRIFT_MS)) return false;
+        float ax2, ay2;
+        if (!_WaitCentroidAvg(CAL_SAMPLES, ax2, ay2)) return false;
+        const clk::time_point tA = clk::now();
+        const float da = secs(tEnd, tA);
+        const float afterVx = (ax2 - endX) / da, afterVy = (ay2 - endY) / da;
+        const float mVx = 0.5f * (driftVx + afterVx), mVy = 0.5f * (driftVy + afterVy);
         const float t = secs(tFrom, tEnd);
-        const float tx = endX - fromX - driftVx * t, ty = endY - fromY - driftVy * t;
+        const float tx = endX - fromX - mVx * t, ty = endY - fromY - mVy * t;
         const float per = (o > 0.0f) ? 1.0f : -1.0f;
         vx = per * tx / (float)CAL_OFFSET_MS;    // px per ms of a +GUIDE_OFFSET_AS offset
         vy = per * ty / (float)CAL_OFFSET_MS;
-        CoreLog("[CAL] %s %+.0f\"/s for %d ms: raw (%.1f, %.1f), drift part (%.1f, %.1f), "
-                "response (%.1f, %.1f) px\n", axis == 0 ? "az" : "alt", o,
-                CAL_OFFSET_MS, endX - fromX, endY - fromY, driftVx * t, driftVy * t, tx, ty);
+        CoreLog("[CAL] %s %+.0f\"/s for %d ms: raw (%.1f, %.1f), drift before (%.1f, %.1f) after (%.1f, %.1f) px/s, "
+                "response (%.1f, %.1f) px\n", axis == 0 ? "az" : "alt", o, CAL_OFFSET_MS,
+                endX - fromX, endY - fromY, driftVx, driftVy, afterVx, afterVy, tx, ty);
+        // The next step starts from here, with this drift.
+        driftVx = afterVx; driftVy = afterVy;
+        endX = ax2; endY = ay2; tEnd = tA;
         return true;
     };
     float ex, ey, e2x, e2y; clk::time_point tE;
@@ -777,8 +796,9 @@ void CentroidTracker::Run() {
         // Proportional for the error now, integral for a tracking rate
         // that is a little off, both clamped.
         if (!m_appDriving.load()) continue;
-        const float deadband = (stage == AcquisitionStage::Locked) ? S3_DEADBAND_ARCSEC
-                                                                   : S2_DEADBAND_ARCSEC;
+        // Narrow: the old pulse deadbands (2-2.5") equal the 10 px LOCKED
+        // threshold at 0.2"/px, so the guider stopped exactly at its edge.
+        const float deadband = GUIDE_DEADBAND_AS;
         const float kp = (stage == AcquisitionStage::Locked) ? GUIDE_KP_LOCKED : GUIDE_KP;
         const float errAs = std::sqrt(dxPx*dxPx + dyPx*dyPx) * cal.arcsecPerPx;
 

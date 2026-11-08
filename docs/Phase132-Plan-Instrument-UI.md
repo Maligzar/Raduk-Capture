@@ -945,8 +945,22 @@ header, the same blue this stage removes. On Windows 10 it may not darken the ba
 at all without the undocumented app-mode call. Neither can be seen from here,
 so 132.6b will be a stage with a rig check of its own.
 
-**Gated.** `night_coverage` section 5. `main.cpp` and `ControlPanel.cpp`
-compile cleanly with mingw.
+**Found on the way: 132.3f's legends were mojibake.** The project is built
+without UNICODE. `StripDraw.h` read the header and tab text with
+`Header_GetItem` and `TabCtrl_GetItem`, which then send the A messages, into
+wide buffers. So "Name" came back as ANSI bytes read two at a time: two CJK
+glyphs. That is inferred from the API, not seen, but it follows directly.
+It compiled because those macros cast. 132.6's `ListView_GetItemText` did not
+compile, which is how it surfaced, on its first CI run. Every text read in
+`StripDraw.h` now sends the W message explicitly. The new
+`tests/wide_messages.cpp` refuses the generic common-control text macros in any
+window source; checked against the old file, it caught all four. My local
+compile checks had been passing `-DUNICODE`, which hid it. They now run in the
+real configuration.
+
+**Gated.** `night_coverage` section 5 and `wide_messages`. `main.cpp`
+compiles cleanly with mingw in the shipped ANSI configuration and the emulator
+configuration, and so does `ControlPanel.cpp`.
 
 **Not seen on screen.** Owner check:
 
@@ -954,4 +968,6 @@ compile cleanly with mingw.
   night) bar with a thin bar at its left, not blue;
 - in the passes list, the selected row's check box should still show and toggle;
 - click a button: no ring should be left behind. Press Alt, then click: a solid
-  ring, red at night.
+  ring, red at night;
+- GoTo's column headers and tabs should read as words (upper case, tracked).
+  Before this fix they were most likely two odd glyphs each.

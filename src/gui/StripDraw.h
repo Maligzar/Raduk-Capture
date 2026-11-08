@@ -35,6 +35,12 @@
 //
 // Found by class, like Theme::StyleStockControls, so a list or a tab
 // strip added later is styled without being registered anywhere.
+// Text is read with the explicit W messages (HDM_GETITEMW, TCM_GETITEMW,
+// LVM_GETITEMTEXTW). The project is built without UNICODE, so the
+// generic macros send the A messages, which write ANSI bytes into the
+// wide buffers given here: 132.3f shipped exactly that, and its header
+// and tab legends were mojibake until 132.6 caught it.
+//
 // Installing twice is harmless: SetWindowSubclass with the same id
 // replaces. Every colour goes through Theme::NV or Theme::Brush, so
 // night vision reaches both, and tests/night_coverage.cpp scans this
@@ -103,7 +109,7 @@ inline LRESULT CALLBACK ListProc(HWND h, UINT m, WPARAM w, LPARAM l,
                     it.mask = HDI_TEXT | HDI_FORMAT;
                     it.pszText = text;
                     it.cchTextMax = 96;
-                    Header_GetItem(hdr, (int)cd->dwItemSpec, &it);
+                    SendMessageW(hdr, HDM_GETITEMW, (WPARAM)cd->dwItemSpec, (LPARAM)&it);   // W: the build is ANSI
                     RECT tr = r;
                     tr.left += Theme::Space::SM;
                     tr.right -= Theme::Space::SM;
@@ -188,11 +194,15 @@ inline void PaintSelectedRow(HWND lv, HDC dc, int item) {
         cr.right -= 6;
         if (cr.right <= cr.left) continue;
         wchar_t text[256] = {};
-        ListView_GetItemText(lv, item, c, text, 256);
+        LVITEMW li = {};
+        li.iSubItem = c;
+        li.pszText = text;
+        li.cchTextMax = 256;
+        SendMessageW(lv, LVM_GETITEMTEXTW, (WPARAM)item, (LPARAM)&li);   // W: the build is ANSI
         LVCOLUMNW col = {};
         col.mask = LVCF_FMT;
         UINT align = DT_LEFT;
-        if (ListView_GetColumn(lv, c, &col)) {
+        if (SendMessageW(lv, LVM_GETCOLUMNW, (WPARAM)c, (LPARAM)&col)) {
             const int f = col.fmt & LVCFMT_JUSTIFYMASK;
             align = (f == LVCFMT_RIGHT) ? DT_RIGHT : (f == LVCFMT_CENTER) ? DT_CENTER : DT_LEFT;
         }
@@ -258,7 +268,7 @@ inline LRESULT CALLBACK TabProc(HWND h, UINT m, WPARAM w, LPARAM l,
                 ti.mask = TCIF_TEXT;
                 ti.pszText = text;
                 ti.cchTextMax = 64;
-                TabCtrl_GetItem(h, i, &ti);
+                SendMessageW(h, TCM_GETITEMW, (WPARAM)i, (LPARAM)&ti);   // W: the build is ANSI
                 Legend(dc, text, r,
                        Theme::NV(i == sel ? Theme::Rgb::TEXT : Theme::Rgb::TEXT_DIM), DT_CENTER);
                 if (i == sel) {

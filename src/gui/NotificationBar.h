@@ -197,18 +197,22 @@ private:
         // Background colour by level
         COLORREF bg, fg;
         switch (m_level) {
+            // Phase 132.3d: Info was bright green on dark green, the
+            // loudest bar of the three for the least urgent news. It is
+            // now a plain panel. Warning and error tint the panel toward
+            // their token, mixed after the night transform.
             case NotifLevel::Info:
-                bg = Theme::NV(RGB(10, 60, 30));   // dark green
-                fg = Theme::NV(RGB(60, 255, 120)); // bright green text
+                bg = Theme::NV(Theme::Rgb::PANEL);
+                fg = Theme::NV(Theme::Rgb::TEXT);
                 break;
             case NotifLevel::Warn:
-                bg = Theme::NV(RGB(60, 42, 0));    // dark amber
-                fg = Theme::NV(Theme::Rgb::ACCENT2);  // amber text
+                bg = Theme::Mix(Theme::NV(Theme::Rgb::PANEL), Theme::NV(Theme::Rgb::AMBER), 0.18f);
+                fg = Theme::NV(Theme::Rgb::AMBER);
                 break;
             case NotifLevel::Error:
             default:
-                bg = Theme::NV(RGB(60, 8, 8));     // dark red
-                fg = Theme::NV(Theme::Rgb::ACCENT4);  // red text
+                bg = Theme::Mix(Theme::NV(Theme::Rgb::PANEL), Theme::NV(Theme::Rgb::RED), 0.22f);
+                fg = Theme::NV(Theme::Rgb::RED);
                 break;
         }
 

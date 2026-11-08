@@ -97,8 +97,12 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
 
             // Keep-out wedge first, so everything else draws over it.
             if (st.koStart != st.koEnd) {
-                HBRUSH kb = CreateSolidBrush(Theme::NV(RGB(70, 30, 30)));
-                HPEN   kp = CreatePen(PS_SOLID, 1, Theme::NV(RGB(150, 60, 60)));
+                // 132.3c/d: the keep-out wedge is a no-go zone, so Fault,
+                // tinted toward the background after the night transform.
+                HBRUSH kb = CreateSolidBrush(Theme::Mix(Theme::NV(Theme::Rgb::DEEP),
+                                                        Theme::NV(Theme::Rgb::RED), 0.25f));
+                HPEN   kp = CreatePen(PS_SOLID, 1, Theme::Mix(Theme::NV(Theme::Rgb::DEEP),
+                                                              Theme::NV(Theme::Rgb::RED), 0.6f));
                 HGDIOBJ ob = SelectObject(dc, kb), op = SelectObject(dc, kp);
                 int sx, sy, ex, ey;
                 pt(st.koStart, R, sx, sy);
@@ -110,7 +114,7 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
                 DeleteObject(kb); DeleteObject(kp);
             }
 
-            HPEN grid = CreatePen(PS_SOLID, 1, Theme::NV(RGB(60, 80, 100)));
+            HPEN grid = CreatePen(PS_SOLID, 1, Theme::NV(Theme::Rgb::BORDER));
             HGDIOBJ oldPen = SelectObject(dc, grid);
             SelectObject(dc, GetStockObject(NULL_BRUSH));
             Ellipse(dc, cx - R, cy - R, cx + R, cy + R);
@@ -126,11 +130,12 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
             // Observer, and the line of sight to the mount.
             {
                 int x, y; pt(st.observer, R - 8, x, y);
-                HPEN p = CreatePen(PS_SOLID, 2, Theme::NV(RGB(90, 200, 120)));
+                // You are a reference, not a state: Text.
+                HPEN p = CreatePen(PS_SOLID, 2, Theme::NV(Theme::Rgb::TEXT));
                 HGDIOBJ o = SelectObject(dc, p);
                 MoveToEx(dc, cx, cy, nullptr); LineTo(dc, x, y);
                 SelectObject(dc, o); DeleteObject(p);
-                SetTextColor(dc, Theme::NV(RGB(90, 200, 120)));
+                SetTextColor(dc, Theme::NV(Theme::Rgb::TEXT));
                 TextOutW(dc, x - 14, y - 6, L"you", 3);
             }
 
@@ -138,11 +143,13 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
             double az = st.liveAz && *st.liveAz ? (*st.liveAz)() : -1.0;
             if (az >= 0.0) {
                 int x, y; pt(az, R - 2, x, y);
-                HPEN p = CreatePen(PS_SOLID, 2, Theme::NV(RGB(230, 180, 60)));
+                // The mount's live azimuth is a live reading: Live. It was
+                // amber, which now means caution.
+                HPEN p = CreatePen(PS_SOLID, 2, Theme::NV(Theme::Rgb::GREEN));
                 HGDIOBJ o = SelectObject(dc, p);
                 MoveToEx(dc, cx, cy, nullptr); LineTo(dc, x, y);
                 SelectObject(dc, o); DeleteObject(p);
-                SetTextColor(dc, Theme::NV(RGB(230, 180, 60)));
+                SetTextColor(dc, Theme::NV(Theme::Rgb::GREEN));
                 TextOutW(dc, x + 2, y - 6, L"scope", 5);
             }
 
@@ -327,8 +334,7 @@ inline void ShowRigSetupDialog(HWND owner, HWND panel,
                 HBRUSH bg = Theme::Brush(Theme::Rgb::DEEP);
                 HDC dc = (HDC)wp;
                 SetBkMode(dc, TRANSPARENT);
-                SetTextColor(dc, m == WM_CTLCOLOREDIT ? Theme::NV(RGB(230, 240, 250))
-                                                      : Theme::NV(Theme::Rgb::TEXT));
+                SetTextColor(dc, Theme::NV(Theme::Rgb::TEXT));
                 if (m == WM_CTLCOLOREDIT) {
                     HBRUSH eb = Theme::Brush(Theme::Rgb::BORDER);
                     SetBkMode(dc, OPAQUE);

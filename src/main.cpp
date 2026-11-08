@@ -78,6 +78,7 @@
 #include "core/TestProbe.h"
 #include "core/CoreLog.h"         // mount/tracker messages into the log
 #include "gui/WindowShot.h"
+#include "gui/StripDraw.h"
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
@@ -2205,6 +2206,7 @@ static int RunApp(bool useEmulator) {
         for (HWND h : ourWindows()) {
             raduk::gui::Theme::DarkTitleBar(h);
             raduk::gui::Theme::StyleStockControls(h);
+            raduk::gui::StyleStrips(h);   // 132.3f: list headers and tab strips
         }
     };
     styleChrome();

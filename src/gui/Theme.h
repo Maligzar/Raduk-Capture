@@ -951,8 +951,12 @@ namespace Theme {
             if (GetClassNameW(c, cls, 64) <= 0) return TRUE;
 
             if (_wcsicmp(cls, WC_LISTVIEWW) == 0) {
-                const COLORREF bg = NV(RGB(10, 18, 28));
-                const COLORREF fg = NV(RGB(190, 214, 230));
+                // Phase 132.3b: tokens. These were (10, 18, 28) and
+                // (190, 214, 230), off the ladder, so every list in the
+                // app stayed blue-black under the 132.3a palette and
+                // derived its night shade instead of being designed.
+                const COLORREF bg = NV(Rgb::DEEP);
+                const COLORREF fg = NV(Rgb::TEXT);
                 ListView_SetBkColor(c, bg);
                 ListView_SetTextBkColor(c, bg);
                 ListView_SetTextColor(c, fg);

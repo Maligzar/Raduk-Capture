@@ -46,6 +46,7 @@
 #include "../core/FrameSlot.h"
 #include "WindowChrome.h"
 #include "Theme.h"
+#include "FlatButton.h"
 #include "../core/SkyMath.h"
 
 #pragma comment(lib, "comctl32.lib")
@@ -2213,6 +2214,11 @@ private:
             case WM_DESTROY:
                 if (s) { delete s; }
                 return 0;
+            case WM_DRAWITEM: {
+                auto* dis = reinterpret_cast<DRAWITEMSTRUCT*>(lp);
+                if (dis && dis->CtlType == ODT_BUTTON) { DrawFlatButton(dis); return TRUE; }
+                break;
+            }
             case WM_CTLCOLORBTN:
             case WM_CTLCOLORSTATIC: {
                 HDC hdc = (HDC)wp;
@@ -2284,7 +2290,7 @@ private:
         // ✓ SLEW button — disabled if below horizon
         if (!belowHorizon) {
             HWND bSlew = CreateWindowExW(0, L"BUTTON", L"\u2713 Slew",
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
                 x, BY, 68, BH, popup, (HMENU)(intptr_t)AP_SLEW,
                 GetModuleHandle(nullptr), nullptr);
             if (fnt) SendMessage(bSlew, WM_SETFONT, (WPARAM)fnt, TRUE);
@@ -2293,7 +2299,7 @@ private:
 
         // ℹ INFO button
         HWND bInfo = CreateWindowExW(0, L"BUTTON", L"\u2139 Info",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             x, BY, 68, BH, popup, (HMENU)(intptr_t)AP_INFO,
             GetModuleHandle(nullptr), nullptr);
         if (fnt) SendMessage(bInfo, WM_SETFONT, (WPARAM)fnt, TRUE);
@@ -2301,7 +2307,7 @@ private:
 
         // ✗ CANCEL
         HWND bCancel = CreateWindowExW(0, L"BUTTON", L"\u2716 Cancel",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             x, BY, 68, BH, popup, (HMENU)(intptr_t)AP_CANCEL,
             GetModuleHandle(nullptr), nullptr);
         if (fnt) SendMessage(bCancel, WM_SETFONT, (WPARAM)fnt, TRUE);
@@ -2986,9 +2992,12 @@ private:
     }
 
     // ── Win32 helpers ──────────────────────────────────────────
+    // Phase 132.3b: owner-drawn, with the control panel's face
+    // (FlatButton.h). Stock, these were the system-grey blocks 119.4
+    // left in this window, and night vision could not reach them.
     HWND Button(const wchar_t* text, int x, int y, int w, int h, int id) {
         return CreateWindowExW(0, L"BUTTON", text,
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             x, y, w, h, m_hwnd,
             (HMENU)(INT_PTR)id, GetModuleHandle(nullptr), nullptr);
     }
@@ -3020,12 +3029,20 @@ private:
         if (!self) return DefWindowProcW(hwnd, msg, wParam, lParam);
 
         switch (msg) {
+            case WM_DRAWITEM: {
+                auto* dis = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
+                if (dis && dis->CtlType == ODT_BUTTON) { DrawFlatButton(dis); return TRUE; }
+                break;
+            }
             case WM_CTLCOLORSTATIC:
             case WM_CTLCOLOREDIT: {
                 HDC hdc = (HDC)wParam;
                 SetBkMode(hdc, OPAQUE);
                 SetBkColor(hdc, Theme::NV(Theme::Rgb::PANEL));
-                SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT));
+                // Phase 132.3b: primary text, not the signal colour.
+                // Every label and status line in this window was cyan,
+                // which spent the one colour that now means "active".
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
                 HBRUSH hBg = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)hBg;
             }

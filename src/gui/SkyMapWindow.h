@@ -515,7 +515,7 @@ private:
         m_rt->BeginDraw();
         m_rt->SetTransform(D2D1::Matrix3x2F::Translation(
             0.0f, (float)m_chrome.CaptionHeight()));
-        m_rt->Clear(Theme::NVf(D2D1::ColorF(0.016f, 0.031f, 0.063f))); // deep space blue
+        m_rt->Clear(Theme::Color(Theme::BG_VOID));   // 132.3b: was deep-space blue
 
         float cx = m_w * 0.5f;
         float cy = m_h * 0.5f;
@@ -523,7 +523,7 @@ private:
 
         // ── Horizon circle fill ────────────────────────────────
         ID2D1SolidColorBrush* skyBrush = nullptr;
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.02f, 0.05f, 0.12f)), &skyBrush);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::DEEP), &skyBrush);
         if (skyBrush) {
             m_rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx,cy), R, R), skyBrush);
             skyBrush->Release();
@@ -531,7 +531,7 @@ private:
 
         // ── Altitude rings / grid ─────────────────────────────
         ID2D1SolidColorBrush* ringBrush = nullptr;
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.08f, 0.18f, 0.32f, 0.5f)), &ringBrush);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::BORDER, 0.9f), &ringBrush);
         if (ringBrush) {
             if (m_zoom <= 1.5f) {
                 // Full-sky: draw altitude rings as circles
@@ -558,7 +558,7 @@ private:
 
         // ── Horizon circle border ──────────────────────────────
         ID2D1SolidColorBrush* horizBrush = nullptr;
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.0f, 0.6f, 1.0f, 0.5f)), &horizBrush);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::ACCENT, 0.6f), &horizBrush);
         if (horizBrush) {
             m_rt->DrawEllipse(D2D1::Ellipse(D2D1::Point2F(cx,cy), R, R),
                               horizBrush, 1.5f);
@@ -567,7 +567,7 @@ private:
 
         // ── Cardinal direction lines ───────────────────────────
         ID2D1SolidColorBrush* cardBrush = nullptr;
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.05f, 0.12f, 0.22f, 0.4f)), &cardBrush);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::BORDER, 0.7f), &cardBrush);
         if (cardBrush) {
             // N-S line
             m_rt->DrawLine(D2D1::Point2F(cx, cy-R), D2D1::Point2F(cx, cy+R),
@@ -590,9 +590,9 @@ private:
         ID2D1SolidColorBrush* dsoBrush  = nullptr;
         ID2D1SolidColorBrush* starBrush = nullptr;
         ID2D1SolidColorBrush* dsoFade   = nullptr;
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.0f, 0.8f, 0.9f, 0.8f)), &dsoBrush);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.9f, 0.95f, 1.0f, 0.9f)), &starBrush);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.3f, 0.4f, 0.5f, 0.3f)), &dsoFade);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::ACCENT, 0.8f), &dsoBrush);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT, 0.9f), &starBrush);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT_DIM, 0.3f), &dsoFade);
 
         for (const auto& obj : m_objects) {
             if (obj.type == "Planet" || obj.type == "Sun" || obj.type == "Moon") continue;
@@ -636,8 +636,11 @@ private:
             if (!InCircle(obj.px, obj.py)) continue;
             float sz = 14.0f;
             ID2D1SolidColorBrush *sunFill = nullptr, *sunGlow = nullptr, *sunRay = nullptr;
-            m_rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.92f, 0.2f,
-                                        obj.visible ? 1.0f : 0.25f), &sunFill);
+            // Phase 132.3b: through NVf. This and the Sun's label, the
+            // Moon, every planet and every object label skipped night
+            // vision entirely: a yellow Sun and a blue Neptune at night.
+            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.92f, 0.2f,
+                                        obj.visible ? 1.0f : 0.25f)), &sunFill);
             m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.75f, 0.1f, 0.25f)), &sunGlow);
             m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.92f, 0.2f, 0.6f)), &sunRay);
             if (sunGlow)
@@ -661,8 +664,8 @@ private:
             // Label — use title format (bold)
             if (m_titleFormat) {
                 ID2D1SolidColorBrush* lb = nullptr;
-                m_rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.92f, 0.2f,
-                                            obj.visible ? 0.95f : 0.4f), &lb);
+                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.92f, 0.2f,
+                                            obj.visible ? 0.95f : 0.4f)), &lb);
                 if (lb) {
                     D2D1_RECT_F r = D2D1::RectF(obj.px+sz+5, obj.py-10, obj.px+sz+80, obj.py+10);
                     m_titleFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
@@ -682,9 +685,11 @@ private:
             float illum = (float)(0.5 - 0.5*cos(2.0*M_PI*phase)); // 0=new, 1=full
 
             ID2D1SolidColorBrush *moonFill = nullptr, *moonShadow = nullptr, *moonGlow = nullptr;
-            m_rt->CreateSolidColorBrush(D2D1::ColorF(0.85f,0.87f,0.90f,
-                                        obj.visible ? 1.0f : 0.25f), &moonFill);
-            m_rt->CreateSolidColorBrush(D2D1::ColorF(0.05f,0.08f,0.14f,
+            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.85f,0.87f,0.90f,
+                                        obj.visible ? 1.0f : 0.25f)), &moonFill);
+            // The unlit limb is the map's own deep, so it reads as shadow
+            // on whatever palette the map is painted in.
+            m_rt->CreateSolidColorBrush(Theme::Color(Theme::DEEP,
                                         obj.visible ? 0.85f : 0.2f), &moonShadow);
             m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.7f,0.75f,0.85f, 0.18f)), &moonGlow);
 
@@ -711,8 +716,8 @@ private:
             // Label
             if (m_titleFormat) {
                 ID2D1SolidColorBrush* lb = nullptr;
-                m_rt->CreateSolidColorBrush(D2D1::ColorF(0.75f,0.80f,0.90f,
-                                            obj.visible ? 0.95f : 0.4f), &lb);
+                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.75f,0.80f,0.90f,
+                                            obj.visible ? 0.95f : 0.4f)), &lb);
                 if (lb) {
                     D2D1_RECT_F r = D2D1::RectF(obj.px+sz+5, obj.py-10, obj.px+sz+80, obj.py+10);
                     m_titleFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
@@ -746,15 +751,15 @@ private:
             float r = (col >> 16) & 0xFF, g = (col >> 8) & 0xFF, b = col & 0xFF;
             ID2D1SolidColorBrush* pb = nullptr;
             m_rt->CreateSolidColorBrush(
-                D2D1::ColorF(r/255.f, g/255.f, b/255.f,
-                             obj.visible ? 1.0f : 0.3f), &pb);
+                Theme::NVf(D2D1::ColorF(r/255.f, g/255.f, b/255.f,
+                             obj.visible ? 1.0f : 0.3f)), &pb);
             if (pb) {
                 m_rt->FillEllipse(
                     D2D1::Ellipse(D2D1::Point2F(obj.px, obj.py), sz, sz), pb);
                 // Glow ring
                 ID2D1SolidColorBrush* glow = nullptr;
                 m_rt->CreateSolidColorBrush(
-                    D2D1::ColorF(r/255.f, g/255.f, b/255.f, 0.25f), &glow);
+                    Theme::NVf(D2D1::ColorF(r/255.f, g/255.f, b/255.f, 0.25f)), &glow);
                 if (glow) {
                     m_rt->DrawEllipse(
                         D2D1::Ellipse(D2D1::Point2F(obj.px, obj.py), sz+3, sz+3),
@@ -845,7 +850,7 @@ private:
                 AltAzToXY(alt, az, mx, my);
 
                 ID2D1SolidColorBrush* xhBrush = nullptr;
-                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.0f, 1.0f, 0.5f, 0.9f)), &xhBrush);
+                m_rt->CreateSolidColorBrush(Theme::Color(Theme::GREEN, 0.9f), &xhBrush);
                 if (xhBrush) {
                     float arm = 12.0f;
                     m_rt->DrawLine(D2D1::Point2F(mx-arm, my), D2D1::Point2F(mx+arm, my),
@@ -859,7 +864,7 @@ private:
                 // FOV circle — ASI678MC + 8SE = 0.13° diagonal
                 float fovPx = (float)(0.065 / 90.0) * (std::min(cx,cy) - 20.0f) * 2;
                 ID2D1SolidColorBrush* fovBrush = nullptr;
-                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.0f, 1.0f, 0.5f, 0.2f)), &fovBrush);
+                m_rt->CreateSolidColorBrush(Theme::Color(Theme::GREEN, 0.2f), &fovBrush);
                 if (fovBrush) {
                     m_rt->DrawEllipse(
                         D2D1::Ellipse(D2D1::Point2F(mx,my), fovPx, fovPx),
@@ -873,7 +878,7 @@ private:
         if (m_hoverIdx >= 0 && m_hoverIdx < (int)m_objects.size()) {
             const auto& ho = m_objects[m_hoverIdx];
             ID2D1SolidColorBrush* hBrush = nullptr;
-            m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.15f)), &hBrush);
+            m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT, 0.15f), &hBrush);
             if (hBrush) {
                 m_rt->DrawEllipse(
                     D2D1::Ellipse(D2D1::Point2F(ho.px, ho.py), 12, 12),
@@ -909,7 +914,7 @@ private:
             }
             if (m_statusFormat) {
                 ID2D1SolidColorBrush* sb = nullptr;
-                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.3f, 0.5f, 0.7f, 0.8f)), &sb);
+                m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT_DIM, 0.9f), &sb);
                 if (sb) {
                     // Height from the font, not a constant 18: the status
                     // text scales with the window now, and at 30px labels
@@ -1034,14 +1039,14 @@ private:
 
         ID2D1SolidColorBrush* b = nullptr;
         m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.016f, 0.035f, 0.075f, 0.82f)), &b);
+            Theme::Color(Theme::DEEP, 0.85f), &b);
         if (b) {
             m_rt->FillRoundedRectangle(
                 D2D1::RoundedRect(D2D1::RectF(x0, y0, x0 + w, y0 + h), 4.0f, 4.0f), b);
             b->Release();
         }
         m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.0f, 0.6f, 1.0f, 0.35f)), &b);
+            Theme::Color(Theme::BORDER), &b);
         if (b) {
             m_rt->DrawRoundedRectangle(
                 D2D1::RoundedRect(D2D1::RectF(x0, y0, x0 + w, y0 + h), 4.0f, 4.0f),
@@ -1051,7 +1056,7 @@ private:
 
         float y = y0 + pad;
         m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.0f, 0.7f, 1.0f, 0.9f)), &b);
+            Theme::Color(Theme::TEXT_DIM), &b);   // 132.3b: a legend, so dim
         if (b) {
             m_rt->DrawText(head, (UINT32)wcslen(head), m_labelFormat,
                            D2D1::RectF(x0 + pad, y, x0 + w, y + headPx * 1.35f), b);
@@ -1062,8 +1067,8 @@ private:
         // Amber when the site is missing: a chart quietly drawn for the
         // Gulf of Guinea should not look like a reading.
         m_rt->CreateSolidColorBrush(
-            rig.SiteIsSet() ? Theme::NVf(D2D1::ColorF(0.72f, 0.84f, 0.92f, 0.95f))
-                            : Theme::NVf(D2D1::ColorF(1.0f, 0.67f, 0.0f, 0.95f)), &b);
+            rig.SiteIsSet() ? Theme::Color(Theme::TEXT, 0.95f)
+                            : Theme::Color(Theme::AMBER, 0.95f), &b);   // no site: caution
         if (b) {
             for (int i = 0; i < n; i++) {
                 m_rt->DrawText(body[i], (UINT32)wcslen(body[i]), m_siteFormat,
@@ -1105,7 +1110,7 @@ private:
     void DrawCompassLabel(const wchar_t* text, float x, float y) {
         if (!m_labelFormat) return;
         ID2D1SolidColorBrush* b = nullptr;
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.0f, 0.7f, 1.0f, 0.8f)), &b);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT_DIM), &b);   // 132.3b: a legend
         if (b) {
             D2D1_RECT_F r = D2D1::RectF(x-10, y, x+10, y+14);
             m_labelFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
@@ -1119,7 +1124,7 @@ private:
         if (!m_labelFormat) return;
         wchar_t wname[64]; MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, 64);
         ID2D1SolidColorBrush* br = nullptr;
-        m_rt->CreateSolidColorBrush(D2D1::ColorF(r, g, b, a), &br);
+        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(r, g, b, a)), &br);
         if (br) {
             // Phase 128: 220, not 80. An NEO's label, "2026 VW2  20.5",
             // wrapped onto a second line on a large map and ran into the
@@ -1163,18 +1168,18 @@ private:
         ID2D1SolidColorBrush *bgBr = nullptr, *borderBr = nullptr,
                              *titleBr = nullptr, *altBr = nullptr,
                              *slewBr = nullptr, *cancelBr = nullptr;
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.04f, 0.09f, 0.18f, 0.97f)), &bgBr);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::PANEL, 0.97f), &bgBr);
         m_rt->CreateSolidColorBrush(
-            (belowHorizon && !isSat) ? Theme::NVf(D2D1::ColorF(0.8f, 0.2f, 0.1f, 0.9f))
-                         : Theme::NVf(D2D1::ColorF(0.0f, 0.9f, 1.0f, 0.7f)),
+            (belowHorizon && !isSat) ? Theme::Color(Theme::RED, 0.9f)
+                         : Theme::Color(Theme::BORDER),
             &borderBr);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.9f, 0.95f, 1.0f, 1.0f)),  &titleBr);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT),  &titleBr);
         m_rt->CreateSolidColorBrush(
-            (belowHorizon && !isSat) ? Theme::NVf(D2D1::ColorF(1.0f, 0.35f, 0.2f, 1.0f))
-                         : Theme::NVf(D2D1::ColorF(0.6f, 0.8f, 0.9f, 0.9f)),
+            (belowHorizon && !isSat) ? Theme::Color(Theme::RED)
+                         : Theme::Color(Theme::TEXT_DIM),
             &altBr);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.1f, 0.9f, 0.4f, 1.0f)),  &slewBr);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.9f, 0.3f, 0.2f, 1.0f)),  &cancelBr);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::GREEN),  &slewBr);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT_DIM),  &cancelBr);   // cancelling is not a fault
 
         if (bgBr)     m_rt->FillRectangle(popR, bgBr);
         if (borderBr) m_rt->DrawRectangle(popR, borderBr, 1.5f);
@@ -1210,7 +1215,7 @@ private:
                 // waits for its window)
                 m_btnSlewRect = D2D1::RectF(px+6, py+40, px+PW/2-4, py+PH-6);
                 ID2D1SolidColorBrush* slewBg = nullptr;
-                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.05f, 0.25f, 0.12f, 0.9f)), &slewBg);
+                m_rt->CreateSolidColorBrush(Theme::Color(Theme::GREEN, 0.18f), &slewBg);
                 if (slewBg) { m_rt->FillRectangle(m_btnSlewRect, slewBg); slewBg->Release(); }
                 m_rt->DrawRectangle(m_btnSlewRect, slewBr, 1.0f);
                 D2D1_RECT_F st = D2D1::RectF(m_btnSlewRect.left+2, m_btnSlewRect.top+2,
@@ -1229,7 +1234,7 @@ private:
                 float cancelLeft = hasButton ? px+PW/2+4 : px+6;
                 m_btnCancelRect = D2D1::RectF(cancelLeft, py+40, px+PW-6, py+PH-6);
                 ID2D1SolidColorBrush* cancelBg = nullptr;
-                m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.25f, 0.05f, 0.05f, 0.9f)), &cancelBg);
+                m_rt->CreateSolidColorBrush(Theme::Color(Theme::BORDER, 0.9f), &cancelBg);
                 if (cancelBg) { m_rt->FillRectangle(m_btnCancelRect, cancelBg); cancelBg->Release(); }
                 m_rt->DrawRectangle(m_btnCancelRect, cancelBr, 1.0f);
                 D2D1_RECT_F ct = D2D1::RectF(m_btnCancelRect.left+2, m_btnCancelRect.top+2,
@@ -1253,8 +1258,8 @@ private:
         D2D1_RECT_F tr = D2D1::RectF(tx-4, ty-2, tx+155, ty+14);
 
         ID2D1SolidColorBrush* bg = nullptr, *fg = nullptr;
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.04f, 0.1f, 0.2f, 0.9f)), &bg);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.9f, 0.95f, 1.0f, 0.95f)), &fg);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::PANEL, 0.95f), &bg);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT, 0.95f), &fg);
         if (bg) { m_rt->FillRectangle(tr, bg); bg->Release(); }
         if (fg) {
             m_statusFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);

@@ -591,6 +591,9 @@ public:
     // shared state on the generator thread, and runs are repeatable.
     void SetNoiseAmplitude(int dn) { m_noiseAmp = dn < 0 ? 0 : dn; }
 
+    // Hot pixels at 255, fixed positions (0 = off). See the render loop.
+    void SetHotPixels(int n) { m_hotPixels = n < 0 ? 0 : n; }
+
     // Atmospheric blur, arcsec FWHM-ish, varying frame to frame.
     //
     // SetSeeingJitterArcsec only MOVES the planet - it never softens it,
@@ -1572,6 +1575,19 @@ private:
 
             ApplyOutputResponse(backBuf.data(), W, H);
 
+            // Hot pixels: sensor defects, so after the optics (blur) and
+            // fixed from frame to frame. A high-gain real frame has
+            // hundreds, and the emulator had none, which is how a
+            // centroid that locked onto them passed every bench run and
+            // failed on the first night (2026-11-07).
+            for (int i = 0; i < m_hotPixels; i++) {
+                uint32_t hh = (uint32_t)i * 2654435761u + 0x9e3779b9u;
+                hh ^= hh >> 15; hh *= 0x85ebca6bu; hh ^= hh >> 13;
+                const int hx = (int)(hh % (uint32_t)W);
+                const int hy = (int)((hh / (uint32_t)W) % (uint32_t)H);
+                backBuf[hy*W+hx] = 255;
+            }
+
             {
                 std::lock_guard<std::mutex> lk(m_frameMutex);
                 m_frameBuffer.swap(backBuf);
@@ -1712,6 +1728,7 @@ private:
     float                       m_blurPxPerStep = DefaultBlurPxPerStep();
     bool                        m_freezeSurface = false;
     int                         m_noiseAmp      = 0;
+    int                         m_hotPixels     = 0;
     float                       m_seeingBlurAs  = 0.0f;
     double                      m_targetFps     = 20.0;   // P4.3
     bool                        m_timerRaised   = false;  // P4.3

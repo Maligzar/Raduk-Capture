@@ -5,6 +5,7 @@
 
 #include "CentroidTracker.h"
 #include "GuideSolve.h"   // the pixel->pulse solve, shared with phase 47
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -31,7 +32,7 @@ bool CentroidTracker::StartAutoAcquire(std::string& whyNot) {
     }
     m_autoAdvance.store(true);
     StartSearching();
-    printf("[CentroidTracker] Auto-acquire: searching for the planet\n");
+    CoreLog("[CentroidTracker] Auto-acquire: searching for the planet\n");
     return true;
 }
 
@@ -52,7 +53,7 @@ bool CentroidTracker::PromoteToAutoAcquire(std::string& whyNot) {
         return false;
     }
     m_autoAdvance.store(true);
-    printf("[CentroidTracker] Search promoted to auto-acquire\n");
+    CoreLog("[CentroidTracker] Search promoted to auto-acquire\n");
     return true;
 }
 
@@ -61,7 +62,7 @@ void CentroidTracker::StartSearching() {
     _ResetCounters();
     _StartThread();
     m_stage.store(AcquisitionStage::Searching);
-    printf("[CentroidTracker] Stage -> SEARCHING\n");
+    CoreLog("[CentroidTracker] Stage -> SEARCHING\n");
 }
 
 void CentroidTracker::StartCalibration() {
@@ -75,30 +76,30 @@ void CentroidTracker::StartCalibration() {
             if (ageMin < CAL_STALE_MIN) {
                 m_dwellCount = 0;
                 m_stage.store(AcquisitionStage::Centering);
-                printf("[CentroidTracker] Reusing calibration (%lld min old) -> CENTERING\n",
+                CoreLog("[CentroidTracker] Reusing calibration (%lld min old) -> CENTERING\n",
                        (long long)ageMin);
                 return;
             }
-            printf("[CentroidTracker] Calibration stale (%lld min) — recalibrating\n",
+            CoreLog("[CentroidTracker] Calibration stale (%lld min) — recalibrating\n",
                    (long long)ageMin);
             m_cal.valid = false;
         }
     }
     m_dwellCount = 0;
     m_stage.store(AcquisitionStage::Calibrating);
-    printf("[CentroidTracker] Stage -> CALIBRATING\n");
+    CoreLog("[CentroidTracker] Stage -> CALIBRATING\n");
 }
 
 void CentroidTracker::StartCentering() {
     if (m_stage.load() != AcquisitionStage::Searching) return;
     if (!IsStable()) return;
     if (!HasCalibration()) {
-        printf("[CentroidTracker] StartCentering refused — no calibration\n");
+        CoreLog("[CentroidTracker] StartCentering refused — no calibration\n");
         return;
     }
     m_dwellCount = 0;
     m_stage.store(AcquisitionStage::Centering);
-    printf("[CentroidTracker] Stage -> CENTERING\n");
+    CoreLog("[CentroidTracker] Stage -> CENTERING\n");
 }
 
 bool CentroidTracker::HasCalibration() const {
@@ -120,7 +121,7 @@ void CentroidTracker::StartLocked() {
     if (m_stage.load() != AcquisitionStage::Centering) return;
     if (!IsDwellMet()) return;
     m_stage.store(AcquisitionStage::Locked);
-    printf("[CentroidTracker] Stage -> LOCKED\n");
+    CoreLog("[CentroidTracker] Stage -> LOCKED\n");
 }
 
 void CentroidTracker::Reset() {
@@ -130,7 +131,7 @@ void CentroidTracker::Reset() {
     m_driftRA.store(0.0f);
     m_driftDec.store(0.0f);
     m_suspended.store(false);
-    printf("[CentroidTracker] Reset -> OFF\n");
+    CoreLog("[CentroidTracker] Reset -> OFF\n");
 }
 
 bool CentroidTracker::IsRunning() const {
@@ -204,6 +205,11 @@ void CentroidTracker::Tick() {
         if (m_onLost)  m_onLost();
     if (m_dwellPending.exchange(false))
         if (m_onDwell) m_onDwell();
+    if (m_abortPending.exchange(false) && m_onAbort) {
+        std::string msg;
+        { std::lock_guard<std::mutex> lk(m_mutex); msg = m_abortMessage; }
+        m_onAbort(msg);
+    }
     if (m_calPending.exchange(false)) {
         if (m_onCalibration) {
             std::string msg;
@@ -218,11 +224,11 @@ void CentroidTracker::Tick() {
     // stage transitions already live.
     if (m_autoAdvance.load()) {
         if (stage == AcquisitionStage::Searching && IsStable()) {
-            printf("[CentroidTracker] Auto-acquire: centroid stable, "
+            CoreLog("[CentroidTracker] Auto-acquire: centroid stable, "
                    "calibrating\n");
             StartCalibration();
         } else if (stage == AcquisitionStage::Centering && IsDwellMet()) {
-            printf("[CentroidTracker] Auto-acquire: centred, locking\n");
+            CoreLog("[CentroidTracker] Auto-acquire: centred, locking\n");
             StartLocked();
             // Stop here rather than cropping the sensor. The ROI crop
             // changes capture resolution, which is the user's call --
@@ -314,7 +320,11 @@ bool CentroidTracker::_WaitCentroidAvg(int samples, float& outX, float& outY) {
         if (s.valid && s.everSeen && s.lastTime != lastSeen) {
             lastSeen = s.lastTime;
             sx += s.cx; sy += s.cy; n++;
-            if (n >= samples) { outX = sx / n; outY = sy / n; return true; }
+            if (n >= samples) {
+                outX = sx / n; outY = sy / n;
+                CoreLog("[CAL] sample (%.1f, %.1f) from %d analyses\n", outX, outY, n);
+                return true;
+            }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
@@ -335,21 +345,49 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
             std::lock_guard<std::mutex> lk(m_mutex);
             m_calMessage = msg;
         }
+        if (!ok) {
+            // A failed calibration may have left an axis moving (a lost
+            // stop is one way to fail), so both are told to stop. And
+            // auto-acquire ends here: it used to drop back to Searching
+            // and, five frames later, calibrate again, failing on a loop.
+            mount->StopSlew(0);
+            mount->StopSlew(1);
+            m_autoAdvance.store(false);
+        }
         m_calSuccess.store(ok);
         m_calPending.store(true);
         // Only move the stage if we're still Calibrating (Reset wins)
         AcquisitionStage expected = AcquisitionStage::Calibrating;
         m_stage.compare_exchange_strong(expected,
             ok ? AcquisitionStage::Centering : AcquisitionStage::Searching);
-        printf("[CentroidTracker] Calibration %s: %s\n",
+        CoreLog("[CentroidTracker] Calibration %s: %s\n",
                ok ? "OK" : "FAILED", msg.c_str());
     };
 
-    printf("[CentroidTracker] Calibration: measuring pulse response\n");
+    CoreLog("[CentroidTracker] Calibration: measuring pulse response\n");
 
+    using clk = std::chrono::steady_clock;
+    auto secs = [](clk::time_point a, clk::time_point b) {
+        return std::chrono::duration<float>(b - a).count();
+    };
+
+    float b0x, b0y;
+    if (!_WaitCentroidAvg(CAL_SAMPLES, b0x, b0y))
+        return finish(false, "no stable centroid to calibrate against");
+    const clk::time_point tB0 = clk::now();
+
+    // 2026-11-07: the background drift first, with no pulse, so it can
+    // be taken out of each pulse's measurement (see CAL_DRIFT_MS).
+    if (!_CalSettle(CAL_DRIFT_MS))
+        return finish(false, "aborted while measuring drift");
     float bx, by;
     if (!_WaitCentroidAvg(CAL_SAMPLES, bx, by))
-        return finish(false, "no stable centroid to calibrate against");
+        return finish(false, "target lost while measuring drift");
+    clk::time_point tB1 = clk::now();
+    const float driftDt = secs(tB0, tB1);
+    const float driftVx = driftDt > 0.1f ? (bx - b0x) / driftDt : 0.0f;
+    const float driftVy = driftDt > 0.1f ? (by - b0y) / driftDt : 0.0f;
+    CoreLog("[CAL] drift (%.1f, %.1f) px/s over %.2f s\n", driftVx, driftVy, driftDt);
 
     // Phase 65: one pulse per axis, and the displacement is KEPT.
     //
@@ -366,36 +404,143 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
     // and leaves the planet displaced by at most two pulse lengths --
     // which Centering, entered immediately afterwards, corrects as part
     // of its normal work. Calibration stops being a detour.
+    // Each measurement has the drift over its own span taken out.
     auto measureAxis = [&](GuideDirection dir,
-                           float fromX, float fromY,
+                           float fromX, float fromY, clk::time_point tFrom,
                            float& vx, float& vy,
-                           float& endX, float& endY) -> bool {
-        if (!_CalAlive()) return false;
-        if (!mount->PulseGuide(dir, CAL_PULSE_MS)) return false;
+                           float& endX, float& endY,
+                           clk::time_point& tEnd) -> bool {
+        // Several pulses back to back, measured once at the end: on
+        // 2026-11-07 one pulse moved Saturn 10-50 px while the drift
+        // estimate was only good to a few px/s, i.e. +-10 px over a step.
+        // Five pulses make the response several times that error.
+        // vx/vy are returned PER PULSE, as the caller expects.
+        for (int k = 0; k < CAL_MEASURE_PULSES; ++k) {
+            if (!_CalAlive()) return false;
+            if (!mount->PulseGuide(dir, CAL_PULSE_MS)) return false;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
         if (!_CalSettle(CAL_SETTLE_MS)) return false;
         if (!_WaitCentroidAvg(CAL_SAMPLES, endX, endY)) return false;
-        vx = endX - fromX; vy = endY - fromY;
+        tEnd = clk::now();
+        const float dt = secs(tFrom, tEnd);
+        const float tx = endX - fromX - driftVx * dt;
+        const float ty = endY - fromY - driftVy * dt;
+        vx = tx / (float)CAL_MEASURE_PULSES;
+        vy = ty / (float)CAL_MEASURE_PULSES;
+        CoreLog("[CAL] %s x%d pulses: raw (%.1f, %.1f) over %.2f s, drift part (%.1f, %.1f), "
+                "response (%.1f, %.1f) px = (%.1f, %.1f) per pulse\n",
+                (dir == GuideDirection::East ? "East" : dir == GuideDirection::West ? "West" : dir == GuideDirection::North ? "North" : "South"), CAL_MEASURE_PULSES,
+                endX - fromX, endY - fromY, dt, driftVx * dt, driftVy * dt,
+                tx, ty, vx, vy);
         return true;
     };
 
+    // 2026-11-07 at the rig: the North pulse was acknowledged, the motor
+    // ran for 800 ms, and the planet moved 6 px against East's 57 --
+    // gear backlash in the altitude drive ate it. A measurement taken
+    // across backlash is noise, so each axis is first pulsed in its
+    // measuring direction until the planet visibly moves, as PHD2 does,
+    // and only then measured.
+    auto takeUpBacklash = [&](GuideDirection dir, float& x, float& y,
+                              clk::time_point& t) -> bool {
+        const char* name = (dir == GuideDirection::East ? "East" : dir == GuideDirection::West ? "West" : dir == GuideDirection::North ? "North" : "South");
+        for (int i = 0; i < CAL_BACKLASH_MAX_PULSES; ++i) {
+            if (!_CalAlive()) return false;
+            if (!mount->PulseGuide(dir, CAL_PULSE_MS)) return false;
+            if (!_CalSettle(CAL_SETTLE_MS)) return false;
+            float nx2, ny2;
+            if (!_WaitCentroidAvg(CAL_SAMPLES, nx2, ny2)) return false;
+            const clk::time_point nt = clk::now();
+            const float dt = secs(t, nt);
+            const float mx = nx2 - x - driftVx * dt, my = ny2 - y - driftVy * dt;
+            const float moved = std::sqrt(mx*mx + my*my);
+            x = nx2; y = ny2; t = nt;
+            CoreLog("[CAL] %s backlash take-up pulse %d: moved %.1f px\n",
+                    name, i + 1, moved);
+            if (moved >= CAL_BACKLASH_MOVE_PX) return true;
+        }
+        return false;
+    };
+
+    if (!takeUpBacklash(GuideDirection::East, bx, by, tB1)) {
+        char why[160];
+        snprintf(why, sizeof(why), "East did not move the planet after %d pulses "
+                 "(backlash, or the axis is not driving); mount stopped",
+                 CAL_BACKLASH_MAX_PULSES);
+        return finish(false, why);
+    }
     float ex, ey, b2x, b2y;
-    if (!measureAxis(GuideDirection::East, bx, by, ex, ey, b2x, b2y))
+    clk::time_point tB2;
+    if (!measureAxis(GuideDirection::East, bx, by, tB1, ex, ey, b2x, b2y, tB2))
         return finish(false, "East pulse measurement failed or aborted");
     float eMag = std::sqrt(ex*ex + ey*ey);
     if (eMag < CAL_MIN_MOVE_PX)
         return finish(false, "East response too small — check guide rate/target");
 
+    // West, measured on its own (see GuideCalibration::fourWay). It also
+    // brings the planet back towards where East took it from.
+    if (!takeUpBacklash(GuideDirection::West, b2x, b2y, tB2))
+        return finish(false, "West did not move the planet (backlash, or the axis is not driving); mount stopped");
+    float wx, wy, bWx, bWy;
+    clk::time_point tBW;
+    if (!measureAxis(GuideDirection::West, b2x, b2y, tB2, wx, wy, bWx, bWy, tBW))
+        return finish(false, "West pulse measurement failed or aborted");
+    if (std::sqrt(wx*wx + wy*wy) < CAL_MIN_MOVE_PX)
+        return finish(false, "West response too small - check guide rate/target");
+    b2x = bWx; b2y = bWy; tB2 = tBW;
+
+    if (!takeUpBacklash(GuideDirection::North, b2x, b2y, tB2)) {
+        char why[160];
+        snprintf(why, sizeof(why), "North did not move the planet after %d pulses "
+                 "(backlash, or the axis is not driving); mount stopped",
+                 CAL_BACKLASH_MAX_PULSES);
+        return finish(false, why);
+    }
     float nx, ny, b3x, b3y;
-    if (!measureAxis(GuideDirection::North, b2x, b2y, nx, ny, b3x, b3y))
+    clk::time_point tB3;
+    if (!measureAxis(GuideDirection::North, b2x, b2y, tB2, nx, ny, b3x, b3y, tB3))
         return finish(false, "North pulse measurement failed or aborted");
     float nMag = std::sqrt(nx*nx + ny*ny);
     if (nMag < CAL_MIN_MOVE_PX)
         return finish(false, "North response too small — check guide rate/target");
 
+    if (!takeUpBacklash(GuideDirection::South, b3x, b3y, tB3))
+        return finish(false, "South did not move the planet (backlash, or the axis is not driving); mount stopped");
+    float sx, sy, bSx, bSy;
+    clk::time_point tBS;
+    if (!measureAxis(GuideDirection::South, b3x, b3y, tB3, sx, sy, bSx, bSy, tBS))
+        return finish(false, "South pulse measurement failed or aborted");
+    if (std::sqrt(sx*sx + sy*sy) < CAL_MIN_MOVE_PX)
+        return finish(false, "South response too small - check guide rate/target");
+    CoreLog("[CAL] per pulse: E (%.1f, %.1f) W (%.1f, %.1f) N (%.1f, %.1f) S (%.1f, %.1f) px\n",
+            ex, ey, wx, wy, nx, ny, sx, sy);
+
     // Axes must be usefully independent: |sin(angle between them)|
     float cross = ex*ny - ey*nx;
-    if (std::abs(cross) / (eMag * nMag) < CAL_MIN_SIN_ANGLE)
-        return finish(false, "axis responses nearly parallel — bad calibration");
+    const float sinAng = std::abs(cross) / (eMag * nMag);
+    if (sinAng < CAL_MIN_SIN_ANGLE) {
+        char why[220];
+        snprintf(why, sizeof(why),
+                 "the two axes moved the planet only %.0f deg apart (they should be "
+                 "near 90) - drift %.1f,%.1f px/s or a missed stop; mount stopped",
+                 std::asin((std::min)(1.0f, sinAng)) * 57.2958f, driftVx, driftVy);
+        return finish(false, why);
+    }
+    {
+        const float scale    = RigConfig::Get().plateScaleArcsecPx;
+        const float assumed  = RigConfig::Get().guideRateArcsecPerSec;
+        const float measured = ((std::max)(eMag, nMag) * scale) / (CAL_PULSE_MS / 1000.0f);
+        if (assumed > 0.01f && (measured > assumed * CAL_RATE_MAX_FACTOR ||
+                                measured < assumed * CAL_RATE_MIN_FACTOR)) {
+            char why[220];
+            snprintf(why, sizeof(why),
+                     "a guide pulse moved the planet at %.1f\"/s, impossible for a "
+                     "%.1f\"/s guide rate - an axis was moving on its own; mount stopped",
+                     measured, assumed);
+            return finish(false, why);
+        }
+    }
 
     if ((std::min)(eMag, nMag) < CAL_MIN_AXIS_RATIO * (std::max)(eMag, nMag)) {
         char why[200];
@@ -412,6 +557,11 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
     cal.eyPerMs = ey / (float)CAL_PULSE_MS;
     cal.nxPerMs = nx / (float)CAL_PULSE_MS;
     cal.nyPerMs = ny / (float)CAL_PULSE_MS;
+    cal.fourWay = true;
+    cal.wxPerMs = wx / (float)CAL_PULSE_MS;
+    cal.wyPerMs = wy / (float)CAL_PULSE_MS;
+    cal.sxPerMs = sx / (float)CAL_PULSE_MS;
+    cal.syPerMs = sy / (float)CAL_PULSE_MS;
     // Phase 65: the plate scale is KNOWN from the optics
     // (206.265 x pixel_um / focal_mm) and sits in RigConfig. The guide
     // rate is the genuinely unknown quantity -- PulseGuide just asserts
@@ -460,22 +610,45 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
     char buf[256];
     snprintf(buf, sizeof(buf),
              "E=(%.2f,%.2f)px/s N=(%.2f,%.2f)px/s scale=%.2f\"/px alt=%.0f"
+             " drift=(%.1f,%.1f)px/s removed"
              "  guide rate measured %.2f\"/s vs rig.ini %.2f\"/s%s",
              cal.exPerMs * 1000, cal.eyPerMs * 1000,
              cal.nxPerMs * 1000, cal.nyPerMs * 1000,
-             cal.arcsecPerPx, cal.altDeg,
+             cal.arcsecPerPx, cal.altDeg, driftVx, driftVy,
              measuredRate, assumedRate,
              rateOff ? " <- WRONG, set GuideRateArcsecPerSec" : "");
     finish(true, buf);
 }
 
+void CentroidTracker::_AbortGuiding(IMount* mount, const std::string& why) {
+    if (mount) { mount->StopSlew(0); mount->StopSlew(1); }
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_cal = GuideCalibration{};      // it is what sent the mount the wrong way
+        m_abortMessage = why;
+        m_samples.clear();
+    }
+    m_autoAdvance.store(false);
+    AcquisitionStage st = m_stage.load();
+    if (st == AcquisitionStage::Centering || st == AcquisitionStage::Locked)
+        m_stage.compare_exchange_strong(st, AcquisitionStage::Searching);
+    m_abortPending.store(true);
+    CoreLog("[CentroidTracker] Guiding abandoned: %s\n", why.c_str());
+}
+
 void CentroidTracker::Run() {
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
-    printf("[CentroidTracker] Correction thread running\n");
+    CoreLog("[CentroidTracker] Correction thread running\n");
     bool wasLost = false;
     auto lastAltPoll = std::chrono::steady_clock::now()
                      - std::chrono::seconds(60);
     float lastAltDeg = -1.0f;
+    // Runaway watch (RUNAWAY_*): the closest to centre seen since this
+    // run of corrections began, and how many cycles in a row the planet
+    // has been well beyond it.
+    AcquisitionStage watchStage = AcquisitionStage::Off;
+    float bestErrPx = 1e9f;
+    int   overCycles = 0;
 
     while (m_threadRunning.load()) {
         auto stage = m_stage.load();
@@ -514,12 +687,12 @@ void CentroidTracker::Run() {
         if (!s.valid || timedOut) {
             if (!wasLost) {
                 wasLost = true;
-                printf("[CentroidTracker] Centroid lost\n");
+                CoreLog("[CentroidTracker] Centroid lost\n");
                 m_lostPending.store(true);
             }
             continue;
         }
-        if (wasLost) { wasLost = false; printf("[CentroidTracker] Reacquired\n"); }
+        if (wasLost) { wasLost = false; CoreLog("[CentroidTracker] Reacquired\n"); }
         if (s.fw == 0 || s.fh == 0) continue;
 
         // Phase 53: correct on the window-averaged centroid, not the
@@ -552,6 +725,31 @@ void CentroidTracker::Run() {
         m_driftRA.store(dxPx * cal.arcsecPerPx);
         m_driftDec.store(dyPx * cal.arcsecPerPx);
 
+        // 2026-11-07: centring on a bad calibration pushed the planet
+        // away at the guide rate, steadily, until it left the frame.
+        // Corrections that make things steadily worse are stopped.
+        {
+            const float errPx = std::sqrt(dxPx*dxPx + dyPx*dyPx);
+            if (stage != watchStage) {
+                watchStage = stage; bestErrPx = errPx; overCycles = 0;
+            }
+            if (errPx < bestErrPx) bestErrPx = errPx;
+            if (errPx > bestErrPx + RUNAWAY_GROWTH_PX) {
+                if (++overCycles >= RUNAWAY_CYCLES) {
+                    char why[200];
+                    snprintf(why, sizeof(why),
+                             "the planet kept moving away from centre (%.0f px, best "
+                             "was %.0f px) - corrections were making it worse",
+                             errPx, bestErrPx);
+                    _AbortGuiding(s.mount, why);
+                    watchStage = AcquisitionStage::Off;
+                    continue;
+                }
+            } else {
+                overCycles = 0;
+            }
+        }
+
         float agg      = (stage == AcquisitionStage::Locked) ? S3_AGGRESSIVENESS  : S2_AGGRESSIVENESS;
         int   maxPulse = (stage == AcquisitionStage::Locked) ? S3_MAX_PULSE_MS    : S2_MAX_PULSE_MS;
         float deadband = (stage == AcquisitionStage::Locked) ? S3_DEADBAND_ARCSEC : S2_DEADBAND_ARCSEC;
@@ -572,9 +770,32 @@ void CentroidTracker::Run() {
 
         // Desired displacement is −error × aggressiveness, in pixels.
         const float ddx = -dxPx * agg, ddy = -dyPx * agg;
-        const GuidePulses sol = SolveGuidePulses(resp, ddx, ddy);
-        if (!sol.valid) continue;
-        const float tE = sol.eastMs, tN = sol.northMs;
+        float tE = 0.0f, tN = 0.0f;
+        if (cal.fourWay) {
+            // Each axis has a different response forwards and backwards
+            // (see GuideCalibration::fourWay). Solve with each of the four
+            // column pairs and keep the one whose pulse lengths both come
+            // out in the direction that column was measured for.
+            bool found = false;
+            for (int useW = 0; useW < 2 && !found; ++useW)
+                for (int useS = 0; useS < 2 && !found; ++useS) {
+                    GuideResponse r{ useW ? cal.wxPerMs : cal.exPerMs,
+                                     useW ? cal.wyPerMs : cal.eyPerMs,
+                                     useS ? cal.sxPerMs : cal.nxPerMs,
+                                     useS ? cal.syPerMs : cal.nyPerMs };
+                    r = RescaleForAltitude(r, cal.altDeg, lastAltDeg);
+                    const GuidePulses g = SolveGuidePulses(r, ddx, ddy);
+                    if (!g.valid || g.eastMs < 0.0f || g.northMs < 0.0f) continue;
+                    tE = useW ? -g.eastMs : g.eastMs;
+                    tN = useS ? -g.northMs : g.northMs;
+                    found = true;
+                }
+            if (!found) continue;
+        } else {
+            const GuidePulses sol = SolveGuidePulses(resp, ddx, ddy);
+            if (!sol.valid) continue;
+            tE = sol.eastMs; tN = sol.northMs;
+        }
 
         bool pulsed = false;
         auto sendPulse = [&](float tMs, GuideDirection pos, GuideDirection neg,
@@ -584,7 +805,7 @@ void CentroidTracker::Run() {
             int ms = (int)mag;
             if (ms < 10) return;
             GuideDirection dir = (tMs > 0) ? pos : neg;
-            printf("[CentroidTracker] %s pulse %dms (err %.1f\")\n", axis, ms, errAs);
+            CoreLog("[CentroidTracker] %s pulse %dms (err %.1f\")\n", axis, ms, errAs);
             s.mount->PulseGuide(dir, ms);
             pulsed = true;
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -601,7 +822,7 @@ void CentroidTracker::Run() {
         }
     }
 
-    printf("[CentroidTracker] Correction thread stopped\n");
+    CoreLog("[CentroidTracker] Correction thread stopped\n");
 }
 
 } // namespace raduk::core

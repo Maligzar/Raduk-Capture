@@ -1,0 +1,30 @@
+# The first fix from the 2026-11-07 night: the centroid never sat on
+# Saturn, in focus or out of it, because the search keyed on the single
+# brightest pixel and at gain 353 that is a hot pixel. This renders a
+# dim Saturn on a noisy, hot-pixelled frame -- what the real sensor gave
+# -- and asks for the whole acquisition to lock.
+#
+# Pointed at Kochab, which is in the tracking band at any hour at this
+# site (see motion.scn); RADUK_EMU_TARGET makes the emulator draw Saturn
+# there whatever the profile says.
+name    Search: lock on a dim planet among hot pixels
+timeout 300
+
+env     RADUK_EMU_TARGET=Saturn
+env     RADUK_EMU_NOISE=12
+env     RADUK_EMU_HOT_PIXELS=600
+env     RADUK_EMU_PEAK_DN=70
+profile star.ini focuser position=168000
+
+expect 30  [SCENARIO] Search
+wait   3
+goto   Kochab
+expect 120 SEARCHING
+expect 30  Search: target at
+absent 1   Search: nothing found
+wait   3
+shot   searching
+press  PLANET LOCK
+expect 120 Acquisition: Locked
+wait   3
+shot   locked

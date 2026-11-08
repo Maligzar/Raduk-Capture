@@ -27,6 +27,7 @@
 #include "Sharpness.h"
 #include "StarMetrics.h"
 #include "SurfaceLock.h"
+#include "TargetFinder.h"
 
 namespace raduk::core {
 
@@ -170,6 +171,13 @@ struct AnalysisResult {
     // and the gate below could not tell them apart.
     bool  centroidTooFaint = false;   // brightest pixel under the gate
     uint8_t centroidPeak   = 0;       // frame peak, 0-255, for the message
+    // How clearly the target stands out (TargetFinder.h): peak of the
+    // smoothed cells over background, in noise units; found at >= 10.
+    // With the background and noise behind it, so a field log can say
+    // why a search did or did not find anything.
+    float centroidSnr     = 0.0f;
+    float centroidBgDN    = 0.0f;
+    float centroidNoiseDN = 0.0f;
     // Phase 126: the frame is full (the Moon, the Sun), so centroidX/Y
     // is where a patch of the surface has moved to, not a centre of
     // brightness, which cannot move when every pixel is target.

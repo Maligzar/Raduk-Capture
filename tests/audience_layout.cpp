@@ -420,6 +420,35 @@ int main() {
               "the scrim is a scrim, not a black bar");
     }
 
+    // ───────────────────────────────────────────────────────────
+    printf("\n9. The real blur's inputs (phase 132.3e)\n");
+    {
+        const LRect card{100.0f, 50.0f, 300.0f, 150.0f};
+        const Theme::Shadow raised  = Theme::ShadowFor(Theme::Elev::RAISED);
+        const Theme::Shadow overlay = Theme::ShadowFor(Theme::Elev::OVERLAY);
+        const ShadowEffect e = ShadowEffectFor(card, overlay);
+        Check(e.rect.l == card.l && e.rect.r == card.r &&
+              e.rect.t == card.t + overlay.dy && e.rect.b == card.b + overlay.dy,
+              "the blurred shape is the card, dropped by the level's offset");
+        Check(e.stdDev == overlay.blur * 0.5f,
+              "the stated blur radius is read as two standard deviations");
+        Check(e.alpha == overlay.alpha, "at the level's alpha");
+        Check(ShadowEffectFor(card, raised).stdDev < e.stdDev &&
+              ShadowEffectFor(card, raised).alpha  < e.alpha,
+              "and Theme's order survives: RAISED softer and lighter than OVERLAY");
+        Check(ShadowEffectFor(card, overlay, 0.5f).alpha == overlay.alpha * 0.5f,
+              "a cross-fade scales it");
+        Check(ShadowEffectFor(card, overlay, 7.0f).alpha == overlay.alpha &&
+              ShadowEffectFor(card, overlay, -1.0f).alpha == 0.0f,
+              "and the fade is clamped");
+        // The rings' widest spread was the blur radius; a Gaussian at
+        // two standard deviations is down to a few per cent, so the soft
+        // edge reaches about as far and the look does not jump.
+        const Ring outer = ShadowRingAt(card, overlay, 0);
+        Check(std::fabs((card.l - outer.rect.l) - 2.0f * e.stdDev) < 0.01f,
+              "the blur reaches as far as the rings' widest spread did");
+    }
+
     printf("\n%s\n", g_fail ? "FAILURES" : "all good");
     return g_fail ? 1 : 0;
 }

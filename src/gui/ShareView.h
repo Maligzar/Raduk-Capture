@@ -43,6 +43,7 @@
 #include "WindowChrome.h"
 #include "Theme.h"
 #include "AudienceLayout.h"
+#include "D2DShadow.h"
 
 namespace raduk::gui {
 
@@ -247,8 +248,10 @@ public:
 private:
     // ── D2D ────────────────────────────────────────────────────
     bool InitD2D() {
+        // 132.3e: a 1.1 factory when there is one, so the target can be
+        // asked for a device context and cards get a real blurred shadow.
         ID2D1Factory* factory = nullptr;
-        if (FAILED(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &factory)))
+        if (FAILED(CreateAudienceFactory(&factory)) || !factory)
             return false;
 
         RECT rc; GetClientRect(m_hwnd, &rc);
@@ -260,6 +263,7 @@ private:
             &m_rt);
         factory->Release();
         if (FAILED(hr)) return false;
+        m_shadow.Init(m_rt);   // 132.3e; false keeps the rings
 
         IDWriteFactory* dw = nullptr;
         DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED,
@@ -275,6 +279,7 @@ private:
         if (m_smallFormat) { m_smallFormat->Release(); m_smallFormat = nullptr; }
         if (m_microFormat) { m_microFormat->Release(); m_microFormat = nullptr; }
         if (m_bitmap)      { m_bitmap->Release();      m_bitmap      = nullptr; }
+        m_shadow.Release();
         if (m_rt)          { m_rt->Release();          m_rt          = nullptr; }
         // Last: MakeFonts() creates the formats through it and must
         // never see it null while they are being rebuilt. The sky map
@@ -734,6 +739,9 @@ private:
     void DrawElevation(const audience::LRect& card, float radius, int level) {
         const Theme::Shadow sh = Theme::ShadowFor(level);
         if (!audience::ShadowVisible(sh)) return;
+        // Phase 132.3e: the real blur when the target has one
+        // (D2DShadow.h). The rings below are the fallback.
+        if (m_shadow.Draw(card, sh)) return;
         ID2D1SolidColorBrush* b = nullptr;
         if (FAILED(m_rt->CreateSolidColorBrush(
                 D2D1::ColorF(0, 0, 0, 1.0f), &b)) || !b) return;
@@ -858,6 +866,7 @@ private:
     HWND                   m_hwnd   = nullptr;
     WindowChrome m_chrome;
     ID2D1HwndRenderTarget* m_rt     = nullptr;
+    CardShadow             m_shadow;   // 132.3e
     IDWriteFactory*        m_dwrite = nullptr;
     IDWriteTextFormat*     m_bigFormat   = nullptr;
     IDWriteTextFormat*     m_bigFit      = nullptr;  // caption, fitted

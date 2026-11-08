@@ -230,6 +230,37 @@ inline Ring ShadowRingAt(const LRect& card, const Theme::Shadow& s, int i) {
     return out;
 }
 
+// ── Phase 132.3e: the real blur, when there is one ────────────
+//
+// 119.5 owed this. Each audience window now asks its hwnd target for
+// ID2D1DeviceContext and, when it gets one, draws a card's shadow as a
+// Gaussian blur of the card's own shape (D2DShadow.h). The rings above
+// stay as the fallback for when it does not. This is the mapping from
+// Theme's shadow to the effect's inputs, kept here so it is tested
+// without a GPU.
+//
+// The blur radius Theme states is read as about two standard
+// deviations, which is where a Gaussian has fallen to a few per cent:
+// the softened edge then reaches roughly as far as the rings' widest
+// spread did, so swapping one for the other does not move the look.
+struct ShadowEffect {
+    LRect rect;            // the shape to blur: the card, dropped by dy
+    float stdDev = 0.0f;   // Gaussian standard deviation, DIPs
+    float alpha  = 0.0f;   // black, before the blur
+};
+
+inline ShadowEffect ShadowEffectFor(const LRect& card, const Theme::Shadow& s,
+                                    float fade = 1.0f) {
+    ShadowEffect e;
+    e.rect   = LRect{ card.l, card.t + (float)s.dy, card.r, card.b + (float)s.dy };
+    e.stdDev = (float)s.blur * 0.5f;
+    if (e.stdDev < 0.5f) e.stdDev = 0.5f;   // the effect's floor; FLAT never gets here
+    if (fade < 0.0f) fade = 0.0f;
+    if (fade > 1.0f) fade = 1.0f;
+    e.alpha  = s.alpha * fade;
+    return e;
+}
+
 // ── A row of equal cards ──────────────────────────────────────
 //
 // The object panel's figures -- MAGNITUDE, APPARENT SIZE, ALTITUDE

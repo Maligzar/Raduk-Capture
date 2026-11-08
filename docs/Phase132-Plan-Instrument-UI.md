@@ -725,3 +725,60 @@ with mingw in the emulator configuration.
 bar in both modes. At night only the lamp's Good and Poor steps change, and
 they are not in the scenario. The rig setup dialog and the toasts are not in
 the scenario, so check them by eye.
+
+### 132.3e, 2026-11-08: the audience surfaces, and 119.5's real shadows
+
+**The colours were already done.** Phase 96.3 moved the object panel and the
+share view onto the tokens, and 132.3a's swap repainted them. What literal
+colour is left is deliberate:
+
+- black for shadows and the caption scrim, because a shadow is the absence of
+  light and tinting it would make a red glow;
+- the object panel's per-type accents: Planet, Satellite, Star, Galaxy, Nebula,
+  deep sky. These are category colours on a surface meant for an audience, and
+  at night they already collapse to the signal token.
+
+So this stage is the depth that 119.5 owed.
+
+**Real Gaussian shadows.** Both windows drew a card's shadow as three nested
+rings of flat fill, because an `ID2D1HwndRenderTarget` has no blur. A target
+made by an `ID2D1Factory1` is also an `ID2D1DeviceContext`, which has effects.
+So `src/gui/D2DShadow.h` asks for one and draws each card's shadow as:
+
+> Flood (black at the level's alpha) → Crop (the card, dropped by the level's
+> offset) → Gaussian blur (soft border) → `DrawImage`
+
+None of this touches the target, the swap chain or the frame structure.
+`CreateAudienceFactory` prefers a 1.1 factory and falls back to the plain one.
+When the device context or any effect cannot be had, `CardShadow::Draw` returns
+false and the window paints the rings exactly as before. So depth can only get
+better; it cannot disappear.
+
+**Same look, softer edge.** `audience::ShadowEffectFor` in `AudienceLayout.h`,
+which is pure, maps Theme's shadow to the effect's inputs:
+
+- the card's shape, dropped by `dy`;
+- a standard deviation of half the stated blur radius;
+- the level's alpha, scaled by any cross-fade.
+
+A Gaussian is down to a few per cent at two standard deviations, so the soft
+edge reaches as far as the rings' widest spread did. Swapping one for the other
+does not move the look; it only removes the banding.
+
+**Gated.** `tests/audience_layout.cpp` section 9 checks:
+
+- the shape and the offset;
+- the radius read as two standard deviations;
+- the alpha;
+- that Theme's order survives (RAISED softer and lighter than OVERLAY);
+- the cross-fade scale, and its clamping;
+- that the blur reaches exactly the rings' widest spread.
+
+It passes under mingw-w64 and wine. `main.cpp` compiles cleanly with mingw, and
+`night_coverage` still passes.
+
+**Not seen on screen.** wine cannot run Direct2D effects, so whether the rig's
+driver hands back a device context is for the next look at the object panel and
+the share view. The rings remain if it does not. Owner check: open the object
+panel (Shift+I) and the share view and look at the card edges. They should be
+soft, with no stepped bands.

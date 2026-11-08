@@ -1259,3 +1259,9 @@ the bench already showed, so the night only has to confirm it. The plan is
 53. **Pointing** (F12, 133.4). After a fresh two-star align, GoTo a bright
     star and note how far it lands from centre. If it is still degrees off,
     try the phase 123 pointing map with `PointingMapApply=1`.
+54. **The files say the right planet** (F11, 133.2b). GoTo a planet and
+    record ten seconds. The file name, the `.json` record's target and the
+    object panel should all name that planet. Then, still on it, load a
+    different planet's profile by hand and record again: the run should be
+    filed under the planet the scope is on, and the bar should say
+    "Recording X on the Y profile's settings".

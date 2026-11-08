@@ -23,7 +23,7 @@ tests or the emulator only.
 | F8 | Calibration moves were 200 px in a 640×480 box | Moves capped at 15% of the box | Bench (`rate_guide`) |
 | F9 | **Autofocus**: the capped score plateaued, then Laplacian noise, then a fading target | `FocusMetric.h` (1000/HFD), a re-sweep when the curve is not bracketed, out-and-back passes, and a re-measure before reverting | Bench (`autofocus_saturn`, `focus_metric`) and one real recording. **No sweep on the sky** |
 | F10 | Crash after dragging a box; crash on every close | Frame-size guard; atexit no longer calls a freed mount | Not stated as re-checked |
-| F11 | The wrong target name; Uranus captured on Saturn's settings | `CurrentTargetName()`; Mercury, Uranus and Neptune profiles | Bench |
+| F11 | The wrong target name; Uranus captured on Saturn's settings | `CurrentTargetName()`; Mercury, Uranus and Neptune profiles. **133.2b**: the files, record and summary take the same name, and a run on another object's profile is called out | Bench |
 | F12 | **Mount pointing about 8° off** | **None.** The code stops trusting the mount's pointing for naming | **Open** |
 | F13 | Saturn faded 255 → 154 in 90 s (dew or haze) | Autofocus tolerates a fade | **Cause open** |
 
@@ -165,3 +165,59 @@ wording with no weather, with dew risk elevated, and with dew risk safe.
 
 **Owed on the sky:** checklist item 52, a real fade, to see whether these
 thresholds are right in practice.
+
+### 133.2b, 2026-11-08: the files say the right planet
+
+Asked for by the owner: *"make sure the hardware build has the fixes for the
+correct object in the view window, the correct planets on output"*.
+
+**What was already right, in both builds.** The object panel and the share
+view name the target through #105's `CurrentTargetName`, which is not behind
+`RADUK_EMULATOR`. CI builds the hardware configuration on every PR. A GoTo
+loads the target's own profile, and since #105 every planet has one, Uranus
+included. So the night's exact case, GoTo Uranus, now loads Uranus's settings
+and files the run as Uranus.
+
+**What was not.** The outputs each named the target their own way, so they
+could disagree with the panel and with each other:
+
+| Output | Before | Now |
+|---|---|---|
+| File name | the active profile's prefix | named for the target when the profile is another object's or generic (`TargetNaming.h`) |
+| `.json` record / FITS `OBJECT` | the GoTo target only: empty after a restart or a hand slew | the same target as the file |
+| Session summary | the active profile's name | the same target as the file |
+| Assistant context | the GoTo target, else the file prefix | the panel's target |
+
+The rule for the file name (`NameRecording`, tested in
+`tests/target_naming.cpp`, 15 checks):
+
+- **The configured prefix stands** when there is no target, or the target is
+  the profile's own object.
+- **A prefix someone chose also stands**: one typed in the panel, or a
+  satellite pass's.
+- **Otherwise the run is named for the target.**
+- **A target on another object's profile is called out** on the notification
+  bar ("Recording Uranus on the Saturn profile's settings"), because the
+  settings are wrong as well as the name. Generic profiles (Planet Focus,
+  Star, DSO) are for any target, so they do not raise this.
+
+It is applied in `CaptureManager::StartRecording` through a new
+`SetPrefixSource`, so every route into a recording is named the same way:
+RECORD, the remote command, autorun, and the format-change restart.
+
+**One deliberate limit.** `rig.ini` `LastTarget` carries the target over to the
+next session, so the panel is right after a restart. The files do not take a
+carried-over name, because the startup profile is always Jupiter: a Jupiter
+night with no GoTo would otherwise be filed as yesterday's Saturn. Until a
+GoTo or a profile pick, the files take the object profile's name, and the bar
+says "Filed as Jupiter: GoTo or pick the profile if this is Saturn".
+
+`CurrentTargetName` is now consulted on every status tick, not only while a
+panel is open. It tells a GoTo from a profile pick by which one changed since
+it last looked, so looking only occasionally could take two changes in the
+wrong order.
+
+**Gated.** `tests/target_naming.cpp` passes under g++. `main.cpp` compiles
+cleanly with mingw in both the hardware and the emulator configuration, and so
+does `CaptureManager.cpp`. **Not run on the rig.** Checklist item 54 covers
+it.

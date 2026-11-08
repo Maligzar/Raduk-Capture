@@ -128,6 +128,15 @@ public:
     void SetObservationSource(std::function<void(ObservationRecord&)> fn) {
         m_obsSource = std::move(fn);
     }
+    // 2026-11-08: who names the run. Called on the thread that calls
+    // StartRecording(), before the file path is built, with the
+    // configured prefix; returns the prefix to use. Like the
+    // observation source, set once, so every route into a recording --
+    // RECORD, the remote command, a format-change restart -- is named
+    // the same way. Unset, the configured prefix is used.
+    void SetPrefixSource(std::function<std::string(const std::string&)> fn) {
+        m_prefixSource = std::move(fn);
+    }
     // Path of the most recently written record, empty if none yet.
     const std::string& LastObservationPath() const { return m_lastObsPath; }
 
@@ -277,10 +286,11 @@ private:
 
     // ── File naming ────────────────────────────────────────────
 
-    std::string BuildFilePath(int width, int height, int bitDepth);
+    std::string BuildFilePath(const std::string& prefix, int width, int height, int bitDepth);
 
     std::string     m_lastPath;      // most recently finished recording
     std::function<void(ObservationRecord&)> m_obsSource;
+    std::function<std::string(const std::string&)> m_prefixSource;
     ObservationRecord m_obs;         // this run's record, filled at start
     std::string     m_lastObsPath;
     void WriteObservationRecord();

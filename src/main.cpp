@@ -113,6 +113,7 @@
 #include "core/AutorunRunner.h"
 #include "core/SeeingMonitor.h"
 #include "core/AutoExposureAssistant.h"
+#include "core/TargetNaming.h"     // 2026-11-08: one name for the target, files included
 
 using namespace raduk::core;
 using namespace raduk::gui;
@@ -170,6 +171,12 @@ static raduk::core::NexStarMount* g_mountForCrash = nullptr;
 // restarts in rig.ini [Session] LastTarget. The planet the mount points
 // at is used only when nothing has been chosen, because the mount's
 // pointing model can be degrees off (it was ~8 deg that night).
+// True once this session has made a choice of its own (a GoTo, an
+// object's profile, or the planet at the mount), rather than only
+// carrying rig.ini's LastTarget over from an earlier one. The panels
+// show a carried-over name; the files do not take it (see targetNow).
+static bool g_targetChosenThisSession = false;
+
 static std::string CurrentTargetName(const std::string& gotoTarget,
                                      const std::string& profileName,
                                      const std::string& planetAtMount) {
@@ -184,15 +191,12 @@ static std::string CurrentTargetName(const std::string& gotoTarget,
         lastGoto = gotoTarget;          // what was already there is not news
         lastProfile = profileName;
     }
-    auto isGeneric = [](const std::string& n) {
-        return n.empty() || _stricmp(n.c_str(), "Planet Focus") == 0 ||
-               _stricmp(n.c_str(), "Planet_Focus") == 0 ||
-               _stricmp(n.c_str(), "Star") == 0 || _stricmp(n.c_str(), "DSO") == 0;
-    };
+    auto isGeneric = [](const std::string& n) { return raduk::core::IsGenericProfileName(n); };
     std::string chosen;
     if (gotoTarget != lastGoto)       { lastGoto = gotoTarget;   if (!gotoTarget.empty()) chosen = gotoTarget; }
     if (profileName != lastProfile)   { lastProfile = profileName; if (!isGeneric(profileName)) chosen = profileName; }
     if (chosen.empty() && target.empty() && !planetAtMount.empty()) chosen = planetAtMount;
+    if (!chosen.empty()) g_targetChosenThisSession = true;
     if (!chosen.empty() && chosen != target) {
         target = chosen;
         WritePrivateProfileStringA("Session", "LastTarget", target.c_str(), ini.c_str());
@@ -4119,9 +4123,73 @@ static int RunApp(bool useEmulator) {
     // only place the settings in force are certain to be. A value that
     // cannot be read is left unknown and the record omits it -- it is
     // never filled with a plausible guess.
+    // What the telescope is on, one answer for every place that says it:
+    // the object panel, the share caption, the observation record, the
+    // file name, the session summary and the assistant. Before
+    // 2026-11-08 the record took the GoTo target alone, the file name
+    // and the summary the profile, so the panel could say Uranus while
+    // the files said Saturn.
+    auto targetNow = [&]() -> std::string {
+        const TargetProfile* ap = profiles.Active();
+        return CurrentTargetName(gotoPanel.CurrentTarget(),
+                                 ap ? ap->name : std::string(),
+                                 gotoPanel.PlanetAtMount());
+    };
+
+    // The target as the FILES give it: the files, the observation record
+    // and the session summary must agree with each other. A name only
+    // carried over from an earlier session (rig.ini LastTarget) is good
+    // enough for the panel after a restart, but not to file a run under:
+    // the startup profile is always Jupiter, so a Jupiter night with no
+    // GoTo would be filed as yesterday's planet. Then an object's own
+    // profile is the better word; a generic one (Planet Focus) has
+    // nothing to say, and the carried-over name is all there is.
+    auto outputTarget = [&]() -> std::string {
+        const std::string t = targetNow();
+        if (g_targetChosenThisSession) return t;
+        const TargetProfile* ap = profiles.Active();
+        if (ap && !raduk::core::IsGenericProfileName(ap->name)) return ap->name;
+        return t;
+    };
+
+    // Each run is named for its target (TargetNaming.h has the rule),
+    // and a run on another object's profile is called out, since its
+    // settings are that object's.
+    capturer.SetPrefixSource([&](const std::string& configured) -> std::string {
+        const TargetProfile* ap = profiles.Active();
+        const std::string pname = ap ? ap->name : std::string();
+        const std::string pdef  = ap ? (ap->filePrefix.empty() ? ap->name : ap->filePrefix)
+                                     : std::string();
+        const std::string target = outputTarget();
+        const std::string shown  = targetNow();
+        if (!g_targetChosenThisSession && !shown.empty() &&
+            !raduk::core::SameNameIgnoreCase(shown, pname) &&
+            !raduk::core::IsGenericProfileName(pname)) {
+            // The panel says last session's target; the run is filed
+            // under the profile. Say which, so it can be put right.
+            Log("[CAPTURE] Filed as %s; the last target was %s (no GoTo or profile pick yet)\n",
+                pname.c_str(), shown.c_str());
+            notifBar.NotifyWarn(L"Filed as " + raduk::core::ToWide(pname) +
+                                L": GoTo or pick the profile if this is " +
+                                raduk::core::ToWide(shown));
+        }
+        const raduk::core::RecordingName n =
+            raduk::core::NameRecording(configured, pname, pdef, target);
+        if (n.renamed)
+            Log("[CAPTURE] Named for the target: %s (profile %s)\n",
+                n.prefix.c_str(), pname.c_str());
+        if (n.settingsMismatch) {
+            Log("[CAPTURE] Recording %s on the %s profile\n", target.c_str(), pname.c_str());
+            slog.Capture("Recording %s on the %s profile", target.c_str(), pname.c_str());
+            notifBar.NotifyWarn(L"Recording " + raduk::core::ToWide(target) + L" on the " +
+                                raduk::core::ToWide(pname) + L" profile's settings");
+        }
+        return n.prefix;
+    });
+
     capturer.SetObservationSource([&](raduk::core::ObservationRecord& r) {
         r.appVersion = RADUK_VERSION_A;
-        r.target = gotoPanel.CurrentTarget();
+        r.target = outputTarget();
         if (const TargetProfile* ap = profiles.Active()) r.profile = ap->name;
         if (cam.IsOpen()) {
             r.exposureMs = cam.GetControlValue(ControlId::ExposureUs) / 1000.0;
@@ -6497,7 +6565,7 @@ static int RunApp(bool useEmulator) {
                 // filename -- and after Phase 85 the active profile is
                 // authoritative, so there is no reason to guess.
                 {
-                    const std::string& tgt = gotoPanel.CurrentTarget();
+                    const std::string tgt = targetNow();
                     aiState.targetName = tgt.empty() ? controls.GetFilePrefix()
                                                      : tgt;
                     const TargetProfile* ap = profiles.Active();
@@ -7341,6 +7409,13 @@ static int RunApp(bool useEmulator) {
                 }
                 statusWindow.Update(sd);
 
+                // Every tick, not only while a panel is up:
+                // CurrentTargetName tells a GoTo from a profile pick by
+                // which changed since it last looked, so if it looked
+                // only now and then, two changes in between would be
+                // taken in the wrong order.
+                (void)targetNow();
+
                 // ── Phase 89: the share view's caption ─────────
                 // Only when it is up. Everything here is already read
                 // on this tick for something else, so the whole cost
@@ -7354,12 +7429,7 @@ static int RunApp(bool useEmulator) {
                     // The active profile IS the target on this rig --
                     // the profiles are per-object -- so it is the right
                     // thing to fall back to.
-                    {
-                        const auto* ap = profiles.Active();
-                        sc.target = CurrentTargetName(gotoPanel.CurrentTarget(),
-                                                      ap ? ap->name : std::string(),
-                                                      gotoPanel.PlanetAtMount());
-                    }
+                    sc.target = targetNow();
                     sc.rig       = "Celestron 8SE  \xc2\xb7  ZWO ASI678MC";
                     sc.fps       = fps;
                     sc.recording = sd.recording;
@@ -7389,12 +7459,7 @@ static int RunApp(bool useEmulator) {
                     // startup profile, and with the mount's pointing
                     // model ~8 deg off (2026-11-07) PlanetAtMount found
                     // nothing either. Remembered in rig.ini [Session].
-                    {
-                        const auto* ap2 = profiles.Active();
-                        oc.target = CurrentTargetName(gotoPanel.CurrentTarget(),
-                                                      ap2 ? ap2->name : std::string(),
-                                                      gotoPanel.PlanetAtMount());
-                    }
+                    oc.target = targetNow();
 
                     // Resolve only when the name has changed. The
                     // record does not change while the telescope is
@@ -7709,8 +7774,8 @@ static int RunApp(bool useEmulator) {
             lastRA  = IMount::FormatRA(ra);
             lastDec = IMount::FormatDec(dec);
         }
-        const TargetProfile* activeP = profiles.Active();
-        std::string targetName = activeP ? activeP->name : "Unknown";
+        std::string targetName = outputTarget();
+        if (targetName.empty()) targetName = "Unknown";
 
         slog.WriteSummary(targetName,
                           summaryFramesRecorded, summaryFramesDropped,

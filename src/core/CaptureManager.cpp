@@ -19,8 +19,17 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     // Ensure output directory exists
     CreateDirectoryA(m_config.outputDir.c_str(), nullptr);
 
+    // Name the run for what the telescope is on (see SetPrefixSource).
+    // The configured prefix is not changed, so the panel keeps showing
+    // the operator's own setting.
+    std::string prefix = m_config.filePrefix;
+    if (m_prefixSource) {
+        const std::string named = m_prefixSource(prefix);
+        if (!named.empty()) prefix = named;
+    }
+
     // Build output filename
-    std::string path = BuildFilePath(width, height, bitDepth);
+    std::string path = BuildFilePath(prefix, width, height, bitDepth);
 
     // Allocate write buffer (RAM ring).
     // Phase 59 (review C3): reallocate when the per-slot CAPACITY no
@@ -421,7 +430,8 @@ void CaptureManager::WriterLoop() {
                             m_status.framesRecorded.load()); Say(b); }
 }
 
-std::string CaptureManager::BuildFilePath(int width, int height, int bitDepth) {
+std::string CaptureManager::BuildFilePath(const std::string& prefix,
+                                          int width, int height, int bitDepth) {
     time_t now = time(nullptr);
     struct tm t; localtime_s(&t, &now);
     char timebuf[32];
@@ -434,7 +444,7 @@ std::string CaptureManager::BuildFilePath(int width, int height, int bitDepth) {
     while (true) {
         char name[256];
         sprintf_s(name, "%s_%s_%s_%dx%d_%dbit_%04d.%s",
-            m_config.filePrefix.c_str(), timebuf,
+            prefix.c_str(), timebuf,
             m_config.frameType.c_str(),
             width, height, bitDepth, run,
             m_config.format == CaptureFormat::FITS ? "fits" : "ser");

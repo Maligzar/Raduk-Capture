@@ -99,6 +99,7 @@ $Tests = @(
     @{ Name = "night_coverage";  Sources = @() }
     @{ Name = "emulator_nexstar"; Sources = @() }
     @{ Name = "fade_watch";      Sources = @() }
+    @{ Name = "target_naming";   Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

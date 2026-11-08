@@ -183,11 +183,7 @@ inline void DrawFlatButton(const DRAWITEMSTRUCT* dis, bool openTab = false) {
     RECT tr = {cx + iconW, r.top, r.right - Theme::Space::XS, r.bottom};
     DrawTextW(hdc, text, n, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     SelectObject(hdc, oldf);
-    if (dis->itemState & ODS_FOCUS) {
-        RECT fr = dis->rcItem;
-        InflateRect(&fr, -2, -2);
-        DrawFocusRect(hdc, &fr);
-    }
+    Theme::FocusRing(hdc, dis->rcItem, dis->itemState);   // 132.6: not DrawFocusRect
 }
 
 } // namespace raduk::gui

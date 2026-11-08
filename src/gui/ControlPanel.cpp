@@ -291,7 +291,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 SetBkMode(hdc, TRANSPARENT);
                 SetTextColor(hdc, locked ? Theme::NV(Theme::Rgb::GREEN) : Theme::NV(Theme::Rgb::TEXT));
                 DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-                if (dis->itemState & ODS_FOCUS) DrawFocusRect(hdc, &r);
+                Theme::FocusRing(hdc, r, dis->itemState);   // 132.6
                 return TRUE;
             }
 
@@ -337,7 +337,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                 if (old) SelectObject(hdc, old);
                 if (f) DeleteObject(f);
-                if (dis->itemState & ODS_FOCUS) DrawFocusRect(hdc, &r);
+                Theme::FocusRing(hdc, r, dis->itemState);   // 132.6
                 return TRUE;
             }
 
@@ -437,7 +437,7 @@ LRESULT CALLBACK ControlPanel::PanelWndProc(HWND hwnd, UINT msg,
                 DrawTextW(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                 if (oldf) SelectObject(hdc, oldf);
                 if (f)    DeleteObject(f);
-                if (dis->itemState & ODS_FOCUS) DrawFocusRect(hdc, &r);
+                Theme::FocusRing(hdc, r, dis->itemState);   // 132.6
                 return TRUE;
             }
 

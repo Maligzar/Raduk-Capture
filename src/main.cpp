@@ -2215,6 +2215,16 @@ static int RunApp(bool useEmulator) {
     };
     styleChrome();
 
+    // 132.6: start with keyboard focus cues hidden. These windows have
+    // no Tab navigation (no IsDialogMessage in the main loop), so a
+    // button only takes focus by being clicked, and the old dotted ring
+    // was left behind by every click. Pressing Alt brings the cues back
+    // (DefWindowProc clears the flag), as anywhere else in Windows.
+    // Once, not in styleChrome: a night-vision toggle is not a reason
+    // to hide cues someone has turned on.
+    for (HWND h : ourWindows())
+        SendMessageW(h, WM_CHANGEUISTATE, MAKEWPARAM(UIS_SET, UISF_HIDEFOCUS), 0);
+
     // Ctrl+Shift+End records the arrangement as it stands. Drag the
     // windows where you want them, press it once, and that is what the
     // app opens with from then on. A generated default will never guess

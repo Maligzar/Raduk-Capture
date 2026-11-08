@@ -899,3 +899,59 @@ reversal mid-ramp, and instant hover with motion off. It passes under g++.
   brighten slightly and settle within a blink;
 - press and hold: the face should darken and the word drop a pixel;
 - in night vision, the same, with nothing but red.
+
+### 132.6, 2026-11-08: focus rings and the selected row
+
+Planned as focus rings and dark scrollbars. Building it found two
+night-vision leaks, so it became focus rings and list selection. The
+scrollbars move to 132.6b; the reason is below.
+
+- **The focus ring.** `DrawFocusRect` is an XOR: it inverts what is under it.
+  On a night panel at (24, 0, 0), its dotted ring was (231, 255, 255), a
+  near-white cyan. It was on every owner-drawn button: `FlatButton.h` and
+  three in the control panel (PLANET LOCK and its neighbours).
+  `Theme::FocusRing` replaces it everywhere. It draws a solid 1 px ring at the
+  skimmed-label step, inside the face, through `Brush`, so night vision turns it
+  red. `tests/night_coverage.cpp` section 5 now fails on any `DrawFocusRect`
+  in `src/gui` or `main.cpp`. It was checked against the old code and caught
+  all three.
+- **Keyboard only.** The ring respects `ODS_NOFOCUSRECT`. `main.cpp` starts every
+  window with focus cues hidden (`WM_CHANGEUISTATE`, `UISF_HIDEFOCUS`). These
+  windows have no Tab navigation, so a button took focus only by being clicked,
+  and the old ring was left behind by every click. Pressing Alt brings the cues
+  back, as anywhere in Windows. The dialogs run `IsDialogMessage` and manage
+  their own.
+- **The selected row.** A de-themed list view paints its selection in
+  `COLOR_HIGHLIGHT`, the system blue. That was a bright blue bar in every GoTo
+  list, day and night. `StripDraw.h` now also subclasses each list's parent,
+  where item custom draw arrives. It paints a selected row whole: BORDER, the
+  signal colour's 2 px bar at the left, every column's text in Text at the
+  column's own alignment, and a drawn check box in the passes list. Unselected
+  rows stay the control's own, already on tokens. It paints rather than clearing
+  `LVIS_SELECTED` for the paint, because that trick sends `LVN_ITEMCHANGED` to
+  GoTo's handlers in the middle of a paint.
+
+**Still Windows' own, and still not red at night:**
+
+- **List grid lines.** `LVS_EX_GRIDLINES` draws them in a system grey.
+- **The list's focus ring on an unselected row.** The control draws it
+  internally.
+- **Every scrollbar.**
+
+The scrollbars need either the undocumented dark-mode calls, or owner-painted
+bars replacing the controls' own `WS_VSCROLL`. `SetWindowTheme(L"DarkMode_Explorer")`
+alone was the plan. It would also re-theme the list views: their selection and
+header, the same blue this stage removes. On Windows 10 it may not darken the bar
+at all without the undocumented app-mode call. Neither can be seen from here,
+so 132.6b will be a stage with a rig check of its own.
+
+**Gated.** `night_coverage` section 5. `main.cpp` and `ControlPanel.cpp`
+compile cleanly with mingw.
+
+**Not seen on screen.** Owner check:
+
+- in GoTo, select a row, day and night: it should be a raised grey (red at
+  night) bar with a thin bar at its left, not blue;
+- in the passes list, the selected row's check box should still show and toggle;
+- click a button: no ring should be left behind. Press Alt, then click: a solid
+  ring, red at night.

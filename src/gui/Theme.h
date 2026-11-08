@@ -925,6 +925,28 @@ namespace Theme {
         return p;
     }
 
+    // ── Phase 132.6: the keyboard focus ring ──────────────────
+    //
+    // DrawFocusRect is an XOR: it INVERTS what is under it. On a night
+    // panel at (24, 0, 0) that is (231, 255, 255), a near-white cyan
+    // dotted ring, the one thing on the screen with green and blue in
+    // it. So the owner-drawn controls draw this instead: a solid 1 px
+    // ring at the skimmed-label step, inside the face, through Brush and
+    // so through NV.
+    //
+    // Only when Windows says focus cues are on (no ODS_NOFOCUSRECT), so
+    // a mouse click does not leave a ring behind; main.cpp starts each
+    // window with cues hidden when the last input was the mouse.
+    inline bool FocusRingShown(UINT itemState) {
+        return (itemState & ODS_FOCUS) != 0 && (itemState & ODS_NOFOCUSRECT) == 0;
+    }
+    inline void FocusRing(HDC dc, RECT r, UINT itemState, int inset = 2) {
+        if (!FocusRingShown(itemState)) return;
+        InflateRect(&r, -inset, -inset);
+        if (r.right - r.left < 2 || r.bottom - r.top < 2) return;
+        FrameRect(dc, &r, Brush(Rgb::TEXT_DIM));
+    }
+
     // ── D2: the chrome Windows draws for us ───────────────────
     //
     // Every colour the app paints itself goes through NV(). What stays

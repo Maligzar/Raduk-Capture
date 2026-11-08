@@ -19,6 +19,20 @@
 //   not hue, as the control panel's own tabs do -- and a hairline
 //   along the bottom. Clicks and keys are still the control's own.
 //
+// Phase 132.6: the selected row. A de-themed list paints its selection
+// in COLOR_HIGHLIGHT, the system's blue, in day mode and at night: a
+// bright blue bar on a red screen. Item custom draw goes to the list's
+// PARENT, not the list, so the parent is subclassed too, answering only
+// NM_CUSTOMDRAW from its own list views. A selected row is painted
+// whole -- BORDER, the signal colour's 2 px bar at its left edge, every
+// column's text in Text, and the check box where a list has them --
+// and the control is told to skip its own. Unselected rows are left to
+// the control, which already paints them from the tokens.
+//
+// Painting the row rather than unsetting its selected state for the
+// paint: the usual trick of clearing LVIS_SELECTED and restoring it
+// would send LVN_ITEMCHANGED to GoTo's own handlers mid-paint.
+//
 // Found by class, like Theme::StyleStockControls, so a list or a tab
 // strip added later is styled without being registered anywhere.
 // Installing twice is harmless: SetWindowSubclass with the same id
@@ -47,6 +61,7 @@ namespace strip_detail {
 
 constexpr UINT_PTR kHeaderSubclassId = 0x1323F01;
 constexpr UINT_PTR kTabSubclassId    = 0x1323F02;
+constexpr UINT_PTR kListParentSubclassId = 0x1326A01;   // 132.6
 
 inline void HLine(HDC dc, int x0, int x1, int y, COLORREF c) {
     HPEN p = CreatePen(PS_SOLID, 1, c);
@@ -135,6 +150,88 @@ inline LRESULT CALLBACK ListProc(HWND h, UINT m, WPARAM w, LPARAM l,
     return DefSubclassProc(h, m, w, l);
 }
 
+// One selected row of `lv`, painted whole from the tokens.
+inline void PaintSelectedRow(HWND lv, HDC dc, int item) {
+    RECT row;
+    if (!ListView_GetItemRect(lv, item, &row, LVIR_BOUNDS)) return;
+    FillRect(dc, &row, Theme::Brush(Theme::Rgb::BORDER));
+    RECT bar = { row.left, row.top, row.left + 2, row.bottom };
+    FillRect(dc, &bar, Theme::Brush(Theme::Rgb::ACCENT));
+
+    if (ListView_GetExtendedListViewStyle(lv) & LVS_EX_CHECKBOXES) {
+        RECT lab;
+        if (ListView_GetItemRect(lv, item, &lab, LVIR_LABEL) && lab.left > row.left + 4) {
+            const int side = 11;
+            const int cx = (row.left + lab.left) / 2, cy = (row.top + row.bottom) / 2;
+            RECT box = { cx - side / 2, cy - side / 2, cx - side / 2 + side, cy - side / 2 + side };
+            FrameRect(dc, &box, Theme::Brush(Theme::Rgb::TEXT_DIM));
+            if (ListView_GetCheckState(lv, item)) {
+                InflateRect(&box, -3, -3);
+                FillRect(dc, &box, Theme::Brush(Theme::Rgb::TEXT));
+            }
+        }
+    }
+
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, Theme::NV(Theme::Rgb::TEXT));
+    HWND hdr = ListView_GetHeader(lv);
+    const int cols = hdr ? Header_GetItemCount(hdr) : 1;
+    for (int c = 0; c < (cols > 0 ? cols : 1); ++c) {
+        RECT cr;
+        if (c == 0) {
+            if (!ListView_GetItemRect(lv, item, &cr, LVIR_LABEL)) continue;
+            cr.left += 2;
+        } else {
+            if (!ListView_GetSubItemRect(lv, item, c, LVIR_BOUNDS, &cr)) continue;
+            cr.left += 6;
+        }
+        cr.right -= 6;
+        if (cr.right <= cr.left) continue;
+        wchar_t text[256] = {};
+        ListView_GetItemText(lv, item, c, text, 256);
+        LVCOLUMNW col = {};
+        col.mask = LVCF_FMT;
+        UINT align = DT_LEFT;
+        if (ListView_GetColumn(lv, c, &col)) {
+            const int f = col.fmt & LVCFMT_JUSTIFYMASK;
+            align = (f == LVCFMT_RIGHT) ? DT_RIGHT : (f == LVCFMT_CENTER) ? DT_CENTER : DT_LEFT;
+        }
+        DrawTextW(dc, text, -1, &cr,
+                  align | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+    }
+}
+
+// The parent of a list view, answering its lists' item custom draw.
+inline LRESULT CALLBACK ListParentProc(HWND h, UINT m, WPARAM w, LPARAM l,
+                                       UINT_PTR, DWORD_PTR) {
+    if (m == WM_NOTIFY) {
+        auto* nh = reinterpret_cast<NMHDR*>(l);
+        if (nh && nh->code == NM_CUSTOMDRAW && nh->hwndFrom && GetParent(nh->hwndFrom) == h) {
+            wchar_t cls[32] = {};
+            if (GetClassNameW(nh->hwndFrom, cls, 32) > 0 && _wcsicmp(cls, WC_LISTVIEWW) == 0) {
+                auto* cd = reinterpret_cast<NMLVCUSTOMDRAW*>(l);
+                switch (cd->nmcd.dwDrawStage) {
+                    case CDDS_PREPAINT:
+                        return CDRF_NOTIFYITEMDRAW;
+                    case CDDS_ITEMPREPAINT: {
+                        const int item = (int)cd->nmcd.dwItemSpec;
+                        if (ListView_GetItemState(nh->hwndFrom, item, LVIS_SELECTED)) {
+                            PaintSelectedRow(nh->hwndFrom, cd->nmcd.hdc, item);
+                            return CDRF_SKIPDEFAULT;
+                        }
+                        return CDRF_DODEFAULT;
+                    }
+                    default:
+                        return CDRF_DODEFAULT;
+                }
+            }
+        }
+    } else if (m == WM_NCDESTROY) {
+        RemoveWindowSubclass(h, ListParentProc, kListParentSubclassId);
+    }
+    return DefSubclassProc(h, m, w, l);
+}
+
 // The tab strip, painted whole.
 inline LRESULT CALLBACK TabProc(HWND h, UINT m, WPARAM w, LPARAM l,
                                 UINT_PTR, DWORD_PTR) {
@@ -193,6 +290,10 @@ inline void StyleStrips(HWND top) {
         if (GetClassNameW(c, cls, 64) <= 0) return TRUE;
         if (_wcsicmp(cls, WC_LISTVIEWW) == 0) {
             SetWindowSubclass(c, strip_detail::ListProc, strip_detail::kHeaderSubclassId, 0);
+            if (HWND parent = GetParent(c))   // 132.6: the selected row
+                SetWindowSubclass(parent, strip_detail::ListParentProc,
+                                  strip_detail::kListParentSubclassId, 0);
+            InvalidateRect(c, nullptr, FALSE);
             if (HWND hdr = ListView_GetHeader(c)) InvalidateRect(hdr, nullptr, TRUE);
         } else if (_wcsicmp(cls, WC_TABCONTROLW) == 0) {
             SetWindowSubclass(c, strip_detail::TabProc, strip_detail::kTabSubclassId, 0);

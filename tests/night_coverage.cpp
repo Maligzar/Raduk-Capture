@@ -232,6 +232,29 @@ int main() {
         Check(true, "no other GDI paint call takes a bare RGB");
     }
 
+    // Phase 132.6: DrawFocusRect inverts what is under it, so on a night
+    // panel at (24, 0, 0) its ring is (231, 255, 255): cyan. Every
+    // owner-drawn control draws Theme::FocusRing instead.
+    printf("\n5. No XOR focus ring\n");
+    {
+        std::vector<std::string> files = {"src/main.cpp"};
+        std::error_code ec;
+        for (const auto& e : std::filesystem::directory_iterator(root + "/src/gui", ec)) {
+            const std::string ext = e.path().extension().string();
+            if (ext == ".h" || ext == ".cpp") files.push_back("src/gui/" + e.path().filename().string());
+        }
+        int found = 0;
+        for (const std::string& f : files) {
+            const std::string s = StripLineComments(Read(root + "/" + f));
+            for (size_t at = s.find("DrawFocusRect("); at != std::string::npos;
+                 at = s.find("DrawFocusRect(", at + 1)) {
+                ++found;
+                Check(false, f + " calls DrawFocusRect", "line " + std::to_string(LineOf(s, at)));
+            }
+        }
+        Check(found == 0, "nothing draws DrawFocusRect's inverted ring");
+    }
+
     printf("\n%s\n", g_fail ? "SOME CHECKS FAILED" : "ALL CHECKS PASSED");
     return g_fail ? 1 : 0;
 }

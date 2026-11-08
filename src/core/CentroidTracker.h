@@ -294,6 +294,7 @@ public:
     static constexpr int   CAL_OFFSET_MS    = 4000;  // one offset per axis, 40" at 10"/s
     static constexpr int   TAKEOVER_SETTLE_MS = 4000;
     static constexpr int   DRIFT_WINDOWS    = 3;     // after takeover, logged each
+    static constexpr float CAL_EDGE_MARGIN  = 0.2f;  // refuse when the planet is this near an edge
     static constexpr float GUIDE_DEADBAND_AS = 0.6f;  // continuous control needs little
     static constexpr int   LOST_GRACE_MS    = 8000;  // hold rates this long when the target goes
     static constexpr float GUIDE_KP         = 0.5f;   // 1/s: "/s of correction per " of error

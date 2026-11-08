@@ -483,6 +483,22 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
     float b0x, b0y;
     if (!_WaitCentroidAvg(CAL_SAMPLES, b0x, b0y))
         return finish(false, "no stable centroid to calibrate against");
+    // 2026-11-08: calibration started with Saturn 348 px from the top of
+    // the frame; its moves (~300 px) took it to 62 px, and the operator
+    // had to jog to keep it, which aborted the run. Refuse up front.
+    {
+        uint32_t fw = 0, fh = 0;
+        { std::lock_guard<std::mutex> lk(m_mutex); fw = m_frameW; fh = m_frameH; }
+        const float mx = fw * CAL_EDGE_MARGIN, my = fh * CAL_EDGE_MARGIN;
+        if (fw && fh && (b0x < mx || b0x > fw - mx || b0y < my || b0y > fh - my)) {
+            char why[200];
+            snprintf(why, sizeof(why),
+                     "the planet is near the edge of the frame (%.0f, %.0f of %ux%u) and "
+                     "calibration moves it a few hundred pixels - centre it roughly, then press again",
+                     b0x, b0y, fw, fh);
+            return finish(false, why);
+        }
+    }
     double az0, alt0; clk::time_point te0;
     if (!_ReadAxes(mount, az0, alt0, te0)) return finish(false, "the mount did not report its position");
     if (!_CalSettle(CAL_DRIFT_MS)) return finish(false, "aborted while measuring tracking");

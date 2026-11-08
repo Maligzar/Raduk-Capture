@@ -49,6 +49,7 @@
 #include "WindowChrome.h"
 #include "Theme.h"
 #include "AudienceLayout.h"
+#include "D2DShadow.h"
 #include "../core/ObjectKnowledgeDB.h"
 #include "../sky/SkyObject.h"
 
@@ -443,8 +444,10 @@ private:
 
     // ── D2D ───────────────────────────────────────────────────
     bool InitD2D() {
+        // 132.3e: a 1.1 factory when there is one, so the target can be
+        // asked for a device context and cards get a real blurred shadow.
         ID2D1Factory* factory = nullptr;
-        if (FAILED(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &factory)))
+        if (FAILED(CreateAudienceFactory(&factory)) || !factory)
             return false;
         RECT rc; GetClientRect(m_hwnd, &rc);
         m_w = rc.right; m_h = rc.bottom - m_chrome.CaptionHeight();
@@ -453,6 +456,7 @@ private:
             D2D1::HwndRenderTargetProperties(m_hwnd, D2D1::SizeU(rc.right, rc.bottom)), &m_rt);
         factory->Release();
         if (FAILED(hr)) return false;
+        m_shadow.Init(m_rt);   // false keeps the rings; nothing else depends on it
         IDWriteFactory* dw = nullptr;
         DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED,
                             __uuidof(IDWriteFactory), (IUnknown**)&dw);
@@ -468,6 +472,7 @@ private:
         if (m_fBody)  { m_fBody->Release();  m_fBody  = nullptr; }
         if (m_fBodyFit) { m_fBodyFit->Release(); m_fBodyFit = nullptr; }
         m_fBodyFitPx = 0.0f;
+        m_shadow.Release();
         if (m_rt)     { m_rt->Release();     m_rt     = nullptr; }
         // Last: MakeFonts creates the formats through it, and the sky
         // map crashed on every launch once for getting this order wrong.
@@ -920,6 +925,9 @@ private:
                        int level, float alpha) {
         const Theme::Shadow sh = Theme::ShadowFor(level);
         if (!audience::ShadowVisible(sh)) return;
+        // Phase 132.3e: the real blur when the target has one
+        // (D2DShadow.h). Everything below is the fallback.
+        if (m_shadow.Draw(card, sh, alpha)) return;
         // Black at an alpha, and NOT through Brush(): a shadow is the
         // absence of light, and NVf would make it a red glow. One
         // brush recoloured per ring rather than three created and
@@ -1105,6 +1113,7 @@ private:
     HWND                   m_hwnd   = nullptr;
     WindowChrome m_chrome;
     ID2D1HwndRenderTarget* m_rt     = nullptr;
+    CardShadow             m_shadow;   // 132.3e
     IDWriteFactory*        m_dwrite = nullptr;
     ID2D1SolidColorBrush*  m_brush  = nullptr;
     IDWriteTextFormat*     m_fTitle = nullptr;

@@ -395,6 +395,15 @@ void FrameAnalyzer::Run() {
             r.centroidSnr = tf.snr;
             r.centroidBgDN = tf.bgDN;
             r.centroidNoiseDN = tf.noiseDN;
+            // What autofocus maximises: 1000 / the planet's half-flux
+            // diameter (FocusMetric.h). Exposure and pixel noise cancel
+            // out of it, which the Laplacian sharpness does not.
+            if (tf.found) {
+                const FocusMeasure fm = MeasurePlanetFocus(buf.data(), w, h, bd, tf);
+                r.focusValid = fm.valid;
+                r.focusScore = fm.score;
+                r.focusHfdPx = fm.hfdPx;
+            }
             if (tf.found) {
                 r.centroidX     = tf.x;
                 r.centroidY     = tf.y;

@@ -6189,10 +6189,13 @@ static int RunApp(bool useEmulator) {
         // one analysis. So each V-curve point carried full single-frame
         // seeing noise instead of an 8-frame average — exactly why the fit
         // is unreliable in poor seeing.
-        if (freshAnalysis && lastAnalysis.valid && autofocus.IsRunning())
-            // Uncapped: the capped percentage sat at 100% near focus on
-            // Saturn (2026-11-07) and flattened the V-curve's top.
-            autofocus.SubmitSharpness(lastAnalysis.sharpnessUncapped,
+        // 2026-11-07, Saturn: the Laplacian sharpness (even uncapped) was
+        // flat across the sweep and jumped with exposure. Autofocus is fed
+        // the planet's half-flux diameter instead, as 1000/HFD, and only
+        // from frames where it was measured.
+        if (freshAnalysis && lastAnalysis.valid && autofocus.IsRunning() &&
+            lastAnalysis.focusValid)
+            autofocus.SubmitSharpness(lastAnalysis.focusScore,
                                       lastAnalysis.centroidValid,
                                       (int)lastAnalysis.centroidPeak);
 

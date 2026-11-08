@@ -28,6 +28,7 @@
 #include "StarMetrics.h"
 #include "SurfaceLock.h"
 #include "TargetFinder.h"
+#include "FocusMetric.h"
 
 namespace raduk::core {
 
@@ -131,6 +132,11 @@ struct AnalysisResult {
     float sharpnessPct = 0.0f;   // Laplacian variance 0-100%
     float sharpRaw     = 0.0f;   // diagnostic: variance before noise subtraction
     float sharpnessUncapped = 0.0f; // sharpnessPct's scale with no 100% cap (autofocus)
+    // Planetary focus (FocusMetric.h): 1000 / half-flux diameter of the
+    // target. What autofocus is fed; valid only with a target found.
+    bool  focusValid = false;
+    float focusScore = 0.0f;
+    float focusHfdPx = 0.0f;
 
     // ── Star focus metrics (phase 95) ─────────────────────────
     //

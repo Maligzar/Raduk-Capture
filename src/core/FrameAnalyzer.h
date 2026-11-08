@@ -137,6 +137,7 @@ struct AnalysisResult {
     bool  focusValid = false;
     float focusScore = 0.0f;
     float focusHfdPx = 0.0f;
+    float targetFlux = 0.0f;   // 133.2: flux in the focus aperture, for FadeWatch
 
     // ── Star focus metrics (phase 95) ─────────────────────────
     //

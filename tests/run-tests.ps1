@@ -98,6 +98,7 @@ $Tests = @(
     @{ Name = "web_theme";       Sources = @() }
     @{ Name = "night_coverage";  Sources = @() }
     @{ Name = "emulator_nexstar"; Sources = @() }
+    @{ Name = "fade_watch";      Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

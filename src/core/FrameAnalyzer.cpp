@@ -403,6 +403,7 @@ void FrameAnalyzer::Run() {
                 r.focusValid = fm.valid;
                 r.focusScore = fm.score;
                 r.focusHfdPx = fm.hfdPx;
+                r.targetFlux = fm.fluxTotal;
             }
             if (tf.found) {
                 r.centroidX     = tf.x;

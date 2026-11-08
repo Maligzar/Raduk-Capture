@@ -33,6 +33,10 @@ struct FocusMeasure {
     float hfdPx  = 0.0f;
     float score  = 0.0f;   // 1000 / hfdPx
     float aperturePx = 0.0f;
+    // Phase 133.2: the summed flux above the sky in that aperture. Unlike
+    // the peak it does not change with focus, so FadeWatch can tell the
+    // sky dimming from a defocus.
+    float fluxTotal = 0.0f;
 };
 
 inline FocusMeasure MeasurePlanetFocus(const uint8_t* buf, uint32_t w, uint32_t h,
@@ -55,6 +59,7 @@ inline FocusMeasure MeasurePlanetFocus(const uint8_t* buf, uint32_t w, uint32_t 
     out.hfdPx = m.hfdPx;
     out.score = 1000.0f / m.hfdPx;
     out.aperturePx = ap;
+    out.fluxTotal = m.fluxTotal;
     return out;
 }
 

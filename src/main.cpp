@@ -106,6 +106,7 @@
 #include "profiles/TargetProfile.h"
 #include "profiles/ProfileManager.h"
 #include "core/AutofocusRoutine.h"
+#include "core/FadeWatch.h"
 #include "core/ADCAssistant.h"
 #include "core/DerotationLimit.h"
 #include "core/AutorunRunner.h"
@@ -1752,6 +1753,7 @@ static int RunApp(bool useEmulator) {
     // Phase 114: how the sky is doing against tonight's best, and the
     // runs so far, for the list written when the sequence ends.
     raduk::core::SeeingMonitor seeing;
+    raduk::core::FadeWatch fadeWatch;   // 133.2
     std::vector<raduk::core::RunResult> autorunResults;
     std::string autorunLastPath;
     bool autorunWasHolding = false;
@@ -6253,6 +6255,32 @@ static int RunApp(bool useEmulator) {
             autofocus.SubmitSharpness(lastAnalysis.focusScore,
                                       lastAnalysis.centroidValid,
                                       (int)lastAnalysis.centroidPeak);
+
+        // Phase 133.2: say so when the target fades during a sweep or a
+        // recording. The flux watched does not change with focus, so a
+        // sweep cannot set it off; an exposure or gain change resets it.
+        if (autofocus.IsRunning() || capturer.IsRecording()) {
+            if (freshAnalysis && lastAnalysis.valid && lastAnalysis.focusValid &&
+                lastAnalysis.targetFlux > 0.0f) {
+                const FadeAlert fade = fadeWatch.Add(
+                    std::chrono::duration<double>(
+                        std::chrono::steady_clock::now().time_since_epoch()).count(),
+                    lastAnalysis.targetFlux,
+                    (long)cam.GetControlValue(ControlId::ExposureUs),
+                    (int)cam.GetControlValue(ControlId::Gain));
+                if (fade.fired) {
+                    const auto ls = leoben.Get();
+                    const bool fresh = raduk::net::LeobenFresh(ls.last, (int64_t)std::time(nullptr));
+                    const std::wstring msg = FadeMessage(fade, fresh ? ls.last.dewRisk : std::string());
+                    Log("[FADE] target down %.0f%% in %.0f s (dew risk %s)\n",
+                        fade.dropFrac * 100.0, fade.windowSec,
+                        fresh && !ls.last.dewRisk.empty() ? ls.last.dewRisk.c_str() : "unknown");
+                    notifBar.NotifyWarn(msg);
+                }
+            }
+        } else {
+            fadeWatch.Reset();
+        }
 
         // Phase 114. Not during a sweep: defocus is not the sky.
         if (freshAnalysis && lastAnalysis.valid && autorun.Running() &&

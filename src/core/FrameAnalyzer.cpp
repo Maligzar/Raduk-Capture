@@ -279,8 +279,15 @@ void FrameAnalyzer::Run() {
                 buf.data(), w, h, bd, cx, cy, 128, &dbgRaw, &dbgNoise);
             r.sharpRaw   = (float)dbgRaw;
             r.sharpNoise = (float)dbgNoise;
-            if (variance > 0.0)
+            if (variance > 0.0) {
                 r.sharpnessPct = SharpnessPercent(variance);
+                // The same scale WITHOUT the 100% cap, for autofocus.
+                // 2026-11-07, Saturn: raw values ran ~2400 against a
+                // ceiling of 1000, so every frame near focus read 100% and
+                // the V-curve autofocus fits had a flat top -- it could not
+                // find the peak and wandered off it.
+                r.sharpnessUncapped = (float)(variance / SHARP_CEIL * 100.0);
+            }
 
             // ── Phase 95: the star answer, when asked for ───────
             //
@@ -362,67 +369,52 @@ void FrameAnalyzer::Run() {
             (void)avg;
         }
 
-        // ── Centroid: brightness-weighted centre of mass ────────
+        // ── Centroid: where the bright object is ────────────────
         // Search the FULL frame: Stage 1 (Searching) must find the
-        // planet wherever the GoTo pointing error left it — a central
-        // 50% window misses anything in the outer region. Threshold
-        // isolates the bright planet disk from background and stars.
+        // planet wherever the GoTo pointing error left it.
+        //
+        // 2026-11-07 field night: this used to threshold at 70% of the
+        // way from the frame mean to the single brightest pixel. At
+        // Saturn's gain 353 the brightest pixel is a hot pixel or a
+        // noise spike, the threshold sat above the whole disc, and the
+        // centroid wandered near the frame centre whatever the planet
+        // did. TargetFinder.h looks for light gathered over an area
+        // instead; see it for the method.
         {
-            uint32_t x0 = 0, x1 = w;
-            uint32_t y0 = 0, y1 = h;
-
-            // First pass: find mean and max in search region
-            uint64_t rsum = 0; uint32_t rcount = 0;
-            uint8_t  rmax = 0;
-            for (uint32_t py = y0; py < y1; py += 2) {
-                for (uint32_t px = x0; px < x1; px += 2) {
-                    uint8_t v = (bd == 8)
-                        ? buf[py * w + px]
-                        : (uint8_t)(reinterpret_cast<const uint16_t*>
-                            (buf.data())[py * w + px] >> 8);
-                    rsum += v; rcount++;
+            // The frame peak is still reported: autofocus logs it and
+            // the "too faint" message quotes it.
+            uint8_t rmax = 0;
+            for (uint32_t py = 0; py < h; py += 2)
+                for (uint32_t px = 0; px < w; px += 2) {
+                    const uint8_t v = getP(py, px);
                     if (v > rmax) rmax = v;
                 }
-            }
-
             r.centroidPeak = rmax;
-            // The gate exists so a dark frame does not produce a
-            // centroid out of noise. It used to fail silently, so a
-            // planet dimmer than this threshold looked identical to
-            // no planet at all -- and the acquisition chain above
-            // simply never became ready, with nothing said.
-            if (rcount > 0 && rmax <= AnalysisResult::CENTROID_MIN_PEAK) {
-                r.centroidTooFaint = true;
+
+            const TargetFind tf = FindBrightTarget(buf.data(), (int)w, (int)h, bd);
+            r.centroidSnr = tf.snr;
+            r.centroidBgDN = tf.bgDN;
+            r.centroidNoiseDN = tf.noiseDN;
+            // What autofocus maximises: 1000 / the planet's half-flux
+            // diameter (FocusMetric.h). Exposure and pixel noise cancel
+            // out of it, which the Laplacian sharpness does not.
+            if (tf.found) {
+                const FocusMeasure fm = MeasurePlanetFocus(buf.data(), w, h, bd, tf);
+                r.focusValid = fm.valid;
+                r.focusScore = fm.score;
+                r.focusHfdPx = fm.hfdPx;
             }
-            if (rcount > 0 && rmax > AnalysisResult::CENTROID_MIN_PEAK) {
-                float rmean = (float)rsum / rcount;
-                // Threshold: 70% of the way from mean to max
-                // This isolates the bright planet disk
-                float threshold = rmean + 0.7f * (rmax - rmean);
-
-                double wx = 0, wy = 0, wt = 0;
-                for (uint32_t py = y0; py < y1; py += 2) {
-                    for (uint32_t px = x0; px < x1; px += 2) {
-                        float v = (bd == 8)
-                            ? (float)buf[py * w + px]
-                            : (float)(reinterpret_cast<const uint16_t*>
-                                (buf.data())[py * w + px] >> 8);
-                        if (v >= threshold) {
-                            wx += (double)px * v;
-                            wy += (double)py * v;
-                            wt += v;
-                        }
-                    }
-                }
-
-                if (wt > 0) {
-                    r.centroidX     = (float)(wx / wt);
-                    r.centroidY     = (float)(wy / wt);
-                    r.centroidValid = true;
-                    m_lastCentroidX     = r.centroidX;
-                    m_lastCentroidY     = r.centroidY;
-                    m_lastCentroidValid = true;
-                }
+            if (tf.found) {
+                r.centroidX     = tf.x;
+                r.centroidY     = tf.y;
+                r.centroidValid = true;
+                m_lastCentroidX     = r.centroidX;
+                m_lastCentroidY     = r.centroidY;
+                m_lastCentroidValid = true;
+            } else if (rmax <= AnalysisResult::CENTROID_MIN_PEAK) {
+                // A frame this dark cannot hold a target at any SNR:
+                // say "raise exposure", not "nothing there".
+                r.centroidTooFaint = true;
             }
         }
 

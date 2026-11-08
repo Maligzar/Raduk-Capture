@@ -92,6 +92,13 @@ struct GuideCalibration {
     // Measured centroid response, px per ms of pulse
     float exPerMs = 0.0f, eyPerMs = 0.0f;  // East pulse
     float nxPerMs = 0.0f, nyPerMs = 0.0f;  // North pulse
+    // 2026-11-07: West and South measured separately. A NexStar pulse
+    // replaces the axis's tracking for its length, so West is not minus
+    // East (and South not minus North) unless tracking is negligible next
+    // to the guide rate -- on this rig it is not. Valid when fourWay.
+    bool  fourWay = false;
+    float wxPerMs = 0.0f, wyPerMs = 0.0f;  // West pulse
+    float sxPerMs = 0.0f, syPerMs = 0.0f;  // South pulse
     // Effective image scale derived from the East response and the
     // nominal guide rate — used only for deadbands and drift display;
     // corrections themselves stay in the pixel domain.
@@ -123,13 +130,14 @@ public:
     // Deadband must stay below CENTRE_THRESHOLD_PX on the real rig
     // (10px ≈ 2" at 0.203"/px) or dwell could never be reached.
     static constexpr float S2_AGGRESSIVENESS  = 0.20f;
-    static constexpr int   S2_MAX_PULSE_MS    = 200;
+    // Rate-offset pulses cost no tracking, so they can be long (2026-11-07).
+    static constexpr int   S2_MAX_PULSE_MS    = 1500;
     static constexpr float S2_DEADBAND_ARCSEC = 2.0f;
     static constexpr int   S2_RATE_MS         = 500;
 
     // Stage 3 — Locked
     static constexpr float S3_AGGRESSIVENESS  = 0.50f;
-    static constexpr int   S3_MAX_PULSE_MS    = 500;
+    static constexpr int   S3_MAX_PULSE_MS    = 800;
     static constexpr float S3_DEADBAND_ARCSEC = 2.5f;
     static constexpr int   S3_RATE_MS         = 250;
 
@@ -155,12 +163,40 @@ public:
     static constexpr int   CENTROID_TIMEOUT_MS = 2000;
 
     // Phase 51 — calibration parameters
-    static constexpr int   CAL_PULSE_MS        = 800;   // per calibration pulse
+    static constexpr int   CAL_PULSE_MS        = 800;   // per calibration offset pulse (8" at 10"/s)
     static constexpr int   CAL_SAMPLES         = 4;     // centroids averaged per measurement
     static constexpr int   CAL_SETTLE_MS       = 700;   // post-pulse settle before measuring
     static constexpr int   CAL_STEP_TIMEOUT_MS = 8000;  // max wait for samples per step
     static constexpr float CAL_MIN_MOVE_PX     = 2.5f;  // min measurable pulse response
-    static constexpr float CAL_MIN_SIN_ANGLE   = 0.25f; // axes must be >~15 deg apart
+    // Axes must be >~45 deg apart. Azimuth and altitude motion are at
+    // right angles on the sky whatever the field rotation, and every good
+    // calibration in the logs is within a few degrees of 90. The old
+    // 0.25 (15 deg) passed tonight's (2026-11-07) 25-degree calibrations,
+    // which were drift plus a lost stop, and centring on them drove the
+    // planet away.
+    static constexpr float CAL_MIN_SIN_ANGLE   = 0.70f;
+    // Background drift is measured over this long before the pulses and
+    // subtracted from them. Each axis measurement spans ~2 s, and with
+    // 3-4"/s of ordinary tracking error that is ~35 px of drift against
+    // ~55 px of pulse: enough to tilt or swap the measured axes.
+    static constexpr int   CAL_DRIFT_MS        = 3000;
+    // Pulses per axis measurement (see measureAxis).
+    static constexpr int   CAL_MEASURE_PULSES  = 5;
+    // Backlash take-up before each axis is measured: pulse until the
+    // planet moves at least this far (a fully engaged pulse moved ~57 px
+    // on 2026-11-07), giving up after this many pulses (~10" each).
+    static constexpr float CAL_BACKLASH_MOVE_PX    = 15.0f;
+    static constexpr int   CAL_BACKLASH_MAX_PULSES = 12;
+    // The measured guide rate must be within these factors of rig.ini's.
+    // Wide on purpose (rig.ini's 7.5"/s is itself ~1.8x low on this
+    // rig), but it refuses the 88"/s that a runaway axis produced.
+    static constexpr float CAL_RATE_MAX_FACTOR = 40.0f;  // pulses run at rate 3 now, not rig.ini's rate 1
+    static constexpr float CAL_RATE_MIN_FACTOR = 0.25f;
+    // Centring gives up, stops the mount and discards the calibration
+    // when the planet ends up this much further from centre than its
+    // best, for this many correction cycles in a row.
+    static constexpr float RUNAWAY_GROWTH_PX   = 120.0f;
+    static constexpr int   RUNAWAY_CYCLES      = 6;
     // Phase 127, found by a scenario: a calibration where one axis barely
     // moves the target passed every other check, and image-only tracking
     // then drove the mount degrees off. On this alt-az fork the pulses
@@ -195,6 +231,13 @@ public:
 
     void SetCalibrationCallback(std::function<void(bool, const std::string&)> cb) {
         m_onCalibration = std::move(cb);
+    }
+
+    // Fired from Tick() when centring or guiding was abandoned because
+    // the planet kept moving away (see RUNAWAY_*): the mount has been
+    // stopped and the calibration discarded. Carries the reason.
+    void SetAbortCallback(std::function<void(const std::string&)> cb) {
+        m_onAbort = std::move(cb);
     }
 
     // ── Stage control — main thread only ─────────────────────
@@ -235,6 +278,31 @@ public:
     void StartCentering();
 
     bool HasCalibration() const;
+
+    // The capture format changed (size or position of the box). The
+    // guider holds its rates and re-references instead of reading the
+    // jump as a runaway. Any thread.
+    void NotifyFrameChanged() { m_frameChanged.store(true); }
+
+    // A guide "pulse" on this mount: the axis is driven at its own
+    // tracking rate plus or minus GUIDE_OFFSET_AS for ms, then tracking
+    // resumes. Needs the rates a calibration measures; false without
+    // them. Blocks for ms. Public for phase 47's click-to-recentre.
+    bool RatePulse(IMount* mount, GuideDirection dir, int ms);
+    static constexpr float GUIDE_OFFSET_AS = 10.0f;   // axis arcsec/s
+    static constexpr int   DIR_CHECK_MS    = 1000;
+    static constexpr int   CAL_OFFSET_MS    = 4000;  // one offset per axis, 40" at 10"/s
+    static constexpr int   TAKEOVER_SETTLE_MS = 4000;
+    static constexpr int   DRIFT_WINDOWS    = 3;     // after takeover, logged each
+    static constexpr float CAL_EDGE_MARGIN  = 0.2f;  // refuse when the planet is this near an edge
+    static constexpr float CAL_OFFSET_FRAC  = 0.15f; // offset motion at most this of the frame
+    static constexpr int   CAL_OFFSET_MIN_MS = 1000;
+    static constexpr float GUIDE_DEADBAND_AS = 0.6f;  // continuous control needs little
+    static constexpr int   LOST_GRACE_MS    = 8000;  // hold rates this long when the target goes
+    static constexpr float GUIDE_KP         = 0.5f;   // 1/s: "/s of correction per " of error
+    static constexpr float GUIDE_KP_LOCKED  = 0.3f;
+    static constexpr float GUIDE_KI         = 0.05f;  // 1/s^2
+    static constexpr float GUIDE_MAX_CORR_AS = 30.0f; // "/s either way
     GuideCalibration Calibration() const;
     void ClearCalibration();
 
@@ -324,6 +392,12 @@ private:
     // stage == Calibrating. Transitions the stage itself:
     // success → Centering, failure/abort → Searching.
     void _RunCalibration(IMount* mount);
+    bool _ReadAxes(IMount* mount, double& azDeg, double& altDeg,
+                   std::chrono::steady_clock::time_point& t);
+    void _DriveAxes(IMount* mount, float azRate, float altRate);
+    void _HandBack(IMount* mount, const char* why);
+    void _HoldRates(IMount* mount);
+    std::atomic<bool> m_frameChanged{false};
 
     void Run();
 
@@ -368,6 +442,15 @@ private:
 
     // ── Phase 51 calibration state — guarded by m_mutex ───────
     GuideCalibration m_cal;
+    // Rate-offset guiding (see RatePulse), guarded by m_mutex. Encoder
+    // units: axis arcsec/s, signed as GetAltAz reports the axis.
+    bool   m_ratesValid = false;
+    float  m_axisSign[2]    = { 1.0f, 1.0f };   // encoder sign of command direction 0
+    float  m_baseRateAs[2]  = { 0.0f, 0.0f };   // measured tracking rates, encoder "/s
+    float  m_integAs[2]     = { 0.0f, 0.0f };   // integral correction, "/s
+    // True while this app has taken the axes from the hand control.
+    std::atomic<bool> m_appDriving{false};
+    int    m_prevTrackMode = 0;
     std::string      m_calMessage;
 
     // ── Main-thread callbacks ──────────────────────────────────
@@ -375,6 +458,13 @@ private:
     std::function<void()>            m_onDwell;
     std::function<void(float,float)> m_onDrift;
     std::function<void(bool, const std::string&)> m_onCalibration;
+    std::function<void(const std::string&)>       m_onAbort;
+    std::atomic<bool> m_abortPending{false};
+    std::string       m_abortMessage;   // guarded by m_mutex
+
+    // Correction thread only: stop both axes, discard the calibration,
+    // drop back to Searching and end auto-acquire.
+    void _AbortGuiding(IMount* mount, const std::string& why);
 };
 
 } // namespace raduk::core

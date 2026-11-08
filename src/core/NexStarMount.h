@@ -39,6 +39,7 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include "IMount.h"
 
@@ -114,7 +115,6 @@ public:
 
     // ── GoTo ───────────────────────────────────────────────────
     bool GoToRADec(double raHours, double decDegrees) override;
-    bool IsSlewing() override;
     void CancelGoTo() override;
 
     // ── Tracking ───────────────────────────────────────────────
@@ -169,7 +169,21 @@ public:
     // Pushes RigConfig's site and the PC clock in one call.
     bool PushSiteAndTime();
 
-    bool IsAligned() override;
+    // 2026-11-07, the viewfinder froze at times while slewing. The UI
+    // thread asked the mount these two over serial: IsAligned on every
+    // GoTo-panel tick (~2 s), IsSlewing on every tick of a GoTo. Each
+    // waits its turn on a 9600-baud link shared with the position poll
+    // and the alt/az reader, and while the mount slews fast the hand
+    // control answers slowly or not at all -- 500 ms per timed-out read.
+    // The preview stopped drawing for as long as that took.
+    //
+    // Both now answer from a cache the poll thread keeps. IsAligned is
+    // refreshed every poll cycle. IsSlewing is refreshed every 500 ms
+    // for a few seconds after anyone asks, so a GoTo is followed at the
+    // same cadence as before; a successful GoTo marks the cache slewing
+    // at once, so a stale "not slewing" cannot announce it complete.
+    bool IsAligned() override { return m_alignedCache.load(); }
+    bool IsSlewing() override;
 
     // ── Guide pulses (Phase 5) ─────────────────────────────────
     bool PulseGuide(GuideDirection dir, int durationMs) override;
@@ -254,6 +268,52 @@ private:
     bool         m_trackingValid     = false;
     int          m_trackingReadFails = 0;
     bool         m_cacheValid     = false;
+
+    // Serial round-trips behind the cached IsAligned / IsSlewing. Poll
+    // thread (and Connect, before it starts) only.
+    bool QueryAligned(bool* answered = nullptr);
+    bool QuerySlewing(bool& slewing);
+    std::atomic<bool>      m_alignedCache{false};
+    std::atomic<bool>      m_slewingCache{false};
+    std::atomic<long long> m_slewInterestUntilMs{0};  // steady ms
+    std::atomic<long long> m_lastSlewQueryMs{0};
+    static long long SteadyMs();
+
+    // ── Motion commands, one at a time (2026-11-07) ────────────
+    //
+    // Every 'P' motion command (jog start, jog stop, guide pulse start
+    // and stop) used to be written fire-and-forget, never waiting for
+    // the hand control's '#'. The hand control takes one command at a
+    // time; fast jogging fed it ~28 commands in 2 s and it stopped
+    // responding, and a guide pulse's STOP that arrived while it was
+    // still busy was lost -- the axis then ran on at guide rate
+    // (~14"/s), which poisoned calibration and drove centring away.
+    // That was the "sometimes it works and sometimes it does not".
+    //
+    // Now callers only record what each axis should be doing; one
+    // sender thread passes it on, waiting for each '#' before the next.
+    // A request superseded before it was sent is dropped (twenty taps
+    // become a few commands, and the last -- usually a stop -- is the
+    // one that goes). A stop that is not acknowledged is resent, and
+    // after three failures the mount is emergency-stopped. The UI never
+    // waits; PulseGuide waits for its own start and stop to be acked.
+    struct AxisCmd {
+        char     cmd[8]{};
+        uint64_t want = 0;      // sequence of the latest request
+        uint64_t sent = 0;      // sequence the mount has acknowledged
+        bool     isStop = true;
+        int      failures = 0;
+        bool     moving = false;  // last ACKED command on this axis was a move
+    };
+    uint64_t QueueMotion(int axis, const char cmd[8], bool isStop);
+    bool     WaitMotionSent(int axis, uint64_t seq, int timeoutMs);
+    void     CommandLoop();
+    std::mutex              m_cmdMutex;
+    std::condition_variable m_cmdCv;     // work queued / stopping
+    std::condition_variable m_sentCv;    // a command was acknowledged
+    AxisCmd                 m_axisCmd[2];
+    std::thread             m_cmdThread;
+    std::atomic<bool>       m_cmdRunning{false};
 };
 
 } // namespace raduk::core

@@ -191,19 +191,24 @@ public:
         m_profiles.clear();
 
         // Standard profiles — loaded in order shown in ControlPanel dropdown
+        // Every planet (2026-11-08: the list stopped at Venus, so Mercury,
+        // Uranus and Neptune had no profile of their own).
         static const char* defaults[] = {
-            "jupiter.ini", "saturn.ini",      "mars.ini",
-            "venus.ini",   "moon.ini",        "dso.ini",
-            "star.ini",    "planet_focus.ini"
+            "jupiter.ini", "saturn.ini",  "mars.ini",    "venus.ini",
+            "mercury.ini", "uranus.ini",  "neptune.ini",
+            "moon.ini",    "dso.ini",     "star.ini",    "planet_focus.ini"
         };
 
         static TargetProfile (*factories[])() = {
-            DefaultJupiter, DefaultSaturn,      DefaultMars,
-            DefaultVenus,   DefaultMoon,        DefaultDSO,
-            DefaultStar,    DefaultPlanetFocus
+            DefaultJupiter, DefaultSaturn,  DefaultMars,    DefaultVenus,
+            DefaultMercury, DefaultUranus,  DefaultNeptune,
+            DefaultMoon,    DefaultDSO,     DefaultStar,    DefaultPlanetFocus
         };
+        static_assert(sizeof(defaults) / sizeof(defaults[0]) ==
+                      sizeof(factories) / sizeof(factories[0]),
+                      "every profile file needs its factory");
 
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < (int)(sizeof(defaults) / sizeof(defaults[0])); i++) {
             std::string path = m_dir + "\\" + defaults[i];
             TargetProfile profile = factories[i](); // start with defaults
 

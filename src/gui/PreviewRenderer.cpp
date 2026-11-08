@@ -601,8 +601,19 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
     // No PushAxisAlignedClip needed — D2D is attached to the preview child HWND
     // which is automatically hardware-clipped to its own bounds.
 
+    // The frame must also be the size the buffers were made for. Field
+    // crash, 2026-11-07 (three times, also on the build before): drag a
+    // box and SetFrameSize shrinks m_rgbBuffer at once, but a frame of
+    // the OLD, larger size can still arrive for a pass or two. The
+    // debayer writes frame->width x height pixels, so it ran off the
+    // end of the new buffer -- an access violation about a second after
+    // the box, whenever that timing came up. A stale frame is skipped:
+    // the next one is the new size.
     bool hasFrame = (frame && frame->data && m_rgbBuffer
-                     && frame->width > 0 && frame->height > 0);
+                     && frame->width > 0 && frame->height > 0
+                     && (int)frame->width  == m_frameWidth
+                     && (int)frame->height == m_frameHeight
+                     && (size_t)frame->width * frame->height * 3 <= m_rgbBufferSize);
 
     float topMargin = 36.0f, bottomMargin = 30.0f;
     float availW = pw, availH = ph - topMargin - bottomMargin;

@@ -4,6 +4,7 @@
 // ============================================================
 
 #include "NexStarMount.h"
+#include "CoreLog.h"
 #include "RigConfig.h"
 #include <ctime>
 #include <cstdio>
@@ -18,7 +19,7 @@ namespace raduk::core {
 
 bool NexStarMount::Connect(const std::string& comPort, int baudRate) {
     if (m_connected) {
-        printf("[NexStarMount] Already connected\n");
+        CoreLog("[NexStarMount] Already connected\n");
         return false;
     }
 
@@ -29,7 +30,7 @@ bool NexStarMount::Connect(const std::string& comPort, int baudRate) {
         0, nullptr, OPEN_EXISTING, 0, nullptr);
 
     if (m_serial == INVALID_HANDLE_VALUE) {
-        printf("[NexStarMount] Failed to open %s: %lu\n", comPort.c_str(), GetLastError());
+        CoreLog("[NexStarMount] Failed to open %s: %lu\n", comPort.c_str(), GetLastError());
         return false;
     }
 
@@ -60,15 +61,15 @@ bool NexStarMount::Connect(const std::string& comPort, int baudRate) {
     // Verify connection
     int major = 0, minor = 0;
     if (GetVersion(major, minor)) {
-        printf("[NexStarMount] Connected on %s — HC version %d.%d\n",
+        CoreLog("[NexStarMount] Connected on %s — HC version %d.%d\n",
                comPort.c_str(), major, minor);
     } else {
         char resp[4] = {}; int len = 0;
         if (SendCommand("K", 1, resp, 2, len) && resp[0] == 'K') {
-            printf("[NexStarMount] Connected on %s — echo OK (no version)\n",
+            CoreLog("[NexStarMount] Connected on %s — echo OK (no version)\n",
                    comPort.c_str());
         } else {
-            printf("[NexStarMount] Connected on %s — WARNING: no response to echo\n"
+            CoreLog("[NexStarMount] Connected on %s — WARNING: no response to echo\n"
                    "  Mount may be off or HC not ready. Commands will be attempted.\n",
                    comPort.c_str());
         }
@@ -83,14 +84,20 @@ bool NexStarMount::Connect(const std::string& comPort, int baudRate) {
     // model, and the app reconnects far more often than the mount is
     // re-aligned -- pushing unconditionally cost a hard-won alignment
     // across an app restart on 2026-10-08.
-    if (IsAligned()) {
-        printf("[NexStarMount] Mount reports ALIGNED - leaving its site and "
+    m_alignedCache.store(QueryAligned());
+    if (m_alignedCache.load()) {
+        CoreLog("[NexStarMount] Mount reports ALIGNED - leaving its site and "
                "clock untouched\n");
     } else {
-        printf("[NexStarMount] Mount reports NOT aligned - pushing site and "
+        CoreLog("[NexStarMount] Mount reports NOT aligned - pushing site and "
                "clock\n");
         PushSiteAndTime();
     }
+
+    // Motion command sender (see the header): before anything can jog.
+    for (auto& a : m_axisCmd) a = AxisCmd{};
+    m_cmdRunning.store(true);
+    m_cmdThread = std::thread(&NexStarMount::CommandLoop, this);
 
     // Start background poll thread — keeps position cache fresh
     // without ever blocking the main/UI thread on serial I/O
@@ -111,9 +118,33 @@ bool NexStarMount::Connect(const std::string& comPort, int baudRate) {
 void NexStarMount::Disconnect() {
     if (!m_connected) return;
 
-    // Emergency stop before disconnecting — always leave mount stopped
-    printf("[NexStarMount] Disconnect: sending emergency stop\n");
-    EmergencyStop();
+    // Leave the mount stopped -- but STILL TRACKING. This used to be an
+    // emergency stop, whose rate-0 stops switch tracking off on both axes:
+    // every close of the app (and there were many on 2026-11-07) left the
+    // scope standing still while the sky moved, and the planet was gone
+    // when it reopened. An axis this app is moving is stopped through the
+    // sender, which turns tracking back on; the emergency stop is only for
+    // a stop that cannot be confirmed.
+    {
+        bool anyMoving = false;
+        {
+            std::lock_guard<std::mutex> lk(m_cmdMutex);
+            for (const auto& a : m_axisCmd)
+                if (a.moving || a.want != a.sent) anyMoving = true;
+        }
+        if (anyMoving && m_cmdRunning.load()) {
+            const char s0[8] = { 'P', 2, 16, 36, 0, 0, 0, 0 };
+            const char s1[8] = { 'P', 2, 17, 36, 0, 0, 0, 0 };
+            const uint64_t q0 = QueueMotion(0, s0, true);
+            const uint64_t q1 = QueueMotion(1, s1, true);
+            const bool ok = WaitMotionSent(0, q0, 1500) && WaitMotionSent(1, q1, 1500);
+            CoreLog("[NexStarMount] Disconnect: motion stopped %s\n",
+                    ok ? "(tracking kept)" : "NOT confirmed - emergency stop");
+            if (!ok) EmergencyStop();
+        } else {
+            CoreLog("[NexStarMount] Disconnect: nothing moving, tracking left as it is\n");
+        }
+    }
 
     // Stop watchdog first (it uses serial via EmergencyStop)
     m_watchdogRunning.store(false);
@@ -122,6 +153,13 @@ void NexStarMount::Disconnect() {
     // Stop poll thread
     m_pollRunning.store(false);
     if (m_pollThread.joinable()) m_pollThread.join();
+
+    // Stop the motion sender. EmergencyStop above dropped anything
+    // still queued, so nothing can start a motor after it.
+    m_cmdRunning.store(false);
+    m_cmdCv.notify_all();
+    m_sentCv.notify_all();
+    if (m_cmdThread.joinable()) m_cmdThread.join();
 
     // Close the handle under the serial mutex — a UI/correction thread
     // already inside SendCommand could otherwise race ReadFile against
@@ -132,7 +170,7 @@ void NexStarMount::Disconnect() {
         CloseHandle(m_serial);
         m_serial = INVALID_HANDLE_VALUE;
     }
-    printf("[NexStarMount] Disconnected from %s\n", m_comPort.c_str());
+    CoreLog("[NexStarMount] Disconnected from %s\n", m_comPort.c_str());
 }
 
 // ── Low-level serial I/O ───────────────────────────────────────
@@ -178,14 +216,21 @@ bool NexStarMount::SendCommand(const char* cmd, int cmdLen,
 bool NexStarMount::SendCommandNoWait(const char* cmd, int cmdLen) {
     std::lock_guard<std::mutex> lock(m_serialMutex);
     if (!m_connected) {
-        printf("[NexStarMount] SendCommandNoWait: not connected\n");
+        CoreLog("[NexStarMount] SendCommandNoWait: not connected\n");
         return false;
     }
-    PurgeComm(m_serial, PURGE_RXCLEAR);
+    // No PurgeComm here. It used to clear the receive buffer before
+    // every jog, which threw away the '#' acks of earlier fire-and-forget
+    // commands while m_pendingAcks went on counting them, so the next
+    // synchronous command sat in DrainPendingAcks for a full 500 ms read
+    // timeout waiting for an ack that had been deleted -- holding the
+    // serial lock, and with it the UI thread's next jog, the whole time.
+    // Junk without a '#' is bounded by the drain and purged by
+    // SendCommand after it.
     DWORD written = 0;
     BOOL ok = WriteFile(m_serial, cmd, cmdLen, &written, nullptr);
     if (!ok || (int)written != cmdLen) {
-        printf("[NexStarMount] WriteFile failed: ok=%d written=%lu expected=%d err=%lu\n",
+        CoreLog("[NexStarMount] WriteFile failed: ok=%d written=%lu expected=%d err=%lu\n",
                (int)ok, written, cmdLen, GetLastError());
         return false;
     }
@@ -252,14 +297,35 @@ bool NexStarMount::GoToRADec(double raHours, double decDegrees) {
 
     char resp[4] = {};
     int len = 0;
-    return SendCommand(cmd, 18, resp, 2, len);
+    const bool ok = SendCommand(cmd, 18, resp, 2, len);
+    if (ok) {
+        // Slewing from now on, until a query made AFTER this says not:
+        // the next one is held off 500 ms so the mount has begun.
+        const long long now = SteadyMs();
+        m_slewingCache.store(true);
+        m_lastSlewQueryMs.store(now);
+        m_slewInterestUntilMs.store(now + 5000);
+    }
+    return ok;
 }
 
+long long NexStarMount::SteadyMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+// Cached; see the header. Asking keeps the 500 ms refresh going.
 bool NexStarMount::IsSlewing() {
+    m_slewInterestUntilMs.store(SteadyMs() + 5000);
+    return m_slewingCache.load();
+}
+
+bool NexStarMount::QuerySlewing(bool& slewing) {
     char resp[4] = {};
     int len = 0;
     if (!SendCommand("L", 1, resp, 2, len)) return false;
-    return (resp[0] == '1');
+    slewing = (resp[0] == '1');
+    return true;
 }
 
 void NexStarMount::CancelGoTo() {
@@ -282,9 +348,19 @@ bool NexStarMount::SetTrackingMode(TrackingMode mode) {
     char resp[4] = {};
     int len = 0;
     if (!SendCommand(cmd, 2, resp, 2, len)) {
-        printf("[NexStarMount] Tracking %s: no response to command\n",
+        CoreLog("[NexStarMount] Tracking %s: no response to command\n",
                TrackingModeName(mode));
         return false;
+    }
+    // The motion sender re-asserts THIS mode after a stop. The readback
+    // below has failed all night on this hand control (2026-11-07), and
+    // without this the cache stayed ALT-AZ after a 'T 0': a stop while
+    // the guider drives the axes would have handed tracking back to the
+    // hand control behind its back. The readback still corrects it.
+    {
+        std::lock_guard<std::mutex> lk(m_cacheMutex);
+        m_cachedTracking = mode;
+        m_trackingValid  = true;
     }
 
     // Phase 64: the '#' acknowledgement means the command was RECEIVED,
@@ -295,7 +371,7 @@ bool NexStarMount::SetTrackingMode(TrackingMode mode) {
     std::this_thread::sleep_for(std::chrono::milliseconds(250));
     int actual = ReadTrackingModeRaw();
     if (actual < 0) {
-        printf("[NexStarMount] Tracking %s: ACKed but readback failed\n",
+        CoreLog("[NexStarMount] Tracking %s: ACKed but readback failed\n",
                TrackingModeName(mode));
         return false;
     }
@@ -306,7 +382,7 @@ bool NexStarMount::SetTrackingMode(TrackingMode mode) {
     }
 
     bool ok = (actual == (int)mode);
-    printf("[NexStarMount] Tracking %s requested, mount reports %s : %s\n",
+    CoreLog("[NexStarMount] Tracking %s requested, mount reports %s : %s\n",
            TrackingModeName(mode),
            TrackingModeName(static_cast<TrackingMode>(actual)),
            ok ? "confirmed" : "NOT RUNNING (mount likely unaligned)");
@@ -329,11 +405,134 @@ bool NexStarMount::SlewFixed(int axis, int direction, int rate) {
     cmd[4] = static_cast<char>(rate);
     cmd[5] = 0; cmd[6] = 0; cmd[7] = 0;
 
-    printf("[NexStarMount] SlewFixed axis=%d dir=%d rate=%d\n", axis, direction, rate);
-    // Fire-and-forget — don't block waiting for '#' acknowledgement
-    bool ok = SendCommandNoWait(cmd, 8);
-    if (!ok) printf("[NexStarMount] SlewFixed write FAILED\n");
-    return ok;
+    CoreLog("[NexStarMount] SlewFixed axis=%d dir=%d rate=%d\n", axis, direction, rate);
+    // Queued for the sender, which waits for the '#'. Never blocks here.
+    if (!m_connected || !m_cmdRunning.load()) return false;
+    QueueMotion(axis == 0 ? 0 : 1, cmd, rate == 0);
+    return true;
+}
+
+// ── The motion sender ──────────────────────────────────────────
+
+uint64_t NexStarMount::QueueMotion(int axis, const char cmd[8], bool isStop) {
+    std::lock_guard<std::mutex> lk(m_cmdMutex);
+    AxisCmd& a = m_axisCmd[axis];
+    // A stop for an axis this app is not moving, with nothing queued, is
+    // not sent at all: on this mount ANY rate-0 stop switches that axis's
+    // tracking off (2026-11-07), so a "just in case" stop is not harmless.
+    if (isStop && !a.moving && a.want == a.sent) return a.sent;
+    memcpy(a.cmd, cmd, 8);
+    a.isStop = isStop;
+    a.failures = 0;
+    const uint64_t seq = ++a.want;
+    m_cmdCv.notify_all();
+    return seq;
+}
+
+bool NexStarMount::WaitMotionSent(int axis, uint64_t seq, int timeoutMs) {
+    std::unique_lock<std::mutex> lk(m_cmdMutex);
+    return m_sentCv.wait_for(lk, std::chrono::milliseconds(timeoutMs), [&] {
+        // Superseded counts as done: a later command for this axis has
+        // been acknowledged, so this one no longer describes the mount.
+        return m_axisCmd[axis].sent >= seq || !m_cmdRunning.load();
+    }) && m_axisCmd[axis].sent >= seq;
+}
+
+void NexStarMount::CommandLoop() {
+    CoreLog("[NexStarMount] Motion sender started\n");
+    while (m_cmdRunning.load()) {
+        int axis = -1; char cmd[8]; uint64_t seq = 0; bool isStop = false;
+        {
+            std::unique_lock<std::mutex> lk(m_cmdMutex);
+            m_cmdCv.wait_for(lk, std::chrono::milliseconds(100), [&] {
+                return !m_cmdRunning.load() ||
+                       m_axisCmd[0].want != m_axisCmd[0].sent ||
+                       m_axisCmd[1].want != m_axisCmd[1].sent;
+            });
+            if (!m_cmdRunning.load()) break;
+            // Stops first: if both axes have work, the one stopping goes
+            // ahead of the one starting.
+            for (int pass = 0; pass < 2 && axis < 0; ++pass)
+                for (int i = 0; i < 2; ++i) {
+                    const AxisCmd& a = m_axisCmd[i];
+                    if (a.want != a.sent && (pass == 1 || a.isStop)) { axis = i; break; }
+                }
+            if (axis < 0) continue;
+            memcpy(cmd, m_axisCmd[axis].cmd, 8);
+            seq = m_axisCmd[axis].want;
+            isStop = m_axisCmd[axis].isStop;
+        }
+
+        char resp[4] = {}; int len = 0;
+        const long long t0 = SteadyMs();
+        const bool ok = SendCommand(cmd, 8, resp, 2, len);   // waits for '#'
+        // Every motion command and how long the hand control took to
+        // acknowledge it: the record that was missing on 2026-11-07.
+        CoreLog("[MOUNT-IO] axis %d %s (P %d %d %d %d) %s in %lld ms\n",
+                axis, isStop ? "stop" : "move",
+                (int)(unsigned char)cmd[1], (int)(unsigned char)cmd[3],
+                (int)(unsigned char)cmd[4], (int)(unsigned char)cmd[5],
+                ok ? "acked" : "NO ACK", SteadyMs() - t0);
+
+        bool emergency = false;
+        bool reassertTracking = false;
+        {
+            std::lock_guard<std::mutex> lk(m_cmdMutex);
+            AxisCmd& a = m_axisCmd[axis];
+            if (ok) {
+                if (isStop) reassertTracking = true;   // every stop, see below
+                a.moving = !isStop;
+                if (a.sent < seq) a.sent = seq;
+                a.failures = 0;
+                m_sentCv.notify_all();
+            } else if (a.want == seq) {
+                // A move that may have reached the motor although its ack
+                // did not come back: assume it did, so a later stop is sent.
+                if (!isStop) a.moving = true;
+                // Left queued, so it is retried. A start that will not go
+                // is given up after three tries; a stop never is, and three
+                // failures escalate.
+                if (++a.failures >= 3) {
+                    if (a.isStop) emergency = true;
+                    CoreLog("[NexStarMount] Axis %d %s not acknowledged after 3 tries%s\n",
+                           axis, a.isStop ? "STOP" : "move",
+                           a.isStop ? " - EMERGENCY STOP" : " - dropped");
+                    a.sent = a.want;
+                    m_sentCv.notify_all();
+                }
+            }
+        }
+        // 2026-11-07, measured at the rig: a 'P' rate-0 stop goes to the
+        // motor board and zeroes the axis, tracking included, and the hand
+        // control took 10 s or more to resume it (camera drift went from
+        // 0.9"/s to 13.5"/s after one 250 ms jog). So calibration measured
+        // with tracking off, and centring -- a pulse every half second --
+        // never let it resume, which is how the planet ran away. After a
+        // stop that ends a move, tracking is switched straight back on in
+        // the mode the mount was in.
+        if (reassertTracking && !emergency) {
+            TrackingMode mode = OFF; bool known = false;
+            {
+                std::lock_guard<std::mutex> lk(m_cacheMutex);
+                mode = m_cachedTracking; known = m_trackingValid;
+            }
+            if (known && mode != OFF) {
+                const char t[2] = { 'T', (char)mode };
+                char r[4] = {}; int rl = 0;
+                const long long t1 = SteadyMs();
+                const bool tok = SendCommand(t, 2, r, 2, rl);
+                CoreLog("[MOUNT-IO] tracking %s re-asserted after axis %d stop: %s in %lld ms\n",
+                        TrackingModeName(mode), axis, tok ? "acked" : "NO ACK",
+                        SteadyMs() - t1);
+            } else {
+                CoreLog("[MOUNT-IO] axis %d stopped; tracking mode %s, not re-asserted\n",
+                        axis, known ? "OFF" : "unknown");
+            }
+        }
+        if (emergency) EmergencyStop();
+        else if (!ok) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    CoreLog("[NexStarMount] Motion sender stopped\n");
 }
 
 // ── Variable rate ──────────────────────────────────────────────
@@ -357,19 +556,18 @@ bool NexStarMount::SlewVariable(int axis, int direction, double arcsecPerSec) {
     cmd[5] = static_cast<char>(r.lo);
     cmd[6] = 0; cmd[7] = 0;
 
-    printf("[NexStarMount] SlewVariable axis=%d dir=%d %.2f\"/s "
+    CoreLog("[NexStarMount] SlewVariable axis=%d dir=%d %.2f\"/s "
            "(sent %.2f, bytes %u/%u)\n",
            axis, direction, arcsecPerSec, r.actualArcsecPerSec,
            (unsigned)r.hi, (unsigned)r.lo);
-    // Fire-and-forget, like SlewFixed: the mount is already moving and
-    // a blocking read here would stall the jog.
-    bool ok = SendCommandNoWait(cmd, 8);
-    if (!ok) printf("[NexStarMount] SlewVariable write FAILED\n");
-    return ok;
+    // Queued for the sender, like SlewFixed. A zero rate is a stop.
+    if (!m_connected || !m_cmdRunning.load()) return false;
+    QueueMotion(axis == 0 ? 0 : 1, cmd, r.hi == 0 && r.lo == 0);
+    return true;
 }
 
 void NexStarMount::StopSlew(int axis) {
-    printf("[NexStarMount] StopSlew axis=%d\n", axis);
+    CoreLog("[NexStarMount] StopSlew axis=%d\n", axis);
     SlewFixed(axis, 0, 0);
 }
 
@@ -440,7 +638,7 @@ bool NexStarMount::SendCommandFixed(const char* cmd, int cmdLen,
 bool NexStarMount::GetSiteLocation(double& latDeg, double& lonDeg) {
     unsigned char r[8] = {};
     if (!SendCommandFixed("w", 1, r, 8)) {
-        printf("[NexStarMount] Site read: no reply\n");
+        CoreLog("[NexStarMount] Site read: no reply\n");
         return false;
     }
 
@@ -456,20 +654,20 @@ bool NexStarMount::GetSiteLocation(double& latDeg, double& lonDeg) {
     // unusual.
     if (r[1] > 59 || r[2] > 59 || r[5] > 59 || r[6] > 59 ||
         la < -90.0 || la > 90.0 || lo < -180.0 || lo > 180.0) {
-        printf("[NexStarMount] Site read: implausible reply, ignoring\n");
+        CoreLog("[NexStarMount] Site read: implausible reply, ignoring\n");
         return false;
     }
     // A mount that has never been given a site reports 0,0. That is a
     // real place, but as a mount default it means "unset" -- adopting it
     // is the very mistake this work exists to prevent.
     if (la == 0.0 && lo == 0.0) {
-        printf("[NexStarMount] Site read: mount reports 0,0 (never set)\n");
+        CoreLog("[NexStarMount] Site read: mount reports 0,0 (never set)\n");
         return false;
     }
 
     latDeg = la;
     lonDeg = lo;
-    printf("[NexStarMount] Site read from mount: %.1f%c %.1f%c\n",
+    CoreLog("[NexStarMount] Site read from mount: %.1f%c %.1f%c\n",
            la < 0 ? -la : la, la < 0 ? 'S' : 'N',
            lo < 0 ? -lo : lo, lo < 0 ? 'W' : 'E');
     return true;
@@ -505,7 +703,7 @@ bool NexStarMount::SetSiteLocation(double latDeg, double lonDeg) {
 
     char resp[4] = {}; int len = 0;
     bool ok = SendCommand(cmd, 9, resp, 2, len);
-    printf("[NexStarMount] Site -> %d%c%02d'%02d\" %s, %d%c%02d'%02d\" %s : %s\n",
+    CoreLog("[NexStarMount] Site -> %d%c%02d'%02d\" %s, %d%c%02d'%02d\" %s : %s\n",
            latD, 0xB0, latM, latS, (latDeg < 0.0 ? "S" : "N"),
            lonD, 0xB0, lonM, lonS, (lonDeg < 0.0 ? "W" : "E"),
            ok ? "accepted" : "REFUSED");
@@ -530,7 +728,7 @@ bool NexStarMount::SetDateTime(int hour, int minute, int second,
 
     char resp[4] = {}; int len = 0;
     bool ok = SendCommand(cmd, 9, resp, 2, len);
-    printf("[NexStarMount] Clock -> %04d-%02d-%02d %02d:%02d:%02d UTC%+d dst=%d : %s\n",
+    CoreLog("[NexStarMount] Clock -> %04d-%02d-%02d %02d:%02d:%02d UTC%+d dst=%d : %s\n",
            year, month, day, hour, minute, second,
            utcOffsetHours, dst ? 1 : 0, ok ? "accepted" : "REFUSED");
     return ok;
@@ -582,32 +780,37 @@ bool NexStarMount::PushSiteAndTime() {
         // finding, and better surfaced before a session than after.
         double km = cfg.DistanceKmTo(mLat, mLon);
         if (km > 25.0) {
-            printf("[NexStarMount] WARNING: mount site differs from rig.ini "
+            CoreLog("[NexStarMount] WARNING: mount site differs from rig.ini "
                    "by %.0f km - one of them is wrong\n", km);
         } else {
-            printf("[NexStarMount] Mount site agrees with rig.ini (%.1f km)\n", km);
+            CoreLog("[NexStarMount] Mount site agrees with rig.ini (%.1f km)\n", km);
         }
         okSite = SetSiteLocation(cfg.siteLatDeg, cfg.siteLonDeg);
     } else if (cfg.SiteIsSet()) {
         okSite = SetSiteLocation(cfg.siteLatDeg, cfg.siteLonDeg);
     } else {
-        printf("[NexStarMount] No site known to either the app or the mount "
+        CoreLog("[NexStarMount] No site known to either the app or the mount "
                "- alt/az tracking cannot be computed\n");
     }
     bool okTime = SetDateTime(lt.tm_hour, lt.tm_min, lt.tm_sec,
                               lt.tm_mon + 1, lt.tm_mday, lt.tm_year + 1900,
                               utcOffset, dst);
     if (!okSite || !okTime)
-        printf("[NexStarMount] Site/clock push incomplete -- alt-az tracking "
+        CoreLog("[NexStarMount] Site/clock push incomplete -- alt-az tracking "
                "may be refused\n");
     return okSite && okTime;
 }
 
-bool NexStarMount::IsAligned() {
+// False for "no reply" as well as for "not aligned"; `answered` says
+// which. Only an answer may change the cached state -- a busy hand
+// control timing out once must not read as a lost alignment (it did,
+// 2026-11-07, refusing a recall seconds after a GoTo had worked).
+bool NexStarMount::QueryAligned(bool* answered) {
     char resp[4] = {};
     int len = 0;
-    if (!SendCommand("J", 1, resp, 2, len)) return false;
-    return (resp[0] == 1);
+    const bool ok = SendCommand("J", 1, resp, 2, len) && len >= 2;
+    if (answered) *answered = ok;
+    return ok && (resp[0] == 1);
 }
 
 // ── Encoding/Decoding ──────────────────────────────────────────
@@ -638,7 +841,17 @@ bool NexStarMount::PulseGuide(GuideDirection dir, int durationMs) {
 
     // Rate 1 ≈ 0.5x sidereal (~7.5 arcsec/s) on NexStar hand controllers.
     // CentroidTracker's MS_PER_ARCSEC pulse sizing assumes roughly this rate.
-    constexpr int GUIDE_RATE = 1;
+    // 2026-11-07: rate 3, not 1. A fixed-rate pulse REPLACES the axis's
+    // tracking for its duration rather than adding to it, and at rate 1
+    // (~12"/s measured) the pulse and the alt-az tracking rate (up to
+    // ~15"/s) were the same size: East and West responses were not
+    // mirror images and centring drove the planet away. Fast, short pulses
+    // make tracking a small correction to the response.
+    // Rate 1 measured ~3.8"/s against ~16"/s of azimuth tracking (2026-11-07):
+    // a pulse REPLACES tracking, so at rate 1 East and West both moved the
+    // planet the same way. Rate 3, with pulses long enough to start the
+    // motor (120 ms did not; 400 ms is the next try).
+    constexpr int GUIDE_RATE = 1;   // centring uses CentroidTracker::RatePulse now
     constexpr int MAX_PULSE_MS = 1000; // hard safety cap
 
     if (durationMs < 10) return true;          // below mechanical resolution
@@ -647,16 +860,31 @@ bool NexStarMount::PulseGuide(GuideDirection dir, int durationMs) {
     int axis      = (dir == GuideDirection::East || dir == GuideDirection::West) ? 0 : 1;
     int direction = (dir == GuideDirection::East || dir == GuideDirection::North) ? 0 : 1;
 
-    if (!SlewFixed(axis, direction, GUIDE_RATE)) return false;
+    if (!m_cmdRunning.load()) return false;
+    const char start[8] = { 'P', 2, (char)(axis == 0 ? 16 : 17),
+                            (char)(direction == 0 ? 36 : 37),
+                            (char)GUIDE_RATE, 0, 0, 0 };
+    const char stop[8]  = { 'P', 2, (char)(axis == 0 ? 16 : 17), 36, 0, 0, 0, 0 };
+
+    // The pulse is timed from the START'S ACKNOWLEDGEMENT, not from when
+    // it was written: until the '#' comes back the motor has not begun.
+    const uint64_t s1 = QueueMotion(axis, start, false);
+    if (!WaitMotionSent(axis, s1, 1500)) {
+        // Not acknowledged: make sure it is not left running anyway.
+        const uint64_t s0 = QueueMotion(axis, stop, true);
+        WaitMotionSent(axis, s0, 2000);
+        CoreLog("[NexStarMount] PulseGuide: start not acknowledged\n");
+        return false;
+    }
     std::this_thread::sleep_for(std::chrono::milliseconds(durationMs));
 
-    // The stop MUST reach the mount — a started-but-unstopped pulse is a
-    // runaway. Retry the stop, and escalate to EmergencyStop if it won't send.
-    for (int attempt = 0; attempt < 3; attempt++) {
-        if (SlewFixed(axis, 0, 0)) return true;
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    }
-    printf("[NexStarMount] PulseGuide: stop failed to send — EMERGENCY STOP\n");
+    // The stop MUST reach the mount -- a started-but-unstopped pulse is a
+    // runaway, and on 2026-11-07 exactly that drove the mount off at the
+    // guide rate. The sender resends an unacknowledged stop and emergency-
+    // stops after three failures; this waits for it to be confirmed.
+    const uint64_t s2 = QueueMotion(axis, stop, true);
+    if (WaitMotionSent(axis, s2, 2500)) return true;
+    CoreLog("[NexStarMount] PulseGuide: stop not confirmed — EMERGENCY STOP\n");
     EmergencyStop();
     return false;
 }
@@ -666,15 +894,27 @@ bool NexStarMount::PulseGuide(GuideDirection dir, int durationMs) {
 // stores in cache. Main thread reads from cache — never blocks.
 
 void NexStarMount::PollLoop() {
-    printf("[NexStarMount] Poll thread started\n");
+    CoreLog("[NexStarMount] Poll thread started\n");
     int consecutiveFailures = 0;
 
     while (m_pollRunning.load()) {
         // Sleep 4 seconds between polls (interruptible in 100ms chunks)
         // Longer interval reduces serial bus contention with PulseGuide commands
         // from the centroid tracker. Position cache is still fresh enough for UI.
-        for (int i = 0; i < 40 && m_pollRunning.load(); i++)
+        //
+        // While someone is following a GoTo (IsSlewing asked within the
+        // last 5 s), the slewing state is refreshed every 500 ms in the
+        // gaps, so the UI never makes that round-trip itself.
+        for (int i = 0; i < 40 && m_pollRunning.load(); i++) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            const long long now = SteadyMs();
+            if (now < m_slewInterestUntilMs.load() &&
+                now - m_lastSlewQueryMs.load() >= 500) {
+                m_lastSlewQueryMs.store(now);
+                bool sl = false;
+                if (QuerySlewing(sl)) m_slewingCache.store(sl);
+            }
+        }
 
         if (!m_pollRunning.load()) break;
 
@@ -728,8 +968,11 @@ void NexStarMount::PollLoop() {
                     char tcmd = 't';
                     DWORD tw = 0;
                     if (WriteFile(m_serial, &tcmd, 1, &tw, nullptr) && tw == 1) {
+                        // The mode byte AND its '#': a '#' left in the
+                        // buffer would be counted by a later drain as a
+                        // jog's ack, and the real ack then misparsed.
                         DWORD got = 0;
-                        if (ReadFile(m_serial, tresp, 1, &got, nullptr) && got == 1) {
+                        if (ReadFile(m_serial, tresp, 2, &got, nullptr) && got >= 1) {
                             mode     = static_cast<TrackingMode>((unsigned char)tresp[0]);
                             modeRead = true;
                         }
@@ -750,22 +993,30 @@ void NexStarMount::PollLoop() {
                 // failing. Mark it unknown rather than asserting a state.
                 m_trackingValid = false;
                 if (m_trackingReadFails == TRACKING_READ_FAIL_LIMIT)
-                    printf("[NexStarMount] Tracking mode unreadable after %d "
+                    CoreLog("[NexStarMount] Tracking mode unreadable after %d "
                            "attempts - reporting UNKNOWN, not OFF\n",
                            TRACKING_READ_FAIL_LIMIT);
             }
             m_cacheValid     = true;
             consecutiveFailures = 0;
+        }
+        if (ok && len >= 17) {
+            // Alignment rarely changes; one 'J' a cycle keeps the cached
+            // answer honest without the UI ever asking. Outside the
+            // cache lock above, so the two mutexes are never nested.
+            bool answered = false;
+            const bool aligned = QueryAligned(&answered);
+            if (answered) m_alignedCache.store(aligned);
         } else {
             consecutiveFailures++;
             if (consecutiveFailures == 1)
-                printf("[NexStarMount] Poll: no response from HC (mount off or busy)\n");
+                CoreLog("[NexStarMount] Poll: no response from HC (mount off or busy)\n");
             else if (consecutiveFailures % 15 == 0)
-                printf("[NexStarMount] Poll: still no response (%d failures)\n",
+                CoreLog("[NexStarMount] Poll: still no response (%d failures)\n",
                        consecutiveFailures);
         }
     }
-    printf("[NexStarMount] Poll thread stopped\n");
+    CoreLog("[NexStarMount] Poll thread stopped\n");
 }
 
 // ── SAFETY: Emergency stop ─────────────────────────────────────
@@ -776,7 +1027,16 @@ void NexStarMount::PollLoop() {
 void NexStarMount::EmergencyStop() {
     if (!m_connected || m_serial == INVALID_HANDLE_VALUE) return;
 
-    printf("[NexStarMount] *** EMERGENCY STOP ***\n");
+    CoreLog("[NexStarMount] *** EMERGENCY STOP ***\n");
+
+    // Nothing still queued may start a motor after this. try_lock, not
+    // lock: this also runs from the crash handler, which may have
+    // interrupted a thread holding the queue's lock.
+    if (m_cmdMutex.try_lock()) {
+        for (auto& a : m_axisCmd) a.sent = a.want;
+        m_cmdMutex.unlock();
+        m_sentCv.notify_all();
+    }
 
     // Stop axis 0 (RA/Az) — rate 0
     {
@@ -803,7 +1063,7 @@ void NexStarMount::EmergencyStop() {
         m_pendingAcks.fetch_add(1);
     }
 
-    printf("[NexStarMount] Emergency stop sent on both axes\n");
+    CoreLog("[NexStarMount] Emergency stop sent on both axes\n");
 }
 
 // ── SAFETY: Watchdog thread ────────────────────────────────────
@@ -811,7 +1071,7 @@ void NexStarMount::EmergencyStop() {
 // If heartbeat goes stale (> WATCHDOG_TIMEOUT_MS), fires emergency stop.
 
 void NexStarMount::WatchdogLoop() {
-    printf("[NexStarMount] Watchdog started (timeout=%dms)\n",
+    CoreLog("[NexStarMount] Watchdog started (timeout=%dms)\n",
            WATCHDOG_TIMEOUT_MS);
 
     while (m_watchdogRunning.load()) {
@@ -831,9 +1091,9 @@ void NexStarMount::WatchdogLoop() {
 
         if (elapsedMs > WATCHDOG_TIMEOUT_MS) {
             if (!m_watchdogFired.load()) {
-                printf("[NexStarMount] *** WATCHDOG FIRED — heartbeat lost for %lldms ***\n",
+                CoreLog("[NexStarMount] *** WATCHDOG FIRED — heartbeat lost for %lldms ***\n",
                        elapsedMs);
-                printf("[NexStarMount] App may have frozen or crashed — stopping mount\n");
+                CoreLog("[NexStarMount] App may have frozen or crashed — stopping mount\n");
                 m_watchdogFired.store(true);
                 EmergencyStop();
             }
@@ -842,13 +1102,13 @@ void NexStarMount::WatchdogLoop() {
         } else {
             // Heartbeat OK — reset fired flag if it was set
             if (m_watchdogFired.load()) {
-                printf("[NexStarMount] Watchdog: heartbeat restored — watchdog reset\n");
+                CoreLog("[NexStarMount] Watchdog: heartbeat restored — watchdog reset\n");
                 m_watchdogFired.store(false);
             }
         }
     }
 
-    printf("[NexStarMount] Watchdog stopped\n");
+    CoreLog("[NexStarMount] Watchdog stopped\n");
 }
 
 } // namespace raduk::core

@@ -388,6 +388,89 @@ inline TargetProfile DefaultVenus() {
     return p;
 }
 
+// 2026-11-08: the profile list stopped at Venus, so Mercury, Uranus and
+// Neptune captured on whatever profile happened to be loaded (Uranus that
+// night ran on Saturn's settings). Starting points, to be tuned and saved
+// at the scope like the others.
+inline TargetProfile DefaultMercury() {
+    TargetProfile p;
+    p.name        = "Mercury";
+    p.filename    = "mercury.ini";
+    p.targetType  = "planet";
+    // Bright, small, and always low near the Sun: short exposures and a
+    // small box for frame rate against poor low-altitude seeing.
+    p.gain        = 150;
+    p.exposureMs  = 2.0;
+    p.gamma       = 50;
+    p.wbRed       = 52;
+    p.wbBlue      = 47;
+    p.usbBandwidth = 90;
+    p.highSpeed   = true;
+    p.roiWidth    = 640;
+    p.roiHeight   = 480;
+    p.binning     = 1;
+    p.imgType     = ASI_IMG_RAW8;
+    p.focusPosition = 168800;
+    p.limitValue  = 3000;
+    p.limitType   = "frames";
+    p.filePrefix  = "Mercury_";
+    p.notes = "Starting point. Always low near the Sun: short exposures, "
+              "small box, expect poor seeing. A red or IR filter helps.";
+    return p;
+}
+
+inline TargetProfile DefaultUranus() {
+    TargetProfile p;
+    p.name        = "Uranus";
+    p.filename    = "uranus.ini";
+    p.targetType  = "planet";
+    // About 3.7" -- ~18 px at this plate scale: a small, dim disc.
+    p.gain        = 400;
+    p.exposureMs  = 15.0;
+    p.gamma       = 50;
+    p.wbRed       = 52;
+    p.wbBlue      = 50;
+    p.usbBandwidth = 90;
+    p.highSpeed   = true;
+    p.roiWidth    = 640;
+    p.roiHeight   = 480;
+    p.binning     = 1;
+    p.imgType     = ASI_IMG_RAW8;
+    p.focusPosition = 168800;
+    p.limitValue  = 2000;
+    p.limitType   = "frames";
+    p.filePrefix  = "Uranus_";
+    p.notes = "Starting point. About 3.7\" (~18 px): high gain, longer "
+              "exposures than Saturn. Shows as a pale blue-green disc.";
+    return p;
+}
+
+inline TargetProfile DefaultNeptune() {
+    TargetProfile p;
+    p.name        = "Neptune";
+    p.filename    = "neptune.ini";
+    p.targetType  = "planet";
+    // About 2.3" -- ~11 px: the dimmest planet.
+    p.gain        = 450;
+    p.exposureMs  = 30.0;
+    p.gamma       = 50;
+    p.wbRed       = 50;
+    p.wbBlue      = 52;
+    p.usbBandwidth = 90;
+    p.highSpeed   = true;
+    p.roiWidth    = 640;
+    p.roiHeight   = 480;
+    p.binning     = 1;
+    p.imgType     = ASI_IMG_RAW8;
+    p.focusPosition = 168800;
+    p.limitValue  = 1500;
+    p.limitType   = "frames";
+    p.filePrefix  = "Neptune_";
+    p.notes = "Starting point. About 2.3\" (~11 px): the highest gain and "
+              "longest exposures of the planets.";
+    return p;
+}
+
 inline TargetProfile DefaultMoon() {
     TargetProfile p;
     p.name        = "Moon";

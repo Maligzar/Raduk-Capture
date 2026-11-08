@@ -420,6 +420,8 @@ struct RigConfig {
         printf("[RigConfig] Saved %s\n", p.c_str());
     }
 
+public:   // IniPath: main.cpp keeps the last target in [Session] beside the rest
+    static std::string PublicIniPath() { return IniPath(); }
 private:
     static std::string IniPath() {
         // Phase 125: a scenario run keeps its own.

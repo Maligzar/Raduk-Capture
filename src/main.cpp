@@ -76,6 +76,7 @@
 #include "core/DashboardLaunch.h" // [DASH]: open the dashboard with its token
 #include "core/Scenario.h"        // Phase 125: --scenario, the app tests itself
 #include "core/TestProbe.h"
+#include "core/CoreLog.h"         // mount/tracker messages into the log
 #include "gui/WindowShot.h"
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
@@ -157,6 +158,46 @@ static raduk::core::MountEmulator* g_mountForCrash = nullptr;
 #else
 static raduk::core::NexStarMount* g_mountForCrash = nullptr;
 #endif
+
+// ── What the telescope is on (2026-11-08) ─────────────────────
+// The info panel and the share caption each named the target their own
+// way, and both fell back to the active profile, which at startup is
+// always the first in the list -- Jupiter -- whatever the scope was on.
+// One answer for both: the most recent deliberate choice, a GoTo target
+// or picking an object's profile (not a generic one), remembered across
+// restarts in rig.ini [Session] LastTarget. The planet the mount points
+// at is used only when nothing has been chosen, because the mount's
+// pointing model can be degrees off (it was ~8 deg that night).
+static std::string CurrentTargetName(const std::string& gotoTarget,
+                                     const std::string& profileName,
+                                     const std::string& planetAtMount) {
+    static bool        loaded = false;
+    static std::string target, lastGoto, lastProfile;
+    const std::string ini = raduk::core::RigConfig::PublicIniPath();
+    if (!loaded) {
+        loaded = true;
+        char b[64] = {};
+        GetPrivateProfileStringA("Session", "LastTarget", "", b, sizeof(b), ini.c_str());
+        target = b;
+        lastGoto = gotoTarget;          // what was already there is not news
+        lastProfile = profileName;
+    }
+    auto isGeneric = [](const std::string& n) {
+        return n.empty() || _stricmp(n.c_str(), "Planet Focus") == 0 ||
+               _stricmp(n.c_str(), "Planet_Focus") == 0 ||
+               _stricmp(n.c_str(), "Star") == 0 || _stricmp(n.c_str(), "DSO") == 0;
+    };
+    std::string chosen;
+    if (gotoTarget != lastGoto)       { lastGoto = gotoTarget;   if (!gotoTarget.empty()) chosen = gotoTarget; }
+    if (profileName != lastProfile)   { lastProfile = profileName; if (!isGeneric(profileName)) chosen = profileName; }
+    if (chosen.empty() && target.empty() && !planetAtMount.empty()) chosen = planetAtMount;
+    if (!chosen.empty() && chosen != target) {
+        target = chosen;
+        WritePrivateProfileStringA("Session", "LastTarget", target.c_str(), ini.c_str());
+    }
+    if (!target.empty()) return target;
+    return profileName;
+}
 
 static void EmergencyStopOnExit() {
     if (g_mountForCrash && g_mountForCrash->IsConnected()) {
@@ -666,7 +707,17 @@ static void ApplyProfile(const TargetProfile& p,
     // Render what the profile actually names. Every profile change
     // funnels through here, so this covers the startup load and every
     // later switch without a second wiring point to forget.
-    if (cam) { cam->SetTargetName(p.name); EmuApplyApparentSize(cam); }
+    // RADUK_EMU_TARGET, the bench override, holds through profile
+    // changes too: a scenario can then point at a star that is up at
+    // any hour and still be shown, say, Saturn.
+    if (cam) {
+        char ov[32];
+        if (GetEnvironmentVariableA("RADUK_EMU_TARGET", ov, 32) > 0)
+            cam->SetTargetName(ov);
+        else
+            cam->SetTargetName(p.name);
+        EmuApplyApparentSize(cam);
+    }
 #endif
     if (cam && cam->IsOpen()) {
         cam->SetGain(p.gain); cam->SetExposure(p.exposureMs);
@@ -1164,6 +1215,13 @@ static int RunApp(bool useEmulator) {
         if (GetEnvironmentVariableA("RADUK_EMU_NOISE", fb, 32))
             noiseDn = atoi(fb);
         cam.SetNoiseAmplitude(noiseDn);
+        // RADUK_EMU_HOT_PIXELS=N: N hot pixels at 255, as a high-gain
+        // real sensor has. Without them a search that locks onto the
+        // brightest pixel passes on the bench and fails under the sky.
+        int hotPx = 0;
+        if (GetEnvironmentVariableA("RADUK_EMU_HOT_PIXELS", fb, 32))
+            hotPx = atoi(fb);
+        cam.SetHotPixels(hotPx);
         // RADUK_EMU_FPS=N lifts the emulator's 20 fps delivery cap.
         // Planetary capture is a 100-200 fps game at a small ROI, and
         // until this existed the decoupled recording path, the
@@ -1764,7 +1822,9 @@ static int RunApp(bool useEmulator) {
                 r.nxPerMs = cal.nxPerMs; r.nyPerMs = cal.nyPerMs;
                 gotoPanel.Satellites().SetImageCalibration(
                     tracker.HasCalibration(), r, cal.altDeg,
-                    raduk::core::RigConfig::Get().guideRateArcsecPerSec);
+                    // The calibration is px per ms of a GUIDE_OFFSET_AS
+                    // axis-rate offset now, not of rig.ini's guide rate.
+                    raduk::core::CentroidTracker::GUIDE_OFFSET_AS);
             }
             // The correction thread steers this same mount.
             tracker.Reset();
@@ -3084,18 +3144,22 @@ static int RunApp(bool useEmulator) {
     auto sendRecentrePulses = [&](int eMs, int nMs) {
         suspendTrackerForJog(true);
         IMount* mnt = mount;
-        std::thread([mnt, eMs, nMs, suspendTrackerForJog]() {
+        // 2026-11-07: through the tracker's rate-offset pulse, which the
+        // calibration's px/ms belong to. A plain PulseGuide replaces the
+        // axis's tracking on this mount and moves by a different amount.
+        auto* trk = &tracker;
+        std::thread([mnt, trk, eMs, nMs, suspendTrackerForJog]() {
             using raduk::core::GuideDirection;
             if (eMs != 0) {
-                mnt->PulseGuide(eMs > 0 ? GuideDirection::East
-                                        : GuideDirection::West,
-                                eMs > 0 ? eMs : -eMs);
+                trk->RatePulse(mnt, eMs > 0 ? GuideDirection::East
+                                            : GuideDirection::West,
+                               eMs > 0 ? eMs : -eMs);
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
             if (nMs != 0) {
-                mnt->PulseGuide(nMs > 0 ? GuideDirection::North
-                                        : GuideDirection::South,
-                                nMs > 0 ? nMs : -nMs);
+                trk->RatePulse(mnt, nMs > 0 ? GuideDirection::North
+                                            : GuideDirection::South,
+                               nMs > 0 ? nMs : -nMs);
             }
             Log("[RECENTRE] pulses done\n");
             suspendTrackerForJog(false);
@@ -3458,6 +3522,7 @@ static int RunApp(bool useEmulator) {
         capture.Start(cam, ring, 8.0);
 
         preview.SetFrameSize(w, h);
+        tracker.NotifyFrameChanged();   // guiding re-references, not a runaway
         preview.SetSensorROI(w, h);
         statusBar.SetCameraStats(0.0, 0, cam.GetTemperatureC(), w, h, bits);
         toolbar.UpdateFormat(w, h, bits);
@@ -3646,6 +3711,7 @@ static int RunApp(bool useEmulator) {
             gotoPanel.StopSatellite("disconnecting");
             mountProxy.Disconnect();
         }
+        g_mountForCrash = nullptr;   // not left pointing at a retired mount
         // Forget the backend without destroying it -- the tracker
         // thread may still be inside a pulse on it. MountProxy keeps
         // retired backends alive for exactly that reason.
@@ -4410,7 +4476,17 @@ static int RunApp(bool useEmulator) {
         } else {
             Log("[ACQ] Calibration FAILED: %s — back to SEARCHING\n", msg.c_str());
             slog.Mount("Calibration failed: %s", msg.c_str());
+            notifBar.NotifyWarn(L"Calibration refused - mount stopped. "
+                                L"Press PLANET LOCK to try again.");
         }
+    });
+    tracker.SetAbortCallback([&](const std::string& msg) {
+        Log("[ACQ] Guiding abandoned: %s — mount stopped, calibration "
+            "discarded, back to SEARCHING\n", msg.c_str());
+        slog.Mount("Guiding abandoned: %s - mount stopped, calibration discarded",
+                   msg.c_str());
+        notifBar.NotifyWarn(L"Guiding stopped: the planet was moving away. "
+                            L"Mount stopped - press PLANET LOCK to recalibrate.");
     });
 
     // Phase 6.6: auto-solve callback — fires from worker thread after Stage 3 lock
@@ -6163,8 +6239,13 @@ static int RunApp(bool useEmulator) {
         // one analysis. So each V-curve point carried full single-frame
         // seeing noise instead of an 8-frame average — exactly why the fit
         // is unreliable in poor seeing.
-        if (freshAnalysis && lastAnalysis.valid && autofocus.IsRunning())
-            autofocus.SubmitSharpness(lastAnalysis.sharpnessPct,
+        // 2026-11-07, Saturn: the Laplacian sharpness (even uncapped) was
+        // flat across the sweep and jumped with exposure. Autofocus is fed
+        // the planet's half-flux diameter instead, as 1000/HFD, and only
+        // from frames where it was measured.
+        if (freshAnalysis && lastAnalysis.valid && autofocus.IsRunning() &&
+            lastAnalysis.focusValid)
+            autofocus.SubmitSharpness(lastAnalysis.focusScore,
                                       lastAnalysis.centroidValid,
                                       (int)lastAnalysis.centroidPeak);
 
@@ -6289,6 +6370,34 @@ static int RunApp(bool useEmulator) {
                     // gate is a different problem from an empty one.
                     tracker.SubmitCentroidLost(lastAnalysis.centroidTooFaint,
                                                (int)lastAnalysis.centroidPeak);
+
+                // 2026-11-07: a night of SEARCHING left nothing in the
+                // session log to say what the analyzer saw. Every 5 s
+                // while searching: where the target is and how clearly,
+                // or why there is none.
+                static auto s_lastSearchLog = std::chrono::steady_clock::time_point{};
+                const auto nowS = std::chrono::steady_clock::now();
+                if (stage == raduk::core::AcquisitionStage::Searching &&
+                    lastAnalysis.valid && !lastAnalysis.surfaceTracked &&
+                    nowS - s_lastSearchLog > std::chrono::seconds(5)) {
+                    s_lastSearchLog = nowS;
+                    char sb[200];
+                    if (lastAnalysis.centroidValid)
+                        snprintf(sb, sizeof(sb),
+                                 "Search: target at (%.0f, %.0f) of %ux%u, SNR %.0f "
+                                 "(sky %.1f DN, noise %.1f DN, peak px %d)",
+                                 lastAnalysis.centroidX, lastAnalysis.centroidY,
+                                 lastAnalysis.width, lastAnalysis.height,
+                                 lastAnalysis.centroidSnr, lastAnalysis.centroidBgDN,
+                                 lastAnalysis.centroidNoiseDN, (int)lastAnalysis.centroidPeak);
+                    else
+                        snprintf(sb, sizeof(sb),
+                                 "Search: nothing found, best SNR %.1f of 10 needed "
+                                 "(sky %.1f DN, noise %.1f DN, peak px %d)",
+                                 lastAnalysis.centroidSnr, lastAnalysis.centroidBgDN,
+                                 lastAnalysis.centroidNoiseDN, (int)lastAnalysis.centroidPeak);
+                    slog.Mount("%s", sb);
+                }
 
                 // Stages advance only on explicit user button press ([LOCK] and [ROI]).
                 // Auto-advance removed — user must confirm each stage transition.
@@ -7207,11 +7316,11 @@ static int RunApp(bool useEmulator) {
                     // The active profile IS the target on this rig --
                     // the profiles are per-object -- so it is the right
                     // thing to fall back to.
-                    const std::string& tgt = gotoPanel.CurrentTarget();
-                    if (!tgt.empty()) {
-                        sc.target = tgt;
-                    } else if (const auto* ap = profiles.Active()) {
-                        sc.target = ap->name;
+                    {
+                        const auto* ap = profiles.Active();
+                        sc.target = CurrentTargetName(gotoPanel.CurrentTarget(),
+                                                      ap ? ap->name : std::string(),
+                                                      gotoPanel.PlanetAtMount());
                     }
                     sc.rig       = "Celestron 8SE  \xc2\xb7  ZWO ASI678MC";
                     sc.fps       = fps;
@@ -7234,10 +7343,20 @@ static int RunApp(bool useEmulator) {
                 // is looking at.
                 if (objectPanel.IsVisible()) {
                     raduk::gui::ObjectPanel::Content oc;
-                    const std::string& tgt2 = gotoPanel.CurrentTarget();
-                    if (!tgt2.empty()) oc.target = tgt2;
-                    else if (const auto* ap2 = profiles.Active())
-                        oc.target = ap2->name;
+                    // The GoTo target; else the planet the mount is on;
+                    // else, only then, the active profile's name.
+                    //
+                    // Then the last target of an earlier session: after
+                    // a restart on Saturn the panel said Jupiter, the
+                    // startup profile, and with the mount's pointing
+                    // model ~8 deg off (2026-11-07) PlanetAtMount found
+                    // nothing either. Remembered in rig.ini [Session].
+                    {
+                        const auto* ap2 = profiles.Active();
+                        oc.target = CurrentTargetName(gotoPanel.CurrentTarget(),
+                                                      ap2 ? ap2->name : std::string(),
+                                                      gotoPanel.PlanetAtMount());
+                    }
 
                     // Resolve only when the name has changed. The
                     // record does not change while the telescope is
@@ -7586,6 +7705,11 @@ static int RunApp(bool useEmulator) {
     preview.Release();
     capture.Stop();
     if (mount && mount->IsConnected()) { mount->StopSlew(0); mount->StopSlew(1); mount->Disconnect(); }
+    // The atexit emergency stop runs AFTER this function returns, when
+    // mountProxy and the mount it owns are already destroyed. It used to
+    // call through this pointer into freed memory: a crash on every
+    // close (2026-11-07). The mount is disconnected and stopped above.
+    g_mountForCrash = nullptr;
     if (focuser.IsOpen()) focuser.Close();
     cam.Close();
 
@@ -7727,6 +7851,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     Timestamp::Init();
     LogInit();
+    // The mount and tracker log through CoreLog; their lines carry their
+    // own timestamps and go wherever Log goes.
+    raduk::core::CoreLogHook() = [](const char* line) { Log("%s", line); };
     SetUnhandledExceptionFilter(CrashHandler);
 
 #ifdef RADUK_EMULATOR

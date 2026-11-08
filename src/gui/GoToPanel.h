@@ -288,6 +288,30 @@ public:
     // assistant asked "what am I pointing at" answered with a filename.
     const std::string& CurrentTarget() const { return m_currentTarget; }
 
+    // The planet (or Moon) the mount is pointing at, or "" if none is
+    // within a degree. For naming what is in the frame when no GoTo has
+    // been made this session: 2026-11-07, the scope was on Saturn after a
+    // restart and the info panel said Jupiter, the default profile.
+    // A degree, because the catalogue is J2000 and the mount reports the
+    // equinox of date -- about 0.36 deg apart in 2026 -- and planets are
+    // the targets this is for.
+    std::string PlanetAtMount() const {
+        double ra = 0, dec = 0;
+        if (!m_mount || !m_mount->IsConnected() || !m_mount->GetRADec(ra, dec))
+            return std::string();
+        const double d2r = 3.14159265358979 / 180.0;
+        std::string best; double bestSep = 1.0;
+        for (const auto& o : m_catalog.Objects()) {
+            if (!o.isPlanet() && o.name != "Moon") continue;
+            const double c = std::sin(dec * d2r) * std::sin(o.dec * d2r)
+                           + std::cos(dec * d2r) * std::cos(o.dec * d2r)
+                             * std::cos((ra - o.ra) * 15.0 * d2r);
+            const double sep = std::acos((std::max)(-1.0, (std::min)(1.0, c))) / d2r;
+            if (sep < bestSep) { bestSep = sep; best = o.name; }
+        }
+        return best;
+    }
+
     // ── Phase 30: push-to assistant ────────────────────────────
     bool PushToActive() const { return m_pushToActive.load(); }
 

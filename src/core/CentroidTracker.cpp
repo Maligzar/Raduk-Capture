@@ -499,6 +499,20 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
             return finish(false, why);
         }
     }
+    // Offset length scaled to the frame: at most CAL_OFFSET_FRAC of its
+    // shorter side, so a 640x480 box (about 128" x 96") is not walked off
+    // by 40" offsets. The full sensor keeps CAL_OFFSET_MS.
+    int offMs = CAL_OFFSET_MS;
+    {
+        uint32_t fw = 0, fh = 0;
+        { std::lock_guard<std::mutex> lk(m_mutex); fw = m_frameW; fh = m_frameH; }
+        if (fw && fh) {
+            const float arc = CAL_OFFSET_FRAC * (float)(std::min)(fw, fh)
+                            * RigConfig::Get().plateScaleArcsecPx;
+            offMs = (int)(arc / GUIDE_OFFSET_AS * 1000.0f);
+            offMs = (std::max)(CAL_OFFSET_MIN_MS, (std::min)(CAL_OFFSET_MS, offMs));
+        }
+    }
     double az0, alt0; clk::time_point te0;
     if (!_ReadAxes(mount, az0, alt0, te0)) return finish(false, "the mount did not report its position");
     if (!_CalSettle(CAL_DRIFT_MS)) return finish(false, "aborted while measuring tracking");
@@ -522,8 +536,9 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
         std::lock_guard<std::mutex> lk(m_mutex);
         m_axisSign[0] = m_axisSign[1] = 1.0f;
     }
-    const float s0 = std::fabs(rAz) + 2.0f * GUIDE_OFFSET_AS;
-    const float s1 = std::fabs(rAlt) + 2.0f * GUIDE_OFFSET_AS;
+    // One offset above tracking (it was two): about 10" of image motion.
+    const float s0 = std::fabs(rAz) + GUIDE_OFFSET_AS;
+    const float s1 = std::fabs(rAlt) + GUIDE_OFFSET_AS;
     double c0z, c0l, c1z, c1l; clk::time_point d0, d1;
     if (!_ReadAxes(mount, c0z, c0l, d0)) return finish(false, "no mount position");
     mount->SlewVariable(0, 0, s0);
@@ -593,7 +608,7 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
         const float base = (axis == 0) ? rAz : rAlt;
         const float o = (base >= 0.0f ? 1.0f : -1.0f) * GUIDE_OFFSET_AS;
         _DriveAxes(mount, rAz + (axis == 0 ? o : 0.0f), rAlt + (axis == 1 ? o : 0.0f));
-        std::this_thread::sleep_for(std::chrono::milliseconds(CAL_OFFSET_MS));
+        std::this_thread::sleep_for(std::chrono::milliseconds(offMs));
         _DriveAxes(mount, rAz, rAlt);
         if (!_CalSettle(CAL_SETTLE_MS)) return false;
         if (!_WaitCentroidAvg(CAL_SAMPLES, endX, endY)) return false;
@@ -609,10 +624,10 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
         const float t = secs(tFrom, tEnd);
         const float tx = endX - fromX - mVx * t, ty = endY - fromY - mVy * t;
         const float per = (o > 0.0f) ? 1.0f : -1.0f;
-        vx = per * tx / (float)CAL_OFFSET_MS;    // px per ms of a +GUIDE_OFFSET_AS offset
-        vy = per * ty / (float)CAL_OFFSET_MS;
+        vx = per * tx / (float)offMs;    // px per ms of a +GUIDE_OFFSET_AS offset
+        vy = per * ty / (float)offMs;
         CoreLog("[CAL] %s %+.0f\"/s for %d ms: raw (%.1f, %.1f), drift before (%.1f, %.1f) after (%.1f, %.1f) px/s, "
-                "response (%.1f, %.1f) px\n", axis == 0 ? "az" : "alt", o, CAL_OFFSET_MS,
+                "response (%.1f, %.1f) px\n", axis == 0 ? "az" : "alt", o, offMs,
                 endX - fromX, endY - fromY, driftVx, driftVy, afterVx, afterVy, tx, ty);
         // The next step starts from here, with this drift.
         driftVx = afterVx; driftVy = afterVy;
@@ -626,8 +641,8 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
     if (!measure(1, e2x, e2y, tE, nx, ny, n2x, n2y, tN))
         return finish(false, "altitude measurement failed or aborted");
 
-    const float eMag = std::sqrt(ex*ex + ey*ey) * CAL_OFFSET_MS;
-    const float nMag = std::sqrt(nx*nx + ny*ny) * CAL_OFFSET_MS;
+    const float eMag = std::sqrt(ex*ex + ey*ey) * offMs;
+    const float nMag = std::sqrt(nx*nx + ny*ny) * offMs;
     if (eMag < 10.0f || nMag < 10.0f) {
         char why[160];
         snprintf(why, sizeof(why), "an offset barely moved the planet (az %.1f px, alt %.1f px)",
@@ -670,7 +685,7 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
     cal.altDeg = (float)alt1;
     { std::lock_guard<std::mutex> lk(m_mutex); m_cal = cal; }
 
-    const float secOff = CAL_OFFSET_MS / 1000.0f;
+    const float secOff = offMs / 1000.0f;
     char buf[320];
     snprintf(buf, sizeof(buf),
              "app-driven: axes %.0f deg apart; a %.0f\"/s offset moved the planet %.1f\"/s in az "

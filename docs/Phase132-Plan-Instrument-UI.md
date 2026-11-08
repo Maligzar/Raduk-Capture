@@ -782,3 +782,36 @@ driver hands back a device context is for the next look at the object panel and
 the share view. The rings remain if it does not. Owner check: open the object
 panel (Shift+I) and the share view and look at the card edges. They should be
 soft, with no stepped bands.
+
+### 132.3f, 2026-11-08: list headers and tab strips
+
+This closes 119.4's last open item. 119.4 and 132.3b made the buttons
+owner-drawn. What stayed in system grey was every list view's column header and
+the GoTo window's tab strip. Neither can just be coloured:
+
+- **A header is its own control.** It notifies the *list*, not the window, and
+  once de-themed it paints `COLOR_BTNFACE`.
+- **A tab strip falls back to classic grey** once de-themed.
+
+**`src/gui/StripDraw.h`** handles both, with no change to how either behaves:
+
+- **Lists** are subclassed so they can answer their header's `NM_CUSTOMDRAW`.
+  Each column is drawn on Panel as a legend: Dim, upper case, letters spaced a
+  pixel apart, a short hairline between columns and a hairline along the bottom.
+  At post-paint, the strip past the last column is filled to match. Column
+  alignment comes from the header's own format flags.
+- **Tab strips** are subclassed and painted whole on Panel. Each tab's label is
+  Dim. The open tab's label is Text, with a bar in the signal colour under it,
+  the same shape-not-hue marker the control panel's tabs use. A hairline runs
+  under the strip. Clicks and keys are still handled by the control itself.
+
+`StyleStrips` finds both by class, as `Theme::StyleStockControls` does. It runs
+alongside it in `main.cpp`'s `styleChrome`, so it repeats on every
+night-vision toggle. Re-installing is harmless, because `SetWindowSubclass` with
+the same id replaces the old one. Every colour goes through `Theme::NV` or
+`Theme::Brush`.
+
+**Checked here.** `main.cpp` compiles cleanly with mingw. `night_coverage` now
+scans 45 files, this one included, and passes. **Not seen on screen.** Owner
+check: in GoTo, look at the three tabs and the column headers of the GoTo,
+Tonight and Passes lists, in day and in night vision.

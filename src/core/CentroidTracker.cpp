@@ -127,6 +127,11 @@ void CentroidTracker::StartLocked() {
 void CentroidTracker::Reset() {
     m_stage.store(AcquisitionStage::Off);
     _StopThread();
+    {
+        IMount* mnt = nullptr;
+        { std::lock_guard<std::mutex> lk(m_mutex); mnt = m_mount; }
+        _HandBack(mnt, "acquisition reset");
+    }
     _ResetCounters();
     m_driftRA.store(0.0f);
     m_driftDec.store(0.0f);
@@ -339,20 +344,21 @@ bool CentroidTracker::_CalSettle(int ms) {
     return _CalAlive();
 }
 
-// ── Rate-offset pulses (2026-11-07) ────────────────────────────
+// ── The app drives the axes while it guides (2026-11-07) ───────
 //
-// Measured at the rig: a NexStar pulse REPLACES the axis's tracking for
-// its length. At rate 1 (~3.8"/s) against ~16"/s of azimuth tracking,
-// East and West both moved the planet the same way, so centring could
-// never push east. So a pulse here sends the axis its OWN tracking rate
-// plus or minus GUIDE_OFFSET_AS. Tracking never stops, the pulse is a
-// pure offset, East is the mirror of West, and while the offset is
-// smaller than the tracking rate the motor never reverses, so there is
-// no backlash to take up.
-//
-// The tracking rates come from the mount's own encoders (GetAltAz),
-// with this app's offsets taken back out, so nothing about the hand
-// control's tracking model has to be assumed.
+// Measured at the rig, in this order:
+//  - a fixed-rate pulse REPLACES the axis's tracking; at rate 1 it is
+//    slower than azimuth tracking, so East and West moved the planet
+//    the same way;
+//  - a variable-rate command shares its register with the hand
+//    control's tracking: an altitude command sent ~100 ms after
+//    tracking was re-enabled was overwritten at once (encoder moved
+//    -6.3" for +26" commanded).
+// So while it guides, this app switches the hand control's tracking
+// OFF and drives both axes itself: each at its measured tracking rate
+// plus a correction from the image, refreshed several times a second.
+// Nothing can overwrite it, there are no pulses and no stops, and
+// whatever ends guiding hands tracking back (_HandBack).
 
 static double WrapDeg180(double d) {
     while (d > 180.0) d -= 360.0;
@@ -368,53 +374,61 @@ bool CentroidTracker::_ReadAxes(IMount* mount, double& azDeg, double& altDeg,
     return true;
 }
 
+// Both axes at these encoder rates (arcsec/s, signed as GetAltAz).
+void CentroidTracker::_DriveAxes(IMount* mount, float azRate, float altRate) {
+    float sAz, sAlt;
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        sAz = m_axisSign[0]; sAlt = m_axisSign[1];
+    }
+    // Never exactly zero: a zero variable rate is a stop, and a stop
+    // re-asserts the hand control's tracking (NexStarMount's sender).
+    auto noZero = [](float v) { return std::fabs(v) < 0.3f ? (v < 0.0f ? -0.3f : 0.3f) : v; };
+    const float c0 = noZero(azRate * sAz), c1 = noZero(altRate * sAlt);
+    mount->SlewVariable(0, c0 >= 0.0f ? 0 : 1, std::fabs(c0));
+    mount->SlewVariable(1, c1 >= 0.0f ? 0 : 1, std::fabs(c1));
+}
+
+// Give tracking back to the hand control, if this app had taken it.
+void CentroidTracker::_HandBack(IMount* mount, const char* why) {
+    if (!m_appDriving.exchange(false)) return;
+    if (!mount) return;
+    const IMount::TrackingMode mode =
+        (m_prevTrackMode == (int)IMount::OFF) ? IMount::ALT_AZ
+                                              : (IMount::TrackingMode)m_prevTrackMode;
+    mount->SetTrackingMode(mode);
+    CoreLog("[GUIDE] hand control tracking restored (%s): %s\n",
+            IMount::TrackingModeName(mode), why);
+}
+
+// Kept for phase 47's click-to-recentre, which still nudges with the
+// hand control tracking. While this app is driving, a nudge is an
+// addition to the driven rates instead.
 bool CentroidTracker::RatePulse(IMount* mount, GuideDirection dir, int ms) {
     if (!mount || ms < 10) return false;
     const int   axis = (dir == GuideDirection::East || dir == GuideDirection::West) ? 0 : 1;
     const float sgn  = (dir == GuideDirection::East || dir == GuideDirection::North) ? 1.0f : -1.0f;
-    float track, axSign;
+    float base[2];
     {
         std::lock_guard<std::mutex> lk(m_mutex);
         if (!m_ratesValid) return false;
-        track  = m_trackRateAs[axis];
-        axSign = m_axisSign[axis];
+        base[0] = m_baseRateAs[0]; base[1] = m_baseRateAs[1];
     }
-    const float rate = track + sgn * GUIDE_OFFSET_AS;      // encoder arcsec/s
-    const float cmd  = rate * axSign;                       // mount's own direction
-    if (!mount->SlewVariable(axis, cmd >= 0.0f ? 0 : 1, std::fabs(cmd))) return false;
+    float r[2] = { base[0], base[1] };
+    r[axis] += sgn * GUIDE_OFFSET_AS;
+    if (m_appDriving.load()) {
+        _DriveAxes(mount, r[0], r[1]);
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        _DriveAxes(mount, base[0], base[1]);
+        return true;
+    }
+    float sgnAxis;
+    { std::lock_guard<std::mutex> lk(m_mutex); sgnAxis = m_axisSign[axis]; }
+    const float c = r[axis] * sgnAxis;
+    if (!mount->SlewVariable(axis, c >= 0.0f ? 0 : 1, std::fabs(c))) return false;
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
-    mount->StopSlew(axis);              // the sender re-asserts tracking after it
-    {
-        std::lock_guard<std::mutex> lk(m_mutex);
-        m_offsetAccumAs[axis] += sgn * GUIDE_OFFSET_AS * (float)ms / 1000.0f;
-    }
+    mount->StopSlew(axis);
     return true;
-}
-
-// Correction thread, while guiding: refresh the tracking rates from the
-// encoders, taking this app's own offsets back out.
-void CentroidTracker::_RefreshTrackRates(IMount* mount) {
-    {
-        std::lock_guard<std::mutex> lk(m_mutex);
-        if (!m_ratesValid) return;
-        if (std::chrono::duration<float>(std::chrono::steady_clock::now() - m_rateRefT).count()
-            < (float)RATE_REFRESH_SEC) return;
-    }
-    double az = 0, alt = 0; std::chrono::steady_clock::time_point t;
-    if (!_ReadAxes(mount, az, alt, t)) return;
-    std::lock_guard<std::mutex> lk(m_mutex);
-    const float dt = std::chrono::duration<float>(t - m_rateRefT).count();
-    if (dt < 1.0f) return;
-    // Encoder motion = tracking*dt + offsets (in encoder units, the
-    // offsets carry the axis sign through the command).
-    const float encAz  = (float)(WrapDeg180(az - m_rateRefAz) * 3600.0);
-    const float encAlt = (float)((alt - m_rateRefAlt) * 3600.0);
-    m_trackRateAs[0] = (encAz  - m_offsetAccumAs[0]) / dt;
-    m_trackRateAs[1] = (encAlt - m_offsetAccumAs[1]) / dt;
-    m_offsetAccumAs[0] = m_offsetAccumAs[1] = 0.0f;
-    m_rateRefAz = az; m_rateRefAlt = alt; m_rateRefT = t;
-    CoreLog("[GUIDE] tracking rates refreshed: az %.2f alt %.2f \"/s over %.0f s\n",
-            m_trackRateAs[0], m_trackRateAs[1], dt);
 }
 
 void CentroidTracker::_RunCalibration(IMount* mount) {
@@ -424,10 +438,7 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
             m_calMessage = msg;
         }
         if (!ok) {
-            // Stops for an idle axis are not even sent (NexStarMount), so
-            // this only touches an axis this calibration left moving.
-            mount->StopSlew(0);
-            mount->StopSlew(1);
+            _HandBack(mount, "calibration failed");
             m_autoAdvance.store(false);
         }
         m_calSuccess.store(ok);
@@ -439,121 +450,144 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
                ok ? "OK" : "FAILED", msg.c_str());
     };
 
-    CoreLog("[CentroidTracker] Calibration: rate-offset method\n");
+    CoreLog("[CentroidTracker] Calibration: app-driven axes\n");
     using clk = std::chrono::steady_clock;
     auto secs = [](clk::time_point a, clk::time_point b) {
         return std::chrono::duration<float>(b - a).count();
     };
 
-    // 1. Where the planet is and how the axes are moving, twice, a few
-    //    seconds apart: image drift, and each axis's tracking rate.
+    // 1. The hand control's tracking, measured: image drift and each
+    //    axis's rate from the encoders.
+    const IMount::TrackingMode prev = mount->GetTrackingMode();
+    if (prev == IMount::OFF)
+        return finish(false, "the mount is not tracking - turn tracking on first");
     float b0x, b0y;
     if (!_WaitCentroidAvg(CAL_SAMPLES, b0x, b0y))
         return finish(false, "no stable centroid to calibrate against");
     double az0, alt0; clk::time_point te0;
-    if (!_ReadAxes(mount, az0, alt0, te0))
-        return finish(false, "the mount did not report its position");
-    const clk::time_point tB0 = clk::now();
-    if (!_CalSettle(CAL_DRIFT_MS)) return finish(false, "aborted while measuring drift");
-    float bx, by;
-    if (!_WaitCentroidAvg(CAL_SAMPLES, bx, by))
-        return finish(false, "target lost while measuring drift");
+    if (!_ReadAxes(mount, az0, alt0, te0)) return finish(false, "the mount did not report its position");
+    if (!_CalSettle(CAL_DRIFT_MS)) return finish(false, "aborted while measuring tracking");
     double az1, alt1; clk::time_point te1;
-    if (!_ReadAxes(mount, az1, alt1, te1))
-        return finish(false, "the mount did not report its position");
-    clk::time_point tB1 = clk::now();
-    const float driftDt = secs(tB0, tB1);
-    const float driftVx = driftDt > 0.1f ? (bx - b0x) / driftDt : 0.0f;
-    const float driftVy = driftDt > 0.1f ? (by - b0y) / driftDt : 0.0f;
+    if (!_ReadAxes(mount, az1, alt1, te1)) return finish(false, "the mount did not report its position");
     const float encDt = secs(te0, te1);
-    if (encDt < 1.0f) return finish(false, "mount position readings too close together");
     const float rAz  = (float)(WrapDeg180(az1 - az0) * 3600.0 / encDt);
     const float rAlt = (float)((alt1 - alt0) * 3600.0 / encDt);
-    CoreLog("[CAL] drift (%.1f, %.1f) px/s; tracking az %.2f\"/s alt %.2f\"/s (encoders, %.1f s)\n",
-            driftVx, driftVy, rAz, rAlt, encDt);
+    CoreLog("[CAL] hand control tracking: az %.2f\"/s alt %.2f\"/s (encoders, %.1f s)\n",
+            rAz, rAlt, encDt);
     if (std::fabs(rAz) < 0.5f && std::fabs(rAlt) < 0.5f)
-        return finish(false, "the mount is not tracking (its axes are not moving) - turn tracking on");
-    {
-        std::lock_guard<std::mutex> lk(m_mutex);
-        m_trackRateAs[0] = rAz; m_trackRateAs[1] = rAlt;
-        m_axisSign[0] = m_axisSign[1] = 1.0f;
-        m_ratesValid = false;
-    }
+        return finish(false, "the mount's axes are not moving - turn tracking on first");
 
-    // 2. Which way each axis turns for the mount's "direction 0". The
-    //    axis is driven at a known command for DIR_CHECK_MS and the
-    //    encoder says which way it went.
-    for (int axis = 0; axis < 2; ++axis) {
-        if (!_CalAlive()) return finish(false, "aborted");
-        const float speed = std::fabs(axis == 0 ? rAz : rAlt) + 2.0f * GUIDE_OFFSET_AS;
-        double a0z, a0l, a1z, a1l; clk::time_point s0, s1;
-        if (!_ReadAxes(mount, a0z, a0l, s0)) return finish(false, "no mount position");
-        if (!mount->SlewVariable(axis, 0, speed))
-            return finish(false, "the mount refused a rate command");
-        std::this_thread::sleep_for(std::chrono::milliseconds(DIR_CHECK_MS));
-        const bool got = _ReadAxes(mount, a1z, a1l, s1);
-        mount->StopSlew(axis);
-        if (!got) return finish(false, "no mount position");
-        const double moved = (axis == 0 ? WrapDeg180(a1z - a0z) : (a1l - a0l)) * 3600.0;
-        const double dt = secs(s0, s1);
-        const double expect = speed * dt;
-        CoreLog("[CAL] axis %d direction check: commanded %.1f\"/s for %.2f s, encoder moved "
-                "%.1f\" (expected about %.1f\")\n", axis, speed, dt, moved, expect);
-        if (std::fabs(moved) < 0.3 * expect)
-            return finish(false, "an axis did not move as commanded - check the mount");
-        std::lock_guard<std::mutex> lk(m_mutex);
-        m_axisSign[axis] = moved >= 0.0 ? 1.0f : -1.0f;
-    }
-    if (!_CalSettle(CAL_SETTLE_MS)) return finish(false, "aborted");
+    // 2. Take the axes. Both are driven for DIR_CHECK_MS in the mount's
+    //    "direction 0"; the encoders say which way that is per axis.
+    //    Then both straight to their tracking rates.
+    m_prevTrackMode = (int)prev;
+    m_appDriving.store(true);
+    mount->SetTrackingMode(IMount::OFF);
     {
-        double az2, alt2; clk::time_point te2;
-        if (!_ReadAxes(mount, az2, alt2, te2)) return finish(false, "no mount position");
         std::lock_guard<std::mutex> lk(m_mutex);
-        m_offsetAccumAs[0] = m_offsetAccumAs[1] = 0.0f;
-        m_rateRefAz = az2; m_rateRefAlt = alt2; m_rateRefT = te2;
+        m_axisSign[0] = m_axisSign[1] = 1.0f;
+    }
+    const float s0 = std::fabs(rAz) + 2.0f * GUIDE_OFFSET_AS;
+    const float s1 = std::fabs(rAlt) + 2.0f * GUIDE_OFFSET_AS;
+    double c0z, c0l, c1z, c1l; clk::time_point d0, d1;
+    if (!_ReadAxes(mount, c0z, c0l, d0)) return finish(false, "no mount position");
+    mount->SlewVariable(0, 0, s0);
+    mount->SlewVariable(1, 0, s1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(DIR_CHECK_MS));
+    const bool got = _ReadAxes(mount, c1z, c1l, d1);
+    const double movedAz  = WrapDeg180(c1z - c0z) * 3600.0;
+    const double movedAlt = (c1l - c0l) * 3600.0;
+    const double dt = secs(d0, d1);
+    CoreLog("[CAL] direction check: az commanded %.1f\"/s moved %.1f\" (expect %.1f); "
+            "alt commanded %.1f\"/s moved %.1f\" (expect %.1f)\n",
+            s0, movedAz, s0 * dt, s1, movedAlt, s1 * dt);
+    if (!got) return finish(false, "no mount position");
+    if (std::fabs(movedAz) < 0.4 * s0 * dt || std::fabs(movedAlt) < 0.4 * s1 * dt)
+        return finish(false, "an axis did not follow its rate command - check the mount");
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_axisSign[0] = movedAz  >= 0.0 ? 1.0f : -1.0f;
+        m_axisSign[1] = movedAlt >= 0.0 ? 1.0f : -1.0f;
+        m_baseRateAs[0] = rAz; m_baseRateAs[1] = rAlt;
+        m_integAs[0] = m_integAs[1] = 0.0f;
         m_ratesValid = true;
     }
-    if (!_WaitCentroidAvg(CAL_SAMPLES, bx, by))
-        return finish(false, "target lost after the direction check");
-    tB1 = clk::now();
+    _DriveAxes(mount, rAz, rAlt);
 
-    // 3. The image's response to each axis's offset.
-    auto measureAxis = [&](GuideDirection dir, float fromX, float fromY,
-                           clk::time_point tFrom, float& vx, float& vy,
-                           float& endX, float& endY, clk::time_point& tEnd) -> bool {
-        for (int k = 0; k < CAL_MEASURE_PULSES; ++k) {
-            if (!_CalAlive()) return false;
-            if (!RatePulse(mount, dir, CAL_PULSE_MS)) return false;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
+    // 3. Drift while this app tracks: it measured the rates over a few
+    //    seconds, so a small residual is expected and taken out.
+    // Let the axes settle onto the app's rates before measuring drift:
+    // on 2026-11-07 the drift measured right after taking them was 7-9"/s
+    // with the encoders already exactly on the commanded rates.
+    if (!_CalSettle(TAKEOVER_SETTLE_MS)) return finish(false, "aborted");
+    float bx, by;
+    if (!_WaitCentroidAvg(CAL_SAMPLES, bx, by)) return finish(false, "target lost after taking the axes");
+    clk::time_point tB1 = clk::now();
+    double daz0 = 0, dal0 = 0, daz1 = 0, dal1 = 0; clk::time_point de0, de1;
+    const bool encA = _ReadAxes(mount, daz0, dal0, de0);
+    if (!_CalSettle(CAL_DRIFT_MS)) return finish(false, "aborted while measuring drift");
+    float b2x, b2y;
+    if (!_WaitCentroidAvg(CAL_SAMPLES, b2x, b2y)) return finish(false, "target lost while measuring drift");
+    clk::time_point tB2 = clk::now();
+    const bool encB = _ReadAxes(mount, daz1, dal1, de1);
+    const float driftDt = secs(tB1, tB2);
+    const float driftVx = (b2x - bx) / driftDt, driftVy = (b2y - by) / driftDt;
+    // Do the encoders follow what this app commands? If they do while the
+    // image drifts, GetAltAz is the hand control's model, not the axes.
+    if (encA && encB) {
+        const float t = secs(de0, de1);
+        CoreLog("[CAL] while app-tracking the encoders moved az %.2f alt %.2f \"/s "
+                "(commanded az %.2f alt %.2f)\n",
+                (float)(WrapDeg180(daz1 - daz0) * 3600.0 / t),
+                (float)((dal1 - dal0) * 3600.0 / t), rAz, rAlt);
+    }
+    CoreLog("[CAL] drift while app-tracking: (%.1f, %.1f) px/s over %.1f s\n",
+            driftVx, driftVy, driftDt);
+
+    // 4. One axis at a time: tracking rate plus GUIDE_OFFSET_AS for
+    //    CAL_OFFSET_MS, then back. The image moves by the offset alone.
+    auto measure = [&](int axis, float fromX, float fromY, clk::time_point tFrom,
+                       float& vx, float& vy, float& endX, float& endY,
+                       clk::time_point& tEnd) -> bool {
+        if (!_CalAlive()) return false;
+        // Same direction as the axis already turns, so the motor never
+        // reverses: on 2026-11-07 a +10"/s offset on altitude tracking at
+        // -6.7"/s flipped the motor and backlash ate the move (1"/s of
+        // 10). The response is stored per +GUIDE_OFFSET_AS all the same.
+        const float base = (axis == 0) ? rAz : rAlt;
+        const float o = (base >= 0.0f ? 1.0f : -1.0f) * GUIDE_OFFSET_AS;
+        _DriveAxes(mount, rAz + (axis == 0 ? o : 0.0f), rAlt + (axis == 1 ? o : 0.0f));
+        std::this_thread::sleep_for(std::chrono::milliseconds(CAL_OFFSET_MS));
+        _DriveAxes(mount, rAz, rAlt);
         if (!_CalSettle(CAL_SETTLE_MS)) return false;
         if (!_WaitCentroidAvg(CAL_SAMPLES, endX, endY)) return false;
         tEnd = clk::now();
-        const float dt = secs(tFrom, tEnd);
-        const float tx = endX - fromX - driftVx * dt;
-        const float ty = endY - fromY - driftVy * dt;
-        vx = tx / (float)CAL_MEASURE_PULSES;
-        vy = ty / (float)CAL_MEASURE_PULSES;
-        CoreLog("[CAL] %s x%d offset pulses: raw (%.1f, %.1f) over %.2f s, drift part (%.1f, %.1f), "
-                "response (%.1f, %.1f) px = (%.1f, %.1f) per pulse\n",
-                dir == GuideDirection::East ? "Az+" : "Alt+", CAL_MEASURE_PULSES,
-                endX - fromX, endY - fromY, dt, driftVx * dt, driftVy * dt, tx, ty, vx, vy);
+        const float t = secs(tFrom, tEnd);
+        const float tx = endX - fromX - driftVx * t, ty = endY - fromY - driftVy * t;
+        const float per = (o > 0.0f) ? 1.0f : -1.0f;
+        vx = per * tx / (float)CAL_OFFSET_MS;    // px per ms of a +GUIDE_OFFSET_AS offset
+        vy = per * ty / (float)CAL_OFFSET_MS;
+        CoreLog("[CAL] %s %+.0f\"/s for %d ms: raw (%.1f, %.1f), drift part (%.1f, %.1f), "
+                "response (%.1f, %.1f) px\n", axis == 0 ? "az" : "alt", o,
+                CAL_OFFSET_MS, endX - fromX, endY - fromY, driftVx * t, driftVy * t, tx, ty);
         return true;
     };
-    float ex, ey, b2x, b2y; clk::time_point tB2;
-    if (!measureAxis(GuideDirection::East, bx, by, tB1, ex, ey, b2x, b2y, tB2))
+    float ex, ey, e2x, e2y; clk::time_point tE;
+    if (!measure(0, b2x, b2y, tB2, ex, ey, e2x, e2y, tE))
         return finish(false, "azimuth measurement failed or aborted");
-    float nx, ny, b3x, b3y; clk::time_point tB3;
-    if (!measureAxis(GuideDirection::North, b2x, b2y, tB2, nx, ny, b3x, b3y, tB3))
+    float nx, ny, n2x, n2y; clk::time_point tN;
+    if (!measure(1, e2x, e2y, tE, nx, ny, n2x, n2y, tN))
         return finish(false, "altitude measurement failed or aborted");
-    const float eMag = std::sqrt(ex*ex + ey*ey), nMag = std::sqrt(nx*nx + ny*ny);
-    if (eMag < CAL_MIN_MOVE_PX || nMag < CAL_MIN_MOVE_PX) {
+
+    const float eMag = std::sqrt(ex*ex + ey*ey) * CAL_OFFSET_MS;
+    const float nMag = std::sqrt(nx*nx + ny*ny) * CAL_OFFSET_MS;
+    if (eMag < 10.0f || nMag < 10.0f) {
         char why[160];
-        snprintf(why, sizeof(why),
-                 "an offset barely moved the planet (az %.1f px, alt %.1f px per pulse)", eMag, nMag);
+        snprintf(why, sizeof(why), "an offset barely moved the planet (az %.1f px, alt %.1f px)",
+                 eMag, nMag);
         return finish(false, why);
     }
-    const float sinAng = std::fabs(ex*ny - ey*nx) / (eMag * nMag);
+    const float sinAng = std::fabs(ex*ny - ey*nx) / (std::sqrt(ex*ex + ey*ey) * std::sqrt(nx*nx + ny*ny));
     if (sinAng < CAL_MIN_SIN_ANGLE) {
         char why[200];
         snprintf(why, sizeof(why),
@@ -562,37 +596,48 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
         return finish(false, why);
     }
 
+    // The drift measured while this app tracked is a rate error on the
+    // axes; the calibration says how much on each, so it is taken out of
+    // the base rates now rather than left for the integral to find.
+    {
+        GuideResponse r{ ex, ey, nx, ny };
+        const GuidePulses d = SolveGuidePulses(r, -driftVx, -driftVy);
+        if (d.valid) {
+            const float dAz  = d.eastMs  * GUIDE_OFFSET_AS / 1000.0f;
+            const float dAlt = d.northMs * GUIDE_OFFSET_AS / 1000.0f;
+            std::lock_guard<std::mutex> lk(m_mutex);
+            m_baseRateAs[0] += dAz;
+            m_baseRateAs[1] += dAlt;
+            CoreLog("[CAL] drift taken out of the rates: az %+.2f alt %+.2f \"/s -> az %.2f alt %.2f\n",
+                    dAz, dAlt, m_baseRateAs[0], m_baseRateAs[1]);
+        }
+    }
+
     GuideCalibration cal;
     cal.valid   = true;
-    cal.exPerMs = ex / (float)CAL_PULSE_MS;
-    cal.eyPerMs = ey / (float)CAL_PULSE_MS;
-    cal.nxPerMs = nx / (float)CAL_PULSE_MS;
-    cal.nyPerMs = ny / (float)CAL_PULSE_MS;
-    cal.fourWay = false;            // offsets are symmetric by construction
+    cal.exPerMs = ex; cal.eyPerMs = ey;      // px per ms of a GUIDE_OFFSET_AS offset
+    cal.nxPerMs = nx; cal.nyPerMs = ny;
+    cal.fourWay = false;
     cal.arcsecPerPx = RigConfig::Get().plateScaleArcsecPx;
     cal.when = clk::now();
     cal.altDeg = (float)alt1;
-    {
-        std::lock_guard<std::mutex> lk(m_mutex);
-        m_cal = cal;
-    }
-    // On-sky check: an az offset of G moves the sky G*cos(alt), alt by G.
-    const float gSkyAz  = eMag * cal.arcsecPerPx / (CAL_PULSE_MS / 1000.0f);
-    const float gSkyAlt = nMag * cal.arcsecPerPx / (CAL_PULSE_MS / 1000.0f);
+    { std::lock_guard<std::mutex> lk(m_mutex); m_cal = cal; }
+
+    const float secOff = CAL_OFFSET_MS / 1000.0f;
     char buf[320];
     snprintf(buf, sizeof(buf),
-             "Az+=(%.2f,%.2f)px/s Alt+=(%.2f,%.2f)px/s, axes %.0f deg apart; a %.0f\"/s offset moved "
-             "the planet %.1f\"/s in az (expect %.1f) and %.1f\"/s in alt (expect %.1f); "
-             "tracking az %.1f alt %.1f\"/s",
-             cal.exPerMs * 1000, cal.eyPerMs * 1000, cal.nxPerMs * 1000, cal.nyPerMs * 1000,
+             "app-driven: axes %.0f deg apart; a %.0f\"/s offset moved the planet %.1f\"/s in az "
+             "(expect %.1f) and %.1f\"/s in alt (expect %.1f); tracking az %.1f alt %.1f\"/s; "
+             "axis signs %+.0f %+.0f",
              std::asin((std::min)(1.0f, sinAng)) * 57.2958f, GUIDE_OFFSET_AS,
-             gSkyAz, GUIDE_OFFSET_AS * std::cos((float)alt1 * 0.0174533f),
-             gSkyAlt, GUIDE_OFFSET_AS, rAz, rAlt);
+             eMag * cal.arcsecPerPx / secOff, GUIDE_OFFSET_AS * std::cos((float)alt1 * 0.0174533f),
+             nMag * cal.arcsecPerPx / secOff, GUIDE_OFFSET_AS, rAz, rAlt,
+             m_axisSign[0], m_axisSign[1]);
     finish(true, buf);
 }
 
 void CentroidTracker::_AbortGuiding(IMount* mount, const std::string& why) {
-    if (mount) { mount->StopSlew(0); mount->StopSlew(1); }
+    _HandBack(mount, "guiding abandoned");
     {
         std::lock_guard<std::mutex> lk(m_mutex);
         m_cal = GuideCalibration{};      // it is what sent the mount the wrong way
@@ -618,6 +663,8 @@ void CentroidTracker::Run() {
     // run of corrections began, and how many cycles in a row the planet
     // has been well beyond it.
     AcquisitionStage watchStage = AcquisitionStage::Off;
+    auto lastControl  = std::chrono::steady_clock::now();
+    auto lastGuideLog = lastControl;
     float bestErrPx = 1e9f;
     int   overCycles = 0;
 
@@ -659,6 +706,9 @@ void CentroidTracker::Run() {
             if (!wasLost) {
                 wasLost = true;
                 CoreLog("[CentroidTracker] Centroid lost\n");
+                // Do not fly the mount blind: tracking goes back to the
+                // hand control now, before the main thread resets.
+                _HandBack(s.mount, "target lost");
                 m_lostPending.store(true);
             }
             continue;
@@ -681,7 +731,6 @@ void CentroidTracker::Run() {
             cal = m_cal;
         }
         if (!cal.valid) continue; // Centering/Locked require calibration
-        _RefreshTrackRates(s.mount);   // rate-limited inside
 
         // Occasionally refresh altitude for the cos(alt) azimuth rescale
         auto now = std::chrono::steady_clock::now();
@@ -722,75 +771,54 @@ void CentroidTracker::Run() {
             }
         }
 
-        float agg      = (stage == AcquisitionStage::Locked) ? S3_AGGRESSIVENESS  : S2_AGGRESSIVENESS;
-        int   maxPulse = (stage == AcquisitionStage::Locked) ? S3_MAX_PULSE_MS    : S2_MAX_PULSE_MS;
-        float deadband = (stage == AcquisitionStage::Locked) ? S3_DEADBAND_ARCSEC : S2_DEADBAND_ARCSEC;
+        // 2026-11-07: no pulses. This app drives both axes (see
+        // _DriveAxes): each at its tracking rate plus a correction, the
+        // image error turned into axis arcseconds by the calibration.
+        // Proportional for the error now, integral for a tracking rate
+        // that is a little off, both clamped.
+        if (!m_appDriving.load()) continue;
+        const float deadband = (stage == AcquisitionStage::Locked) ? S3_DEADBAND_ARCSEC
+                                                                   : S2_DEADBAND_ARCSEC;
+        const float kp = (stage == AcquisitionStage::Locked) ? GUIDE_KP_LOCKED : GUIDE_KP;
+        const float errAs = std::sqrt(dxPx*dxPx + dyPx*dyPx) * cal.arcsecPerPx;
 
-        float errAs = std::sqrt(dxPx*dxPx + dyPx*dyPx) * cal.arcsecPerPx;
-        if (errAs <= deadband) continue;
-
-        // Alt-az: azimuth (East) pixel response scales with cos(alt);
-        // rescale the measured column to the current altitude.
-        //
-        // The rescale and the solve both live in GuideSolve.h now,
-        // because phase 47 recentres from a click using the same two
-        // steps. One copy, one set of signs: a second set would be a
-        // second chance to send the mount the wrong way.
-        GuideResponse resp{ cal.exPerMs, cal.eyPerMs,
-                            cal.nxPerMs, cal.nyPerMs };
+        GuideResponse resp{ cal.exPerMs, cal.eyPerMs, cal.nxPerMs, cal.nyPerMs };
         resp = RescaleForAltitude(resp, cal.altDeg, lastAltDeg);
+        const GuidePulses g = SolveGuidePulses(resp, -dxPx, -dyPx);
+        if (!g.valid) continue;
+        float aAz  = g.eastMs  * GUIDE_OFFSET_AS / 1000.0f;   // axis arcsec to centre
+        float aAlt = g.northMs * GUIDE_OFFSET_AS / 1000.0f;
+        if (errAs <= deadband) { aAz = 0.0f; aAlt = 0.0f; }
 
-        // Desired displacement is −error × aggressiveness, in pixels.
-        const float ddx = -dxPx * agg, ddy = -dyPx * agg;
-        float tE = 0.0f, tN = 0.0f;
-        if (cal.fourWay) {
-            // Each axis has a different response forwards and backwards
-            // (see GuideCalibration::fourWay). Solve with each of the four
-            // column pairs and keep the one whose pulse lengths both come
-            // out in the direction that column was measured for.
-            bool found = false;
-            for (int useW = 0; useW < 2 && !found; ++useW)
-                for (int useS = 0; useS < 2 && !found; ++useS) {
-                    GuideResponse r{ useW ? cal.wxPerMs : cal.exPerMs,
-                                     useW ? cal.wyPerMs : cal.eyPerMs,
-                                     useS ? cal.sxPerMs : cal.nxPerMs,
-                                     useS ? cal.syPerMs : cal.nyPerMs };
-                    r = RescaleForAltitude(r, cal.altDeg, lastAltDeg);
-                    const GuidePulses g = SolveGuidePulses(r, ddx, ddy);
-                    if (!g.valid || g.eastMs < 0.0f || g.northMs < 0.0f) continue;
-                    tE = useW ? -g.eastMs : g.eastMs;
-                    tN = useS ? -g.northMs : g.northMs;
-                    found = true;
-                }
-            if (!found) continue;
-        } else {
-            const GuidePulses sol = SolveGuidePulses(resp, ddx, ddy);
-            if (!sol.valid) continue;
-            tE = sol.eastMs; tN = sol.northMs;
-        }
-
-        bool pulsed = false;
-        auto sendPulse = [&](float tMs, GuideDirection pos, GuideDirection neg,
-                             const char* axis) {
-            if (!m_threadRunning.load() || m_suspended.load()) return;
-            float mag = std::min(std::abs(tMs), (float)maxPulse);
-            int ms = (int)mag;
-            if (ms < 10) return;
-            GuideDirection dir = (tMs > 0) ? pos : neg;
-            CoreLog("[CentroidTracker] %s pulse %dms (err %.1f\")\n", axis, ms, errAs);
-            RatePulse(s.mount, dir, ms);
-            pulsed = true;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        };
-
-        sendPulse(tE, GuideDirection::East,  GuideDirection::West,  "E/W");
-        sendPulse(tN, GuideDirection::North, GuideDirection::South, "N/S");
-
-        // The averaging window now contains pre-move samples; clear it so
-        // the next correction is computed purely from post-move analyses.
-        if (pulsed) {
+        const auto tNow = std::chrono::steady_clock::now();
+        float dtc = std::chrono::duration<float>(tNow - lastControl).count();
+        lastControl = tNow;
+        if (dtc <= 0.0f || dtc > 2.0f) dtc = 0.5f;
+        auto clampf = [](float v, float m) { return v > m ? m : (v < -m ? -m : v); };
+        float base[2], corr[2];
+        {
             std::lock_guard<std::mutex> lk(m_mutex);
-            m_samples.clear();
+            m_integAs[0] = clampf(m_integAs[0] + GUIDE_KI * aAz  * dtc, GUIDE_MAX_CORR_AS * 0.5f);
+            m_integAs[1] = clampf(m_integAs[1] + GUIDE_KI * aAlt * dtc, GUIDE_MAX_CORR_AS * 0.5f);
+            base[0] = m_baseRateAs[0]; base[1] = m_baseRateAs[1];
+            corr[0] = clampf(kp * aAz  + m_integAs[0], GUIDE_MAX_CORR_AS);
+            corr[1] = clampf(kp * aAlt + m_integAs[1], GUIDE_MAX_CORR_AS);
+        }
+        // Never reverse an axis: a reversal is backlash, a move that does
+        // not happen. On the slow side a correction stops 1"/s short of
+        // zero; on the fast side it has the full range.
+        for (int i = 0; i < 2; ++i) {
+            if (base[i] > 1.0f && base[i] + corr[i] < 1.0f)   corr[i] = 1.0f - base[i];
+            if (base[i] < -1.0f && base[i] + corr[i] > -1.0f) corr[i] = -1.0f - base[i];
+        }
+        if (!m_threadRunning.load() || m_suspended.load()) continue;
+        _DriveAxes(s.mount, base[0] + corr[0], base[1] + corr[1]);
+        if (std::chrono::duration<float>(tNow - lastGuideLog).count() >= 2.0f) {
+            lastGuideLog = tNow;
+            CoreLog("[GUIDE] %s err %.1f\" (%.0f, %.0f px)  axis err az %.1f alt %.1f\"  "
+                    "rates az %.2f%+.2f alt %.2f%+.2f \"/s\n",
+                    AcquisitionStageName(stage), errAs, dxPx, dyPx, aAz, aAlt,
+                    base[0], corr[0], base[1], corr[1]);
         }
     }
 

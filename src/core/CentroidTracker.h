@@ -286,7 +286,12 @@ public:
     bool RatePulse(IMount* mount, GuideDirection dir, int ms);
     static constexpr float GUIDE_OFFSET_AS = 10.0f;   // axis arcsec/s
     static constexpr int   DIR_CHECK_MS    = 1000;
-    static constexpr int   RATE_REFRESH_SEC = 20;
+    static constexpr int   CAL_OFFSET_MS    = 4000;  // one offset per axis, 40" at 10"/s
+    static constexpr int   TAKEOVER_SETTLE_MS = 4000;
+    static constexpr float GUIDE_KP         = 0.5f;   // 1/s: "/s of correction per " of error
+    static constexpr float GUIDE_KP_LOCKED  = 0.3f;
+    static constexpr float GUIDE_KI         = 0.05f;  // 1/s^2
+    static constexpr float GUIDE_MAX_CORR_AS = 30.0f; // "/s either way
     GuideCalibration Calibration() const;
     void ClearCalibration();
 
@@ -378,7 +383,8 @@ private:
     void _RunCalibration(IMount* mount);
     bool _ReadAxes(IMount* mount, double& azDeg, double& altDeg,
                    std::chrono::steady_clock::time_point& t);
-    void _RefreshTrackRates(IMount* mount);
+    void _DriveAxes(IMount* mount, float azRate, float altRate);
+    void _HandBack(IMount* mount, const char* why);
 
     void Run();
 
@@ -426,11 +432,12 @@ private:
     // Rate-offset guiding (see RatePulse), guarded by m_mutex. Encoder
     // units: axis arcsec/s, signed as GetAltAz reports the axis.
     bool   m_ratesValid = false;
-    float  m_trackRateAs[2] = { 0.0f, 0.0f };
     float  m_axisSign[2]    = { 1.0f, 1.0f };   // encoder sign of command direction 0
-    float  m_offsetAccumAs[2] = { 0.0f, 0.0f }; // offsets sent since the last refresh
-    double m_rateRefAz = 0.0, m_rateRefAlt = 0.0;
-    std::chrono::steady_clock::time_point m_rateRefT{};
+    float  m_baseRateAs[2]  = { 0.0f, 0.0f };   // measured tracking rates, encoder "/s
+    float  m_integAs[2]     = { 0.0f, 0.0f };   // integral correction, "/s
+    // True while this app has taken the axes from the hand control.
+    std::atomic<bool> m_appDriving{false};
+    int    m_prevTrackMode = 0;
     std::string      m_calMessage;
 
     // ── Main-thread callbacks ──────────────────────────────────

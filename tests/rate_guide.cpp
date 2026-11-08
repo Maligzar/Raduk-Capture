@@ -47,6 +47,9 @@ public:
     double pAz = 200.0 + 60.0 / 3600, pAlt = 50.0 - 40.0 / 3600;   // planet: 60" and 40" off
     double cmd[2] = { 0, 0 };              // deg/s while commanded
     bool   commanded[2] = { false, false };
+    bool   variable[2]  = { false, false };   // the command is a variable rate
+    bool   hcTracking = true;                 // the hand control's own tracking
+    int    trackingOffs = 0, trackingOns = 0;
 
     std::mutex mu;
     std::chrono::steady_clock::time_point last = std::chrono::steady_clock::now();
@@ -56,8 +59,14 @@ public:
         const auto now = std::chrono::steady_clock::now();
         const double dt = std::chrono::duration<double>(now - last).count();
         last = now;
-        az  += (commanded[0] ? cmd[0] : trkAz)  * dt;
-        alt += (commanded[1] ? cmd[1] : trkAlt) * dt;
+        // While the hand control tracks, it rewrites a variable rate with
+        // its own (measured: an altitude command was gone in ~0.1 s).
+        for (int i = 0; i < 2; ++i)
+            if (hcTracking && commanded[i] && variable[i]) commanded[i] = false;
+        const double tAz  = hcTracking ? trkAz  : 0.0;
+        const double tAlt = hcTracking ? trkAlt : 0.0;
+        az  += (commanded[0] ? cmd[0] : tAz)  * dt;
+        alt += (commanded[1] ? cmd[1] : tAlt) * dt;
         pAz += skyAz * dt; pAlt += skyAlt * dt;
     }
     // Planet on the sensor: offset in axis arcsec -> sky -> rotated pixels.
@@ -82,19 +91,25 @@ public:
     bool GoToRADec(double, double) override { return true; }
     bool IsSlewing() override { return false; }
     void CancelGoTo() override {}
-    bool SetTrackingMode(TrackingMode) override { return true; }
-    TrackingMode GetTrackingMode() override { return ALT_AZ; }
+    bool SetTrackingMode(TrackingMode m) override {
+        Advance(); std::lock_guard<std::mutex> lk(mu);
+        hcTracking = (m != OFF);
+        if (hcTracking) { commanded[0] = commanded[1] = false; ++trackingOns; }
+        else ++trackingOffs;
+        return true;
+    }
+    TrackingMode GetTrackingMode() override { return hcTracking ? ALT_AZ : OFF; }
     bool SlewFixed(int axis, int dir, int rate) override {
         if (rate == 0) { StopSlew(axis); return true; }
         Advance(); std::lock_guard<std::mutex> lk(mu);
         cmd[axis] = (dir == 0 ? 1 : -1) * sign0[axis] * rate1 * rate;
-        commanded[axis] = true; return true;
+        commanded[axis] = true; variable[axis] = false; return true;
     }
     bool SlewVariable(int axis, int dir, double asps) override {
         Advance(); std::lock_guard<std::mutex> lk(mu);
         if (asps <= 0) { commanded[axis] = false; return true; }
         cmd[axis] = (dir == 0 ? 1 : -1) * sign0[axis] * asps / 3600.0;
-        commanded[axis] = true; return true;
+        commanded[axis] = true; variable[axis] = true; return true;
     }
     bool SupportsVariableRate() const override { return true; }
     void StopSlew(int axis) override {
@@ -170,7 +185,10 @@ int main() {
     std::printf("   worst %.0f px from centre\n", worst);
     CHECK(worst < 40.0f, "wandered %.0f px while held", worst);
 
+    std::printf("4. reset hands tracking back\n");
     t.Reset();
+    CHECK(m.hcTracking, "the hand control is not tracking after Reset");
+    CHECK(m.trackingOffs >= 1, "guiding never took the axes (tracking never switched off)");
     run.store(false);
     feeder.join();
     if (g_fail) { std::printf("rate_guide: %d FAILED\n", g_fail); return 1; }

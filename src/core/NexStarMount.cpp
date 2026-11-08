@@ -352,6 +352,16 @@ bool NexStarMount::SetTrackingMode(TrackingMode mode) {
                TrackingModeName(mode));
         return false;
     }
+    // The motion sender re-asserts THIS mode after a stop. The readback
+    // below has failed all night on this hand control (2026-11-07), and
+    // without this the cache stayed ALT-AZ after a 'T 0': a stop while
+    // the guider drives the axes would have handed tracking back to the
+    // hand control behind its back. The readback still corrects it.
+    {
+        std::lock_guard<std::mutex> lk(m_cacheMutex);
+        m_cachedTracking = mode;
+        m_trackingValid  = true;
+    }
 
     // Phase 64: the '#' acknowledgement means the command was RECEIVED,
     // not that the mount is driving. An unaligned mount ACKs a 'T'

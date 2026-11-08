@@ -130,13 +130,14 @@ public:
     // Deadband must stay below CENTRE_THRESHOLD_PX on the real rig
     // (10px ≈ 2" at 0.203"/px) or dwell could never be reached.
     static constexpr float S2_AGGRESSIVENESS  = 0.20f;
-    static constexpr int   S2_MAX_PULSE_MS    = 200;
+    // Rate-offset pulses cost no tracking, so they can be long (2026-11-07).
+    static constexpr int   S2_MAX_PULSE_MS    = 1500;
     static constexpr float S2_DEADBAND_ARCSEC = 2.0f;
     static constexpr int   S2_RATE_MS         = 500;
 
     // Stage 3 — Locked
     static constexpr float S3_AGGRESSIVENESS  = 0.50f;
-    static constexpr int   S3_MAX_PULSE_MS    = 500;
+    static constexpr int   S3_MAX_PULSE_MS    = 800;
     static constexpr float S3_DEADBAND_ARCSEC = 2.5f;
     static constexpr int   S3_RATE_MS         = 250;
 
@@ -162,7 +163,7 @@ public:
     static constexpr int   CENTROID_TIMEOUT_MS = 2000;
 
     // Phase 51 — calibration parameters
-    static constexpr int   CAL_PULSE_MS        = 400;   // per calibration pulse, NexStar rate 3
+    static constexpr int   CAL_PULSE_MS        = 800;   // per calibration offset pulse (8" at 10"/s)
     static constexpr int   CAL_SAMPLES         = 4;     // centroids averaged per measurement
     static constexpr int   CAL_SETTLE_MS       = 700;   // post-pulse settle before measuring
     static constexpr int   CAL_STEP_TIMEOUT_MS = 8000;  // max wait for samples per step
@@ -180,7 +181,7 @@ public:
     // ~55 px of pulse: enough to tilt or swap the measured axes.
     static constexpr int   CAL_DRIFT_MS        = 3000;
     // Pulses per axis measurement (see measureAxis).
-    static constexpr int   CAL_MEASURE_PULSES  = 2;
+    static constexpr int   CAL_MEASURE_PULSES  = 5;
     // Backlash take-up before each axis is measured: pulse until the
     // planet moves at least this far (a fully engaged pulse moved ~57 px
     // on 2026-11-07), giving up after this many pulses (~10" each).
@@ -277,6 +278,15 @@ public:
     void StartCentering();
 
     bool HasCalibration() const;
+
+    // A guide "pulse" on this mount: the axis is driven at its own
+    // tracking rate plus or minus GUIDE_OFFSET_AS for ms, then tracking
+    // resumes. Needs the rates a calibration measures; false without
+    // them. Blocks for ms. Public for phase 47's click-to-recentre.
+    bool RatePulse(IMount* mount, GuideDirection dir, int ms);
+    static constexpr float GUIDE_OFFSET_AS = 10.0f;   // axis arcsec/s
+    static constexpr int   DIR_CHECK_MS    = 1000;
+    static constexpr int   RATE_REFRESH_SEC = 20;
     GuideCalibration Calibration() const;
     void ClearCalibration();
 
@@ -366,6 +376,9 @@ private:
     // stage == Calibrating. Transitions the stage itself:
     // success → Centering, failure/abort → Searching.
     void _RunCalibration(IMount* mount);
+    bool _ReadAxes(IMount* mount, double& azDeg, double& altDeg,
+                   std::chrono::steady_clock::time_point& t);
+    void _RefreshTrackRates(IMount* mount);
 
     void Run();
 
@@ -410,6 +423,14 @@ private:
 
     // ── Phase 51 calibration state — guarded by m_mutex ───────
     GuideCalibration m_cal;
+    // Rate-offset guiding (see RatePulse), guarded by m_mutex. Encoder
+    // units: axis arcsec/s, signed as GetAltAz reports the axis.
+    bool   m_ratesValid = false;
+    float  m_trackRateAs[2] = { 0.0f, 0.0f };
+    float  m_axisSign[2]    = { 1.0f, 1.0f };   // encoder sign of command direction 0
+    float  m_offsetAccumAs[2] = { 0.0f, 0.0f }; // offsets sent since the last refresh
+    double m_rateRefAz = 0.0, m_rateRefAlt = 0.0;
+    std::chrono::steady_clock::time_point m_rateRefT{};
     std::string      m_calMessage;
 
     // ── Main-thread callbacks ──────────────────────────────────

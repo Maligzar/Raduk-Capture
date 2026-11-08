@@ -841,7 +841,7 @@ bool NexStarMount::PulseGuide(GuideDirection dir, int durationMs) {
     // a pulse REPLACES tracking, so at rate 1 East and West both moved the
     // planet the same way. Rate 3, with pulses long enough to start the
     // motor (120 ms did not; 400 ms is the next try).
-    constexpr int GUIDE_RATE = 3;
+    constexpr int GUIDE_RATE = 1;   // centring uses CentroidTracker::RatePulse now
     constexpr int MAX_PULSE_MS = 1000; // hard safety cap
 
     if (durationMs < 10) return true;          // below mechanical resolution

@@ -1773,7 +1773,9 @@ static int RunApp(bool useEmulator) {
                 r.nxPerMs = cal.nxPerMs; r.nyPerMs = cal.nyPerMs;
                 gotoPanel.Satellites().SetImageCalibration(
                     tracker.HasCalibration(), r, cal.altDeg,
-                    raduk::core::RigConfig::Get().guideRateArcsecPerSec);
+                    // The calibration is px per ms of a GUIDE_OFFSET_AS
+                    // axis-rate offset now, not of rig.ini's guide rate.
+                    raduk::core::CentroidTracker::GUIDE_OFFSET_AS);
             }
             // The correction thread steers this same mount.
             tracker.Reset();
@@ -3093,18 +3095,22 @@ static int RunApp(bool useEmulator) {
     auto sendRecentrePulses = [&](int eMs, int nMs) {
         suspendTrackerForJog(true);
         IMount* mnt = mount;
-        std::thread([mnt, eMs, nMs, suspendTrackerForJog]() {
+        // 2026-11-07: through the tracker's rate-offset pulse, which the
+        // calibration's px/ms belong to. A plain PulseGuide replaces the
+        // axis's tracking on this mount and moves by a different amount.
+        auto* trk = &tracker;
+        std::thread([mnt, trk, eMs, nMs, suspendTrackerForJog]() {
             using raduk::core::GuideDirection;
             if (eMs != 0) {
-                mnt->PulseGuide(eMs > 0 ? GuideDirection::East
-                                        : GuideDirection::West,
-                                eMs > 0 ? eMs : -eMs);
+                trk->RatePulse(mnt, eMs > 0 ? GuideDirection::East
+                                            : GuideDirection::West,
+                               eMs > 0 ? eMs : -eMs);
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
             if (nMs != 0) {
-                mnt->PulseGuide(nMs > 0 ? GuideDirection::North
-                                        : GuideDirection::South,
-                                nMs > 0 ? nMs : -nMs);
+                trk->RatePulse(mnt, nMs > 0 ? GuideDirection::North
+                                            : GuideDirection::South,
+                               nMs > 0 ? nMs : -nMs);
             }
             Log("[RECENTRE] pulses done\n");
             suspendTrackerForJog(false);

@@ -339,6 +339,84 @@ bool CentroidTracker::_CalSettle(int ms) {
     return _CalAlive();
 }
 
+// ── Rate-offset pulses (2026-11-07) ────────────────────────────
+//
+// Measured at the rig: a NexStar pulse REPLACES the axis's tracking for
+// its length. At rate 1 (~3.8"/s) against ~16"/s of azimuth tracking,
+// East and West both moved the planet the same way, so centring could
+// never push east. So a pulse here sends the axis its OWN tracking rate
+// plus or minus GUIDE_OFFSET_AS. Tracking never stops, the pulse is a
+// pure offset, East is the mirror of West, and while the offset is
+// smaller than the tracking rate the motor never reverses, so there is
+// no backlash to take up.
+//
+// The tracking rates come from the mount's own encoders (GetAltAz),
+// with this app's offsets taken back out, so nothing about the hand
+// control's tracking model has to be assumed.
+
+static double WrapDeg180(double d) {
+    while (d > 180.0) d -= 360.0;
+    while (d < -180.0) d += 360.0;
+    return d;
+}
+
+bool CentroidTracker::_ReadAxes(IMount* mount, double& azDeg, double& altDeg,
+                                std::chrono::steady_clock::time_point& t) {
+    double alt = 0, az = 0;
+    if (!mount->GetAltAz(alt, az)) return false;
+    azDeg = az; altDeg = alt; t = std::chrono::steady_clock::now();
+    return true;
+}
+
+bool CentroidTracker::RatePulse(IMount* mount, GuideDirection dir, int ms) {
+    if (!mount || ms < 10) return false;
+    const int   axis = (dir == GuideDirection::East || dir == GuideDirection::West) ? 0 : 1;
+    const float sgn  = (dir == GuideDirection::East || dir == GuideDirection::North) ? 1.0f : -1.0f;
+    float track, axSign;
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        if (!m_ratesValid) return false;
+        track  = m_trackRateAs[axis];
+        axSign = m_axisSign[axis];
+    }
+    const float rate = track + sgn * GUIDE_OFFSET_AS;      // encoder arcsec/s
+    const float cmd  = rate * axSign;                       // mount's own direction
+    if (!mount->SlewVariable(axis, cmd >= 0.0f ? 0 : 1, std::fabs(cmd))) return false;
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    mount->StopSlew(axis);              // the sender re-asserts tracking after it
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_offsetAccumAs[axis] += sgn * GUIDE_OFFSET_AS * (float)ms / 1000.0f;
+    }
+    return true;
+}
+
+// Correction thread, while guiding: refresh the tracking rates from the
+// encoders, taking this app's own offsets back out.
+void CentroidTracker::_RefreshTrackRates(IMount* mount) {
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        if (!m_ratesValid) return;
+        if (std::chrono::duration<float>(std::chrono::steady_clock::now() - m_rateRefT).count()
+            < (float)RATE_REFRESH_SEC) return;
+    }
+    double az = 0, alt = 0; std::chrono::steady_clock::time_point t;
+    if (!_ReadAxes(mount, az, alt, t)) return;
+    std::lock_guard<std::mutex> lk(m_mutex);
+    const float dt = std::chrono::duration<float>(t - m_rateRefT).count();
+    if (dt < 1.0f) return;
+    // Encoder motion = tracking*dt + offsets (in encoder units, the
+    // offsets carry the axis sign through the command).
+    const float encAz  = (float)(WrapDeg180(az - m_rateRefAz) * 3600.0);
+    const float encAlt = (float)((alt - m_rateRefAlt) * 3600.0);
+    m_trackRateAs[0] = (encAz  - m_offsetAccumAs[0]) / dt;
+    m_trackRateAs[1] = (encAlt - m_offsetAccumAs[1]) / dt;
+    m_offsetAccumAs[0] = m_offsetAccumAs[1] = 0.0f;
+    m_rateRefAz = az; m_rateRefAlt = alt; m_rateRefT = t;
+    CoreLog("[GUIDE] tracking rates refreshed: az %.2f alt %.2f \"/s over %.0f s\n",
+            m_trackRateAs[0], m_trackRateAs[1], dt);
+}
+
 void CentroidTracker::_RunCalibration(IMount* mount) {
     auto finish = [&](bool ok, const std::string& msg) {
         {
@@ -346,17 +424,14 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
             m_calMessage = msg;
         }
         if (!ok) {
-            // A failed calibration may have left an axis moving (a lost
-            // stop is one way to fail), so both are told to stop. And
-            // auto-acquire ends here: it used to drop back to Searching
-            // and, five frames later, calibrate again, failing on a loop.
+            // Stops for an idle axis are not even sent (NexStarMount), so
+            // this only touches an axis this calibration left moving.
             mount->StopSlew(0);
             mount->StopSlew(1);
             m_autoAdvance.store(false);
         }
         m_calSuccess.store(ok);
         m_calPending.store(true);
-        // Only move the stage if we're still Calibrating (Reset wins)
         AcquisitionStage expected = AcquisitionStage::Calibrating;
         m_stage.compare_exchange_strong(expected,
             ok ? AcquisitionStage::Centering : AcquisitionStage::Searching);
@@ -364,60 +439,91 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
                ok ? "OK" : "FAILED", msg.c_str());
     };
 
-    CoreLog("[CentroidTracker] Calibration: measuring pulse response\n");
-
+    CoreLog("[CentroidTracker] Calibration: rate-offset method\n");
     using clk = std::chrono::steady_clock;
     auto secs = [](clk::time_point a, clk::time_point b) {
         return std::chrono::duration<float>(b - a).count();
     };
 
+    // 1. Where the planet is and how the axes are moving, twice, a few
+    //    seconds apart: image drift, and each axis's tracking rate.
     float b0x, b0y;
     if (!_WaitCentroidAvg(CAL_SAMPLES, b0x, b0y))
         return finish(false, "no stable centroid to calibrate against");
+    double az0, alt0; clk::time_point te0;
+    if (!_ReadAxes(mount, az0, alt0, te0))
+        return finish(false, "the mount did not report its position");
     const clk::time_point tB0 = clk::now();
-
-    // 2026-11-07: the background drift first, with no pulse, so it can
-    // be taken out of each pulse's measurement (see CAL_DRIFT_MS).
-    if (!_CalSettle(CAL_DRIFT_MS))
-        return finish(false, "aborted while measuring drift");
+    if (!_CalSettle(CAL_DRIFT_MS)) return finish(false, "aborted while measuring drift");
     float bx, by;
     if (!_WaitCentroidAvg(CAL_SAMPLES, bx, by))
         return finish(false, "target lost while measuring drift");
+    double az1, alt1; clk::time_point te1;
+    if (!_ReadAxes(mount, az1, alt1, te1))
+        return finish(false, "the mount did not report its position");
     clk::time_point tB1 = clk::now();
     const float driftDt = secs(tB0, tB1);
     const float driftVx = driftDt > 0.1f ? (bx - b0x) / driftDt : 0.0f;
     const float driftVy = driftDt > 0.1f ? (by - b0y) / driftDt : 0.0f;
-    CoreLog("[CAL] drift (%.1f, %.1f) px/s over %.2f s\n", driftVx, driftVy, driftDt);
+    const float encDt = secs(te0, te1);
+    if (encDt < 1.0f) return finish(false, "mount position readings too close together");
+    const float rAz  = (float)(WrapDeg180(az1 - az0) * 3600.0 / encDt);
+    const float rAlt = (float)((alt1 - alt0) * 3600.0 / encDt);
+    CoreLog("[CAL] drift (%.1f, %.1f) px/s; tracking az %.2f\"/s alt %.2f\"/s (encoders, %.1f s)\n",
+            driftVx, driftVy, rAz, rAlt, encDt);
+    if (std::fabs(rAz) < 0.5f && std::fabs(rAlt) < 0.5f)
+        return finish(false, "the mount is not tracking (its axes are not moving) - turn tracking on");
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_trackRateAs[0] = rAz; m_trackRateAs[1] = rAlt;
+        m_axisSign[0] = m_axisSign[1] = 1.0f;
+        m_ratesValid = false;
+    }
 
-    // Phase 65: one pulse per axis, and the displacement is KEPT.
-    //
-    // This used to pulse out, measure, then pulse back to the start --
-    // four pulses and four settles for two measurements, with half the
-    // motion deliberately undone. The return served "so the two axis
-    // measurements share a similar working point (and the planet stays
-    // in frame)", but a CAL_PULSE_MS pulse at the nominal guide rate
-    // moves the planet about 30 px inside a 3840 px frame, so staying
-    // in frame was never at risk, and each measurement is a delta that
-    // does not care where it started.
-    //
-    // Dropping the return halves calibration (two pulses, two settles)
-    // and leaves the planet displaced by at most two pulse lengths --
-    // which Centering, entered immediately afterwards, corrects as part
-    // of its normal work. Calibration stops being a detour.
-    // Each measurement has the drift over its own span taken out.
-    auto measureAxis = [&](GuideDirection dir,
-                           float fromX, float fromY, clk::time_point tFrom,
-                           float& vx, float& vy,
-                           float& endX, float& endY,
-                           clk::time_point& tEnd) -> bool {
-        // Several pulses back to back, measured once at the end: on
-        // 2026-11-07 one pulse moved Saturn 10-50 px while the drift
-        // estimate was only good to a few px/s, i.e. +-10 px over a step.
-        // Five pulses make the response several times that error.
-        // vx/vy are returned PER PULSE, as the caller expects.
+    // 2. Which way each axis turns for the mount's "direction 0". The
+    //    axis is driven at a known command for DIR_CHECK_MS and the
+    //    encoder says which way it went.
+    for (int axis = 0; axis < 2; ++axis) {
+        if (!_CalAlive()) return finish(false, "aborted");
+        const float speed = std::fabs(axis == 0 ? rAz : rAlt) + 2.0f * GUIDE_OFFSET_AS;
+        double a0z, a0l, a1z, a1l; clk::time_point s0, s1;
+        if (!_ReadAxes(mount, a0z, a0l, s0)) return finish(false, "no mount position");
+        if (!mount->SlewVariable(axis, 0, speed))
+            return finish(false, "the mount refused a rate command");
+        std::this_thread::sleep_for(std::chrono::milliseconds(DIR_CHECK_MS));
+        const bool got = _ReadAxes(mount, a1z, a1l, s1);
+        mount->StopSlew(axis);
+        if (!got) return finish(false, "no mount position");
+        const double moved = (axis == 0 ? WrapDeg180(a1z - a0z) : (a1l - a0l)) * 3600.0;
+        const double dt = secs(s0, s1);
+        const double expect = speed * dt;
+        CoreLog("[CAL] axis %d direction check: commanded %.1f\"/s for %.2f s, encoder moved "
+                "%.1f\" (expected about %.1f\")\n", axis, speed, dt, moved, expect);
+        if (std::fabs(moved) < 0.3 * expect)
+            return finish(false, "an axis did not move as commanded - check the mount");
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_axisSign[axis] = moved >= 0.0 ? 1.0f : -1.0f;
+    }
+    if (!_CalSettle(CAL_SETTLE_MS)) return finish(false, "aborted");
+    {
+        double az2, alt2; clk::time_point te2;
+        if (!_ReadAxes(mount, az2, alt2, te2)) return finish(false, "no mount position");
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_offsetAccumAs[0] = m_offsetAccumAs[1] = 0.0f;
+        m_rateRefAz = az2; m_rateRefAlt = alt2; m_rateRefT = te2;
+        m_ratesValid = true;
+    }
+    if (!_WaitCentroidAvg(CAL_SAMPLES, bx, by))
+        return finish(false, "target lost after the direction check");
+    tB1 = clk::now();
+
+    // 3. The image's response to each axis's offset.
+    auto measureAxis = [&](GuideDirection dir, float fromX, float fromY,
+                           clk::time_point tFrom, float& vx, float& vy,
+                           float& endX, float& endY, clk::time_point& tEnd) -> bool {
         for (int k = 0; k < CAL_MEASURE_PULSES; ++k) {
             if (!_CalAlive()) return false;
-            if (!mount->PulseGuide(dir, CAL_PULSE_MS)) return false;
+            if (!RatePulse(mount, dir, CAL_PULSE_MS)) return false;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         if (!_CalSettle(CAL_SETTLE_MS)) return false;
@@ -428,126 +534,31 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
         const float ty = endY - fromY - driftVy * dt;
         vx = tx / (float)CAL_MEASURE_PULSES;
         vy = ty / (float)CAL_MEASURE_PULSES;
-        CoreLog("[CAL] %s x%d pulses: raw (%.1f, %.1f) over %.2f s, drift part (%.1f, %.1f), "
+        CoreLog("[CAL] %s x%d offset pulses: raw (%.1f, %.1f) over %.2f s, drift part (%.1f, %.1f), "
                 "response (%.1f, %.1f) px = (%.1f, %.1f) per pulse\n",
-                (dir == GuideDirection::East ? "East" : dir == GuideDirection::West ? "West" : dir == GuideDirection::North ? "North" : "South"), CAL_MEASURE_PULSES,
-                endX - fromX, endY - fromY, dt, driftVx * dt, driftVy * dt,
-                tx, ty, vx, vy);
+                dir == GuideDirection::East ? "Az+" : "Alt+", CAL_MEASURE_PULSES,
+                endX - fromX, endY - fromY, dt, driftVx * dt, driftVy * dt, tx, ty, vx, vy);
         return true;
     };
-
-    // 2026-11-07 at the rig: the North pulse was acknowledged, the motor
-    // ran for 800 ms, and the planet moved 6 px against East's 57 --
-    // gear backlash in the altitude drive ate it. A measurement taken
-    // across backlash is noise, so each axis is first pulsed in its
-    // measuring direction until the planet visibly moves, as PHD2 does,
-    // and only then measured.
-    auto takeUpBacklash = [&](GuideDirection dir, float& x, float& y,
-                              clk::time_point& t) -> bool {
-        const char* name = (dir == GuideDirection::East ? "East" : dir == GuideDirection::West ? "West" : dir == GuideDirection::North ? "North" : "South");
-        for (int i = 0; i < CAL_BACKLASH_MAX_PULSES; ++i) {
-            if (!_CalAlive()) return false;
-            if (!mount->PulseGuide(dir, CAL_PULSE_MS)) return false;
-            if (!_CalSettle(CAL_SETTLE_MS)) return false;
-            float nx2, ny2;
-            if (!_WaitCentroidAvg(CAL_SAMPLES, nx2, ny2)) return false;
-            const clk::time_point nt = clk::now();
-            const float dt = secs(t, nt);
-            const float mx = nx2 - x - driftVx * dt, my = ny2 - y - driftVy * dt;
-            const float moved = std::sqrt(mx*mx + my*my);
-            x = nx2; y = ny2; t = nt;
-            CoreLog("[CAL] %s backlash take-up pulse %d: moved %.1f px\n",
-                    name, i + 1, moved);
-            if (moved >= CAL_BACKLASH_MOVE_PX) return true;
-        }
-        return false;
-    };
-
-    if (!takeUpBacklash(GuideDirection::East, bx, by, tB1)) {
-        char why[160];
-        snprintf(why, sizeof(why), "East did not move the planet after %d pulses "
-                 "(backlash, or the axis is not driving); mount stopped",
-                 CAL_BACKLASH_MAX_PULSES);
-        return finish(false, why);
-    }
-    float ex, ey, b2x, b2y;
-    clk::time_point tB2;
+    float ex, ey, b2x, b2y; clk::time_point tB2;
     if (!measureAxis(GuideDirection::East, bx, by, tB1, ex, ey, b2x, b2y, tB2))
-        return finish(false, "East pulse measurement failed or aborted");
-    float eMag = std::sqrt(ex*ex + ey*ey);
-    if (eMag < CAL_MIN_MOVE_PX)
-        return finish(false, "East response too small — check guide rate/target");
-
-    // West, measured on its own (see GuideCalibration::fourWay). It also
-    // brings the planet back towards where East took it from.
-    if (!takeUpBacklash(GuideDirection::West, b2x, b2y, tB2))
-        return finish(false, "West did not move the planet (backlash, or the axis is not driving); mount stopped");
-    float wx, wy, bWx, bWy;
-    clk::time_point tBW;
-    if (!measureAxis(GuideDirection::West, b2x, b2y, tB2, wx, wy, bWx, bWy, tBW))
-        return finish(false, "West pulse measurement failed or aborted");
-    if (std::sqrt(wx*wx + wy*wy) < CAL_MIN_MOVE_PX)
-        return finish(false, "West response too small - check guide rate/target");
-    b2x = bWx; b2y = bWy; tB2 = tBW;
-
-    if (!takeUpBacklash(GuideDirection::North, b2x, b2y, tB2)) {
-        char why[160];
-        snprintf(why, sizeof(why), "North did not move the planet after %d pulses "
-                 "(backlash, or the axis is not driving); mount stopped",
-                 CAL_BACKLASH_MAX_PULSES);
-        return finish(false, why);
-    }
-    float nx, ny, b3x, b3y;
-    clk::time_point tB3;
+        return finish(false, "azimuth measurement failed or aborted");
+    float nx, ny, b3x, b3y; clk::time_point tB3;
     if (!measureAxis(GuideDirection::North, b2x, b2y, tB2, nx, ny, b3x, b3y, tB3))
-        return finish(false, "North pulse measurement failed or aborted");
-    float nMag = std::sqrt(nx*nx + ny*ny);
-    if (nMag < CAL_MIN_MOVE_PX)
-        return finish(false, "North response too small — check guide rate/target");
-
-    if (!takeUpBacklash(GuideDirection::South, b3x, b3y, tB3))
-        return finish(false, "South did not move the planet (backlash, or the axis is not driving); mount stopped");
-    float sx, sy, bSx, bSy;
-    clk::time_point tBS;
-    if (!measureAxis(GuideDirection::South, b3x, b3y, tB3, sx, sy, bSx, bSy, tBS))
-        return finish(false, "South pulse measurement failed or aborted");
-    if (std::sqrt(sx*sx + sy*sy) < CAL_MIN_MOVE_PX)
-        return finish(false, "South response too small - check guide rate/target");
-    CoreLog("[CAL] per pulse: E (%.1f, %.1f) W (%.1f, %.1f) N (%.1f, %.1f) S (%.1f, %.1f) px\n",
-            ex, ey, wx, wy, nx, ny, sx, sy);
-
-    // Axes must be usefully independent: |sin(angle between them)|
-    float cross = ex*ny - ey*nx;
-    const float sinAng = std::abs(cross) / (eMag * nMag);
-    if (sinAng < CAL_MIN_SIN_ANGLE) {
-        char why[220];
+        return finish(false, "altitude measurement failed or aborted");
+    const float eMag = std::sqrt(ex*ex + ey*ey), nMag = std::sqrt(nx*nx + ny*ny);
+    if (eMag < CAL_MIN_MOVE_PX || nMag < CAL_MIN_MOVE_PX) {
+        char why[160];
         snprintf(why, sizeof(why),
-                 "the two axes moved the planet only %.0f deg apart (they should be "
-                 "near 90) - drift %.1f,%.1f px/s or a missed stop; mount stopped",
-                 std::asin((std::min)(1.0f, sinAng)) * 57.2958f, driftVx, driftVy);
+                 "an offset barely moved the planet (az %.1f px, alt %.1f px per pulse)", eMag, nMag);
         return finish(false, why);
     }
-    {
-        const float scale    = RigConfig::Get().plateScaleArcsecPx;
-        const float assumed  = RigConfig::Get().guideRateArcsecPerSec;
-        const float measured = ((std::max)(eMag, nMag) * scale) / (CAL_PULSE_MS / 1000.0f);
-        if (assumed > 0.01f && (measured > assumed * CAL_RATE_MAX_FACTOR ||
-                                measured < assumed * CAL_RATE_MIN_FACTOR)) {
-            char why[220];
-            snprintf(why, sizeof(why),
-                     "a guide pulse moved the planet at %.1f\"/s, impossible for a "
-                     "%.1f\"/s guide rate - an axis was moving on its own; mount stopped",
-                     measured, assumed);
-            return finish(false, why);
-        }
-    }
-
-    if ((std::min)(eMag, nMag) < CAL_MIN_AXIS_RATIO * (std::max)(eMag, nMag)) {
+    const float sinAng = std::fabs(ex*ny - ey*nx) / (eMag * nMag);
+    if (sinAng < CAL_MIN_SIN_ANGLE) {
         char why[200];
         snprintf(why, sizeof(why),
-                 "one axis barely moves the target (East %.1f px, North %.1f px), as "
-                 "near the zenith - calibrate on a target lower in the sky",
-                 eMag, nMag);
+                 "the two axes moved the planet only %.0f deg apart (they should be near 90)",
+                 std::asin((std::min)(1.0f, sinAng)) * 57.2958f);
         return finish(false, why);
     }
 
@@ -557,66 +568,26 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
     cal.eyPerMs = ey / (float)CAL_PULSE_MS;
     cal.nxPerMs = nx / (float)CAL_PULSE_MS;
     cal.nyPerMs = ny / (float)CAL_PULSE_MS;
-    cal.fourWay = true;
-    cal.wxPerMs = wx / (float)CAL_PULSE_MS;
-    cal.wyPerMs = wy / (float)CAL_PULSE_MS;
-    cal.sxPerMs = sx / (float)CAL_PULSE_MS;
-    cal.syPerMs = sy / (float)CAL_PULSE_MS;
-    // Phase 65: the plate scale is KNOWN from the optics
-    // (206.265 x pixel_um / focal_mm) and sits in RigConfig. The guide
-    // rate is the genuinely unknown quantity -- PulseGuide just asserts
-    // NexStar fixed rate 1 is about 7.5"/s and nothing has ever checked.
-    //
-    // This previously assumed the rate and derived the scale, which is
-    // backwards: it pinned a known number to an unverified one, so every
-    // arcsecond the user reads scaled with that assumption. Take the
-    // scale as given and derive the rate instead, then log it -- a
-    // measured rate far from the assumed value immediately explains any
-    // mis-sized pulse, instead of hiding inside the displayed figures.
-    //
-    // The correction solve is unaffected either way: it works in the
-    // pixel domain from the measured px/ms matrix, where the rate
-    // cancels out.
-    float measuredRate = 0.0f, assumedRate = 0.0f;
+    cal.fourWay = false;            // offsets are symmetric by construction
     cal.arcsecPerPx = RigConfig::Get().plateScaleArcsecPx;
-    {
-        float assumed  = RigConfig::Get().guideRateArcsecPerSec;
-        float measured = (eMag * cal.arcsecPerPx)
-                       / (CAL_PULSE_MS / 1000.0f);   // arcsec per second
-        // Carried into the calibration message rather than printed.
-        // printf reaches nothing in a GUI build, so the one diagnostic
-        // that says rig.ini's guide rate is wrong -- which throws off
-        // pulse sizing and the drift readout -- was invisible to the
-        // only person who could act on it.
-        measuredRate = measured;
-        assumedRate  = assumed;
-    }
-    cal.when    = std::chrono::steady_clock::now();
-    {
-        double alt = 0, az = 0;
-        if (mount->GetAltAz(alt, az)) cal.altDeg = (float)alt;
-    }
+    cal.when = clk::now();
+    cal.altDeg = (float)alt1;
     {
         std::lock_guard<std::mutex> lk(m_mutex);
         m_cal = cal;
     }
-
-    // The guide rate belongs here, not in a printf: a measurement that
-    // disagrees with rig.ini is the most useful thing this routine
-    // learns, and it is only actionable if it is seen.
-    const bool rateOff = assumedRate > 0.01f &&
-                         (measuredRate < assumedRate * 0.5f ||
-                          measuredRate > assumedRate * 2.0f);
-    char buf[256];
+    // On-sky check: an az offset of G moves the sky G*cos(alt), alt by G.
+    const float gSkyAz  = eMag * cal.arcsecPerPx / (CAL_PULSE_MS / 1000.0f);
+    const float gSkyAlt = nMag * cal.arcsecPerPx / (CAL_PULSE_MS / 1000.0f);
+    char buf[320];
     snprintf(buf, sizeof(buf),
-             "E=(%.2f,%.2f)px/s N=(%.2f,%.2f)px/s scale=%.2f\"/px alt=%.0f"
-             " drift=(%.1f,%.1f)px/s removed"
-             "  guide rate measured %.2f\"/s vs rig.ini %.2f\"/s%s",
-             cal.exPerMs * 1000, cal.eyPerMs * 1000,
-             cal.nxPerMs * 1000, cal.nyPerMs * 1000,
-             cal.arcsecPerPx, cal.altDeg, driftVx, driftVy,
-             measuredRate, assumedRate,
-             rateOff ? " <- WRONG, set GuideRateArcsecPerSec" : "");
+             "Az+=(%.2f,%.2f)px/s Alt+=(%.2f,%.2f)px/s, axes %.0f deg apart; a %.0f\"/s offset moved "
+             "the planet %.1f\"/s in az (expect %.1f) and %.1f\"/s in alt (expect %.1f); "
+             "tracking az %.1f alt %.1f\"/s",
+             cal.exPerMs * 1000, cal.eyPerMs * 1000, cal.nxPerMs * 1000, cal.nyPerMs * 1000,
+             std::asin((std::min)(1.0f, sinAng)) * 57.2958f, GUIDE_OFFSET_AS,
+             gSkyAz, GUIDE_OFFSET_AS * std::cos((float)alt1 * 0.0174533f),
+             gSkyAlt, GUIDE_OFFSET_AS, rAz, rAlt);
     finish(true, buf);
 }
 
@@ -710,6 +681,7 @@ void CentroidTracker::Run() {
             cal = m_cal;
         }
         if (!cal.valid) continue; // Centering/Locked require calibration
+        _RefreshTrackRates(s.mount);   // rate-limited inside
 
         // Occasionally refresh altitude for the cos(alt) azimuth rescale
         auto now = std::chrono::steady_clock::now();
@@ -806,7 +778,7 @@ void CentroidTracker::Run() {
             if (ms < 10) return;
             GuideDirection dir = (tMs > 0) ? pos : neg;
             CoreLog("[CentroidTracker] %s pulse %dms (err %.1f\")\n", axis, ms, errAs);
-            s.mount->PulseGuide(dir, ms);
+            RatePulse(s.mount, dir, ms);
             pulsed = true;
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         };

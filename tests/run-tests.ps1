@@ -101,6 +101,7 @@ $Tests = @(
     @{ Name = "fade_watch";      Sources = @() }
     @{ Name = "target_naming";   Sources = @() }
     @{ Name = "button_state";    Sources = @() }
+    @{ Name = "wide_messages";   Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

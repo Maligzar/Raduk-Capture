@@ -699,6 +699,7 @@ void CentroidTracker::Run() {
     auto lostSince    = lastControl;
     bool lostReported = false;
     uint32_t lastFw = 0, lastFh = 0;
+    bool wasSuspended = false;
     float bestErrPx = 1e9f;
     int   overCycles = 0;
 
@@ -717,10 +718,27 @@ void CentroidTracker::Run() {
 
         // A jog mid-calibration aborts it (via _CalAlive) rather than
         // pausing — the measurement would be poisoned anyway.
-        if (m_suspended.load()) continue;
+        if (m_suspended.load()) { wasSuspended = true; continue; }
 
         Snapshot s = GetSnapshot();
         if (!s.mount || !s.mount->IsConnected()) continue;
+
+        // 2026-11-08: a hand jog during a lock moved Saturn 250 px on
+        // purpose, and when the jog ended the guider read the new position
+        // against its best error from before and abandoned it as a
+        // runaway. The jog's stop also left that axis standing still. So
+        // when a suspension ends: both axes straight back on their rates,
+        // and the planet's new place is the new reference to centre from.
+        if (wasSuspended) {
+            wasSuspended = false;
+            if (m_appDriving.load() && stage != AcquisitionStage::Calibrating) {
+                _HoldRates(s.mount);
+                { std::lock_guard<std::mutex> lk(m_mutex); m_samples.clear(); }
+                watchStage = AcquisitionStage::Off;
+                CoreLog("[GUIDE] hand jog ended: rates restored, centring from the new position\n");
+                continue;
+            }
+        }
 
         // Phase 51: run the calibration sequence in-line
         if (stage == AcquisitionStage::Calibrating) {

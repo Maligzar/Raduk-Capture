@@ -206,6 +206,24 @@ int main() {
     CHECK(!m.hcTracking, "tracking was handed back at a short gap");
     CHECK(std::hypot(x - 640, y - 480) < 15.0f, "not centred after the gap");
 
+    std::printf("3c. a hand jog while locked does not end guiding\n");
+    t.SuspendCorrections();                       // what the app does on a jog
+    m.SlewVariable(0, 0, 120.0);                  // 120"/s for 0.5 s: ~60" of axis
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    m.StopSlew(0);                                // the jog's stop: the axis stands still
+    t.ResumeCorrections();
+    m.Pixel(x, y);
+    std::printf("   after the jog: (%.0f, %.0f)\n", x, y);
+    float jogPx = std::hypot(x - 640, y - 480);
+    CHECK(jogPx > 60.0f, "the jog did not move the planet (%.0f px)", jogPx);
+    std::this_thread::sleep_for(std::chrono::milliseconds(25000));
+    m.Pixel(x, y);
+    std::printf("   25 s later: (%.0f, %.0f), stage %s, hand control tracking %d\n",
+                x, y, AcquisitionStageName(t.Stage()), (int)m.hcTracking);
+    CHECK(t.Stage() == AcquisitionStage::Centering || t.Stage() == AcquisitionStage::Locked,
+          "guiding ended after a jog (stage %s)", AcquisitionStageName(t.Stage()));
+    CHECK(std::hypot(x - 640, y - 480) < 15.0f, "not recentred after the jog");
+
     std::printf("4. reset hands tracking back\n");
     t.Reset();
     CHECK(m.hcTracking, "the hand control is not tracking after Reset");

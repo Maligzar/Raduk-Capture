@@ -279,8 +279,15 @@ void FrameAnalyzer::Run() {
                 buf.data(), w, h, bd, cx, cy, 128, &dbgRaw, &dbgNoise);
             r.sharpRaw   = (float)dbgRaw;
             r.sharpNoise = (float)dbgNoise;
-            if (variance > 0.0)
+            if (variance > 0.0) {
                 r.sharpnessPct = SharpnessPercent(variance);
+                // The same scale WITHOUT the 100% cap, for autofocus.
+                // 2026-11-07, Saturn: raw values ran ~2400 against a
+                // ceiling of 1000, so every frame near focus read 100% and
+                // the V-curve autofocus fits had a flat top -- it could not
+                // find the peak and wandered off it.
+                r.sharpnessUncapped = (float)(variance / SHARP_CEIL * 100.0);
+            }
 
             // ── Phase 95: the star answer, when asked for ───────
             //

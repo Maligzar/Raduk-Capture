@@ -57,6 +57,8 @@ namespace raduk::core {
 // A ±3000-step sweep with 11 positions gives 600-step spacing —
 // coarse enough to cover the range, fine enough to find the peak.
 
+inline constexpr int MAX_EXTRA_SWEEPS = 2;
+
 struct AutofocusParams {
     int   scanRange     = 6000;  // total steps to sweep (±3000 from start)
     int   nSteps        = 11;    // number of sample positions (odd preferred)
@@ -274,6 +276,17 @@ private:
         }
 
         // ── Sweep ─────────────────────────────────────────────
+        // 2026-11-07, Saturn: five of eight runs ended "not bracketed"
+        // and then drove the focuser to the END of the sweep anyway,
+        // away from focus. When the best point is at an end, focus lies
+        // beyond it, so the sweep is run again centred there, up to
+        // MAX_EXTRA_SWEEPS times, before a position is chosen.
+        int bestPos = -1;
+        for (int pass = 0; ; ++pass) {
+        m_samples.clear();
+        if (pass > 0) {
+            Emit("[AF] Sweep %d: %d -> %d\n", pass + 1, startPos, endPos);
+        }
         for (int i = 0; i < n; i++) {
             if (m_abortFlag.load()) {
                 Finish(false, m_startPosition, 0.0f, startSharpness,
@@ -377,7 +390,34 @@ private:
         // ── Fit parabola to find best position ────────────────
         // Local fit around the peak first; the global least-squares fit is
         // the fallback, since the tails of a defocus curve bias it.
-        int bestPos = FitPeakWindow();
+        bestPos = FitPeakWindow();
+        if (m_notBracketed && pass < MAX_EXTRA_SWEEPS) {
+            int pk = 0;
+            for (int k = 1; k < (int)m_samples.size(); k++)
+                if (m_samples[k].sharpness > m_samples[pk].sharpness) pk = k;
+            const int center = m_samples[pk].position;
+            startPos = center - half;
+            endPos   = center + half;
+            if (startPos < m_params.minStepBound) startPos = m_params.minStepBound;
+            if (endPos   > m_params.maxStepBound) endPos   = m_params.maxStepBound;
+            range = endPos - startPos;
+            Emit("[AF] Best point at the end of the sweep (pos=%d): sweeping again "
+                 "centred there\n", center);
+            m_notBracketed = false;
+            continue;
+        }
+        if (bestPos < 0 && m_notBracketed) {
+            // Still at an end after the extra sweeps: do not drive to the
+            // edge of a range that never contained focus.
+            m_focuser->MoveTo(m_startPosition);
+            WaitForMove();
+            Finish(false, m_startPosition, 0.0f, startSharpness,
+                   "focus never bracketed after extra sweeps - left at the start; "
+                   "check the target is in the frame");
+            return;
+        }
+        break;
+        }
         if (bestPos < 0) bestPos = FindBestPosition();
         if (bestPos < 0) {
             // Fallback: use the position with maximum raw sharpness

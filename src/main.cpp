@@ -6190,7 +6190,9 @@ static int RunApp(bool useEmulator) {
         // seeing noise instead of an 8-frame average — exactly why the fit
         // is unreliable in poor seeing.
         if (freshAnalysis && lastAnalysis.valid && autofocus.IsRunning())
-            autofocus.SubmitSharpness(lastAnalysis.sharpnessPct,
+            // Uncapped: the capped percentage sat at 100% near focus on
+            // Saturn (2026-11-07) and flattened the V-curve's top.
+            autofocus.SubmitSharpness(lastAnalysis.sharpnessUncapped,
                                       lastAnalysis.centroidValid,
                                       (int)lastAnalysis.centroidPeak);
 

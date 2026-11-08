@@ -130,6 +130,7 @@ struct AnalysisResult {
     // ── Sharpness / seeing ─────────────────────────────────────
     float sharpnessPct = 0.0f;   // Laplacian variance 0-100%
     float sharpRaw     = 0.0f;   // diagnostic: variance before noise subtraction
+    float sharpnessUncapped = 0.0f; // sharpnessPct's scale with no 100% cap (autofocus)
 
     // ── Star focus metrics (phase 95) ─────────────────────────
     //

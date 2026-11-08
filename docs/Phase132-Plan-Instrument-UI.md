@@ -858,3 +858,44 @@ mingw, and `night_coverage` passes.
 - the toast should rise slightly as it appears, and the notice text should slide
   in;
 - with `UiMotion=0`, both should appear at once.
+
+### 132.5, 2026-11-08: hover and press
+
+The shared button face (`FlatButton.h`, used by the control panel and GoTo)
+now answers the pointer. The rules live in a new pure header,
+`src/gui/ButtonState.h`.
+
+- **Hover** lifts the face half a surface step, from PANEL toward BORDER. That
+  is 24 to 29 at night. It eases in and out over `Motion::FAST` (150 ms) with
+  132.4's ease-out, and reverses from wherever it is if the pointer leaves
+  midway. The plan said one full step. Half, because the frame is BORDER, and a
+  face filled to the same step loses its edge.
+- **Press** drops the face a step, to DEEP, the panel background (14 at night).
+  The icon and word move 1 px down and right, and the lit top edge goes. Press
+  is instant, motion or not: a press that lags the finger feels broken. Before,
+  a press went *up* to BORDER, which read as hover more than as a press.
+- **Disabled** ignores both and keeps its dim text.
+- **The lit edge** is now computed over the actual fill. It uses the same
+  multiply as `Theme::HighlightOver`, so it strengthens with the hover and keeps
+  night vision's empty channels empty.
+- **Tracking** is a subclass installed the first time `DrawFlatButton` sees a
+  button. So the control panel's `RebuildControls`, which recreates every
+  button, needs no change. A frame timer runs only while a ramp is moving.
+  `UiMotion=0` makes hover instant.
+
+All fills are blends of tinted tokens, done after `NV()` as `Theme::Mix`
+requires, so night vision gets the designed surface luminances and no green or
+blue.
+
+**Gated.** The new `tests/button_state.cpp` (18 checks) covers the look per
+state, clamping, the ramp's ease-out, monotonicity and exact arrival, a smooth
+reversal mid-ramp, and instant hover with motion off. It passes under g++.
+`main.cpp` and `ControlPanel.cpp` compile cleanly with mingw, and
+`night_coverage` passes.
+
+**Not seen on screen.** Owner check:
+
+- rest the pointer on a control-panel button and a GoTo button; it should
+  brighten slightly and settle within a blink;
+- press and hold: the face should darken and the word drop a pixel;
+- in night vision, the same, with nothing but red.

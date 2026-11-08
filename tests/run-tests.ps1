@@ -100,6 +100,7 @@ $Tests = @(
     @{ Name = "emulator_nexstar"; Sources = @() }
     @{ Name = "fade_watch";      Sources = @() }
     @{ Name = "target_naming";   Sources = @() }
+    @{ Name = "button_state";    Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

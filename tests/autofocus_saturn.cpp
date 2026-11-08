@@ -40,7 +40,7 @@ static float Score(int pos, std::mt19937& rng, bool capped) {
     return (float)s;
 }
 
-static int Run(int start, bool capped, std::string& msg) {
+static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0) {
     EAFFocuser f;
     f.Open(0);
     f.MoveTo(start);
@@ -58,9 +58,15 @@ static int Run(int start, bool capped, std::string& msg) {
 
     std::mt19937 rng(start * 7 + (capped ? 1 : 0));
     std::atomic<bool> feed{true};
+    const auto t0 = std::chrono::steady_clock::now();
     std::thread feeder([&] {
         while (feed.load()) {
-            af.SubmitSharpness(Score(f.GetPosition(), rng, capped), true, 120);
+            // A target fading as Saturn did on 2026-11-08 (dew or haze):
+            // the score falls with time, whatever the focus.
+            const double el = std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - t0).count();
+            const float fade = (float)std::exp(-fadePerSec * el);
+            af.SubmitSharpness(Score(f.GetPosition(), rng, capped) * fade, true, 120);
             std::this_thread::sleep_for(std::chrono::milliseconds(15));
         }
     });
@@ -97,6 +103,16 @@ int main() {
                     c.name, c.start, end, end - kFocus, m.c_str());
         CHECK(std::abs(end - kFocus) <= 400, "%s: ended %+d steps from focus",
               c.name, end - kFocus);
+    }
+
+    std::printf("3. the target fades through the sweep\n");
+    {
+        std::string m;
+        const int end = Run(kFocus - 1500, false, m, 0.15);
+        std::printf("   from %d ended at %d (%+d from focus) %s\n",
+                    kFocus - 1500, end, end - kFocus, m.c_str());
+        CHECK(std::abs(end - kFocus) <= 500, "fading: ended %+d steps from focus",
+              end - kFocus);
     }
 
     if (g_fail) { std::printf("autofocus_saturn: %d FAILED\n", g_fail); return 1; }

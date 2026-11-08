@@ -212,7 +212,7 @@ public:
         return s == AFState::Scanning || s == AFState::Moving;
     }
     int         CurrentStep()  const { return m_currentStep.load(); }
-    int         TotalSteps()   const { return m_params.nSteps; }
+    int         TotalSteps()   const { return 2 * m_params.nSteps; }   // out and back
     int         BestPosition() const { return m_bestPosition.load(); }
     float       BestSharpness()const { return m_bestSharpness.load(); }
 
@@ -287,7 +287,16 @@ private:
         if (pass > 0) {
             Emit("[AF] Sweep %d: %d -> %d\n", pass + 1, startPos, endPos);
         }
-        for (int i = 0; i < n; i++) {
+        // 2026-11-08, Saturn: the target faded and blurred steadily
+        // through a sweep (peak 255 -> 154 in 90 s; dew or haze), and the
+        // score fell with TIME at every position, swamping focus. So each
+        // position is visited twice, out and back, half the frames each,
+        // and the two are averaged: a steady trend lowers the early-out
+        // and late-back visits alike and cancels, focus does not.
+        std::vector<float> visitSum((size_t)n, 0.0f);
+        std::vector<int>   visitCnt((size_t)n, 0);
+        for (int v = 0; v < 2 * n; v++) {
+            const int i = (v < n) ? v : (2 * n - 1 - v);
             if (m_abortFlag.load()) {
                 Finish(false, m_startPosition, 0.0f, startSharpness,
                        "Aborted by user");
@@ -295,10 +304,10 @@ private:
             }
 
             int pos = startPos + (int)((float)i / (n - 1) * range);
-            m_currentStep.store(i + 1);
+            m_currentStep.store(v + 1);
 
             char buf[64];
-            sprintf_s(buf, "Scanning %d/%d  pos=%d", i + 1, n, pos);
+            sprintf_s(buf, "Scanning %d/%d  pos=%d", v + 1, 2 * n, pos);
             SetStatus(buf);
 
             // Move to position
@@ -321,7 +330,7 @@ private:
             Sleep(m_params.settleMs);
 
             // Collect sharpness samples
-            int fp = m_params.framesPerStep;
+            int fp = (std::max)(2, (m_params.framesPerStep + 1) / 2);   // per visit
             m_sharpnessSamples.clear();
             m_centValidSamples.clear();
             m_centPeakSamples.clear();
@@ -380,11 +389,26 @@ private:
                 m_sharpnessMutex.unlock();
             }
 
-            m_samples.push_back({pos, meanSharp});
-            Emit("[AF] Step %d/%d  pos=%d  sharp=%.1f%%  (%d samples, "
+            if (nSamples > 0) { visitSum[(size_t)i] += meanSharp; visitCnt[(size_t)i]++; }
+            Emit("[AF] Step %d/%d (%s)  pos=%d  sharp=%.1f%%  (%d samples, "
                  "%d distinct, centroid %d/%d ok, peak %d-%d)\n",
-                 i + 1, n, pos, meanSharp, nSamples, nDistinct,
+                 v + 1, 2 * n, v < n ? "out" : "back", pos, meanSharp, nSamples, nDistinct,
                  nCentOk, nSamples, peakMax < 0 ? -1 : peakMin, peakMax);
+        }
+        for (int i = 0; i < n; i++) {
+            const int pos = startPos + (int)((float)i / (n - 1) * range);
+            const float m = visitCnt[(size_t)i] ? visitSum[(size_t)i] / visitCnt[(size_t)i] : 0.0f;
+            m_samples.push_back({pos, m});
+        }
+        {
+            std::string line = "[AF] Out-and-back means:";
+            char b[48];
+            for (const auto& smp : m_samples) {
+                sprintf_s(b, " %d=%.2f", smp.position, smp.sharpness);
+                line += b;
+            }
+            line += "\n";
+            Emit("%s", line.c_str());
         }
 
         // ── Fit parabola to find best position ────────────────
@@ -499,6 +523,49 @@ private:
         // re-measure back at the start position; that is a larger change.
         const float REGRESSION_FRAC = 0.50f;
         if (startSharpness > 0.0f && finalSharp < startSharpness * REGRESSION_FRAC) {
+            // 2026-11-08: that A/B, done now. Saturn faded steadily through
+            // the run (dew or haze), so the start's reading from a minute
+            // ago was no fair comparison. Measure the start position again
+            // under the same sky; only if it is really better is the fit
+            // wrong. Otherwise the sky changed, and the fit stands.
+            m_focuser->MoveTo(m_startPosition);
+            WaitForMove();
+            Sleep(m_params.settleMs);
+            m_sharpnessSamples.clear();
+            m_centValidSamples.clear();
+            m_centPeakSamples.clear();
+            m_samplesNeeded.store(5);
+            WaitForSamples(5, 8000);
+            m_samplesNeeded.store(0);
+            float startNow = 0.0f;
+            {
+                m_sharpnessMutex.lock();
+                if (!m_sharpnessSamples.empty()) {
+                    float sum = 0;
+                    for (float sv : m_sharpnessSamples) sum += sv;
+                    startNow = sum / m_sharpnessSamples.size();
+                }
+                m_sharpnessMutex.unlock();
+            }
+            Emit("[AF] Re-measured start pos=%d now: %.1f (was %.1f); fit pos=%d: %.1f\n",
+                 m_startPosition, startNow, startSharpness, finalPos, finalSharp);
+            if (startNow > 0.0f && finalSharp >= startNow * 0.95f) {
+                Emit("[AF] The sky changed, not the focus: keeping pos=%d\n", finalPos);
+                if (m_params.backlash > 0) {
+                    int approachFrom = finalPos - m_params.backlash;
+                    if (approachFrom < m_params.minStepBound) approachFrom = m_params.minStepBound;
+                    m_focuser->MoveTo(approachFrom);
+                    WaitForMove();
+                }
+                m_focuser->MoveTo(finalPos);
+                WaitForMove();
+                m_bestPosition.store(finalPos);
+                m_bestSharpness.store(finalSharp);
+                Finish(true, finalPos, finalSharp, startNow,
+                       "conditions changed during the sweep (target faded) - "
+                       "focus kept from the out-and-back fit");
+                return;
+            }
             Emit("[AF] Fit chose pos=%d; measured %.1f%% there vs %.1f%% at "
                  "start pos=%d - WORSE, returning to start\n",
                  finalPos, finalSharp, startSharpness, m_startPosition);

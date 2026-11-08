@@ -1229,3 +1229,33 @@ For contrast, so this list is not read as "nothing works":
     mount should go to it and hold it. Note the magnitude the map predicted
     and what the camera shows, which is what tunes `NeoMagLimit`.
 
+### Phase 133: what the 2026-11-07 night left to prove
+
+In running order, about 60-90 minutes on one planet. Each item says what
+the bench already showed, so the night only has to confirm it. The plan is
+[`Phase133-Plan-Field-Proof.md`](Phase133-Plan-Field-Proof.md).
+
+47. **Autofocus, on the sky** (F9). Defocus by 700 steps and run AUTO FOCUS;
+    then 4000; then 8000. The bench landed within 28-45 steps. The log should
+    show HFD, not sharpness, and a re-sweep only when the curve was not
+    bracketed. Write down the final position and whether the image looks
+    sharp. If the target fades during a run, note it, because that is item 52.
+48. **A box change while locked** (F5). With PLANET LOCK holding, change the
+    box 3840 → 1280 → 640 → 3840. Guiding should hold, not hand tracking
+    back, and the planet should re-centre.
+49. **A hand jog while locked** (F6). Jog the planet roughly 200 px with the
+    paddle. When the jog ends it should re-centre within about 25 s, and the
+    lock should not be abandoned.
+50. **Calibration in a small box, and near an edge** (F7, F8). In a 640×480
+    box, calibrate: the moves should stay inside the box (about 14″ each).
+    Then put the planet within 20% of an edge and press again. It should
+    refuse with "centre it roughly, then press again".
+51. **Close and reopen** (F10). Drag a box, then close the app. There should
+    be no crash, and the scope should keep tracking after the close. Reopen
+    it: the info panel should name the last target (F11).
+52. **Fade** (F13). If the planet dims through a run, note the time, the
+    weather panel's dew risk, and whether the corrector is dewed. That
+    decides whether 133.2's warning should name dew.
+53. **Pointing** (F12, 133.4). After a fresh two-star align, GoTo a bright
+    star and note how far it lands from centre. If it is still degrees off,
+    try the phase 123 pointing map with `PointingMapApply=1`.

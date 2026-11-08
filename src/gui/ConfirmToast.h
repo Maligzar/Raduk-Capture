@@ -160,7 +160,9 @@ private:
     }
 
     static void Paint(HDC dc, const RECT& rc, const State& st) {
-        const COLORREF accent = st.ok ? Theme::NV(Theme::Rgb::ACCENT3)
+        // 132.3d: a confirmation is the signal colour, not Live, which is
+        // kept for mount, tracking and connection.
+        const COLORREF accent = st.ok ? Theme::NV(Theme::Rgb::ACCENT)
                                       : Theme::NV(Theme::Rgb::ACCENT4);
 
         HBRUSH bg = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
@@ -175,7 +177,7 @@ private:
         FillRect(dc, &bar, ab);
         DeleteObject(ab);
 
-        HPEN   pen = CreatePen(PS_SOLID, 1, Theme::NV(RGB(40, 54, 72)));
+        HPEN   pen = CreatePen(PS_SOLID, 1, Theme::NV(Theme::Rgb::BORDER));
         HGDIOBJ op = SelectObject(dc, pen);
         HGDIOBJ ob = SelectObject(dc, GetStockObject(NULL_BRUSH));
         Rectangle(dc, 0, 0, rc.right, rc.bottom);

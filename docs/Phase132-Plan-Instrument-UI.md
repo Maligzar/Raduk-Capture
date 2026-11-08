@@ -681,3 +681,47 @@ ADC, motion monitor and status bar windows by day. At night only the motion
 trail changes, since every other change keeps its ladder luminance. The
 startup dialog is not in the scenario; check it by eye on the next hardware
 launch with night vision saved on.
+
+### 132.3d, 2026-11-08: dialogs, toasts, notifications and the mount
+
+**Already on the tokens.** The Help, assistant, site, readiness, alignment-helper
+and object-info windows paint only through `Theme::Rgb` and `Theme::Color`. No
+literal colour and no decorative accent was left in them. They changed with the
+132.3a palette swap, and this stage leaves them alone.
+
+**What changed:**
+
+- **Notification bar.** *Info* was bright green on dark green, the loudest of the
+  three levels for the least urgent news. It is now plain Panel and Text.
+  *Warning* and *error* tint the panel toward Warning and Fault (18% and 22%),
+  mixed after the night transform, with the token as the text colour.
+- **Confirm toast.** The "done" bar was Live green. It is now the signal colour,
+  because Live is kept for mount, tracking and connection. The frame is Line.
+- **Toolbar.** The *Ready* outline was Warning amber, which now means caution
+  only. It is now the signal colour, the same as *Active*. The two still differ
+  by shape: Active has a filled face and a bar.
+- **Mount controller.**
+  - Its readouts were the signal colour; they are now Text.
+  - The sky lamp's unlit state is Line.
+  - The *Good* and *Poor* lamps are Steel-toned rather than the old saturated
+    green and orange. Neither is a token, so at night they take the derived
+    luminance, about 155 and 137. That keeps them between Prime (170) and
+    Marginal (110), and below Fault (240).
+  - Its fallback button colours (STOP, ALIGN, the rate buttons) are on the
+    tokens. These buttons have been owner-drawn since phase 120, so that branch
+    only matters if the owner-draw is ever removed.
+- **Rig setup.**
+  - The keep-out wedge is Fault, tinted toward Deep.
+  - The compass ring is Line.
+  - "You" is Text: a reference, not a state.
+  - The mount's live azimuth is Live, not amber.
+  - Edit-box text is Text instead of an off-token near-white.
+
+**Checked here.** `night_coverage` passes: every GDI and Direct2D paint call in
+the operator chrome still goes through night vision. `main.cpp` compiles cleanly
+with mingw in the emulator configuration.
+
+**Expected in the 132.0 diff:** the mount controller, toolbar and notification
+bar in both modes. At night only the lamp's Good and Poor steps change, and
+they are not in the scenario. The rig setup dialog and the toasts are not in
+the scenario, so check them by eye.

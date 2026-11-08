@@ -425,7 +425,9 @@ private:
         Theme::RaiseInRect(hdc, r, Theme::Rgb::PANEL, Theme::Elev::RAISED);
 
         HPEN pen = CreatePen(PS_SOLID, 1,
-            s == State::Ready ? Theme::NV(Theme::Rgb::ACCENT2)
+            // 132.3d: Ready is an invitation, so the signal colour. It was
+            // amber, which now means caution.
+            s == State::Ready ? Theme::NV(Theme::Rgb::ACCENT)
                               : Theme::NV(Theme::Rgb::BORDER));
         HPEN   oldPen   = (HPEN)SelectObject(hdc, pen);
         HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));

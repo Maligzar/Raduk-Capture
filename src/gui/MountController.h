@@ -762,14 +762,19 @@ private:
         COLORREF litRaw;
         const char* name;
         if (!m_sky.valid) {
-            litRaw = RGB(60, 72, 88);
+            litRaw = Theme::Rgb::BORDER;   // 132.3d: an unlit lamp
             name   = "NO ALT";
         } else {
             switch (m_sky.window) {
                 case SkyWindow::Prime:    litRaw = Theme::Rgb::ACCENT3; break;
-                case SkyWindow::Good:     litRaw = RGB(140, 210, 70);   break;
+                // 132.3d: Good and Poor sit between their neighbours in
+                // the Steel palette. Neither is a token, so at night they
+                // take the derived luminance: about 155 and 137, which
+                // keeps them between Prime (170) and Marginal (110), and
+                // below Fault (240).
+                case SkyWindow::Good:     litRaw = RGB(0x86, 0xA2, 0x92); break;
                 case SkyWindow::Marginal: litRaw = Theme::Rgb::ACCENT2; break;
-                case SkyWindow::Poor:     litRaw = RGB(255, 110, 40);   break;
+                case SkyWindow::Poor:     litRaw = RGB(0xDF, 0x76, 0x47); break;
                 default:                  litRaw = Theme::Rgb::ACCENT4; break;
             }
             name = WindowName(m_sky.window);
@@ -1026,7 +1031,7 @@ private:
             HDC hdc = (HDC)wParam;
             SetBkMode(hdc, OPAQUE);
             SetBkColor(hdc,   Theme::NV(Theme::Rgb::DEEP));
-            SetTextColor(hdc, Theme::NV(Theme::Rgb::ACCENT));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));   // 132.3d: readouts, not signal
             HBRUSH hBg = Theme::Brush(Theme::Rgb::DEEP);
             return (LRESULT)hBg;
         }
@@ -1058,9 +1063,12 @@ private:
             HWND btn = (HWND)lParam;
             int id = GetDlgCtrlID(btn);
             if (id == ID_BTN_STOP) {
-                SetBkColor(hdc,   Theme::NV(RGB(160, 10, 10)));
-                SetTextColor(hdc, Theme::NV(RGB(255, 255, 255)));
-                HBRUSH hRed = Theme::Brush(RGB(160, 10, 10));
+                // 132.3d: tokens. These buttons are owner-drawn since
+                // phase 120, so this branch is a fallback; it should
+                // still say what the owner-draw says.
+                SetBkColor(hdc,   Theme::NV(Theme::Rgb::RED));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::BG_VOID));
+                HBRUSH hRed = Theme::Brush(Theme::Rgb::RED);
                 return (LRESULT)hRed;
             }
             if (id==ID_BTN_N || id==ID_BTN_S || id==ID_BTN_E || id==ID_BTN_W) {
@@ -1070,9 +1078,9 @@ private:
                 return (LRESULT)hJog;
             }
             if (id == ID_BTN_ALIGN) {
-                SetBkColor(hdc,   Theme::NV(RGB(40, 30, 5)));
-                SetTextColor(hdc, Theme::NV(RGB(255, 200, 60)));
-                HBRUSH hAl = Theme::Brush(RGB(40, 30, 5));
+                SetBkColor(hdc,   Theme::NV(Theme::Rgb::PANEL));
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::AMBER));
+                HBRUSH hAl = Theme::Brush(Theme::Rgb::PANEL);
                 return (LRESULT)hAl;
             }
             // Rate buttons
@@ -1080,9 +1088,9 @@ private:
                        (id==ID_BTN_RATE7)?7:(id==ID_BTN_RATE5)?5:-1;
             if (rate > 0) {
                 bool active = (rate == self->m_jogRate);
-                SetBkColor(hdc,   active ? Theme::NV(RGB(0,60,80))    : Theme::NV(Theme::Rgb::BORDER));
+                SetBkColor(hdc,   active ? Theme::NV(Theme::Rgb::PANEL)  : Theme::NV(Theme::Rgb::BORDER));
                 SetTextColor(hdc, active ? Theme::NV(Theme::Rgb::ACCENT)  : Theme::NV(Theme::Rgb::TEXT_DIM));
-                HBRUSH hAct = Theme::Brush(RGB(0,60,80));
+                HBRUSH hAct = Theme::Brush(Theme::Rgb::PANEL);
                 HBRUSH hDim = Theme::Brush(Theme::Rgb::BORDER);
                 return (LRESULT)(active ? hAct : hDim);
             }

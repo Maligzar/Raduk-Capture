@@ -159,6 +159,46 @@ static raduk::core::MountEmulator* g_mountForCrash = nullptr;
 static raduk::core::NexStarMount* g_mountForCrash = nullptr;
 #endif
 
+// ── What the telescope is on (2026-11-08) ─────────────────────
+// The info panel and the share caption each named the target their own
+// way, and both fell back to the active profile, which at startup is
+// always the first in the list -- Jupiter -- whatever the scope was on.
+// One answer for both: the most recent deliberate choice, a GoTo target
+// or picking an object's profile (not a generic one), remembered across
+// restarts in rig.ini [Session] LastTarget. The planet the mount points
+// at is used only when nothing has been chosen, because the mount's
+// pointing model can be degrees off (it was ~8 deg that night).
+static std::string CurrentTargetName(const std::string& gotoTarget,
+                                     const std::string& profileName,
+                                     const std::string& planetAtMount) {
+    static bool        loaded = false;
+    static std::string target, lastGoto, lastProfile;
+    const std::string ini = raduk::core::RigConfig::PublicIniPath();
+    if (!loaded) {
+        loaded = true;
+        char b[64] = {};
+        GetPrivateProfileStringA("Session", "LastTarget", "", b, sizeof(b), ini.c_str());
+        target = b;
+        lastGoto = gotoTarget;          // what was already there is not news
+        lastProfile = profileName;
+    }
+    auto isGeneric = [](const std::string& n) {
+        return n.empty() || _stricmp(n.c_str(), "Planet Focus") == 0 ||
+               _stricmp(n.c_str(), "Planet_Focus") == 0 ||
+               _stricmp(n.c_str(), "Star") == 0 || _stricmp(n.c_str(), "DSO") == 0;
+    };
+    std::string chosen;
+    if (gotoTarget != lastGoto)       { lastGoto = gotoTarget;   if (!gotoTarget.empty()) chosen = gotoTarget; }
+    if (profileName != lastProfile)   { lastProfile = profileName; if (!isGeneric(profileName)) chosen = profileName; }
+    if (chosen.empty() && target.empty() && !planetAtMount.empty()) chosen = planetAtMount;
+    if (!chosen.empty() && chosen != target) {
+        target = chosen;
+        WritePrivateProfileStringA("Session", "LastTarget", target.c_str(), ini.c_str());
+    }
+    if (!target.empty()) return target;
+    return profileName;
+}
+
 static void EmergencyStopOnExit() {
     if (g_mountForCrash && g_mountForCrash->IsConnected()) {
         printf("[SAFETY] atexit: sending emergency mount stop\n");
@@ -7267,11 +7307,11 @@ static int RunApp(bool useEmulator) {
                     // The active profile IS the target on this rig --
                     // the profiles are per-object -- so it is the right
                     // thing to fall back to.
-                    const std::string& tgt = gotoPanel.CurrentTarget();
-                    if (!tgt.empty()) {
-                        sc.target = tgt;
-                    } else if (const auto* ap = profiles.Active()) {
-                        sc.target = ap->name;
+                    {
+                        const auto* ap = profiles.Active();
+                        sc.target = CurrentTargetName(gotoPanel.CurrentTarget(),
+                                                      ap ? ap->name : std::string(),
+                                                      gotoPanel.PlanetAtMount());
                     }
                     sc.rig       = "Celestron 8SE  \xc2\xb7  ZWO ASI678MC";
                     sc.fps       = fps;
@@ -7302,24 +7342,12 @@ static int RunApp(bool useEmulator) {
                     // startup profile, and with the mount's pointing
                     // model ~8 deg off (2026-11-07) PlanetAtMount found
                     // nothing either. Remembered in rig.ini [Session].
-                    static std::string s_lastTarget = [] {
-                        char b[64] = {};
-                        GetPrivateProfileStringA("Session", "LastTarget", "", b, sizeof(b),
-                            raduk::core::RigConfig::PublicIniPath().c_str());
-                        return std::string(b);
-                    }();
-                    const std::string& tgt2 = gotoPanel.CurrentTarget();
-                    std::string known = tgt2;
-                    if (known.empty()) known = gotoPanel.PlanetAtMount();
-                    if (!known.empty() && known != s_lastTarget) {
-                        s_lastTarget = known;
-                        WritePrivateProfileStringA("Session", "LastTarget", known.c_str(),
-                            raduk::core::RigConfig::PublicIniPath().c_str());
+                    {
+                        const auto* ap2 = profiles.Active();
+                        oc.target = CurrentTargetName(gotoPanel.CurrentTarget(),
+                                                      ap2 ? ap2->name : std::string(),
+                                                      gotoPanel.PlanetAtMount());
                     }
-                    if (!known.empty()) oc.target = known;
-                    else if (!s_lastTarget.empty()) oc.target = s_lastTarget;
-                    else if (const auto* ap2 = profiles.Active())
-                        oc.target = ap2->name;
 
                     // Resolve only when the name has changed. The
                     // record does not change while the telescope is

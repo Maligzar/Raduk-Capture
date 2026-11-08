@@ -477,7 +477,11 @@ private:
             r.pct = pct < 0.0f ? 0.0f : pct > 100.0f ? 100.0f : pct;
 
             r.fill = (sk.window == SkyWindow::Prime)    ? Theme::NV(Theme::Rgb::ACCENT3)
-                   : (sk.window == SkyWindow::Good)     ? Theme::NV(RGB(120, 200, 80))
+                   // 132.3c: Good is Live eased toward Dim, between
+                   // Prime and Marginal on the token ladder by day and
+                   // by night, instead of an off-ladder green.
+                   : (sk.window == SkyWindow::Good)     ? Theme::Mix(Theme::NV(Theme::Rgb::GREEN),
+                                                                     Theme::NV(Theme::Rgb::TEXT_DIM), 0.5f)
                    : (sk.window == SkyWindow::Marginal) ? Theme::NV(Theme::Rgb::ACCENT2)
                                                         : Theme::NV(Theme::Rgb::ACCENT4);
 
@@ -518,10 +522,10 @@ private:
                 snprintf(r.rightValue, sizeof(r.rightValue), "%.0fF", w.tempF);
                 r.rightClr = strcmp(w.dewRisk, "warning") == 0 ? Theme::NV(Theme::Rgb::ACCENT4)
                            : strcmp(w.dewRisk, "elevated") == 0 ? Theme::NV(Theme::Rgb::ACCENT2)
-                                                                : Theme::NV(Theme::Rgb::ACCENT);
+                                                                : Theme::NV(Theme::Rgb::TEXT);  // 132.3c: no dew risk is a plain reading
             } else {
                 r.pct = 0.0f;
-                r.fill = Theme::NV(RGB(60, 70, 85));
+                r.fill = Theme::NV(Theme::Rgb::BORDER);
                 snprintf(r.barText, sizeof(r.barText), "Leoben: %s",
                          w.state[0] ? w.state : "no reading");
                 strcpy_s(r.rightLabel, "AIR");

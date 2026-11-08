@@ -145,6 +145,20 @@ int main() {
               "and a press the app cannot do fails the scenario");
     }
 
+    printf("\n4. Holding a key (phase 133.1)\n");
+    {
+        ScenarioRunner r;
+        LoadOk(r, "keydown LEFT\nwait 2\nkeyup LEFT\n");
+        const auto a = r.Tick(0);
+        Check(a.kind == K::Key && a.arg == "+LEFT", "keydown hands out a key held down");
+        Check(r.Tick(1.0).kind == K::None, "and the wait between holds it");
+        const auto b = r.Tick(2.1);
+        Check(b.kind == K::Key && b.arg == "-LEFT", "keyup releases it");
+        ScenarioRunner bad;
+        std::string why;
+        Check(!bad.Load("keydown\n", why), "a keydown with no key is refused");
+    }
+
     printf("\n%s\n", g_fail ? "FAILED" : "All passed");
     return g_fail ? 1 : 0;
 }

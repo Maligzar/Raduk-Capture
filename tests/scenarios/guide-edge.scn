@@ -1,0 +1,28 @@
+# Phase 133.1, F7 from the 2026-11-07 night: at 01:42 calibration started
+# with the planet 348 px from the top of the frame, its moves carried it
+# toward the edge, and the operator had to jog. Calibration must now
+# refuse a target within 20% of an edge. A FINE jog for 0.6 s moves the
+# star about 140" (some 700 px at 0.2"/px) from the middle of the full
+# sensor: inside the frame, inside the 20% margin.
+name    Guide: calibration refuses a star near the edge
+timeout 300
+
+env     RADUK_EMU_NEXSTAR=1
+profile star.ini focuser position=168000
+profile star.ini roi width=3840
+profile star.ini roi height=2160
+
+expect 30  [SCENARIO] Guide: calibration refuses
+wait   3
+press  FINE
+goto   Kochab
+expect 120 SEARCHING
+wait   5
+keydown UP
+wait   0.6
+keyup  UP
+wait   3
+press  PLANET LOCK
+expect 90  centre it roughly
+absent 5   [CAL] direction check
+shot   refused

@@ -13,6 +13,22 @@
 // the full CentroidTracker correction loop runs closed in emulation.
 // Imperfect tracking is simulated by drifting the mount away from the
 // target at a configurable rate even while "tracking" is on.
+//
+// Phase 133.1 -- the NexStar as it measured on 2026-11-07, opt-in with
+// RADUK_EMU_NEXSTAR=1 (so the scenarios written for the older model
+// keep their behaviour). In this mode:
+//   - the axes are azimuth and altitude, always, as on the real fork;
+//   - a motion command REPLACES that axis's tracking while it runs,
+//     rather than adding to it;
+//   - while the hand control tracks, it rewrites a guide-scale
+//     variable-rate command with its own within a tick (measured:
+//     ~0.1 s; the 100"/s bound below which it applies is inferred);
+//   - azimuth is mirrored: direction 0 turns its encoder backwards;
+//   - the hand control's tracking is slightly mis-set (16.0 against
+//     16.3"/s in azimuth, 5.0 against 5.2 in altitude, as measured), so
+//     a planet drifts off with tracking on.
+// tests/rate_guide.cpp models the same mount on the bench; this puts it
+// under the whole app, so the scenarios gate the guiding fixes indoors.
 // ============================================================
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -55,6 +71,14 @@ public:
         if (m_connected) return false;
         m_comPort   = comPort + " [EMU]";
         m_connected = true;
+        {
+            const char* ns = getenv("RADUK_EMU_NEXSTAR");
+            m_nexstar = ns && ns[0] == '1';
+            m_nsValid = false;
+            if (m_nexstar)
+                printf("[MountEmulator] NexStar semantics: commands replace tracking, "
+                       "azimuth mirrored, tracking mis-set\n");
+        }
         // Start with Jupiter's approximate RA/DEC (good test target)
         m_raHours   = 5.5833;  // ~05h 35m (near Orion)
         m_decDeg    = -5.3833; // ~-05° 23'
@@ -87,6 +111,13 @@ public:
 
     bool GetAltAz(double& altDegrees, double& azDegrees) override {
         if (!m_connected) return false;
+        // Phase 133.1: in NexStar mode the encoders ARE the state, so
+        // they are what the mount reports, as the real one does. Going
+        // through RA/Dec and back would add the conversion's own error.
+        if (m_nexstar) {
+            std::lock_guard<std::mutex> lk(m_mutex);
+            if (m_nsValid) { altDegrees = m_nsAlt; azDegrees = m_nsAz; return true; }
+        }
 
         // Phase 67: derive this from the emulated pointing instead of
         // returning constants. Static alt/az made the emulator useless
@@ -227,6 +258,7 @@ public:
         std::lock_guard<std::mutex> lk(m_mutex);
         m_raHours = raHours;
         m_decDeg  = decDegrees;
+        m_nsValid = false;   // 133.1: the encoders re-seat on the next tick
         printf("[MountEmulator] Sync to RA=%.4f DEC=%.4f\n", raHours, decDegrees);
         return true;
     }
@@ -303,6 +335,7 @@ private:
                 std::lock_guard<std::mutex> lk(m_mutex);
 
                 if (m_slewing) {
+                    m_nsValid = false;   // 133.1: re-read the axes after a GoTo
                     // GoTo: move toward target
                     double dRA  = m_gotoRA  - m_raHours;
                     double dDec = m_gotoDec - m_decDeg;
@@ -343,6 +376,8 @@ private:
                         AltAzToRADecNow(alt + stepOf(dAlt), az + stepOf(dAz),
                                         m_raHours, m_decDeg);
                     }
+                } else if (m_nexstar) {
+                    TickNexStar();
                 } else {
                     // Sidereal drift when tracking is OFF
                     // Phase 116: while a pass is flown the axes are azimuth
@@ -413,6 +448,60 @@ private:
         }
     }
 
+    // ── Phase 133.1: one 0.1 s tick of the measured NexStar ───
+    //
+    // The mount's state is its two encoders. Where the sky point it was
+    // on has moved to since the last tick is what perfect tracking would
+    // do; the hand control does a little less of it, a command replaces
+    // it, and with tracking off the axis stands still while the sky
+    // turns. Called with m_mutex held.
+    static constexpr double kNsTrackAz  = 16.0 / 16.3;
+    static constexpr double kNsTrackAlt =  5.0 /  5.2;
+    static constexpr double kNsOverwriteBelowAs = 100.0;
+    void TickNexStar() {
+        // Where the sky point the mount was on has moved to since the last
+        // tick, measured against that point's own reading at the last
+        // tick: the RA/Dec <-> alt/az round trip is not exact, and taking
+        // both readings through the same conversion cancels its error.
+        double alt = 0.0, az = 0.0;
+        RADecToAltAzNow(m_raHours, m_decDeg, alt, az);
+        if (!m_nsValid) {
+            m_nsAlt = alt; m_nsAz = az; m_nsRefAlt = alt; m_nsRefAz = az;
+            m_nsValid = true;
+            return;
+        }
+        const bool tracking = (m_tracking != OFF);
+        // The hand control's tracking overwrites a guide-scale variable
+        // rate. Measured for an altitude command at guide rates; jogs at
+        // hundreds of arcsec/s worked that night, so the bound of
+        // 100"/s is inferred, not measured. tests/rate_guide.cpp's bench
+        // mount clears both axes, and so does this.
+        if (tracking) {
+            bool over = false;
+            if (m_slewAsRA  != 0.0 && std::fabs(m_slewAsRA)  < kNsOverwriteBelowAs) { m_slewAsRA  = 0.0; over = true; }
+            if (m_slewAsDec != 0.0 && std::fabs(m_slewAsDec) < kNsOverwriteBelowAs) { m_slewAsDec = 0.0; over = true; }
+            if (over) printf("[MountEmulator] hand control tracking overwrote a variable rate\n");
+        }
+        auto commanded = [](double as, int preset) {
+            if (as != 0.0) return as;
+            if (preset == 0) return 0.0;
+            const double r = JogArcsecPerSec(preset < 0 ? -preset : preset);
+            return preset < 0 ? -r : r;
+        };
+        const double cAz  = commanded(m_slewAsRA,  m_slewRateRA);
+        const double cAlt = commanded(m_slewAsDec, m_slewRateDec);
+        const double trkAz  = ShortestTurnDeg(m_nsRefAz, az) * kNsTrackAz;
+        const double trkAlt = (alt - m_nsRefAlt) * kNsTrackAlt;
+        const double dAz  = (cAz  != 0.0) ? -cAz * 0.1 / 3600.0      // mirrored
+                          : (tracking ? trkAz : 0.0);
+        const double dAlt = (cAlt != 0.0) ?  cAlt * 0.1 / 3600.0
+                          : (tracking ? trkAlt : 0.0);
+        m_nsAz  = std::fmod(m_nsAz + dAz + 360.0, 360.0);
+        m_nsAlt = std::clamp(m_nsAlt + dAlt, -5.0, 90.0);
+        AltAzToRADecNow(m_nsAlt, m_nsAz, m_raHours, m_decDeg);
+        RADecToAltAzNow(m_raHours, m_decDeg, m_nsRefAlt, m_nsRefAz);
+    }
+
     // ── IMount new methods ───────────────────────────────────
     const std::string& ConnectionId() const override { return m_comPort; }
 
@@ -453,6 +542,14 @@ private:
     double      m_decDeg   = -5.3833;
     TrackingMode m_tracking = ALT_AZ;
     std::atomic<bool> m_altAzAxes{false};
+
+    // Phase 133.1: the measured NexStar (RADUK_EMU_NEXSTAR=1).
+    bool        m_nexstar = false;
+    bool        m_nsValid = false;
+    double      m_nsAlt   = 0.0;   // encoder, degrees
+    double      m_nsAz    = 0.0;
+    double      m_nsRefAlt = 0.0;  // the pointed sky point, read at the last tick
+    double      m_nsRefAz  = 0.0;
 
     // GoTo state
     double      m_gotoRA  = 0.0;

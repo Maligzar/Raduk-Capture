@@ -1,0 +1,28 @@
+# Phase 133.1, F6 from the 2026-11-07 night: at 01:37 a lock ended after
+# a hand jog, judged a runaway against its pre-jog error. A jog during a
+# lock must end with the rates restored and the star re-centred.
+# Full frame, so a FINE jog (about 240"/s) for 0.3 s stays on the sensor.
+name    Guide: a hand jog while locked
+timeout 360
+
+env     RADUK_EMU_NEXSTAR=1
+profile star.ini focuser position=168000
+profile star.ini roi width=3840
+profile star.ini roi height=2160
+
+expect 30  [SCENARIO] Guide: a hand jog
+wait   3
+press  FINE
+goto   Kochab
+expect 120 SEARCHING
+wait   3
+press  PLANET LOCK
+expect 150 Acquisition: Locked
+wait   5
+keydown LEFT
+wait   0.3
+keyup  LEFT
+expect 15  [GUIDE] hand jog ended
+absent 30  Guiding abandoned
+expect 60  Stage -> LOCKED
+shot   after-jog

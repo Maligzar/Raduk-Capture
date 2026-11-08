@@ -168,10 +168,10 @@ private:
 
     void CreateBrushes() {
         if (!m_rt) return;
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.30f, 1.0f, 0.43f, 1.0f)), &m_green);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.67f, 0.0f, 1.0f)), &m_amber);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::GREEN), &m_green);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::AMBER), &m_amber);
         m_rt->CreateSolidColorBrush(Theme::Color(Theme::RED), &m_red);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.47f, 0.53f, 0.61f, 1.0f)), &m_dim);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT_DIM), &m_dim);
         m_brushGen = Theme::PaletteGeneration();
     }
 

@@ -163,13 +163,13 @@ private:
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.31f, 0.31f, 1.0f)), &m_br.rB);
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.31f, 0.86f, 0.31f, 1.0f)), &m_br.gB);
         m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.31f, 0.55f, 1.0f, 1.0f)), &m_br.bB);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.02f, 0.04f, 0.07f, 1.0f)), &m_br.bedB);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.85f, 0.88f, 0.92f, 1.0f)), &m_br.meanB);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.47f, 0.53f, 0.61f, 1.0f)), &m_br.dimB);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.67f, 0.0f, 1.0f)), &m_br.amberB);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::DEEP), &m_br.bedB);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT), &m_br.meanB);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT_DIM), &m_br.dimB);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::AMBER), &m_br.amberB);
         m_rt->CreateSolidColorBrush(Theme::Color(Theme::RED), &m_br.redB);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.30f, 1.0f, 0.43f, 1.0f)), &m_br.greenB);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.02f, 0.03f, 0.06f, 1.0f)), &m_bgBrush);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::GREEN), &m_br.greenB);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::BG_VOID), &m_bgBrush);
         m_brushGen = Theme::PaletteGeneration();
     }
 

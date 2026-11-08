@@ -50,7 +50,7 @@ public:
 
         HRESULT hr;
         hr = m_rt->CreateSolidColorBrush(
-            Theme::NVf(D2D1::ColorF(0.043f, 0.082f, 0.122f)), &m_bgBrush);   // --panel color
+            Theme::Color(Theme::PANEL), &m_bgBrush);
         if (FAILED(hr)) return false;
 
         hr = m_rt->CreateSolidColorBrush(

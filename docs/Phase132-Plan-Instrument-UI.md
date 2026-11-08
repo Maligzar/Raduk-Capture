@@ -624,3 +624,60 @@ headers, compile cleanly with mingw.
 **Expected in the 132.0 diff:** the sky map in both modes (night changes on its
 data objects), GoTo and its popup by day, every window with a list, and the
 control panel's buttons gaining the lit top edge.
+
+### 132.3c, 2026-11-08: the telemetry windows
+
+**Two more things that skipped night vision, both found by reading the code.**
+
+- **MotionMonitor's trail** used the pen `RGB(20 + g/3, g, 60 + g/3)` with no
+  `NV`, so it drew blue-green on a night-vision screen. It is now a ramp from
+  Deep to the signal colour, mixed after the transform, so it stays red-only
+  at night.
+- **The startup hardware dialog** painted fixed blue and green, through 13 calls
+  in `main.cpp`. It is the first window on screen at the telescope, and it runs
+  before the main window restores night vision from `rig.ini`. It now reads the
+  saved mode itself (`Theme::SetNightVision(RigConfig::Get().nightVision)`) and
+  paints from the tokens: Deep, Text, Live for a device found, Fault for one
+  missing. It only runs in the hardware build, so the emulator's scenarios do
+  not reach it.
+
+**The gate now covers GDI.** `tests/night_coverage.cpp` sections 3 and 4 scan
+every file in `src/gui` and `main.cpp`, 43 files in all. Any `RGB(` in a
+`CreatePen`, `CreateSolidBrush`, `SetTextColor` or `SetBkColor` that is not
+directly inside `NV(` fails the test. Black is allowed. So is an `RGB` built
+from `GetRValue` and its siblings, which rescales a colour that was already
+tinted and so stays red-only. Comments are skipped. **Run against master, it
+fails at exactly the startup dialog's 13 sites and the trail.** It passes on
+this branch. Every Direct2D and GDI paint call in the operator chrome now
+either reaches night vision or is caught by this test.
+
+**The telemetry windows, on the tokens:**
+
+- **Histogram.** The background is Void, the graph bed Deep, the mean line Text,
+  the labels Dim. Warning and Live keep their meanings. The R, G and B channel
+  tints stay, because they are data.
+- **Sharpness.** Live, Warning and Dim, from tokens rather than near-miss
+  literals.
+- **Temperature.** The two series were Live green (camera) and Warning amber
+  (focuser), which claimed "connected" and "caution" about two temperatures
+  that were neither. They are now Text and the signal colour. By day they
+  differ in hue, and at night by luminance: 200 against 140.
+- **Status.** The sky bar's "Good" step was an off-ladder green. It is now Live
+  eased halfway toward Dim, between Prime and Marginal in both modes. No dew
+  risk reads as plain Text rather than the signal colour. An empty bar is Line.
+- **ADC alignment.** The dial and grid lines are Line.
+- **Motion monitor.** The frame is Line, "no motion source" is Dim, and the
+  current position is Text.
+- **Status bar.** The background is Panel. It was the last off-token literal in
+  that window.
+
+**Checked here.** `night_coverage` passes natively, and fails on master as
+described above. `night_hierarchy`, `operator_palette`, `audience_layout` and
+`web_theme` pass under mingw-w64 and wine. `main.cpp` compiles cleanly with
+mingw in both the hardware and emulator configurations.
+
+**Expected in the 132.0 diff:** the histogram, sharpness, temperature, status,
+ADC, motion monitor and status bar windows by day. At night only the motion
+trail changes, since every other change keeps its ladder luminance. The
+startup dialog is not in the scenario; check it by eye on the next hardware
+launch with night vision saved on.

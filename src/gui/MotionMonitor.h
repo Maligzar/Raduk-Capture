@@ -147,7 +147,7 @@ public:
         HBRUSH bg = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
         FillRect(hdc, &rc, bg);
         DeleteObject(bg);
-        HPEN border = CreatePen(PS_SOLID, 1, Theme::NV(RGB(40, 54, 74)));
+        HPEN border = CreatePen(PS_SOLID, 1, Theme::NV(Theme::Rgb::BORDER));
         HGDIOBJ oldPen = SelectObject(hdc, border);
         HGDIOBJ oldBr  = SelectObject(hdc, GetStockObject(NULL_BRUSH));
         Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
@@ -158,7 +158,7 @@ public:
         SetBkMode(hdc, TRANSPARENT);
 
         if (m_src == MotionSource::None || m_pts.empty()) {
-            SetTextColor(hdc, Theme::NV(RGB(110, 125, 145)));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT_DIM));
             RECT t = rc; t.top += h / 2 - 8;
             DrawTextW(hdc, L"no motion source", -1, &t,
                       DT_CENTER | DT_SINGLELINE);
@@ -201,8 +201,12 @@ public:
         const size_t n = m_pts.size();
         for (size_t i = 1; i < n; i++) {
             const float f = (float)i / (float)n;      // 0 old .. 1 new
-            const int   g = 60 + (int)(150.0f * f);
-            HPEN seg = CreatePen(PS_SOLID, 1, RGB(20 + g / 3, g, 60 + g / 3));
+            // Phase 132.3c: this never went through NV, so the trail was
+            // blue-green on a night-vision screen. Now a ramp from the
+            // panel to the signal colour, mixed after the transform.
+            HPEN seg = CreatePen(PS_SOLID, 1,
+                Theme::Mix(Theme::NV(Theme::Rgb::DEEP), Theme::NV(Theme::Rgb::ACCENT),
+                           0.25f + 0.75f * f));
             oldPen = SelectObject(hdc, seg);
             MoveToEx(hdc, (int)(cx + (m_pts[i-1].x - midX) * sc),
                           (int)(cy - (m_pts[i-1].y - midY) * sc), nullptr);
@@ -215,7 +219,7 @@ public:
         // Current position
         const int px = (int)(cx + (m_pts.back().x - midX) * sc);
         const int py = (int)(cy - (m_pts.back().y - midY) * sc);
-        HBRUSH dot = CreateSolidBrush(Theme::NV(RGB(120, 230, 170)));
+        HBRUSH dot = CreateSolidBrush(Theme::NV(Theme::Rgb::TEXT));   // 132.3c: where it is now
         RECT d = { px - 2, py - 2, px + 3, py + 3 };
         FillRect(hdc, &d, dot);
         DeleteObject(dot);

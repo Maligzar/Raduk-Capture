@@ -150,9 +150,14 @@ private:
 
     void CreateBrushes() {
         if (!m_rt) return;
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.30f, 1.0f, 0.43f, 1.0f)), &m_cam);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(1.0f, 0.67f, 0.0f, 1.0f)), &m_foc);
-        m_rt->CreateSolidColorBrush(Theme::NVf(D2D1::ColorF(0.47f, 0.53f, 0.61f, 1.0f)), &m_dim);
+        // Phase 132.3c: the two series were Live green and Warning
+        // amber, which said "connected" and "caution" about two
+        // temperatures that were neither. Text and the signal colour
+        // tell them apart by day, and by luminance (200 against 140)
+        // at night, where hue is gone anyway.
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT), &m_cam);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::ACCENT), &m_foc);
+        m_rt->CreateSolidColorBrush(Theme::Color(Theme::TEXT_DIM), &m_dim);
         m_brushGen = Theme::PaletteGeneration();
     }
 

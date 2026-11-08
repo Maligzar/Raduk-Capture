@@ -166,7 +166,7 @@ private:
     // body itself is turned wrong -- a different adjustment from the
     // prism angle, and one no single number can distinguish.
     void DrawDial(HDC hdc, int cx, int cy, int radius) const {
-        const COLORREF dim  = Theme::NV(RGB(50, 64, 82));
+        const COLORREF dim  = Theme::NV(Theme::Rgb::BORDER);
         const COLORREF axis = Theme::NV(Theme::Rgb::TEXT_DIM);
 
         HPEN   pen   = CreatePen(PS_SOLID, 1, dim);
@@ -230,7 +230,7 @@ private:
         // bottom" can be told from "flat but still half an arcsec out".
         const int ty = y + h - (int)(h * (ALIGNED_ARCSEC / peak));
         if (ty > y && ty < y + h)
-            Line(hdc, x, ty, x + w, ty, Theme::NV(RGB(50, 64, 82)), 1);
+            Line(hdc, x, ty, x + w, ty, Theme::NV(Theme::Rgb::BORDER), 1);
 
         const int n = (int)m_trend.size();
         int prevX = 0, prevY = 0;

@@ -377,38 +377,47 @@ static LRESULT CALLBACK StartupDlgProc(HWND hDlg, UINT msg,
         case WM_CTLCOLORSTATIC: {
             HDC hdc = (HDC)wp;
             HWND hCtrl = (HWND)lp;
-            SetBkColor(hdc, RGB(10, 18, 30));
-            // Colour the device labels
+            // Phase 132.3c: tokens, through NV. This dialog is the first
+            // window at the telescope, and it painted fixed blue and
+            // green whatever night vision was set to.
+            SetBkColor(hdc, Theme::NV(Theme::Rgb::DEEP));
+            // Colour the device labels: found is Live, missing is Fault
+            const COLORREF found   = Theme::NV(Theme::Rgb::GREEN);
+            const COLORREF missing = Theme::NV(Theme::Rgb::RED);
             if (hCtrl == s->lblCamera)
-                SetTextColor(hdc, s->hw.cameraFound ? RGB(60,220,90) : RGB(220,60,60));
+                SetTextColor(hdc, s->hw.cameraFound ? found : missing);
             else if (hCtrl == s->lblEAF)
-                SetTextColor(hdc, s->hw.eafFound    ? RGB(60,220,90) : RGB(220,60,60));
+                SetTextColor(hdc, s->hw.eafFound    ? found : missing);
             else if (hCtrl == s->lblMount)
-                SetTextColor(hdc, s->hw.mountFound  ? RGB(60,220,90) : RGB(220,60,60));
+                SetTextColor(hdc, s->hw.mountFound  ? found : missing);
             else
-                SetTextColor(hdc, RGB(180, 210, 230));
-            static HBRUSH bg = CreateSolidBrush(RGB(10, 18, 30));
-            return (LRESULT)bg;
+                SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+            return (LRESULT)Theme::Brush(Theme::Rgb::DEEP);
         }
         case WM_CTLCOLORBTN: {
             HDC hdc = (HDC)wp;
-            SetBkColor(hdc, RGB(20, 30, 45));
-            SetTextColor(hdc, RGB(200, 225, 245));
-            static HBRUSH btnBg = CreateSolidBrush(RGB(20, 30, 45));
-            return (LRESULT)btnBg;
+            SetBkColor(hdc, Theme::NV(Theme::Rgb::PANEL));
+            SetTextColor(hdc, Theme::NV(Theme::Rgb::TEXT));
+            return (LRESULT)Theme::Brush(Theme::Rgb::PANEL);
         }
     }
     return DefWindowProcW(hDlg, msg, wp, lp);
 }
 
 static bool ShowStartupDialog(HardwareStatus& hwOut) {
+    // Phase 132.3c: this runs before the main window restores night
+    // vision from rig.ini, so it applies the saved mode itself.
+    // Otherwise the first thing on screen at the eyepiece is in day
+    // colours.
+    Theme::SetNightVision(raduk::core::RigConfig::Get().nightVision);
+
     // Register window class
     WNDCLASSEXW wc = {};
     wc.cbSize        = sizeof(wc);
     wc.lpfnWndProc   = StartupDlgProc;
     wc.hInstance     = GetModuleHandle(nullptr);
     wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-    wc.hbrBackground = CreateSolidBrush(RGB(10, 18, 30));
+    wc.hbrBackground = CreateSolidBrush(Theme::NV(Theme::Rgb::DEEP));
     wc.lpszClassName = L"RadukStartupDlg";
     RegisterClassExW(&wc);
 

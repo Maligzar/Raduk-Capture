@@ -1,0 +1,27 @@
+# Phase 133.1, F5 from the 2026-11-07 night: at 01:21 a good lock ended
+# when the box went 3840 -> 1280 -> 640 -> 3840. The guider must hold its
+# rates through a change of frame, re-reference, and keep the lock.
+name    Guide: a box change while locked
+timeout 360
+
+env     RADUK_EMU_NEXSTAR=1
+profile star.ini focuser position=168000
+
+expect 30  [SCENARIO] Guide: a box
+wait   3
+goto   Kochab
+expect 120 SEARCHING
+wait   3
+press  PLANET LOCK
+expect 150 Acquisition: Locked
+wait   5
+press  1280
+expect 10  [GUIDE] the frame changed
+wait   2
+press  640
+wait   2
+press  FULL
+expect 10  [GUIDE] the frame changed
+absent 25  Guiding abandoned
+absent 1   hand control tracking restored
+shot   after-format

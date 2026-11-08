@@ -28,6 +28,10 @@
 //  tabs, `type JPL <text>` into its target box, and `arm-pass S`, which
 //  moves the satellite clock so the first trackable pass opens in S
 //  seconds -- a real pass can be hours away.
+//  Phase 133.1: `keydown KEY` and `keyup KEY` hold a key between them,
+//  for a jog that lasts as long as the `wait` in between; `key` presses
+//  and releases in one go. They reach main.cpp as a Key action whose
+//  argument starts with '+' or '-'.
 //
 //  The script:
 //
@@ -151,6 +155,10 @@ public:
                 s.kind = ScenarioStep::Kind::Type;
                 if (rest.find_first_of(" \t") == std::string::npos) return bad("expected FIELD TEXT");
                 s.text = rest;
+            } else if (word == "keydown" || word == "keyup") {
+                s.kind = ScenarioStep::Kind::Key;
+                if (rest.empty()) return bad("needs a key");
+                s.text = (word == "keydown" ? "+" : "-") + rest;
             } else if (word == "press" || word == "key" || word == "goto" || word == "tab" ||
                        word == "shot" || word == "note") {
                 s.kind = word == "press" ? ScenarioStep::Kind::Press

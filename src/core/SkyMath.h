@@ -11,6 +11,7 @@
 // The site comes from RigConfig, so callers do not pass it around.
 // ============================================================
 
+#include <chrono>
 #include <cmath>
 #include <ctime>
 #include "RigConfig.h"
@@ -30,8 +31,14 @@ inline double ShortestTurnDeg(double fromDeg, double toDeg) {
     return d;
 }
 
+// Phase 133.1: milliseconds, not whole seconds. At one-second steps the
+// sky turned in jumps: harmless for a map, but with the emulated NexStar
+// holding its axes still the star leapt ~16" once a second instead of
+// drifting, which no real sky does. Every caller gains precision only.
 inline double CurrentJulianDate() {
-    return (double)time(nullptr) / 86400.0 + 2440587.5;
+    const double ms = (double)std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    return ms / 86400000.0 + 2440587.5;
 }
 
 // Local sidereal time in hours for the configured site.

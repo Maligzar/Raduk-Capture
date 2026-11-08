@@ -56,3 +56,69 @@ and not a debugging session.
 - `PHASE-STATUS.md` has a row for phase 133 giving each F-item's proof level.
 - `CLEAR-NIGHT-CHECKLIST.md` items 47-53 are the 133.3 night, in running order.
 - `ROADMAP-Next.md` row 33 ranks this ahead of 132.3e, at the owner's word.
+
+### 133.1, 2026-11-08: the emulated mount behaves like the measured 8SE
+
+**`RADUK_EMU_NEXSTAR=1`** switches `MountEmulator` to the NexStar as measured on
+2026-11-07, the same mount that `tests/rate_guide.cpp` models on the bench, now
+under the whole app. It is opt-in, so the scenarios written for the older model
+keep their behaviour. In this mode:
+
+- **The encoders are the state.** The axes are azimuth and altitude, always.
+  `GetAltAz` reports the encoders directly, as the real mount does.
+- **A command replaces tracking** on its axis while it runs, instead of adding
+  to it. With tracking off and nothing commanded, the axes stand still while the
+  sky turns.
+- **Azimuth is mirrored.** Direction 0 turns its encoder backwards.
+- **The hand control's tracking is mis-set**, as measured: 16.0 against
+  16.3″/s in azimuth and 5.0 against 5.2″/s in altitude.
+- **The hand control overwrites a guide-scale variable rate** while it tracks.
+  This was measured for an altitude command at guide rates. Jogs worked that
+  night, so commands of 100″/s or more are left alone. **That bound is
+  inferred, not measured.**
+
+**Two defects found by building it.**
+
+- **The sky turned in whole seconds.** `CurrentJulianDate` used `time(nullptr)`.
+  With the axes held still, the emulated star leapt about 16″ once a second
+  instead of drifting. The clock now has millisecond resolution. Its only user
+  is `LocalSiderealHours`, so every caller (sky map, cord wrap, the emulator)
+  gains precision and nothing else changes.
+- **The RA/Dec ↔ alt/az round trip is not exact.** Driving the encoders through
+  it every tick put its error into the rates, by up to 75% on the first build.
+  Tracking is now measured against the pointed sky point's own reading at the
+  previous tick, so the error cancels.
+
+**`tests/emulator_nexstar.cpp`** runs the emulator in real time and reads its
+encoders. It checks that:
+
+- with tracking on, azimuth runs at 0.983 of the sky and altitude at 0.963,
+  against 0.982 and 0.962 measured;
+- with tracking off, the axes stand still;
+- a 20″/s command comes out at 19.98″/s, mirrored in azimuth and not in
+  altitude;
+- a 20″/s altitude command is overwritten by tracking within a tick;
+- a 240″/s jog keeps its rate.
+
+It passed twice under mingw-w64 and wine, with the timezone shim from
+`tests/README.md`. `mount_jog` and `push_to`, which also use the sky clock,
+still pass.
+
+**Scenarios.** `keydown KEY` and `keyup KEY` hold a key for as long as the
+`wait` between them. The existing `key` step presses and releases in the same
+instant, which is no use for a jog. `tests/scenario_runner.cpp` section 4 gates
+this. All four scenarios set `RADUK_EMU_NEXSTAR=1` and point at Kochab, as
+`motion.scn` does:
+
+| Scenario | Checks | From the night |
+|---|---|---|
+| `guide-nexstar` | PLANET LOCK calibrates on app-driven axes and locks; no "Guiding abandoned" for 20 s | The baseline |
+| `guide-format` | 1280 → 640 → FULL while locked: "the frame changed" twice, no abandon, tracking not handed back | F5, 01:21 |
+| `guide-jog` | A 0.3 s FINE jog on the full sensor while locked: "hand jog ended", no abandon, LOCKED again | F6, 01:37 |
+| `guide-edge` | A 0.6 s FINE jog toward an edge, then PLANET LOCK: "centre it roughly", and no calibration move | F7, 01:42 |
+
+**Not run.** The scenarios need the Windows emulator build, so they have only
+been parsed here. The jog durations are estimates from the FINE rate (240″/s)
+and the 0.2″/px plate scale. The owner's first `run-scenarios.ps1 guide` run
+will settle them, and `guide-edge`'s 0.6 s is the one most likely to need
+tuning.

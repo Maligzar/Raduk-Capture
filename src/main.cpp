@@ -5901,18 +5901,23 @@ static int RunApp(bool useEmulator) {
         }
         case AK::Key: {
             Log("[SCENARIO] key %s\n", a.arg.c_str());
+            // Phase 133.1: "+KEY" is keydown only, "-KEY" keyup only, so a
+            // jog can be held for as long as the script waits.
+            const bool downOnly = !a.arg.empty() && a.arg[0] == '+';
+            const bool upOnly   = !a.arg.empty() && a.arg[0] == '-';
+            const std::string keyName = (downOnly || upOnly) ? a.arg.substr(1) : a.arg;
             struct KN { const char* n; UINT vk; };
             static const KN kKeys[] = {
                 {"ESC", VK_ESCAPE}, {"ESCAPE", VK_ESCAPE}, {"SPACE", VK_SPACE},
                 {"ENTER", VK_RETURN}, {"F1", VK_F1}, {"F5", VK_F5}, {"F11", VK_F11},
                 {"LEFT", VK_LEFT}, {"RIGHT", VK_RIGHT}, {"UP", VK_UP}, {"DOWN", VK_DOWN} };
             UINT vk = 0;
-            for (const KN& k : kKeys) if (_stricmp(k.n, a.arg.c_str()) == 0) vk = k.vk;
-            if (!vk && a.arg.size() == 1 && isalnum((unsigned char)a.arg[0]))
-                vk = (UINT)toupper((unsigned char)a.arg[0]);
-            if (!vk) { g_scenario->ActionFailed("no key called '" + a.arg + "'"); break; }
-            PostMessageW(window.Handle(), WM_KEYDOWN, vk, 1);
-            PostMessageW(window.Handle(), WM_KEYUP, vk, 0xC0000001);
+            for (const KN& k : kKeys) if (_stricmp(k.n, keyName.c_str()) == 0) vk = k.vk;
+            if (!vk && keyName.size() == 1 && isalnum((unsigned char)keyName[0]))
+                vk = (UINT)toupper((unsigned char)keyName[0]);
+            if (!vk) { g_scenario->ActionFailed("no key called '" + keyName + "'"); break; }
+            if (!upOnly)   PostMessageW(window.Handle(), WM_KEYDOWN, vk, 1);
+            if (!downOnly) PostMessageW(window.Handle(), WM_KEYUP, vk, 0xC0000001);
             break;
         }
         case AK::Goto:

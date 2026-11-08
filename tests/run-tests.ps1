@@ -97,6 +97,7 @@ $Tests = @(
     @{ Name = "shot_diff";       Sources = @() }
     @{ Name = "web_theme";       Sources = @() }
     @{ Name = "night_coverage";  Sources = @() }
+    @{ Name = "emulator_nexstar"; Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

@@ -1,0 +1,23 @@
+# Phase 133.1, the baseline: PLANET LOCK on a mount that behaves like the
+# 8SE measured on 2026-11-07 (RADUK_EMU_NEXSTAR=1: commands replace
+# tracking, azimuth mirrored, tracking slightly mis-set). Calibration
+# must take the axes from the hand control, and the lock must hold.
+# Kochab, as motion.scn, because it is in the tracking band at any hour.
+name    Guide: lock on the measured NexStar
+timeout 300
+
+env     RADUK_EMU_NEXSTAR=1
+profile star.ini focuser position=168000
+
+expect 30  [SCENARIO] Guide: lock
+expect 30  NexStar semantics
+wait   3
+goto   Kochab
+expect 120 SEARCHING
+wait   3
+press  PLANET LOCK
+expect 60  [CAL] hand control tracking
+expect 90  Calibration: app-driven axes
+expect 120 Acquisition: Locked
+absent 20  Guiding abandoned
+shot   locked

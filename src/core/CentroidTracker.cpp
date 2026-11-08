@@ -396,6 +396,18 @@ void CentroidTracker::_DriveAxes(IMount* mount, float azRate, float altRate) {
     mount->SlewVariable(1, c1 >= 0.0f ? 0 : 1, std::fabs(c1));
 }
 
+// Keep the mount tracking at the measured rates plus the integral (no
+// proportional correction): what to do while the image cannot be trusted.
+void CentroidTracker::_HoldRates(IMount* mount) {
+    float a, b;
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        a = m_baseRateAs[0] + m_integAs[0];
+        b = m_baseRateAs[1] + m_integAs[1];
+    }
+    _DriveAxes(mount, a, b);
+}
+
 // Give tracking back to the hand control, if this app had taken it.
 void CentroidTracker::_HandBack(IMount* mount, const char* why) {
     if (!m_appDriving.exchange(false)) return;
@@ -684,6 +696,9 @@ void CentroidTracker::Run() {
     AcquisitionStage watchStage = AcquisitionStage::Off;
     auto lastControl  = std::chrono::steady_clock::now();
     auto lastGuideLog = lastControl;
+    auto lostSince    = lastControl;
+    bool lostReported = false;
+    uint32_t lastFw = 0, lastFh = 0;
     float bestErrPx = 1e9f;
     int   overCycles = 0;
 
@@ -721,10 +736,36 @@ void CentroidTracker::Run() {
             timedOut = (elapsed > CENTROID_TIMEOUT_MS);
         }
 
+        // 2026-11-08: a format change (3840 -> 1280 -> 640 -> 3840) ended a
+        // good lock -- the frame's centre and pixel coordinates moved under
+        // the guider, a few frames had no centroid, and the jump read as a
+        // runaway. So a frame change re-references, and while the app drives
+        // the axes a loss is held for LOST_GRACE_MS at the plain tracking
+        // rates before guiding gives up and hands tracking back.
+        const bool frameChanged = m_frameChanged.exchange(false) ||
+            (s.fw != 0 && (s.fw != lastFw || s.fh != lastFh) && lastFw != 0);
+        if (s.fw != 0) { lastFw = s.fw; lastFh = s.fh; }
+        if (frameChanged) {
+            CoreLog("[GUIDE] the frame changed (%ux%u): holding the rates and re-referencing\n",
+                    s.fw, s.fh);
+            { std::lock_guard<std::mutex> lk(m_mutex); m_samples.clear(); }
+            watchStage = AcquisitionStage::Off;   // runaway reference restarts
+            if (m_appDriving.load()) _HoldRates(s.mount);
+            continue;
+        }
         if (!s.valid || timedOut) {
+            const auto nowL = std::chrono::steady_clock::now();
             if (!wasLost) {
                 wasLost = true;
-                CoreLog("[CentroidTracker] Centroid lost\n");
+                lostSince = nowL;
+                CoreLog("[CentroidTracker] Centroid lost%s\n",
+                        m_appDriving.load() ? " - holding the tracking rates" : "");
+                if (m_appDriving.load()) _HoldRates(s.mount);
+            }
+            const bool graceOver = std::chrono::duration_cast<std::chrono::milliseconds>(
+                nowL - lostSince).count() >= LOST_GRACE_MS;
+            if ((!m_appDriving.load() || graceOver) && !lostReported) {
+                lostReported = true;
                 // Do not fly the mount blind: tracking goes back to the
                 // hand control now, before the main thread resets.
                 _HandBack(s.mount, "target lost");
@@ -732,7 +773,11 @@ void CentroidTracker::Run() {
             }
             continue;
         }
-        if (wasLost) { wasLost = false; CoreLog("[CentroidTracker] Reacquired\n"); }
+        if (wasLost) {
+            wasLost = false; lostReported = false;
+            CoreLog("[CentroidTracker] Reacquired\n");
+            watchStage = AcquisitionStage::Off;   // judge runaway from here
+        }
         if (s.fw == 0 || s.fh == 0) continue;
 
         // Phase 53: correct on the window-averaged centroid, not the

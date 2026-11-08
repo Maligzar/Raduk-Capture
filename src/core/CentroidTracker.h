@@ -279,6 +279,11 @@ public:
 
     bool HasCalibration() const;
 
+    // The capture format changed (size or position of the box). The
+    // guider holds its rates and re-references instead of reading the
+    // jump as a runaway. Any thread.
+    void NotifyFrameChanged() { m_frameChanged.store(true); }
+
     // A guide "pulse" on this mount: the axis is driven at its own
     // tracking rate plus or minus GUIDE_OFFSET_AS for ms, then tracking
     // resumes. Needs the rates a calibration measures; false without
@@ -290,6 +295,7 @@ public:
     static constexpr int   TAKEOVER_SETTLE_MS = 4000;
     static constexpr int   DRIFT_WINDOWS    = 3;     // after takeover, logged each
     static constexpr float GUIDE_DEADBAND_AS = 0.6f;  // continuous control needs little
+    static constexpr int   LOST_GRACE_MS    = 8000;  // hold rates this long when the target goes
     static constexpr float GUIDE_KP         = 0.5f;   // 1/s: "/s of correction per " of error
     static constexpr float GUIDE_KP_LOCKED  = 0.3f;
     static constexpr float GUIDE_KI         = 0.05f;  // 1/s^2
@@ -387,6 +393,8 @@ private:
                    std::chrono::steady_clock::time_point& t);
     void _DriveAxes(IMount* mount, float azRate, float altRate);
     void _HandBack(IMount* mount, const char* why);
+    void _HoldRates(IMount* mount);
+    std::atomic<bool> m_frameChanged{false};
 
     void Run();
 

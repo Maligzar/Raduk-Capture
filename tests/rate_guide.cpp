@@ -137,6 +137,7 @@ int main() {
     t.SetMount(&m);
 
     std::atomic<bool> run{true};
+    std::atomic<bool> gap{false};   // a format change: no centroids
     std::thread feeder([&] {
         while (run.load()) {
             float x, y; m.Pixel(x, y);
@@ -144,7 +145,8 @@ int main() {
             static unsigned seed = 12345u;
             auto jit = [&]() { seed = seed * 1103515245u + 12345u;
                                return ((int)((seed >> 16) % 601) - 300) / 100.0f; };
-            t.SubmitCentroid(x + jit(), y + jit(), 1280, 960);
+            if (gap.load()) t.SubmitCentroidLost();
+            else t.SubmitCentroid(x + jit(), y + jit(), 1280, 960);
             t.Tick();
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
@@ -189,6 +191,20 @@ int main() {
     }
     std::printf("   worst %.0f px from centre\n", worst);
     CHECK(worst < 40.0f, "wandered %.0f px while held", worst);
+
+    std::printf("3b. a format change with a 2 s gap does not end guiding\n");
+    t.NotifyFrameChanged();
+    gap.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+    gap.store(false);
+    std::this_thread::sleep_for(std::chrono::milliseconds(6000));
+    m.Pixel(x, y);
+    std::printf("   after the gap: (%.0f, %.0f), stage %s, hand control tracking %d\n",
+                x, y, AcquisitionStageName(t.Stage()), (int)m.hcTracking);
+    CHECK(t.Stage() == AcquisitionStage::Centering || t.Stage() == AcquisitionStage::Locked,
+          "guiding ended at a format change (stage %s)", AcquisitionStageName(t.Stage()));
+    CHECK(!m.hcTracking, "tracking was handed back at a short gap");
+    CHECK(std::hypot(x - 640, y - 480) < 15.0f, "not centred after the gap");
 
     std::printf("4. reset hands tracking back\n");
     t.Reset();

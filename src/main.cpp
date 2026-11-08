@@ -3473,6 +3473,7 @@ static int RunApp(bool useEmulator) {
         capture.Start(cam, ring, 8.0);
 
         preview.SetFrameSize(w, h);
+        tracker.NotifyFrameChanged();   // guiding re-references, not a runaway
         preview.SetSensorROI(w, h);
         statusBar.SetCameraStats(0.0, 0, cam.GetTemperatureC(), w, h, bits);
         toolbar.UpdateFormat(w, h, bits);

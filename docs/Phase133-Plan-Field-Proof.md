@@ -122,3 +122,46 @@ been parsed here. The jog durations are estimates from the FINE rate (240″/s)
 and the 0.2″/px plate scale. The owner's first `run-scenarios.ps1 guide` run
 will settle them, and `guide-edge`'s 0.6 s is the one most likely to need
 tuning.
+
+### 133.2, 2026-11-08: the fade warning
+
+**`src/core/FadeWatch.h`** watches the target's **total flux** in the focus
+aperture. `StarMetrics`' `fluxTotal` is now carried through `FocusMeasure` and
+`AnalysisResult::targetFlux`. It watches total flux rather than the peak because
+defocus lowers the peak with no change in the sky, and an autofocus sweep
+defocuses on purpose. The total stays the same in or out of focus, so a trend in
+it comes from the sky or the optics.
+
+**The rule.** Fit a straight line to ln(flux) against time over the last 90 s.
+A fade is a fit that explains the data (R² ≥ 0.6, so seeing scatter does not
+trip it) and loses at least 25% across a window of at least 45 s and 12 frames.
+After an alert it stays quiet for 120 s. A change of exposure or gain resets the
+window: a new exposure is a step in flux, not a fade.
+
+**Where.** It runs only while autofocus sweeps or a recording runs, and resets
+otherwise. An alert goes to the log as `[FADE]` and to the notification bar as a
+warning:
+
+- *"Target down 40% in 89 s: dew on the corrector, or cloud?"*
+- *"…and dew risk is elevated: check the corrector"*, used when the weather
+  feed has a fresh reading with dew risk elevated or warning. Dew is not blamed
+  when that reading is "safe".
+
+**Gated.** `tests/fade_watch.cpp` has 13 checks. The night's numbers (255 → 154
+in 90 s, with 5% scatter) fire at about 50 s, which warns before the sweep has
+finished. These stay quiet:
+
+- a steady target with 15% scatter;
+- a 10% fall;
+- less than 45 s of data;
+- an exposure step;
+- a gain step;
+- zero, negative or NaN flux.
+
+A 200 s fade fires once, then once more after the cooldown. It also checks the
+wording with no weather, with dew risk elevated, and with dew risk safe.
+`focus_metric` and `target_finder` still pass. `main.cpp` and
+`FrameAnalyzer.cpp` compile cleanly with mingw.
+
+**Owed on the sky:** checklist item 52, a real fade, to see whether these
+thresholds are right in practice.

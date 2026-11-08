@@ -67,6 +67,10 @@ public:
         const int x  = mi.rcWork.left + (mw - w) / 2;
         const int y  = mi.rcWork.top  + (mh - h) / 3;   // a third down reads
                                                         // better than centred
+        st->x = x;
+        st->y = y;
+        // 132.4: it starts kRisePx low and rises into place.
+        const int y0 = Theme::Motion::On() ? y + kRisePx : y;
 
         // Phase 96.5. WS_EX_LAYERED gives this window a per-window
         // opacity the compositor applies, so the fade costs nothing in
@@ -78,7 +82,7 @@ public:
             WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
                 | WS_EX_LAYERED,
             L"RadukConfirmToast", L"", WS_POPUP,
-            x, y, w, h, owner, nullptr, GetModuleHandleW(nullptr), st);
+            x, y0, w, h, owner, nullptr, GetModuleHandleW(nullptr), st);
         if (!hwnd) { delete st; return; }
 
         // Transparent before the first frame, so showing the window
@@ -95,9 +99,11 @@ private:
         bool ok;
         UINT dwellMs;
         std::chrono::steady_clock::time_point shown;
+        int  x = 0, y = 0;   // 132.4: where it settles
     };
 
     static constexpr UINT_PTR TIMER_FRAME = 1;
+    static constexpr int kRisePx = 12;   // 132.4
 
     // Fade in, hold for the dwell, fade out. Both edges run on rung 0
     // of the motion ladder; the dwell between them is reading time and
@@ -110,6 +116,11 @@ private:
         const double ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - st.shown).count();
         bool alive = true;
+        if (!Theme::Motion::On()) {
+            // 132.4: motion off -- full strength for the dwell, then gone.
+            outAlpha = 255;
+            return ms < (double)st.dwellMs;
+        }
         outAlpha = Theme::Motion::AlphaByte(Theme::Motion::TransientAlpha(
             ms, (int)st.dwellMs, Theme::Motion::FAST, alive));
         return alive;
@@ -133,6 +144,18 @@ private:
                     return 0;
                 }
                 SetLayeredWindowAttributes(h, 0, a, LWA_ALPHA);
+                // Phase 132.4: it rises into place as it fades in, 12 px
+                // over the same FAST edge, eased out. Only while arriving.
+                if (Theme::Motion::On()) {
+                    const double ms = std::chrono::duration<double, std::milli>(
+                        std::chrono::steady_clock::now() - st->shown).count();
+                    if (ms <= Theme::Motion::FAST + Theme::Motion::FRAME_MS) {
+                        const int dy = (int)(Theme::Motion::SlideRemaining(
+                            ms, Theme::Motion::FAST, (float)kRisePx) + 0.5f);
+                        SetWindowPos(h, nullptr, st->x, st->y + dy, 0, 0,
+                                     SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+                    }
+                }
                 return 0;
             }
 

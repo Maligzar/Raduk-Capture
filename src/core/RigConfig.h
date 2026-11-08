@@ -221,6 +221,9 @@ struct RigConfig {
     // again every time the app was reopened -- in the dark, which is
     // exactly when a bright screen does the damage.
     bool nightVision = false;
+    // Phase 132.4: interface motion (the toast's rise, the notification's
+    // slide, the fades). Off makes every transition instant.
+    bool uiMotion = true;
     // Preview overlay telemetry (histogram / temperature / sharpness
     // drawn on the image). Remembered, because on a multi-screen desk
     // it gets turned off once and should stay off.
@@ -399,6 +402,7 @@ struct RigConfig {
         wf("ShowAlignHelper", showAlignHelper ? 1.0 : 0.0);
         wf("ShowReadinessCheck", showReadinessCheck ? 1.0 : 0.0);
         wf("NightVision", nightVision ? 1.0 : 0.0);
+        wf("UiMotion", uiMotion ? 1.0 : 0.0);
         wf("OverlayTelemetry", overlayTelemetry ? 1.0 : 0.0);
         wf("ADCFitted", adcFitted ? 1.0 : 0.0);
         wf("AdvisoryEnabled",   advisoryEnabled ? 1.0 : 0.0);
@@ -480,6 +484,7 @@ private:
         cfg.showAlignHelper       = rf("ShowAlignHelper", 1.0) != 0.0;
         cfg.showReadinessCheck    = rf("ShowReadinessCheck", 1.0) != 0.0;
         cfg.nightVision           = rf("NightVision", 0.0) != 0.0;
+        cfg.uiMotion              = rf("UiMotion", 1.0) != 0.0;
         cfg.overlayTelemetry      = rf("OverlayTelemetry", 1.0) != 0.0;
         cfg.adcFitted             = rf("ADCFitted", 0.0) != 0.0;
         cfg.advisoryEnabled       = rf("AdvisoryEnabled", 0.0) != 0.0;

@@ -263,6 +263,31 @@ static void TestTransient() {
     ok(!alive, "a zero-dwell surface dies after both edges");
 }
 
+// Phase 132.4: movement eases out; fades keep their square.
+static void TestEaseOut() {
+    printf("\nMovement eases out (132.4)\n");
+    namespace M = raduk::gui::Theme::Motion;
+    ok(M::EaseOut(0.0f) == 0.0f && M::EaseOut(1.0f) == 1.0f, "ease-out runs 0 to 1");
+    ok(M::EaseOut(-1.0f) == 0.0f && M::EaseOut(2.0f) == 1.0f, "and clamps outside it");
+    bool mono = true;
+    float prev = -1.0f;
+    for (int i = 0; i <= 100; ++i) {
+        const float v = M::EaseOut(i / 100.0f);
+        if (v < prev) mono = false;
+        prev = v;
+    }
+    ok(mono, "never moves backwards: no overshoot, no bounce");
+    ok(M::EaseOut(0.35f) > 0.7f, "most of the way there by a third of the time");
+    ok(M::EaseOut(0.5f) > M::EaseIn(0.5f), "faster to start than the fade's square");
+    CloseTo(M::SlideRemaining(0.0, M::FAST, 12.0f), 12.0, 1e-6, "a slide starts its full distance off");
+    CloseTo(M::SlideRemaining(M::FAST, M::FAST, 12.0f), 0.0, 1e-6, "and ends on its mark");
+    CloseTo(M::SlideRemaining(10.0 * M::FAST, M::FAST, 12.0f), 0.0, 1e-6, "and stays there");
+    ok(M::On(), "motion is on unless rig.ini says otherwise");
+    M::SetOn(false);
+    ok(!M::On(), "and the switch turns it off");
+    M::SetOn(true);
+}
+
 int main() {
     printf("=== phase 96.5: motion ===\n\n");
     TestLadder();
@@ -270,6 +295,7 @@ int main() {
     TestCurve();
     TestAlphaByte();
     TestTransient();
+    TestEaseOut();
     printf("\n%d checks, %d failures\n", checks, failures);
     if (failures == 0) printf("PASS\n");
     return failures ? 1 : 0;

@@ -4869,6 +4869,9 @@ static int RunApp(bool useEmulator) {
     };
     preview.SetShowOverlays(raduk::core::RigConfig::Get().overlayTelemetry);
 
+    // Phase 132.4: interface motion, from rig.ini UiMotion.
+    raduk::gui::Theme::Motion::SetOn(raduk::core::RigConfig::Get().uiMotion);
+
     // Restore it before the first frame is drawn.
     if (raduk::core::RigConfig::Get().nightVision) {
         preview.SetNightVision(true);

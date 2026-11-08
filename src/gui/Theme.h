@@ -431,6 +431,32 @@ namespace Theme {
         // the exponent back to roughly 2.
         inline constexpr float EaseIn(float t)  { return t * t; }
 
+        // ── Phase 132.4: movement eases OUT ──────────────────
+        //
+        // Fades keep 96.5's square, which is a perceptual linearisation
+        // of alpha, not a style. Movement is different: something
+        // arriving should be quick to start and gentle to settle, the
+        // cubic ease-out 1-(1-t)^3. No overshoot -- a bounce is
+        // continuous motion, and nothing in the chrome moves on its own.
+        inline constexpr float EaseOut(float t) {
+            if (t <= 0.0f) return 0.0f;
+            if (t >= 1.0f) return 1.0f;
+            const float u = 1.0f - t;
+            return 1.0f - u * u * u;
+        }
+
+        // How far still to go: `distance` at the start, 0 when done.
+        inline constexpr float SlideRemaining(double elapsedMs, int durationMs,
+                                              float distance) {
+            return distance * (1.0f - EaseOut(Progress(elapsedMs, durationMs)));
+        }
+
+        // RigConfig UiMotion; set once at startup. Off: no slide and no
+        // fade, every transition instant.
+        namespace detail { inline bool g_on = true; }
+        inline bool On() { return detail::g_on; }
+        inline void SetOn(bool on) { detail::g_on = on; }
+
         // Fading in: 0 at the start, opaque at the end.
         inline constexpr float FadeIn(double elapsedMs, int durationMs) {
             return EaseIn(Progress(elapsedMs, durationMs));

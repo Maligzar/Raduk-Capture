@@ -80,6 +80,7 @@
 #include "gui/WindowShot.h"
 #include "gui/StripDraw.h"
 #include "gui/CommandPalette.h"   // 132.7: Ctrl+K
+#include "gui/AudioCues.h"        // 132.8: record and fault tones
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
@@ -4600,6 +4601,7 @@ static int RunApp(bool useEmulator) {
     // otherwise the guide loop restarts the mount within 250-500ms of the
     // user pressing STOP.
     auto doEmergencyStop = [&]() {
+        raduk::gui::audio::Play(raduk::core::tone::Cue::Fault);   // 132.8
         // First, and it waits: anything below that stops the axes would
         // otherwise be undone by this thread's next rate.
         gotoPanel.StopSatellite("emergency stop");
@@ -4950,6 +4952,14 @@ static int RunApp(bool useEmulator) {
 
     // Phase 132.4: interface motion, from rig.ini UiMotion.
     raduk::gui::Theme::Motion::SetOn(raduk::core::RigConfig::Get().uiMotion);
+    // Phase 132.8: tones for record start, stop and fault. Off unless
+    // rig.ini AudioCues=1. Faults are the bar's error level and the
+    // emergency stop; start and stop are read off the recording state
+    // below, so every route into a recording is covered.
+    raduk::gui::audio::SetOn(raduk::core::RigConfig::Get().audioCues);
+    notifBar.SetErrorCallback([]() {
+        raduk::gui::audio::Play(raduk::core::tone::Cue::Fault);
+    });
 
     // Restore it before the first frame is drawn.
     if (raduk::core::RigConfig::Get().nightVision) {
@@ -7292,6 +7302,15 @@ static int RunApp(bool useEmulator) {
                 int   bufTot   = (int)bufT;
                 float diskGB   = capturer.IsRecording()
                                  ? (float)capturer.BytesWritten() / 1e9f : 0.0f;
+                // Phase 132.8: the record tones, on the state's edges.
+                {
+                    static bool wasRecording = false;
+                    const bool rec = capturer.IsRecording();
+                    if (rec != wasRecording)
+                        raduk::gui::audio::Play(rec ? raduk::core::tone::Cue::Start
+                                                    : raduk::core::tone::Cue::Stop);
+                    wasRecording = rec;
+                }
                 controls.UpdateStatus(fps, lost, bufPct, bufFr, bufTot, diskGB,
                                       capturer.IsRecording());
 

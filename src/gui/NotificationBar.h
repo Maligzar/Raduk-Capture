@@ -124,7 +124,11 @@ public:
     // Error (red): disk full, camera timeout, write failure
     void NotifyError(const std::wstring& text) {
         Show(NotifLevel::Error, text, L"");
+        if (m_onError) m_onError();   // 132.8: the fault cue
     }
+
+    // Called on every error-level notice (phase 132.8's fault tone).
+    void SetErrorCallback(std::function<void()> cb) { m_onError = std::move(cb); }
 
     void Dismiss() { Hide(); }
 
@@ -323,6 +327,7 @@ private:
     std::wstring m_folderPath;
 
     std::function<void()> m_onDismiss;
+    std::function<void()> m_onError;   // 132.8
     std::chrono::steady_clock::time_point m_shownAt{};   // 132.4
     static constexpr UINT_PTR kSlideTimerId = 902;
     static constexpr int      kSlidePx      = 14;

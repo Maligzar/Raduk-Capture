@@ -338,8 +338,28 @@ void Window::StopAllArrowJogs() {
             StopArrowJog(axis, dir);
 }
 
+// Phase 132.7: the modifiers, from the keyboard -- or from RunKey, when
+// the command palette presses a key on someone's behalf.
+bool Window::ModShift() const {
+    return m_runMods >= 0 ? (m_runMods & 1) != 0 : (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+}
+bool Window::ModCtrl() const {
+    return m_runMods >= 0 ? (m_runMods & 2) != 0 : (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+}
+
+bool Window::RunKey(unsigned vk, bool shift, bool ctrl) {
+    int axis = 0, dir = 0;
+    if (ArrowAxisDir(vk, axis, dir)) return false;   // a jog needs a key-up
+    m_runMods = (shift ? 1 : 0) | (ctrl ? 2 : 0);
+    const bool done = HandleKeyDown(vk, 0);           // lParam 0: a first press
+    m_runMods = -1;
+    return done;
+}
+
+bool Window::RunChar(wchar_t ch) { return HandleChar(ch); }
+
 bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
-    bool shift      = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+    bool shift      = ModShift();
     bool firstPress = ((lParam >> 30) & 1) == 0;
     (void)firstPress;  // used by the cases below
 
@@ -354,7 +374,7 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             // keys repeat, because several tenths is the usual correction.
             case VK_OEM_4:
             case VK_OEM_6:
-                if ((GetKeyState(VK_CONTROL) & 0x8000) != 0 && m_onSatNudge) {
+                if (ModCtrl() && m_onSatNudge) {
                     m_onSatNudge(wParam == VK_OEM_6 ? 1 : -1);
                     return true;
                 }
@@ -381,6 +401,15 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             // Likewise documented, and SetAutofocusToggleHandler was
             // registered in main, but no case ever invoked it -- the
             // handler had been dead since it was written.
+            //
+            // Phase 132.7: not with Shift. Shift+A is the ADC window, on
+            // WM_CHAR in HandleChar, and this case used to answer the
+            // key-down first: Shift+A started (or stopped) an autofocus
+            // sweep, and from any window but this one the key was then
+            // consumed before TranslateMessage, so the ADC window never
+            // opened at all. Unclaimed, the key is translated and the
+            // 'A' character reaches HandleChar.
+            if (shift) return false;
             if (firstPress && m_onAutofocusToggle) m_onAutofocusToggle();
             return true;
         case 'R':
@@ -431,7 +460,7 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             // window live on a screen the owner may not be standing at.
             // This is the route that needs no focus at all.
             if (shift) {
-                const bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+                const bool ctrl = ModCtrl();
                 if (ctrl) {
                     if (firstPress && m_onShareViewFullscreen)
                         m_onShareViewFullscreen();
@@ -448,7 +477,7 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             // in and out of fullscreen from the control screen, the
             // same escape route the share view needed.
             if (shift) {
-                const bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+                const bool ctrl = ModCtrl();
                 if (ctrl) {
                     if (firstPress && m_onObjectPanelFullscreen)
                         m_onObjectPanelFullscreen();
@@ -465,6 +494,11 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (firstPress && m_onFXCycle) m_onFXCycle();
             return true;
         case 'K':   // stacK the last recording in AutoStakkert
+            // Phase 132.7: Ctrl+K is the command palette.
+            if (ModCtrl() && !shift) {
+                if (firstPress && m_onCommandPalette) m_onCommandPalette();
+                return true;
+            }
             // Shift+K opens it in whatever Windows has for the file
             // instead, so a capture can be looked at without leaving
             // the app to find it.
@@ -497,7 +531,7 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             // Ctrl+Shift+G then nudges the target back to where it sat
             // in that capture's frame.
             if (shift) {
-                const bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+                const bool ctrl = ModCtrl();
                 if (ctrl) { if (firstPress && m_onRecallOffset)  m_onRecallOffset();  }
                 else      { if (firstPress && m_onRecallFraming) m_onRecallFraming(); }
                 return true;
@@ -520,7 +554,7 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             // The same chord stops it, so whoever started it does not
             // have to find a different key under pressure.
             if (shift) {
-                const bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+                const bool ctrl = ModCtrl();
                 if (ctrl) {
                     if (firstPress && m_onMosaicToggle) m_onMosaicToggle();
                     return true;

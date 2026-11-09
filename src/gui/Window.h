@@ -74,6 +74,16 @@ public:
     // final enough to be worth stating.
     void SetReticleDragEndHandler(std::function<void()> h) { m_onReticleDragEnd = h; }
     void SetHelpToggleHandler(std::function<void()> h)        { m_onHelpToggle          = h; }  // ? key
+    void SetCommandPaletteHandler(std::function<void()> h)    { m_onCommandPalette      = h; }  // Ctrl+K
+
+    // Phase 132.7: press a key, or type a character, as if from the
+    // keyboard -- the command palette's way in. Runs the same case in
+    // HandleKeyDown / HandleChar, with the modifiers given rather than
+    // read. Arrow keys are refused: a jog starts on key-down and stops
+    // on key-up, and there is no key-up to give. True when the key is
+    // one this window answers.
+    bool RunKey(unsigned vk, bool shift, bool ctrl);
+    bool RunChar(wchar_t ch);
     void SetAIToggleHandler(std::function<void()> h)          { m_onAIToggle            = h; }  // / key
     void SetGhostToggleHandler(std::function<void()> h)       { m_onGhostToggle         = h; }  // O key
 
@@ -199,6 +209,9 @@ private:
 
     bool RouteThreadKey(const MSG& msg);
     bool HandleKeyDown(WPARAM wParam, LPARAM lParam);
+    bool ModShift() const;
+    bool ModCtrl() const;
+    int  m_runMods = -1;   // -1: read the keyboard; else bit 0 Shift, bit 1 Ctrl
     bool HandleKeyUp(WPARAM wParam);
     bool HandleChar(WPARAM wParam);
 
@@ -256,6 +269,7 @@ private:
     bool  m_reticleDragging = false;
     float m_reticleLastX = 0.0f, m_reticleLastY = 0.0f;
     std::function<void()>               m_onHelpToggle;
+    std::function<void()>               m_onCommandPalette;   // 132.7
     std::function<void()>               m_onAIToggle;
     std::function<void()>               m_onGhostToggle;
     std::function<void()>               m_onCloseRequest;

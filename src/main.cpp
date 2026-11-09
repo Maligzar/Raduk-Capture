@@ -79,6 +79,7 @@
 #include "core/CoreLog.h"         // mount/tracker messages into the log
 #include "gui/WindowShot.h"
 #include "gui/StripDraw.h"
+#include "gui/CommandPalette.h"   // 132.7: Ctrl+K
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
@@ -5531,6 +5532,17 @@ static int RunApp(bool useEmulator) {
     auto doHelp = [&]() { helpWindow.Toggle(); };
     toolbar.SetHelpCallback([&]()       { doHelp(); });
     window.SetHelpToggleHandler([&]()   { doHelp(); });
+
+    // ── Phase 132.7: the command palette (Ctrl+K) ────────────
+    // Every action presses the key the main window already answers, so
+    // it does exactly what its shortcut does (ActionRegistry.h).
+    static raduk::gui::CommandPalette commandPalette;
+    window.SetCommandPaletteHandler([&]() {
+        commandPalette.Toggle(window.Handle(), [&](const raduk::gui::palette::Action& a) {
+            const bool ran = a.vk ? window.RunKey(a.vk, a.shift, a.ctrl) : window.RunChar(a.ch);
+            Log("[PALETTE] %s (%s)%s\n", a.label, a.shortcut, ran ? "" : " -- not answered");
+        });
+    });
 
     // Phase 50 / Graceful Exit — wired to X button, Alt+F4, and toolbar EXIT
     // Confirms if recording is active, then tears down AI/floating windows before

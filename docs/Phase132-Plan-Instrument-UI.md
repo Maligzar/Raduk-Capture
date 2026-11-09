@@ -971,3 +971,88 @@ configuration, and so does `ControlPanel.cpp`.
   ring, red at night;
 - GoTo's column headers and tabs should read as words (upper case, tracked).
   Before this fix they were most likely two odd glyphs each.
+
+### 132.7, 2026-11-09: the command palette
+
+`Ctrl+K` opens a popup over the main window. Type part of what you want, use Up
+and Down to choose, and Enter to run.
+
+- **The list** is `src/gui/ActionRegistry.h`: 41 actions, one for every key the
+  main window answers, except the arrow-key jogs.
+  - An action does not re-implement anything. It names its key, and the
+    palette presses it through the new `Window::RunKey` (or `RunChar` for the
+    `?`, `/`, `O`, `U` and `Shift+A` commands). That runs the same case in
+    `HandleKeyDown` as the keyboard, with the modifiers passed in rather than
+    read from `GetKeyState`.
+  - So an action cannot do what its shortcut does not, and the badge beside it
+    is the key. `tests/command_palette.cpp` checks every action against
+    `Window.cpp`'s own cases: the case exists, and a Shift or Ctrl action's
+    case reads Shift or Ctrl.
+  - The jogs are left out because they start on key-down and stop on key-up,
+    and a palette has no key-up to give. `RunKey` refuses arrow keys.
+- **The ranking**: the typed characters must appear in order, case aside. A run
+  of consecutive matches scores higher, as do word starts and a match in the
+  label rather than the keywords.
+  - It is stable, so the list does not jump about while you type.
+  - 1,000 entries rank in about 0.3 ms with `-O2` (0.6 ms unoptimised). CI
+    builds the tests with `/O2`.
+- **Guarded actions.** Anything that moves the telescope or focuser, or starts a
+  sequence, takes Enter twice: autofocus, both focuser steps, tracking, both
+  framing recalls, and the mosaic. The first Enter arms it, and the footer says
+  what the second will run, in the caution token and in words. Typing or moving
+  disarms it. This replaces the plan's `ConfirmToast`, which only reports and
+  cannot ask.
+- **Keys and the emergency stop.**
+  - The popup claims every key (`WM_GETDLGCODE`), because `RouteThreadKey`
+    otherwise hands every key in the process to the main window's shortcuts.
+    Without the claim, typing "snap" would take a snapshot.
+  - So `Esc` in the palette closes it and does nothing else. The emergency stop
+    also ends a recording, aborts autofocus and resets the guider, and
+    dismissing a palette mid-run must not do that.
+  - This is the one place the stop key is not unconditional, and the help file
+    now says so. It is one more `Esc` away, the palette closes the moment it
+    loses focus, both STOP buttons are untouched, and "Emergency stop" is the
+    palette's first entry, never guarded.
+- **Found and fixed: Shift+A started autofocus.**
+  - `HandleKeyDown`'s `case 'A'` never checked Shift. So Shift+A, the ADC
+    window's key, also started or stopped an autofocus sweep.
+  - From any window but the main one it was worse. The key was consumed before
+    `TranslateMessage`, so the ADC window never opened at all.
+  - `case 'A'` now hands Shift+A on, and it reaches `HandleChar` as the `A`
+    character. Gated by `command_palette` section 6.
+- **Look.** GDI, painted whole into a memory DC from the tokens:
+  - Panel ground with a hairline frame, and a prompt in the signal colour.
+  - Labels in the label face; shortcuts in hairline badges in the data face.
+  - The selected row is the lists' own (132.6), and guarded rows carry a "MOVES
+    HARDWARE" note.
+  - It is sized for the owner's DPI and placed a fifth of the way down the
+    owner's monitor. Nothing animates.
+
+**Not done, from the plan:**
+
+- **GoTo targets in the palette** ("Go to Jupiter") would need GoTo's catalogue
+  and its slew confirmation. That is a follow-up.
+- **A scenario typing into the palette during a recording.** The scenario
+  runner's `keydown` posts to the main window, and the palette reads Ctrl from
+  the keyboard, so the open chord would not be faithful. The palette does its
+  work on the UI thread at keystroke rate and takes no capture lock, so a
+  dropped frame from it is not expected (inferred). The owner check below
+  covers it.
+
+**Gated.** The new `tests/command_palette.cpp` covers the table against
+`Window.cpp`, true shortcuts, the guarded set, ranking, speed, and Shift+A. It
+passes under g++. `main.cpp` compiles cleanly with mingw in the shipped ANSI
+configuration, the emulator configuration and UNICODE. So do `Window.cpp`, and
+`night_coverage` and `wide_messages` pass.
+
+**Not seen on screen.** Owner check:
+
+- `Ctrl+K`, then type "hist" and Enter: the histogram opens.
+- `Ctrl+K`, then "auto" and Enter: the footer asks again; Enter again starts
+  autofocus.
+- `Esc` with the palette open closes it and does not stop anything. A second
+  `Esc` stops.
+- Shift+A opens the ADC window and does not touch autofocus.
+- In night vision, the palette should be red and nothing else.
+- While recording, open the palette and type: the dropped-frame count should
+  not move.

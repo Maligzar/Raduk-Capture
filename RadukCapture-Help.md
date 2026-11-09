@@ -302,12 +302,20 @@ v1.1.8 `Space` was listed here but bound to nothing, and `Esc` exited
 fullscreen instead of stopping - so there was no stop key at all while
 fullscreen.
 
+**One exception: the command palette (`Ctrl+K`).** While it is open, keys
+type into it. `Esc` closes it and does nothing else, because the emergency
+stop also ends a recording, and dismissing the palette mid-run must not do
+that. Press `Esc` again to stop. The palette closes as soon as you click
+anywhere else, and the STOP buttons always work. Its first entry is the
+emergency stop.
+
 | Key | Action |
 |-----|--------|
 | `Space` | Emergency stop all mount movement |
 | `Esc` | Emergency stop (works in fullscreen too; `F11` exits fullscreen) |
 | `Arrow keys` | Jog the mount (hold to slew, release to stop) |
 | `?` | Toggle this Help window |
+| `Ctrl+K` | **Command palette.** Type part of what you want ("hist", "night", "snap"), `Up`/`Down` to choose, `Enter` to run. Shows each command's own key. Anything that moves the telescope or focuser asks for `Enter` twice. |
 | `A` | Toggle Autofocus (start / abort) |
 | `B` | Cycle Display FX (Normal → Boost ×2 → Boost ×4 → Stack 3/5/10) |
 | `C` | Toggle Clipping Warning Overlay |
@@ -325,7 +333,7 @@ fullscreen.
 | `Shift+H` | Close or reopen the **histogram window**. Open at startup. |
 | `Shift+Q` | Close or reopen the **sharpness window**. Open at startup. |
 | `Shift+D` | Close or reopen the **status window** — capture health and free space on every drive. |
-| `Shift+A` | **ADC alignment window** — for dialling in a dispersion corrector. Inert unless *ADC fitted* is ticked on the READY screen. |
+| `Shift+A` | **ADC alignment window** — for dialling in a dispersion corrector. Inert unless *ADC fitted* is ticked on the READY screen. Until phase 132.7 this key also started or stopped autofocus. |
 | `Shift+V` | **Share view** — the image alone, filling a second screen, for people who are not you. See **The share view**. |
 | `Ctrl+Shift+V` | Share view in and out of a **movable window**. Works from the control screen, which is the point. |
 | `Shift+M` | **A second sky map**, on the control screen, so the first can stay where other people can see it. |

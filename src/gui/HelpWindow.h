@@ -41,6 +41,7 @@ static const wchar_t* HELP_FALLBACK =
     L"Key Reference\r\n"
     L"-------------\r\n"
     L"?       Toggle this Help window\r\n"
+    L"Ctrl+K  Command palette\r\n"
     L"Space   Emergency stop\r\n"
     L"A       Autofocus\r\n"
     L"B       Cycle Display FX\r\n"

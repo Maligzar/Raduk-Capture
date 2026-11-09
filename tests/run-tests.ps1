@@ -102,6 +102,7 @@ $Tests = @(
     @{ Name = "target_naming";   Sources = @() }
     @{ Name = "button_state";    Sources = @() }
     @{ Name = "wide_messages";   Sources = @() }
+    @{ Name = "command_palette"; Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

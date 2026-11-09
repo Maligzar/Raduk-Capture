@@ -20,8 +20,9 @@
 //                   the throw information MSVC attaches to the record.
 //   StackLines      the stack at the throw, while the filter still runs
 //                   on top of it: module+offset for every frame, and the
-//                   function and file:line where a PDB is beside the exe
-//                   (CMakeLists builds one for Release since this change).
+//                   function where a PDB is beside the exe (CMakeLists
+//                   builds one for Release, names only; file:line too in
+//                   a Debug build, or with /Zi, which costs compiler memory).
 //
 // The handler runs in a process that is already failing, so every step
 // is defensive and best-effort; a step that cannot run says so and the

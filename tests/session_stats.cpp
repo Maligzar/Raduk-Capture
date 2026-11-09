@@ -8,9 +8,11 @@
 // ============================================================
 
 #include "../src/core/SessionStats.h"
+#include "../src/core/WebTheme.h"
 
 #include <cstdio>
 #include <filesystem>
+#include <set>
 
 using namespace raduk::core;
 
@@ -122,6 +124,45 @@ int main() {
     Check(h2.find("<script>") == std::string::npos, "a target name cannot write HTML");
     Check(RenderSessionStatsHtml(SessionStats{}, "now").find("No sessions yet") != std::string::npos,
           "an empty history says so");
+
+    printf("\n3b. Phase 132.9: the page in the app's look\n");
+    {
+        const std::string css = "/*THEME*/";
+        const std::string day = RenderSessionStatsHtml(st, "now", css, false);
+        const std::string ngt = RenderSessionStatsHtml(st, "now", css, true);
+        Check(day.find(css) != std::string::npos && day.find(css) < day.find("</style>"),
+              "the app's theme CSS goes in the page's style block");
+        Check(ngt.find("<html lang=\"en\" data-mode=\"night\">") != std::string::npos &&
+                  day.find("data-mode=\"night\">") == std::string::npos,
+              "it opens in night vision only when the app is in it");
+        for (const char* old : {"#04080f", "#00e5ff", "#ffb900", "#4dff91", "#ff3b5c", "--cyan", "--amber"})
+            Check(day.find(old) == std::string::npos, (std::string("the old palette is gone: ") + old).c_str());
+        Check(day.find("://") == std::string::npos, "nothing links out: no URL in the page");
+        Check(day.find("@media print") != std::string::npos, "and it prints on white");
+        // Every var() the page's own rules use is one of the shared roles,
+        // so nothing points at a colour the theme does not define.
+        const std::string page = day.substr(day.find(css) + css.size());
+        const std::set<std::string> roles = {"--void", "--deep", "--panel", "--line", "--text",
+                                             "--dim", "--accent", "--warn", "--fault", "--live"};
+        bool ok = true;
+        std::string stray;
+        for (size_t at = page.find("var("); at != std::string::npos; at = page.find("var(", at + 1)) {
+            const size_t e = page.find_first_of(",)", at);
+            const std::string v = page.substr(at + 4, e - at - 4);
+            if (!roles.count(v)) { ok = false; stray += v + " "; }
+        }
+        if (!ok) printf("    stray: %s\n", stray.c_str());
+        Check(ok, "every colour the page uses is a shared role");
+        // The shared base drops every shadow at night: the engraved
+        // highlight is a few per cent of white, measured at up to 9 of 255
+        // in green and blue on the night page before this rule.
+        Check(raduk::core::web::BaseCss().find(":root[data-mode=\"night\"] *{box-shadow:none") !=
+                  std::string::npos,
+              "night vision drops the white highlights (no green or blue)");
+        const std::string emerg = RenderSessionStatsHtml(st, "now", css);
+        Check(st.rig.emergencies == 0 || emerg.find("sig fault") != std::string::npos,
+              "emergency stops are a signal, shape and word first");
+    }
 
     printf("\n4. This machine's logs, if it has them\n");
     const std::string root = "D:\\RadukCapture";

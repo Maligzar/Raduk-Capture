@@ -11,6 +11,8 @@
 // pages cannot drift from the app again.
 // ============================================================
 
+#include <vector>
+
 #include "core/WebTheme.h"
 #include "gui/Theme.h"
 
@@ -32,6 +34,35 @@ inline core::web::Palette CurrentWebPalette() {
     p.day[w::Fault]  = Theme::RED;
     p.day[w::Live]   = Theme::GREEN;
     return p;
+}
+
+// Phase 132.9: the four bundled fonts, as @font-face rules, from the
+// exe's own resources (RadukCapture.rc: 301-304, RCDATA). A page the app
+// writes then carries the app's type and needs nothing from the network.
+// A font that is missing is skipped, and the page falls back.
+inline std::string EmbeddedFontFacesCss() {
+    struct F { int id; const char* family; int weight; };
+    static const F fonts[] = { {301, core::web::kLabelFont, 400}, {302, core::web::kLabelFont, 700},
+                               {303, core::web::kDataFont,  400}, {304, core::web::kDataFont,  700} };
+    std::string css;
+    const HMODULE mod = GetModuleHandleW(nullptr);
+    for (const F& f : fonts) {
+        HRSRC r = FindResourceW(mod, MAKEINTRESOURCEW(f.id), MAKEINTRESOURCEW(10));   // RT_RCDATA
+        if (!r) continue;
+        HGLOBAL g = LoadResource(mod, r);
+        const uint8_t* p = g ? static_cast<const uint8_t*>(LockResource(g)) : nullptr;
+        const DWORD n = SizeofResource(mod, r);
+        if (!p || !n) continue;
+        css += core::web::FontFaceCss(f.family, f.weight, std::vector<uint8_t>(p, p + n));
+    }
+    return css;
+}
+
+// Everything a page needs to look like the app: fonts, both palettes,
+// and the shared base rules.
+inline std::string AppPageCss() {
+    return EmbeddedFontFacesCss() + core::web::PaletteCss(CurrentWebPalette()) +
+           core::web::BaseCss();
 }
 
 } // namespace raduk::gui

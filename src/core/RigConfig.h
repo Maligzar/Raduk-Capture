@@ -224,6 +224,9 @@ struct RigConfig {
     // Phase 132.4: interface motion (the toast's rise, the notification's
     // slide, the fades). Off makes every transition instant.
     bool uiMotion = true;
+    // Phase 132.8: short tones for record start, record stop and fault.
+    // Off by default; AudioCues=1 turns them on.
+    bool audioCues = false;
     // Preview overlay telemetry (histogram / temperature / sharpness
     // drawn on the image). Remembered, because on a multi-screen desk
     // it gets turned off once and should stay off.
@@ -403,6 +406,7 @@ struct RigConfig {
         wf("ShowReadinessCheck", showReadinessCheck ? 1.0 : 0.0);
         wf("NightVision", nightVision ? 1.0 : 0.0);
         wf("UiMotion", uiMotion ? 1.0 : 0.0);
+        wf("AudioCues", audioCues ? 1.0 : 0.0);
         wf("OverlayTelemetry", overlayTelemetry ? 1.0 : 0.0);
         wf("ADCFitted", adcFitted ? 1.0 : 0.0);
         wf("AdvisoryEnabled",   advisoryEnabled ? 1.0 : 0.0);
@@ -485,6 +489,7 @@ private:
         cfg.showReadinessCheck    = rf("ShowReadinessCheck", 1.0) != 0.0;
         cfg.nightVision           = rf("NightVision", 0.0) != 0.0;
         cfg.uiMotion              = rf("UiMotion", 1.0) != 0.0;
+        cfg.audioCues             = rf("AudioCues", 0.0) != 0.0;
         cfg.overlayTelemetry      = rf("OverlayTelemetry", 1.0) != 0.0;
         cfg.adcFitted             = rf("ADCFitted", 0.0) != 0.0;
         cfg.advisoryEnabled       = rf("AdvisoryEnabled", 0.0) != 0.0;

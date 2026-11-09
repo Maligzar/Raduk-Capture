@@ -1056,3 +1056,50 @@ configuration, the emulator configuration and UNICODE. So do `Window.cpp`, and
 - In night vision, the palette should be red and nothing else.
 - While recording, open the palette and type: the dropped-frame count should
   not move.
+
+### 132.8, 2026-11-09: audio cues, off by default
+
+Three short tones for an operator whose eye is at the eyepiece: record
+start, record stop and fault. **Off unless `rig.ini` `AudioCues=1`.**
+
+- **`src/core/ToneSynth.h`** (pure) synthesises each tone once into an
+  in-memory WAV: 16-bit mono PCM at 22,050 Hz. There are no sound files to ship.
+  - Start is two notes rising, 660 then 880 Hz. Stop is the same two falling.
+    Fault is 520 Hz three times.
+  - Every note has 15 ms raised-cosine edges, so it never clicks.
+  - Peak level is -12 dBFS. Lengths are 240 ms, 240 ms and 360 ms.
+- **`src/gui/AudioCues.h`** plays them with
+  `PlaySound(SND_MEMORY | SND_ASYNC)` on the UI thread. The call returns at
+  once, and the buffers are static.
+  - A fault silences a stop tone that follows within 1.5 s, because the
+    emergency stop also ends the recording.
+- **The hooks:**
+  - **Start and stop** are read off the recording state's edges in the status
+    tick. That covers every route into a recording: RECORD, remote, autorun,
+    satellite pass, and the format-change restart. They can lag the event by up
+    to one status tick.
+  - **Faults** are every error-level notice on the notification bar (a new
+    `NotificationBar::SetErrorCallback`) and the emergency stop.
+- **Not covered:** a capture that ends on its own write error.
+  `CaptureManager` keeps that in `lastError` with no accessor, so it plays the
+  stop tone, not the fault tone. Adding the accessor is a small follow-up.
+
+**Gated.** The new `tests/tone_synth.cpp` (27 checks) covers:
+
+- each cue's header and sizes;
+- the peak at -12 dBFS and never above;
+- no sample-to-sample step beyond what a smooth 900 Hz sine allows (a click
+  is a step well past that);
+- every note starting and ending at silence;
+- each tone at its designed pitch, inside 500-900 Hz;
+- start rising, stop falling, and fault lower than both.
+
+`main.cpp` compiles cleanly with mingw in the ANSI and emulator
+configurations.
+
+**Not heard on the rig.** Owner check:
+
+- with `AudioCues=1`, start and stop a recording, then press `Space`;
+- the result should be a rise, a fall, then three low pulses, with no stop
+  tone after them;
+- with the setting absent, there should be silence.

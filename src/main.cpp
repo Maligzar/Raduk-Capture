@@ -81,6 +81,7 @@
 #include "gui/StripDraw.h"
 #include "gui/CommandPalette.h"   // 132.7: Ctrl+K
 #include "gui/AudioCues.h"        // 132.8: record and fault tones
+#include "gui/WebPalette.h"       // 132.9: pages in the app's look
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
@@ -5438,7 +5439,9 @@ static int RunApp(bool useEmulator) {
         const std::string path = Paths::EnsureSub("data") + "\\session_stats.html";
         {
             std::ofstream f(path, std::ios::binary | std::ios::trunc);
-            f << RenderSessionStatsHtml(st, when);
+            // 132.9: in the app's look, and in night vision if the app is.
+            f << RenderSessionStatsHtml(st, when, raduk::gui::AppPageCss(),
+                                        raduk::gui::Theme::NightVisionOn());
             if (!f) {
                 Log("[STATS] Could not write %s\n", path.c_str());
                 notifBar.NotifyWarn(L"Could not write the session statistics page");

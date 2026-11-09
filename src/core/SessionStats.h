@@ -564,40 +564,71 @@ inline void RenderRig(std::string& o, const RigStats& R, const char* title, cons
         o += "<p>" + Esc(R.pointing.Verdict()) + "</p><p class=\"dim\">" + std::to_string(R.pointingSolves) +
              " solves. Pointing column above: median error that night, solves in brackets.</p>";
     }
-    if (R.emergencies)
-        o += "<p class=\"warn\">" + std::to_string(R.emergencies) + " emergency stops logged.</p>";
+    if (R.emergencies)   // 132.9: a signal, shape and word first
+        o += "<p class=\"alert\"><span class=\"sig fault\">" + std::to_string(R.emergencies) +
+             " emergency stops logged</span></p>";
     o += "</section>";
 }
 
 } // namespace stats_detail
 
-inline std::string RenderSessionStatsHtml(const SessionStats& st, const std::string& generatedLocal) {
+// Phase 132.9: the page in the app's own look.
+//
+// `themeCss` is the shared CSS the caller builds from the tokens: the
+// four bundled fonts as @font-face, the day and night palettes
+// (web::PaletteCss) and web::BaseCss. This header stays free of
+// Theme.h; main.cpp passes the real thing, and the page's own rules
+// below use only the role variables (--void ... --live), which
+// tests/session_stats.cpp checks. Empty `themeCss` still renders a
+// readable page in the browser's colours, which is what a test wants.
+//
+// `night` opens it in night vision when the app is in it, through the
+// palette's [data-mode="night"] block: red only, at the ladder's
+// luminances. A print stylesheet puts it on white. No network request:
+// the fonts are inline and nothing links out.
+inline std::string RenderSessionStatsHtml(const SessionStats& st, const std::string& generatedLocal,
+                                          const std::string& themeCss = std::string(),
+                                          bool night = false) {
     using namespace stats_detail;
     std::string o;
-    o.reserve(64 * 1024);
-    o += "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+    o.reserve(64 * 1024 + themeCss.size());
+    o += std::string("<!doctype html><html lang=\"en\"") + (night ? " data-mode=\"night\"" : "") +
+         "><head><meta charset=\"utf-8\">"
          "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-         "<title>RadukCapture Sessions</title><style>"
-         ":root{--bg:#04080f;--panel:#0a1520;--line:#0e1d2e;--text:#c8e8f0;--dim:#8cafbe;"
-         "--cyan:#00e5ff;--amber:#ffb900;--green:#4dff91;--red:#ff3b5c}"
-         "*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);"
-         "font:15px/1.45 'Segoe UI',system-ui,sans-serif;padding:24px 16px 48px}"
-         "main{max-width:1180px;margin:0 auto}h1{font-size:28px;font-weight:600;margin:0 0 4px;letter-spacing:.5px}"
-         "h2{font-size:21px;font-weight:600;color:var(--cyan);margin:36px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px}"
-         "h3{font-size:16px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:1.2px;margin:26px 0 8px}"
-         ".dim,.note{color:var(--dim)}.note{font-size:14px}.empty{color:var(--dim);font-style:italic}.warn{color:var(--red)}"
+         "<title>RadukCapture Sessions</title><style>";
+    o += themeCss;
+    o += "body{padding:28px 16px 56px}"
+         "main{max-width:1180px;margin:0 auto}"
+         ".lede{margin:0 0 6px}"
+         ".dim,.note{color:var(--dim)}.note{font-size:14px}"
+         ".empty{color:var(--dim);font-style:italic}"
          ".tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}"
-         ".tile{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}"
-         ".tile .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}.tile .l{color:var(--dim);font-size:13px}"
-         ".scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}"
-         "th{text-align:left;color:var(--dim);font-weight:500;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}"
-         "td{padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}td.t{white-space:normal;color:var(--dim)}"
-         "tr:hover td{background:var(--panel)}td.w,th.w{min-width:180px;position:relative}"
-         ".bar{display:inline-block;height:10px;border-radius:2px;vertical-align:middle;margin-right:8px;max-width:110px}"
-         ".bar.c{background:var(--cyan)}.bar.a{background:var(--amber)}.bv{vertical-align:middle}"
-         "footer{margin-top:40px;color:var(--dim);font-size:13px}"
+         ".tile{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:12px 14px;"
+         "box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}"
+         ".tile .v{font-family:'Space Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;"
+         "font-size:22px;color:var(--text)}"
+         ".tile .l{font-family:'Barlow Condensed','Segoe UI',sans-serif;text-transform:uppercase;"
+         "letter-spacing:.09em;color:var(--dim);font-size:13px;margin-top:2px}"
+         ".scroll{overflow-x:auto}"
+         "table{font-variant-numeric:tabular-nums}"
+         "th{white-space:nowrap}td{white-space:nowrap;font-family:'Space Mono',ui-monospace,monospace;"
+         "font-size:13px}"
+         "td:first-child{font-family:'Barlow Condensed','Segoe UI',sans-serif;font-size:15px;"
+         "letter-spacing:.02em}"
+         "td.t{white-space:normal;color:var(--dim);font-family:inherit}"
+         "tr:hover td{background:var(--panel)}td.w,th.w{min-width:180px}"
+         ".bar{display:inline-block;height:6px;vertical-align:middle;margin-right:8px;max-width:110px}"
+         ".bar.c{background:var(--accent)}.bar.a{background:var(--dim)}.bv{vertical-align:middle}"
+         ".alert{margin:14px 0}"
+         "footer{margin-top:44px;padding-top:12px;border-top:1px solid var(--line);color:var(--dim);"
+         "font-size:13px}"
+         "@media print{"
+         ":root,:root[data-mode=\"night\"]{--void:#fff;--deep:#fff;--panel:#f4f4f4;--line:#c8c8c8;"
+         "--text:#111;--dim:#555;--accent:#333;--warn:#7a5200;--fault:#a00;--live:#1d5a2c}"
+         "body{padding:0}tr:hover td{background:none}.scroll{overflow:visible}"
+         "td,th{white-space:normal}h2{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid}}"
          "</style></head><body><main>";
-    o += "<h1>Sessions</h1><p class=\"dim\">Built " + Esc(generatedLocal) + " from " +
+    o += "<h1>Sessions</h1><p class=\"lede dim\">Built " + Esc(generatedLocal) + " from " +
          std::to_string(st.logsRead) + " session logs, " + std::to_string(st.records) +
          " capture records and the pointing map.</p>";
 

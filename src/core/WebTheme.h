@@ -244,7 +244,12 @@ inline std::string BaseCss() {
         ".sig.accent{color:var(--accent)}.sig.accent::before{transform:rotate(45deg);width:6px;height:6px}"
         "a{color:var(--accent)}"
         ":focus-visible{outline:1px solid var(--accent);outline-offset:2px}"
-        "@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}";
+        "@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}"
+        // Phase 132.9: the engraved highlight is white at a few per cent,
+        // which in night vision is green and blue on a red-only page
+        // (measured: up to 9 of 255). Night drops every shadow; depth
+        // there is carried by the surface steps alone.
+        ":root[data-mode=\"night\"] *{box-shadow:none!important;text-shadow:none!important}";
 }
 
 } // namespace raduk::core::web

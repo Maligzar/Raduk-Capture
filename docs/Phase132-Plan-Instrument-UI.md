@@ -1103,3 +1103,52 @@ configurations.
 - the result should be a rise, a fall, then three low pulses, with no stop
   tone after them;
 - with the setting absent, there should be silence.
+
+### 132.9, 2026-11-09: the session stats page in the app's look
+
+`[STATS]` writes `data\session_stats.html`. Until now it carried its own neon
+palette (cyan, amber, green and red on blue-black), typed by hand. That was the
+pre-132.3 look. It named fonts Edge does not have, and its colours had drifted
+from `Theme.h`.
+
+- **One look.** `RenderSessionStatsHtml` takes the app's page CSS. Its own
+  rules use only the ten shared role variables. `tests/session_stats.cpp`
+  checks every `var()` on the page against that set.
+  - `WebPalette.h` gains `AppPageCss()`: the four bundled fonts as `@font-face`,
+    read from the exe's own resources (301-304), plus the day and night
+    palettes from the tokens and the shared base rules.
+  - The core header stays free of `Theme.h`.
+- **The instrument rules.** Tiles have mono readouts over tracked upper-case
+  legends; tables have mono figures and a label-face first column; rules are
+  hairlines. Bars are the signal colour for time recorded and Dim for time
+  open, since hue carries no meaning. "Emergency stops logged" is a fault
+  signal: a red dot plus the words, not red text alone.
+- **Night.** The page opens in night vision when the app is in it
+  (`<html data-mode="night">`), at the ladder's own luminances.
+  - The first render was **not** red only. The shared base's engraved highlight
+    is white at a few per cent, and measured up to 9 of 255 in green and blue.
+  - `BaseCss` now drops every shadow under `[data-mode="night"]`, for every page
+    the app writes. Re-measured: 0 pixels with any green or blue.
+- **Print** puts it on white, with black text, grey hairlines and no hover
+  shading.
+- **Self-contained.** The fonts are inline and nothing links out. Rendered in
+  Chromium with all network blocked: 0 requests. The page is about 550 KB,
+  most of it the fonts.
+
+**Gated.** `tests/session_stats.cpp` gains 14 checks:
+
+- the theme CSS lands in the style block;
+- night opens only when asked;
+- the old palette's colours are gone;
+- the page has no URL;
+- there is a print block;
+- every colour is a shared role;
+- emergency stops are a signal;
+- `BaseCss`'s night rule is present.
+
+It passes under mingw and wine, and so does `web_theme`. `main.cpp` compiles in
+the ANSI and emulator configurations.
+
+**Seen**, in Chromium from a render of the test fixture with the real fonts and
+the Steel palette: day, night and print, all as above. Not yet seen from the app
+on the rig. Owner check: press STATS in day and in night vision.

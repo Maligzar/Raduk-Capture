@@ -83,6 +83,7 @@
 #include "gui/AudioCues.h"        // 132.8: record and fault tones
 #include "gui/WebPalette.h"       // 132.9: pages in the app's look
 #include "gui/DarkScrollbars.h"   // 132.6b
+#include "core/CrashDiag.h"        // what crashed, and where
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
@@ -138,8 +139,11 @@ static double ScenarioNow() {
 }
 
 static void LogInit() {
+    // 2026-11-09: keep the last run's log as raduk_log.prev.txt, so a
+    // crash is still on disk after the next launch.
+    raduk::core::crash::RotateLog(raduk::core::Paths::LogFile());
     g_log = fopen(raduk::core::Paths::LogFile().c_str(), "w");
-    if (!g_log) g_log = fopen("raduk_log.txt", "w");
+    if (!g_log) { raduk::core::crash::RotateLog("raduk_log.txt"); g_log = fopen("raduk_log.txt", "w"); }
     AllocConsole();
     freopen("CONOUT$", "w", stdout);
 }
@@ -220,6 +224,16 @@ static LONG WINAPI CrashHandler(EXCEPTION_POINTERS* ep) {
     Log("\n[CRASH] Exception 0x%08lX at %p\n",
         ep->ExceptionRecord->ExceptionCode,
         ep->ExceptionRecord->ExceptionAddress);
+    // 2026-11-09: what it was, and where. 0xE06D7363 is an uncaught C++
+    // exception and its address is always RaiseException, so the type,
+    // the message and the stack are the only useful facts.
+    {
+        const std::string what = raduk::core::crash::CxxException(ep->ExceptionRecord);
+        if (!what.empty()) Log("[CRASH] Uncaught C++ exception: %s\n", what.c_str());
+        Log("[CRASH] Built %s %s. Stack at the throw:\n", __DATE__, __TIME__);
+        for (const std::string& f : raduk::core::crash::StackLines())
+            Log("[CRASH]   %s\n", f.c_str());
+    }
     // Emergency stop mount before crash dump — runaway mount is dangerous
     if (g_mountForCrash && g_mountForCrash->IsConnected()) {
         Log("[CRASH] Sending emergency mount stop...\n");
@@ -8012,6 +8026,24 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // own timestamps and go wherever Log goes.
     raduk::core::CoreLogHook() = [](const char* line) { Log("%s", line); };
     SetUnhandledExceptionFilter(CrashHandler);
+    // 2026-11-09: an exception escaping a std::thread goes straight to
+    // terminate(), past the filter above. Say what it was before abort.
+    std::set_terminate([]() {
+        std::string what = "no exception in flight";
+        try {
+            if (auto e = std::current_exception()) std::rethrow_exception(e);
+        } catch (const std::exception& x) {
+            what = std::string("std::exception: ") + x.what();
+        } catch (...) {
+            what = "a non-std exception";
+        }
+        Log("\n[CRASH] std::terminate: %s\n[CRASH] Built %s %s. Stack:\n",
+            what.c_str(), __DATE__, __TIME__);
+        for (const std::string& f : raduk::core::crash::StackLines())
+            Log("[CRASH]   %s\n", f.c_str());
+        if (g_log) fflush(g_log);
+        std::abort();
+    });
 
 #ifdef RADUK_EMULATOR
     Log("[STARTUP] Emulator build\n");

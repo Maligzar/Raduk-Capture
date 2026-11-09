@@ -221,3 +221,46 @@ wrong order.
 cleanly with mingw in both the hardware and the emulator configuration, and so
 does `CaptureManager.cpp`. **Not run on the rig.** Checklist item 54 covers
 it.
+
+### 2026-11-09: a launch crash that said nothing
+
+The owner reported the app crashing at launch. The log ended with:
+
+    [CRASH] Exception 0xE06D7363 at 00007FF86E52055C
+
+That is MSVC's code for a C++ exception nobody caught. The address is
+`RaiseException` in KernelBase, where every throw lands, so the log said nothing
+about what threw.
+
+**What the log did show:** `8 profiles loaded`. Since #105 the profile loader
+always loads 11, so the exe that crashed was built before #105. The cause was
+`launch_emulator.bat`: it built the emulator only when no exe existed, so after
+a pull it kept launching the old one. The current master's emulator build was
+run under wine for 90 s with a site set and did not crash. That is not proof:
+the owner's layout opens the share view and object panel at startup, on five
+monitors.
+
+**Changed:**
+
+- **`launch_emulator.bat` always builds first.** The build is incremental, and it
+  refuses to launch if the build fails.
+- **The crash handler says what threw** (`src/core/CrashDiag.h`):
+  - for `0xE06D7363`, the thrown type, plus `what()` for a `std::exception`,
+    read from the throw information MSVC attaches;
+  - the stack at the throw, with function and file:line from a PDB;
+  - CMake now builds a PDB for Release too (`/Zi`, `/DEBUG /OPT:REF /OPT:ICF`).
+    No code changes.
+- **`std::set_terminate` logs** an exception that escapes a thread, which skips
+  the filter.
+- **The previous run's log is kept as `raduk_log.prev.txt`.** Relaunching no
+  longer erases a crash.
+
+**Gated** by the new `tests/crash_diag.cpp`:
+
+- type names come out readable;
+- under MSVC, a real `std::out_of_range` is read back as type and message;
+- a stack comes back;
+- log rotation works.
+
+**Owed:** the owner rebuilds (`build_all.bat`) and launches. If it still
+crashes, the log now names the function.

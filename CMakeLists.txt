@@ -187,6 +187,12 @@ endif()
 # of Unicode characters in string literals when system codepage is not UTF-8.
 if(MSVC)
     target_compile_options(RadukCapture PRIVATE /utf-8)
+    # 2026-11-09: a PDB for Release too, so the crash handler
+    # (core/CrashDiag.h) can name the function and line that threw.
+    # /Zi and /DEBUG change no code; /OPT:REF,ICF keep the exe as lean
+    # as it was without them.
+    target_compile_options(RadukCapture PRIVATE $<$<CONFIG:Release>:/Zi>)
+    target_link_options(RadukCapture PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF>)
     # The generated resource names the icon by absolute path, so this is no
     # longer required for it. Kept so a hand-written .rc added later can
     # still use a project-relative path.

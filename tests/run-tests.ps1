@@ -106,6 +106,7 @@ $Tests = @(
     @{ Name = "tone_synth";      Sources = @() }
     @{ Name = "dark_scrollbars"; Sources = @() }
     @{ Name = "crash_diag";      Sources = @() }
+    @{ Name = "fits_to_ser";     Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

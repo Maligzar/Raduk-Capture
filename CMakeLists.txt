@@ -167,6 +167,12 @@ add_executable(RadukCapture WIN32
     src/net/PreviewStreamer.cpp
 )
 
+# fits2ser (2026-11-09): converts a FITS cube to SER, recovering the
+# frame count from the file size when a recording was never closed.
+# Built beside the app: build\Release\fits2ser.exe.
+add_executable(fits2ser tools/fits2ser.cpp)
+target_include_directories(fits2ser PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
 # ── Include directories ────────────────────────────────────────
 
 target_include_directories(RadukCapture PRIVATE

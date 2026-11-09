@@ -227,6 +227,9 @@ struct RigConfig {
     // Phase 132.8: short tones for record start, record stop and fault.
     // Off by default; AudioCues=1 turns them on.
     bool audioCues = false;
+    // Phase 132.6b: Windows' dark scrollbars on the list views and the
+    // app's own scrolling windows. DarkScrollbars=0 keeps the classic ones.
+    bool darkScrollbars = true;
     // Preview overlay telemetry (histogram / temperature / sharpness
     // drawn on the image). Remembered, because on a multi-screen desk
     // it gets turned off once and should stay off.
@@ -407,6 +410,7 @@ struct RigConfig {
         wf("NightVision", nightVision ? 1.0 : 0.0);
         wf("UiMotion", uiMotion ? 1.0 : 0.0);
         wf("AudioCues", audioCues ? 1.0 : 0.0);
+        wf("DarkScrollbars", darkScrollbars ? 1.0 : 0.0);
         wf("OverlayTelemetry", overlayTelemetry ? 1.0 : 0.0);
         wf("ADCFitted", adcFitted ? 1.0 : 0.0);
         wf("AdvisoryEnabled",   advisoryEnabled ? 1.0 : 0.0);
@@ -490,6 +494,7 @@ private:
         cfg.nightVision           = rf("NightVision", 0.0) != 0.0;
         cfg.uiMotion              = rf("UiMotion", 1.0) != 0.0;
         cfg.audioCues             = rf("AudioCues", 0.0) != 0.0;
+        cfg.darkScrollbars        = rf("DarkScrollbars", 1.0) != 0.0;
         cfg.overlayTelemetry      = rf("OverlayTelemetry", 1.0) != 0.0;
         cfg.adcFitted             = rf("ADCFitted", 0.0) != 0.0;
         cfg.advisoryEnabled       = rf("AdvisoryEnabled", 0.0) != 0.0;

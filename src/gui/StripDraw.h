@@ -26,8 +26,9 @@
 // NM_CUSTOMDRAW from its own list views. A selected row is painted
 // whole -- BORDER, the signal colour's 2 px bar at its left edge, every
 // column's text in Text, and the check box where a list has them --
-// and the control is told to skip its own. Unselected rows are left to
-// the control, which already paints them from the tokens.
+// and the control is told to skip its own. Since 132.6b every row is
+// painted this way (unselected on DEEP with a PANEL hairline), so the
+// dark theme on the lists' scrollbars cannot restyle any of them.
 //
 // Painting the row rather than unsetting its selected state for the
 // paint: the usual trick of clearing LVIS_SELECTED and restoring it
@@ -156,13 +157,21 @@ inline LRESULT CALLBACK ListProc(HWND h, UINT m, WPARAM w, LPARAM l,
     return DefSubclassProc(h, m, w, l);
 }
 
-// One selected row of `lv`, painted whole from the tokens.
-inline void PaintSelectedRow(HWND lv, HDC dc, int item) {
+// One row of `lv`, painted whole from the tokens. 132.6b: every row,
+// not only the selected one -- the dark theme 132.6b puts on list views
+// for their scrollbars would otherwise restyle the rest (a hover band,
+// its own focus ring), and painting them all also replaces the system's
+// grid lines, which were grey at night, with a hairline in BORDER.
+inline void PaintRow(HWND lv, HDC dc, int item, bool selected) {
     RECT row;
     if (!ListView_GetItemRect(lv, item, &row, LVIR_BOUNDS)) return;
-    FillRect(dc, &row, Theme::Brush(Theme::Rgb::BORDER));
-    RECT bar = { row.left, row.top, row.left + 2, row.bottom };
-    FillRect(dc, &bar, Theme::Brush(Theme::Rgb::ACCENT));
+    FillRect(dc, &row, Theme::Brush(selected ? Theme::Rgb::BORDER : Theme::Rgb::DEEP));
+    if (selected) {
+        RECT bar = { row.left, row.top, row.left + 2, row.bottom };
+        FillRect(dc, &bar, Theme::Brush(Theme::Rgb::ACCENT));
+    }
+    RECT hair = { row.left, row.bottom - 1, row.right, row.bottom };
+    FillRect(dc, &hair, Theme::Brush(selected ? Theme::Rgb::BORDER : Theme::Rgb::PANEL));
 
     if (ListView_GetExtendedListViewStyle(lv) & LVS_EX_CHECKBOXES) {
         RECT lab;
@@ -225,11 +234,10 @@ inline LRESULT CALLBACK ListParentProc(HWND h, UINT m, WPARAM w, LPARAM l,
                         return CDRF_NOTIFYITEMDRAW;
                     case CDDS_ITEMPREPAINT: {
                         const int item = (int)cd->nmcd.dwItemSpec;
-                        if (ListView_GetItemState(nh->hwndFrom, item, LVIS_SELECTED)) {
-                            PaintSelectedRow(nh->hwndFrom, cd->nmcd.hdc, item);
-                            return CDRF_SKIPDEFAULT;
-                        }
-                        return CDRF_DODEFAULT;
+                        const bool sel =
+                            ListView_GetItemState(nh->hwndFrom, item, LVIS_SELECTED) != 0;
+                        PaintRow(nh->hwndFrom, cd->nmcd.hdc, item, sel);
+                        return CDRF_SKIPDEFAULT;
                     }
                     default:
                         return CDRF_DODEFAULT;
@@ -300,9 +308,12 @@ inline void StyleStrips(HWND top) {
         if (GetClassNameW(c, cls, 64) <= 0) return TRUE;
         if (_wcsicmp(cls, WC_LISTVIEWW) == 0) {
             SetWindowSubclass(c, strip_detail::ListProc, strip_detail::kHeaderSubclassId, 0);
-            if (HWND parent = GetParent(c))   // 132.6: the selected row
+            if (HWND parent = GetParent(c))   // 132.6: the rows
                 SetWindowSubclass(parent, strip_detail::ListParentProc,
                                   strip_detail::kListParentSubclassId, 0);
+            // 132.6b: the rows carry their own hairline now; the
+            // control's grid lines were a system grey.
+            ListView_SetExtendedListViewStyleEx(c, LVS_EX_GRIDLINES, 0);
             InvalidateRect(c, nullptr, FALSE);
             if (HWND hdr = ListView_GetHeader(c)) InvalidateRect(hdr, nullptr, TRUE);
         } else if (_wcsicmp(cls, WC_TABCONTROLW) == 0) {

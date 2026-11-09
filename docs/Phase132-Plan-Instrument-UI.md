@@ -1152,3 +1152,62 @@ the ANSI and emulator configurations.
 **Seen**, in Chromium from a render of the test fixture with the real fonts and
 the Steel palette: day, night and print, all as above. Not yet seen from the app
 on the rig. Owner check: press STATS in day and in night vision.
+
+### 132.6b, 2026-11-09: dark scrollbars, and the list rows the app's own
+
+**What is possible.** No system scrollbar can be red. Its colour is not an API.
+Windows has a dark one, but only behind two undocumented `uxtheme` entry points
+called by ordinal: 135 (`SetPreferredAppMode`, or `AllowDarkModeForApp` on
+1809) and 133 (`AllowDarkModeForWindow`), followed by
+`SetWindowTheme(L"DarkMode_Explorer")`. Explorer, Notepad++ and Windows Terminal
+use the same calls (inferred from their published sources, not from Microsoft).
+`src/gui/DarkScrollbars.h` looks each ordinal up and does nothing if one is
+missing. It calls nothing before Windows 10 1809.
+
+**What is themed, and what is not:**
+
+- **List views** (GoTo's three).
+- **The app's own scrolling windows**, such as the control panel host, whose
+  client areas the app paints anyway.
+- **Not edit or list boxes.** A themed one stops honouring the app's
+  `WM_CTLCOLOR*` brushes (`ControlPanel.cpp` found that for edits) and would
+  turn white. The help, assistant, object-info and readiness text boxes keep
+  classic bars. Owner-painted bars for those are the follow-up if they matter
+  at night.
+
+**The rows.** The dark theme on a list view would also restyle its rows: a hover
+band, its own selection and its own focus ring. So `StripDraw.h` now paints
+**every** row, not only the selected one:
+
+- unselected rows on DEEP with a PANEL hairline;
+- selected rows as in 132.6;
+- the passes list's check boxes;
+- the control's own drawing skipped on every row.
+
+That also clears two of 132.6's leftovers. The system grid lines, grey at night,
+are switched off, and the hairline replaces them. The list's own focus ring on
+an unselected row no longer draws.
+
+**Night.** Dark grey is still not red, but it gives off a small fraction of the
+classic bar's light. `rig.ini` `DarkScrollbars=0` restores the classic bars. The
+log says which applies: on, off in `rig.ini`, or not available on this Windows.
+
+**Gated.** The new `tests/dark_scrollbars.cpp` covers:
+
+- the entry point by build;
+- edit and list boxes are never themed;
+- the theme goes on after `StyleStockControls` de-themes the lists, and dark
+  mode is enabled before the first styling;
+- every row is the app's, and grid lines are off.
+
+`night_coverage` and `wide_messages` still pass. `main.cpp` compiles in the ANSI
+and emulator configurations.
+
+**Not seen.** The undocumented calls cannot run here. Owner check:
+
+- open GoTo with a long list: the scrollbar should be dark, and the rows should
+  have hairlines, no grid, and no hover band;
+- the passes list's check boxes still show and toggle;
+- in night vision, nothing in the lists is grey except the scrollbar;
+- if anything looks wrong, `DarkScrollbars=0` takes it all back, apart from the
+  painted rows.

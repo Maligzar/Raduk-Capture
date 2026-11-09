@@ -104,6 +104,7 @@ $Tests = @(
     @{ Name = "wide_messages";   Sources = @() }
     @{ Name = "command_palette"; Sources = @() }
     @{ Name = "tone_synth";      Sources = @() }
+    @{ Name = "dark_scrollbars"; Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

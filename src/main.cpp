@@ -82,6 +82,7 @@
 #include "gui/CommandPalette.h"   // 132.7: Ctrl+K
 #include "gui/AudioCues.h"        // 132.8: record and fault tones
 #include "gui/WebPalette.h"       // 132.9: pages in the app's look
+#include "gui/DarkScrollbars.h"   // 132.6b
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
@@ -2209,11 +2210,20 @@ static int RunApp(bool useEmulator) {
     // is covered without being registered anywhere. Re-applied on
     // every night-vision toggle, because the title bars, lists and
     // tabs all follow the mode.
+    // 132.6b: Windows' dark scrollbars, where this build of Windows has
+    // them and rig.ini has not turned them off (DarkScrollbars=0).
+    {
+        const bool dark = raduk::gui::darkbars::Enable(raduk::core::RigConfig::Get().darkScrollbars);
+        Log("[THEME] Dark scrollbars: %s\n",
+            dark ? "on" : (raduk::core::RigConfig::Get().darkScrollbars ? "not available on this Windows"
+                                                                         : "off in rig.ini"));
+    }
     auto styleChrome = [&]() {
         for (HWND h : ourWindows()) {
             raduk::gui::Theme::DarkTitleBar(h);
             raduk::gui::Theme::StyleStockControls(h);
             raduk::gui::StyleStrips(h);   // 132.3f: list headers and tab strips
+            raduk::gui::darkbars::Style(h);   // 132.6b: after the de-theme above
         }
     };
     styleChrome();

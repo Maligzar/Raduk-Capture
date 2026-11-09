@@ -188,10 +188,11 @@ endif()
 if(MSVC)
     target_compile_options(RadukCapture PRIVATE /utf-8)
     # 2026-11-09: a PDB for Release too, so the crash handler
-    # (core/CrashDiag.h) can name the function and line that threw.
-    # /Zi and /DEBUG change no code; /OPT:REF,ICF keep the exe as lean
-    # as it was without them.
-    target_compile_options(RadukCapture PRIVATE $<$<CONFIG:Release>:/Zi>)
+    # (core/CrashDiag.h) can name the function that threw. Linker /DEBUG
+    # only: it writes function names at no cost to the compiler. /Zi was
+    # tried first, for line numbers, and the extra compiler memory put
+    # the owner's machine out of heap (C1060, "paging file is too small")
+    # on both builds. /OPT:REF,ICF keep the exe as lean as without /DEBUG.
     target_link_options(RadukCapture PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF>)
     # The generated resource names the icon by absolute path, so this is no
     # longer required for it. Kept so a hand-written .rc added later can

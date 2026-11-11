@@ -982,6 +982,11 @@ LRESULT Window::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
 
 
+        case WM_DROPFILES:
+            if (m_onDropFiles) { m_onDropFiles(wParam); return 0; }
+            DragFinish(reinterpret_cast<HDROP>(wParam));
+            return 0;
+
         case WM_CLOSE:
             if (m_onCloseRequest) {
                 m_onCloseRequest(); // handler decides whether to destroy

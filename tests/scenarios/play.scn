@@ -1,0 +1,55 @@
+# [PLAY], 2026-11-10: record a short SER of Jupiter, open it in the PLAY
+# window and look through it. The scan must find the planet on the
+# frames, stepping and GOTO must land where asked, and playback must run
+# and stop. Shots show the window with its quality trace.
+name    Play: look through a recording
+timeout 300
+
+rig     WinJuposNames=0
+rig     DerotationStop=0
+rig     CaptureFormat=ser
+profile jupiter.ini roi width=640
+profile jupiter.ini roi height=480
+profile jupiter.ini roi img_type=0
+profile jupiter.ini capture limit_value=120
+
+expect 30  [SCENARIO] Play
+wait   3
+goto   Jupiter
+expect 120 Slew to 'Jupiter' complete
+wait   3
+tab    CAMERA
+press  RECORD
+expect 10  captures\Jupiter_
+expect 60  Recording stopped: 120 frames
+wait   3
+
+press  PLAY LAST
+expect 10  [PLAY] Opened
+expect 60  [PLAY] Scan done: target in
+shot   opened
+
+press  PLAY:GOTO 60
+expect 5   [PLAY] frame 60 of 120
+press  PLAY:STEP
+expect 5   [PLAY] frame 61 of 120
+press  PLAY:BACK
+press  PLAY:BACK
+expect 5   [PLAY] frame 59 of 120
+press  PLAY:END
+expect 5   [PLAY] frame 120 of 120
+press  PLAY:BEST
+expect 5   [PLAY] frame
+absent 1   no frame with a target
+
+press  PLAY:PLAY
+expect 5   [PLAY] playing
+wait   2
+shot   playing
+press  PLAY:PAUSE
+expect 5   [PLAY] paused
+
+# The [PLAY] button beside [TO SER] on the folder row.
+tab    OUTPUT
+wait   1
+shot   output-row

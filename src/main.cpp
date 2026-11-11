@@ -94,6 +94,7 @@
 #include "gui/WorkspaceLayout.h"
 #include "gui/HistogramWindow.h"
 #include "gui/SharpnessWindow.h"
+#include "gui/PlayerWindow.h"     // [PLAY]: look through a SER recording
 #include "gui/TemperatureWindow.h"
 #include "gui/StatusWindow.h"
 #include "gui/ConfirmToast.h"
@@ -5501,6 +5502,39 @@ static int RunApp(bool useEmulator) {
                             L" FITS file(s) to SER. Press TO SER again to stop.");
     });
 
+    // [PLAY] (2026-11-10), beside [TO SER]: look through a SER -- every
+    // frame, a quality trace along the slider, the best frame a key away
+    // (gui/PlayerWindow.h). PIPP's preview showed one frame of 11,836 and
+    // no way to find out whether the planet was in the rest. Also opened
+    // by dropping a .ser on the main window.
+    static raduk::gui::PlayerWindow player;
+    player.Create(window.Handle());
+    player.SetLog([](const std::string& s) { Log("%s\n", s.c_str()); });
+    player.SetFolderSource([&]() { return toWide(controls.GetOutputDir()); });
+    controls.SetPlayCallback([&]() { player.OpenWithDialog(); });
+    window.SetDropFilesHandler([&](WPARAM drop) {
+        if (!player.OpenDropped(reinterpret_cast<HDROP>(drop)))
+            notifBar.NotifyWarn(L"Drop a .ser recording to play it");
+    });
+    // The newest .ser in the output folder: what a scenario plays after
+    // recording one, since it cannot answer a file dialog.
+    auto newestSer = [&]() -> std::string {
+        const std::string dir = controls.GetOutputDir();
+        WIN32_FIND_DATAA fd{};
+        HANDLE h = FindFirstFileA((dir + "\\*.ser").c_str(), &fd);
+        if (h == INVALID_HANDLE_VALUE) return "";
+        std::string best; FILETIME bestT{};
+        do {
+            if (CompareFileTime(&fd.ftLastWriteTime, &bestT) > 0) {
+                bestT = fd.ftLastWriteTime;
+                best = dir + "\\" + fd.cFileName;
+            }
+        } while (FindNextFileA(h, &fd));
+        FindClose(h);
+        return best;
+    };
+    Log("[INIT] Player window ready\n");
+
     toolbar.SetStatsCallback([&]() {
         using namespace raduk::core;
         const ULONGLONG t0 = GetTickCount64();
@@ -6044,6 +6078,20 @@ static int RunApp(bool useEmulator) {
                 break;
             }
 #endif
+            // [PLAY]: "PLAY LAST" opens the newest .ser in the output
+            // folder; "PLAY:STEP", "PLAY:GOTO 50", "PLAY:BEST" and the rest
+            // drive the window (PlayerWindow::ScenarioCommand).
+            if (a.arg == "PLAY LAST") {
+                const std::string p = newestSer();
+                if (p.empty() || !player.OpenFile(p))
+                    g_scenario->ActionFailed(p.empty() ? "no .ser in the output folder" : "the player could not open " + p);
+                break;
+            }
+            if (a.arg.rfind("PLAY:", 0) == 0) {
+                if (!player.ScenarioCommand(a.arg.substr(5)))
+                    g_scenario->ActionFailed("the player has nothing open, or no command '" + a.arg.substr(5) + "'");
+                break;
+            }
             if (a.arg.rfind("GOTO:", 0) == 0) {
                 if (!gotoPanel.ScenarioPress(a.arg.substr(5)))
                     g_scenario->ActionFailed("no GoTo panel button called '" + a.arg.substr(5) + "'");

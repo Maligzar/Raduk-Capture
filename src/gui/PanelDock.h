@@ -174,4 +174,92 @@ inline void DragSize(HWND self, RECT* proposed, int edges) {
     PlaceMembers(rects);
 }
 
+// ── Phase 134.3: a group fills its monitor ───────────────────
+//
+// F11 on a panel in a group: every member is mapped onto the monitor in
+// proportion (dock::FillMonitor, which leaves no gap at any joint), with
+// its caption and sizing border taken away, as single fullscreen does,
+// so the group reads as one instrument. F11 or Esc puts back each
+// member's style and rectangle exactly. A panel alone, or a group
+// across monitors with different scaling, keeps single fullscreen.
+
+struct GroupFull {
+    bool active = false;
+    std::vector<HWND> hwnds;
+    std::vector<RECT> savedRect;
+    std::vector<LONG> savedStyle;
+};
+inline GroupFull& GF() { static GroupFull g; return g; }
+
+inline std::vector<HWND> GroupOf(HWND self) {
+    std::vector<HWND> hw;
+    std::vector<dock::Rect> rs;
+    int si = -1;
+    for (HWND p : S().panels) {
+        if (p != self && !IsTarget(p)) continue;
+        RECT r;
+        if (!GetWindowRect(p, &r)) continue;
+        if (p == self) si = (int)hw.size();
+        hw.push_back(p);
+        rs.push_back(ToDock(r));
+    }
+    std::vector<HWND> out;
+    if (si < 0) return out;
+    const auto ids = dock::Groups(rs);
+    for (size_t i = 0; i < hw.size(); ++i)
+        if (ids[i] == ids[si]) out.push_back(hw[i]);
+    return out;
+}
+
+inline bool InGroupFull(HWND h) {
+    if (!GF().active) return false;
+    for (HWND m : GF().hwnds) if (m == h) return true;
+    return false;
+}
+
+inline void ExitGroupFull() {
+    GroupFull& g = GF();
+    if (!g.active) return;
+    for (size_t i = 0; i < g.hwnds.size(); ++i) {
+        if (!IsWindow(g.hwnds[i])) continue;
+        SetWindowLongW(g.hwnds[i], GWL_STYLE, g.savedStyle[i]);
+        const RECT& r = g.savedRect[i];
+        SetWindowPos(g.hwnds[i], nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top,
+                     SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+    }
+    g = GroupFull{};
+}
+
+inline bool EnterGroupFull(HWND self) {
+    if (GF().active) ExitGroupFull();
+    const std::vector<HWND> members = GroupOf(self);
+    if (members.size() < 2) return false;
+    const UINT dpi = GetDpiForWindow(self);
+    for (HWND m : members) if (GetDpiForWindow(m) != dpi) return false;
+
+    GroupFull g;
+    std::vector<dock::Rect> rs;
+    for (HWND m : members) {
+        RECT r;
+        GetWindowRect(m, &r);
+        g.hwnds.push_back(m);
+        g.savedRect.push_back(r);
+        g.savedStyle.push_back(GetWindowLongW(m, GWL_STYLE));
+        rs.push_back(ToDock(r));
+    }
+    MONITORINFO mi{ sizeof(mi) };
+    GetMonitorInfoW(MonitorFromWindow(self, MONITOR_DEFAULTTONEAREST), &mi);
+    const auto filled = dock::FillMonitor(rs, ToDock(mi.rcMonitor));
+    for (size_t i = 0; i < members.size(); ++i) {
+        const LONG st = (g.savedStyle[i] & ~(LONG)(WS_CAPTION | WS_THICKFRAME)) | (LONG)WS_POPUP;
+        SetWindowLongW(members[i], GWL_STYLE, st);
+        const dock::Rect& r = filled[i];
+        SetWindowPos(members[i], nullptr, r.l, r.t, r.w(), r.h(),
+                     SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+    }
+    g.active = true;
+    GF() = std::move(g);
+    return true;
+}
+
 } // namespace raduk::gui::panel_dock

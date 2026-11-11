@@ -115,6 +115,21 @@ public:
 
     // True when handled, with the result in out.
     bool Filter(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT& out) {
+        // Phase 134.3: F11 on a panel in a group fills the monitor with the
+        // group; F11 or Esc restores it. Checked BEFORE the caption test,
+        // because a member in group fullscreen has no caption. A panel
+        // alone falls through to its own F11, single fullscreen as before.
+        if (hwnd == m_hwnd && msg == WM_KEYDOWN && panel_dock::IsRegistered(hwnd)) {
+            if (panel_dock::InGroupFull(hwnd) && (wp == VK_F11 || wp == VK_ESCAPE)) {
+                panel_dock::ExitGroupFull();
+                out = 0;
+                return true;
+            }
+            if (wp == VK_F11 && Showing() && panel_dock::EnterGroupFull(hwnd)) {
+                out = 0;
+                return true;
+            }
+        }
         if (hwnd != m_hwnd || !Showing()) return false;
         // Phase 134.1: the panels that dock snap while dragged or sized,
         // and none can be made smaller than 240 x 120. The proposed

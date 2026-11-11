@@ -317,3 +317,43 @@ needs a "this is a group" cue too, and one overlay can serve both.
 - Shift-drag Histogram out, and it leaves the group;
 - drag their shared edge, and both resize, stopping at 240 x 120;
 - a lone panel behaves exactly as in 134.1.
+
+### 134.3, 2026-11-11: a group fills its monitor
+
+**Entering.** `WindowChrome::Filter` catches F11 on a registered panel. It
+does this before its caption test, because a member in group fullscreen has
+no caption. If the panel's group has two or more members, all at the same
+DPI, `panel_dock::EnterGroupFull` does four things:
+1. saves each member's rectangle and style;
+2. maps the rectangles onto `rcMonitor` with `dock::FillMonitor`, which
+   leaves no gap at any joint;
+3. removes `WS_CAPTION` and `WS_THICKFRAME`;
+4. places each member with `SWP_FRAMECHANGED`.
+
+The chrome hides itself when the caption goes, exactly as in single
+fullscreen.
+
+**Restoring.** F11 or Esc on any member puts every style and rectangle back.
+
+**Lone panels.** A panel alone, or in a mixed-DPI group, falls through to
+its own F11, single fullscreen as before. The panels' own `m_fullscreen`
+flags stay false during group fullscreen, so their Esc handlers do nothing
+that conflicts.
+
+**Saving the layout.** Ctrl+Shift+End restores a fullscreen group before
+`CaptureCurrent`, so stretched rectangles are never saved as normal ones.
+Bringing a group back fullscreen after a restart is 134.5's persistence.
+
+**No new arithmetic.** `FillMonitor` has been gated since 134.0, section 5,
+including an odd-sized monitor at negative coordinates.
+
+**Deferred, a third time: the joint accent line.** It moves to 134.4. The
+dock window needs an overlay for drop zones and splitters, and one overlay
+serves all three. 134.4 must deliver it or drop it in writing.
+
+**Not seen.** Owner check on the rig:
+- group three panels and press F11 on any one: they fill the monitor in
+  proportion, with no gaps and no title bars;
+- F11 or Esc restores them exactly;
+- a lone panel still goes single fullscreen;
+- Ctrl+Shift+End during group fullscreen saves the normal positions.

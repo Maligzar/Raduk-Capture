@@ -84,6 +84,7 @@
 #include "gui/WebPalette.h"       // 132.9: pages in the app's look
 #include "gui/DarkScrollbars.h"   // 132.6b
 #include "core/CrashDiag.h"        // what crashed, and where
+#include "core/FitsBatch.h"        // [TO SER]: FITS cubes to SER, in the background
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
@@ -5450,6 +5451,56 @@ static int RunApp(bool useEmulator) {
     // pointing file, write one page, open it in the browser. A few
     // hundred small files read in well under a second, so this runs on
     // the UI thread rather than adding a thread to look after.
+    // [TO SER] (2026-11-11), beside the output folder in CAPTURE: FITS
+    // cubes to SER for PIPP and AutoStakkert,
+    // several at once, on a thread of their own (core/FitsBatch.h). Not
+    // while recording: both are tens of GB through the same disk, and
+    // the recording wins -- one started mid-batch cancels it (the tick
+    // below). Pressed again during a batch, it cancels.
+    static raduk::core::fits2ser::Batch fitsBatch;
+    controls.SetToSerCallback([&]() {
+        if (fitsBatch.Running()) {
+            fitsBatch.Cancel();
+            notifBar.NotifyWarn(L"Stopping the FITS conversion; the file in progress is removed");
+            return;
+        }
+        if (capturer.IsRecording()) {
+            notifBar.NotifyWarn(L"Not while recording: FITS to SER would compete for the disk");
+            return;
+        }
+        std::vector<wchar_t> buf(64 * 1024, 0);
+        const std::wstring initDir = toWide(controls.GetOutputDir());
+        OPENFILENAMEW ofn{};
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner   = window.Handle();
+        ofn.lpstrFilter = L"FITS cubes (*.fits, *.fit)\0*.fits;*.fit\0All files\0*.*\0";
+        ofn.lpstrFile   = buf.data();
+        ofn.nMaxFile    = (DWORD)buf.size();
+        ofn.lpstrInitialDir = initDir.empty() ? nullptr : initDir.c_str();
+        ofn.lpstrTitle  = L"Convert FITS to SER - pick one or more";
+        ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR |
+                          OFN_ALLOWMULTISELECT | OFN_EXPLORER;
+        if (!GetOpenFileNameW(&ofn)) return;
+        // One file: the full path. Several: the folder, then each name.
+        // fopen takes the ANSI code page, so the paths are converted to it.
+        auto ansi = [](const std::wstring& w) {
+            std::string s;
+            const int n = WideCharToMultiByte(CP_ACP, 0, w.c_str(), -1, nullptr, 0, nullptr, nullptr);
+            if (n > 1) { s.resize(n - 1); WideCharToMultiByte(CP_ACP, 0, w.c_str(), -1, &s[0], n, nullptr, nullptr); }
+            return s;
+        };
+        std::vector<std::wstring> parts;
+        for (const wchar_t* p = buf.data(); *p; p += wcslen(p) + 1) parts.emplace_back(p);
+        std::vector<std::string> files;
+        if (parts.size() == 1) files.push_back(ansi(parts[0]));
+        else for (size_t i = 1; i < parts.size(); ++i) files.push_back(ansi(parts[0] + L"\\" + parts[i]));
+        if (files.empty()) return;
+        fitsBatch.Start(files);
+        Log("[TOSER] Converting %zu FITS file(s) to SER\n", files.size());
+        notifBar.NotifyInfo(L"Converting " + std::to_wstring(files.size()) +
+                            L" FITS file(s) to SER. Press TO SER again to stop.");
+    });
+
     toolbar.SetStatsCallback([&]() {
         using namespace raduk::core;
         const ULONGLONG t0 = GetTickCount64();
@@ -7329,6 +7380,35 @@ static int RunApp(bool useEmulator) {
                 int   bufTot   = (int)bufT;
                 float diskGB   = capturer.IsRecording()
                                  ? (float)capturer.BytesWritten() / 1e9f : 0.0f;
+                // [TO SER]: the batch's progress on the bar, and a
+                // recording always wins the disk.
+                {
+                    static unsigned seen = 0;
+                    static bool wasRunning = false;
+                    if (fitsBatch.Running() && capturer.IsRecording()) {
+                        fitsBatch.Cancel();
+                        notifBar.NotifyWarn(L"FITS conversion stopped: a recording needs the disk");
+                        Log("[TOSER] Cancelled: recording started\n");
+                    }
+                    const auto st = fitsBatch.Get();
+                    if (st.version != seen) {
+                        seen = st.version;
+                        if (st.running) {
+                            notifBar.UpdateInfo(L"TO SER " + std::to_wstring(st.index) + L" of " +
+                                                std::to_wstring(st.total) + L": " +
+                                                raduk::core::ToWide(st.file) + L" -- " +
+                                                raduk::core::ToWide(st.line));
+                        } else if (wasRunning) {
+                            Log("[TOSER] Done: %d converted, %d failed\n", st.done, st.failed);
+                            const std::wstring msg = L"FITS to SER: " + std::to_wstring(st.done) +
+                                L" converted" + (st.failed ? L", " + std::to_wstring(st.failed) +
+                                L" failed or stopped" : std::wstring());
+                            if (st.failed) notifBar.NotifyWarn(msg);
+                            else notifBar.NotifyInfo(msg, raduk::core::ToWide(st.folder));
+                        }
+                        wasRunning = st.running;
+                    }
+                }
                 // Phase 132.8: the record tones, on the state's edges.
                 {
                     static bool wasRecording = false;

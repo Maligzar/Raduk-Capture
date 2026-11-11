@@ -511,6 +511,8 @@ public:
     void SetCaptureFormatCallback(std::function<void(bool fits)> cb) {
         m_onCaptureFormat = cb;
     }
+    // [TO SER] beside the output folder: convert FITS cubes to SER.
+    void SetToSerCallback(std::function<void()> cb) { m_onToSer = std::move(cb); }
     std::string GetOutputDir() const;
 
     // Notes — profile-linked (Phase 24 / notes redesign)
@@ -877,6 +879,7 @@ private:
     HWND m_lblDiskSpace    = nullptr;
     HWND m_editOutputDir   = nullptr;
     HWND m_btnBrowseDir    = nullptr;
+    HWND m_btnToSer        = nullptr;
     HWND m_editFilePrefix  = nullptr;
     HWND m_comboFrameType  = nullptr;
     HWND m_comboCaptureFormat = nullptr;
@@ -972,6 +975,7 @@ private:
         ID_EDIT_GATE_THRESHOLD,
         ID_BTN_GATE_ENABLE,
         ID_EDIT_NOTES = 1900,
+        ID_BTN_TO_SER,          // 2026-11-11: FITS cubes to SER
     };
 
     // ── Callbacks ─────────────────────────────────────────────
@@ -995,6 +999,7 @@ private:
     std::function<void()>                   m_onNightVision;
     std::function<void()>                   m_onCalDark;
     std::function<void(bool)>               m_onCaptureFormat;
+    std::function<void()>                   m_onToSer;
     std::function<void(int,int)>            m_onStretch;
     std::function<void()>                   m_onCalFlat;
     std::function<void()>                   m_onCalClear;

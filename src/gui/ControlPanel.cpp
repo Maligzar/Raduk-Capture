@@ -935,6 +935,10 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
             if (m_onRecordStart) m_onRecordStart();
             return true;
 
+        case ID_BTN_TO_SER:
+            if (m_onToSer) m_onToSer();
+            return true;
+
         case ID_BTN_BROWSE_DIR: {
             wchar_t path[MAX_PATH] = {};
             if (m_editOutputDir) GetWindowTextW(m_editOutputDir, path, MAX_PATH);
@@ -2280,6 +2284,7 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
     m_lblGoToStatus  = nullptr;
     m_editGoToTarget = m_btnGoToFind = nullptr;
     m_editFilePrefix = m_btnBrowseDir = m_editOutputDir = nullptr;
+    m_btnToSer = nullptr;
     m_comboFrameType = nullptr;
     m_comboCaptureFormat = nullptr;
     m_btnRGBAlign = m_sliderRGBManual = m_lblRGBAlign = nullptr;
@@ -2801,8 +2806,14 @@ void ControlPanel::RebuildControls(int clientW, bool fromResize) {
         TagControl(m_comboCaptureFormat, Section::Capture);
         y += BH + 1;
     }
-    m_editOutputDir = MakeEditBox(raduk::core::ToWide(raduk::core::Paths::Captures()).c_str(),
-                                   x, y-1, w, BH-2, ID_EDIT_OUTPUT_DIR);
+    // 2026-11-11: [TO SER] at the end of the folder row -- the recordings
+    // it converts live in that folder, and SER or FITS is chosen just above.
+    {
+        const int serW = 64;
+        m_editOutputDir = MakeEditBox(raduk::core::ToWide(raduk::core::Paths::Captures()).c_str(),
+                                       x, y-1, w - serW - 4, BH-2, ID_EDIT_OUTPUT_DIR);
+        m_btnToSer = MakeButton(L"TO SER", x + w - serW, y - 2, serW, BH, ID_BTN_TO_SER);
+    }
     SetWindowLong(m_editOutputDir, GWL_STYLE,
         GetWindowLong(m_editOutputDir, GWL_STYLE) & ~ES_NUMBER);
     y += BH + 1;

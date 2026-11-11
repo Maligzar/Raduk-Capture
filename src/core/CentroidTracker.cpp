@@ -415,6 +415,16 @@ void CentroidTracker::_HandBack(IMount* mount, const char* why) {
     const IMount::TrackingMode mode =
         (m_prevTrackMode == (int)IMount::OFF) ? IMount::ALT_AZ
                                               : (IMount::TrackingMode)m_prevTrackMode;
+    // Stop the axes this app was driving before handing back. Turning
+    // tracking on does not clear a rate command on every mount: the real
+    // NexStar's hand control overwrites a guide-scale rate, but the
+    // default emulator keeps it, and so may another driver. Without the
+    // stop, a failed calibration left both axes slewing at tracking plus
+    // the offset (about 26 and 15 "/s), the planet ran off the sensor and
+    // nothing could find it again (2026-11-11, Venus in the emulator;
+    // tests/rate_guide.cpp section 5).
+    mount->StopSlew(0);
+    mount->StopSlew(1);
     mount->SetTrackingMode(mode);
     CoreLog("[GUIDE] hand control tracking restored (%s): %s\n",
             IMount::TrackingModeName(mode), why);

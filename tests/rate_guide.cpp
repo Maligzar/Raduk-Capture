@@ -16,6 +16,14 @@
 //  axes come out ~90 deg apart and the planet is centred and held.
 //  The camera's axes are rotated 37 deg and one is mirrored, so no sign
 //  can be right by accident.
+//
+//  Section 5 (2026-11-11, the owner in the emulator): a mount that does
+//  NOT clear a rate command when tracking is switched back on, as the
+//  default emulator does not. A calibration that failed after the
+//  tracker had taken the axes handed tracking back but left both axes
+//  slewing, so the planet ran off the sensor and nothing could catch
+//  it. The real NexStar hid this, because its hand control overwrites a
+//  guide-scale rate; a hand-back must not depend on that.
 // ============================================================
 
 #include "core/CentroidTracker.h"
@@ -49,6 +57,8 @@ public:
     bool   commanded[2] = { false, false };
     bool   variable[2]  = { false, false };   // the command is a variable rate
     bool   hcTracking = true;                 // the hand control's own tracking
+    bool   keepRates = false;   // a rate command outlives a tracking change (the default emulator)
+    bool   deadAxes  = false;   // rate commands are accepted but nothing moves
     int    trackingOffs = 0, trackingOns = 0;
 
     std::mutex mu;
@@ -62,7 +72,7 @@ public:
         // While the hand control tracks, it rewrites a variable rate with
         // its own (measured: an altitude command was gone in ~0.1 s).
         for (int i = 0; i < 2; ++i)
-            if (hcTracking && commanded[i] && variable[i]) commanded[i] = false;
+            if (!keepRates && hcTracking && commanded[i] && variable[i]) commanded[i] = false;
         const double tAz  = hcTracking ? trkAz  : 0.0;
         const double tAlt = hcTracking ? trkAlt : 0.0;
         az  += (commanded[0] ? cmd[0] : tAz)  * dt;
@@ -94,7 +104,7 @@ public:
     bool SetTrackingMode(TrackingMode m) override {
         Advance(); std::lock_guard<std::mutex> lk(mu);
         hcTracking = (m != OFF);
-        if (hcTracking) { commanded[0] = commanded[1] = false; ++trackingOns; }
+        if (hcTracking) { if (!keepRates) commanded[0] = commanded[1] = false; ++trackingOns; }
         else ++trackingOffs;
         return true;
     }
@@ -108,7 +118,7 @@ public:
     bool SlewVariable(int axis, int dir, double asps) override {
         Advance(); std::lock_guard<std::mutex> lk(mu);
         if (asps <= 0) { commanded[axis] = false; return true; }
-        cmd[axis] = (dir == 0 ? 1 : -1) * sign0[axis] * asps / 3600.0;
+        cmd[axis] = deadAxes ? 0.0 : (dir == 0 ? 1 : -1) * sign0[axis] * asps / 3600.0;
         commanded[axis] = true; variable[axis] = true; return true;
     }
     bool SupportsVariableRate() const override { return true; }
@@ -230,6 +240,42 @@ int main() {
     CHECK(m.trackingOffs >= 1, "guiding never took the axes (tracking never switched off)");
     run.store(false);
     feeder.join();
+
+    std::printf("5. a failed calibration stops the axes it took (emulator-style mount)\n");
+    {
+        FakeNexStar e;
+        e.keepRates = true;   // tracking on does not clear a rate command
+        e.deadAxes  = true;   // the direction check sees no motion, so calibration fails
+        CentroidTracker t2;
+        t2.SetMount(&e);
+        std::atomic<bool> run2{true};
+        std::thread feed2([&] {
+            while (run2.load()) {
+                float px, py; e.Pixel(px, py);
+                t2.SubmitCentroid(px, py, 1280, 960);
+                t2.Tick();
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+        });
+        t2.StartSearching();
+        std::this_thread::sleep_for(std::chrono::milliseconds(800));
+        t2.StartCalibration();
+        for (int i = 0; i < 300 && t2.Stage() == AcquisitionStage::Calibrating; ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        bool c0, c1;
+        { std::lock_guard<std::mutex> lk(e.mu); c0 = e.commanded[0]; c1 = e.commanded[1]; }
+        std::printf("   stage %s, hand control tracking %d, axes still commanded az %d alt %d\n",
+                    AcquisitionStageName(t2.Stage()), (int)e.hcTracking, (int)c0, (int)c1);
+        CHECK(t2.Stage() != AcquisitionStage::Calibrating && !t2.Calibration().valid,
+              "calibration was expected to fail on dead axes (stage %s)", AcquisitionStageName(t2.Stage()));
+        CHECK(e.trackingOffs >= 1, "the tracker never took the axes, so the hand-back was not exercised");
+        CHECK(e.hcTracking, "tracking was not handed back after the failed calibration");
+        CHECK(!c0 && !c1, "an axis was left slewing after the hand-back (az %d alt %d)", (int)c0, (int)c1);
+        run2.store(false);
+        feed2.join();
+        t2.Reset();
+    }
+
     if (g_fail) { std::printf("rate_guide: %d FAILED\n", g_fail); return 1; }
     std::printf("rate_guide: all passed\n");
     return 0;

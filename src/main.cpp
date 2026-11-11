@@ -4618,17 +4618,20 @@ static int RunApp(bool useEmulator) {
         } else {
             Log("[ACQ] Calibration FAILED: %s — back to SEARCHING\n", msg.c_str());
             slog.Mount("Calibration failed: %s", msg.c_str());
-            notifBar.NotifyWarn(L"Calibration refused - mount stopped. "
-                                L"Press PLANET LOCK to try again.");
+            // It used to say "mount stopped", which was never what
+            // happened: the axes go back to the hand control's tracking.
+            notifBar.NotifyWarn(L"Calibration failed: " + raduk::core::ToWide(msg) +
+                                L". Tracking handed back to the mount - "
+                                L"press PLANET LOCK to try again.");
         }
     });
     tracker.SetAbortCallback([&](const std::string& msg) {
-        Log("[ACQ] Guiding abandoned: %s — mount stopped, calibration "
-            "discarded, back to SEARCHING\n", msg.c_str());
-        slog.Mount("Guiding abandoned: %s - mount stopped, calibration discarded",
+        Log("[ACQ] Guiding abandoned: %s — axes stopped and tracking handed back, "
+            "calibration discarded, back to SEARCHING\n", msg.c_str());
+        slog.Mount("Guiding abandoned: %s - tracking handed back, calibration discarded",
                    msg.c_str());
         notifBar.NotifyWarn(L"Guiding stopped: the planet was moving away. "
-                            L"Mount stopped - press PLANET LOCK to recalibrate.");
+                            L"Tracking handed back to the mount - press PLANET LOCK to recalibrate.");
     });
 
     // Phase 6.6: auto-solve callback — fires from worker thread after Stage 3 lock

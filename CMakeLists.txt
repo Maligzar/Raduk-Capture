@@ -86,11 +86,17 @@ set(RADUK_RC_IN        "${CMAKE_CURRENT_SOURCE_DIR}/src/RadukCapture.rc.in")
 set(RADUK_RC_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/RadukCapture.rc")
 set(RADUK_ICON_PATH    "${CMAKE_CURRENT_SOURCE_DIR}/assets/RadukCapture.ico")
 set(RADUK_FONT_DIR     "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts")
+set(RADUK_DASHBOARD_PATH "${CMAKE_CURRENT_SOURCE_DIR}/RadukCaptureDashboard.html")
 set(RADUK_VERSION_COMMA
     "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
 set(RADUK_VERSION_DOT
     "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}.0")
 configure_file("${RADUK_RC_IN}" "${RADUK_RC_GENERATED}" @ONLY)
+# The resource compiler does not see files named by RCDATA as inputs, so
+# editing the dashboard or a font would not rebuild the resource and the
+# exe would carry the old copy. Name them.
+set_source_files_properties("${RADUK_RC_GENERATED}" PROPERTIES OBJECT_DEPENDS
+    "${RADUK_DASHBOARD_PATH};${RADUK_ICON_PATH};${RADUK_FONT_DIR}/BarlowCondensed-Regular.ttf;${RADUK_FONT_DIR}/BarlowCondensed-Bold.ttf;${RADUK_FONT_DIR}/SpaceMono-Regular.ttf;${RADUK_FONT_DIR}/SpaceMono-Bold.ttf")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

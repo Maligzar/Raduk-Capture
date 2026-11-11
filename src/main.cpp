@@ -89,6 +89,7 @@
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
 #pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "advapi32.lib")   // RegGetValueW: finding Edge for [DASH]
 #include "gui/ShareView.h"
 #include "gui/ObjectPanel.h"
 #include "gui/WorkspaceLayout.h"
@@ -5403,19 +5404,44 @@ static int RunApp(bool useEmulator) {
     // DashboardLaunch.h for why). Neither the token nor the URL is
     // logged -- this log is the assistant's corpus.
     auto doDashboard = [&]() {
+        namespace dl = raduk::core;
         wchar_t exePath[MAX_PATH] = {};
         GetModuleFileNameW(nullptr, exePath, MAX_PATH);
         std::wstring exeDir(exePath);
         const auto slash = exeDir.find_last_of(L"\\/");
         if (slash != std::wstring::npos) exeDir = exeDir.substr(0, slash);
 
+        // 132.10a: the exe carries the page (resource 305). Write it to
+        // data\dashboard.html with the bundled fonts and the night flag,
+        // so the dashboard is always the one this build was made with.
         std::wstring page;
-        for (const auto& d : raduk::core::DashboardSearchDirs(exeDir)) {
-            const std::wstring p = d + L"\\" + raduk::core::kDashboardFile;
-            if (GetFileAttributesW(p.c_str()) != INVALID_FILE_ATTRIBUTES) { page = p; break; }
+        {
+            const HMODULE mod = GetModuleHandleW(nullptr);
+            HRSRC r = FindResourceW(mod, MAKEINTRESOURCEW(dl::kDashboardResourceId),
+                                    MAKEINTRESOURCEW(10));   // RT_RCDATA
+            HGLOBAL g = r ? LoadResource(mod, r) : nullptr;
+            const char* bytes = g ? static_cast<const char*>(LockResource(g)) : nullptr;
+            const DWORD n = r ? SizeofResource(mod, r) : 0;
+            if (bytes && n) {
+                const std::string out = dl::PrepareDashboardHtml(
+                    std::string(bytes, n), raduk::gui::EmbeddedFontFacesCss(),
+                    raduk::gui::Theme::NightVisionOn());
+                const std::string path = Paths::EnsureSub("data") + "\\" + dl::kDashboardWrittenName;
+                std::ofstream f(path, std::ios::binary | std::ios::trunc);
+                f << out;
+                if (f) page = toWide(path);
+                else Log("[DASH] Could not write %s; looking for the page on disk\n", path.c_str());
+            }
+        }
+        // Fallback, as before 132.10a: the file on disk, beside the exe or above.
+        if (page.empty()) {
+            for (const auto& d : dl::DashboardSearchDirs(exeDir)) {
+                const std::wstring p = d + L"\\" + dl::kDashboardFile;
+                if (GetFileAttributesW(p.c_str()) != INVALID_FILE_ATTRIBUTES) { page = p; break; }
+            }
         }
         if (page.empty()) {
-            Log("[DASH] RadukCaptureDashboard.html not found beside the exe or above it\n");
+            Log("[DASH] No dashboard: not in the exe, and RadukCaptureDashboard.html not found\n");
             notifBar.NotifyWarn(L"Dashboard not found - RadukCaptureDashboard.html "
                                 L"should be beside the exe or in a folder above it");
             return;
@@ -5423,27 +5449,67 @@ static int RunApp(bool useEmulator) {
 
         const std::string& tok = RigConfig::Get().wsToken;
         const bool withToken = raduk::net::ws::TokenLooksStrong(tok);
-        const std::string url = raduk::core::DashboardUrl(page, withToken ? tok : "");
+        const std::string url = dl::DashboardUrl(page, withToken ? tok : "");
         const std::wstring wurl(url.begin(), url.end());   // ASCII: percent-encoded
 
-        wchar_t browser[MAX_PATH] = {};
-        DWORD n = MAX_PATH;
-        HINSTANCE r;
-        if (SUCCEEDED(AssocQueryStringW(ASSOCF_IS_PROTOCOL, ASSOCSTR_EXECUTABLE,
-                                        L"http", L"open", browser, &n))) {
-            const std::wstring arg = L"\"" + wurl + L"\"";
-            r = ShellExecuteW(nullptr, L"open", browser, arg.c_str(), nullptr, SW_SHOWNORMAL);
-        } else {
-            r = ShellExecuteW(nullptr, L"open", wurl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        // Edge's app window: no address bar, so the token is never on
+        // screen, and it reads as part of the app. Found through App Paths,
+        // then its usual folders. Off with DashboardAppWindow=0.
+        std::wstring edge;
+        if (RigConfig::Get().dashboardAppWindow) {
+            wchar_t buf[MAX_PATH] = {};
+            DWORD sz = sizeof(buf);
+            for (HKEY root : { HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER }) {
+                sz = sizeof(buf);
+                if (RegGetValueW(root, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe",
+                                 nullptr, RRF_RT_REG_SZ, nullptr, buf, &sz) == ERROR_SUCCESS &&
+                    GetFileAttributesW(buf) != INVALID_FILE_ATTRIBUTES) { edge = buf; break; }
+            }
+            if (edge.empty()) {
+                auto env = [](const wchar_t* name) {
+                    wchar_t v[MAX_PATH] = {};
+                    const DWORD k = GetEnvironmentVariableW(name, v, MAX_PATH);
+                    return (k > 0 && k < MAX_PATH) ? std::wstring(v) : std::wstring();
+                };
+                for (const auto& c : dl::EdgeCandidates(env(L"ProgramFiles(x86)"), env(L"ProgramFiles"),
+                                                        env(L"LOCALAPPDATA")))
+                    if (GetFileAttributesW(c.c_str()) != INVALID_FILE_ATTRIBUTES) { edge = c; break; }
+            }
+        }
+
+        HINSTANCE r = nullptr;
+        bool appWindow = false;
+        if (!edge.empty()) {
+            const std::wstring args = dl::EdgeAppArguments(url);
+            r = ShellExecuteW(nullptr, L"open", edge.c_str(), args.c_str(), nullptr, SW_SHOWNORMAL);
+            appWindow = (INT_PTR)r > 32;
+            if (!appWindow) Log("[DASH] Edge did not start (ShellExecute %d); trying the default browser\n",
+                                (int)(INT_PTR)r);
+        }
+        if (!appWindow) {
+            // The browser is asked for by name rather than by opening the
+            // file: handing a file:// URL to its file association can drop
+            // the #fragment, and the fragment is where the token rides.
+            wchar_t browser[MAX_PATH] = {};
+            DWORD n = MAX_PATH;
+            if (SUCCEEDED(AssocQueryStringW(ASSOCF_IS_PROTOCOL, ASSOCSTR_EXECUTABLE,
+                                            L"http", L"open", browser, &n))) {
+                const std::wstring arg = L"\"" + wurl + L"\"";
+                r = ShellExecuteW(nullptr, L"open", browser, arg.c_str(), nullptr, SW_SHOWNORMAL);
+            } else {
+                r = ShellExecuteW(nullptr, L"open", wurl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            }
         }
         if ((INT_PTR)r <= 32) {
             Log("[DASH] Could not open the browser (ShellExecute %d)\n", (int)(INT_PTR)r);
             notifBar.NotifyWarn(L"Could not open the browser for the dashboard");
             return;
         }
-        Log("[DASH] Dashboard opened%s\n",
+        // Neither the token nor the URL is logged: this log is the
+        // assistant's corpus.
+        Log("[DASH] Dashboard opened %s%s\n", appWindow ? "as an Edge app window" : "in the browser",
             withToken ? ", signed in" : " WITHOUT a token - WsToken in rig.ini is missing or too weak");
-        if (withToken) notifBar.NotifyInfo(L"Dashboard opened in the browser - it connects by itself");
+        if (withToken) notifBar.NotifyInfo(L"Dashboard opened - it connects by itself");
         else           notifBar.NotifyWarn(L"Dashboard opened, but there is no usable WsToken to give it");
     };
     toolbar.SetDashCallback([&]() { doDashboard(); });

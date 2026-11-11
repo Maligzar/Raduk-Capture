@@ -1211,3 +1211,56 @@ and emulator configurations.
 - in night vision, nothing in the lists is grey except the scrollbar;
 - if anything looks wrong, `DarkScrollbars=0` takes it all back, apart from the
   painted rows.
+
+### 132.10a, 2026-11-11: the app writes the dashboard
+
+**Delivery.** `RadukCaptureDashboard.html` is carried in the exe as resource
+305 (`RadukCapture.rc.in`). The generated resource now names it, the icon and
+the fonts as `OBJECT_DEPENDS`, so editing the page rebuilds the resource
+instead of leaving the old copy in the exe. On [DASH] the app writes
+`<data root>\data\dashboard.html` and opens that. The old search for the file
+beside the exe or above it remains as the fallback.
+
+**What the app adds** (`DashboardLaunch.h`, `PrepareDashboardHtml`): the four
+bundled fonts as `@font-face`, first thing inside `<head>`. The page has named
+Barlow Condensed and Space Mono since it was written and never had them. It
+also sets `data-mode="night"` on `<html>` when the app is in night vision.
+Nothing else in the page changes.
+
+**Deviation from the plan: no palette yet.** The plan said to inject the
+`WebTheme` CSS. The dashboard's own `:root` uses the same variable names
+(`--void`, `--panel`, `--text`, `--dim`, `--accent`) with other meanings:
+its `--dim` is a border colour, the palette's is a label colour. The
+palette's `[data-mode="night"]` block also outranks a plain `:root`, so
+injecting it would have recoloured the page at night. The palette and
+`BaseCss` arrive with 132.10b, when the page's CSS moves onto the roles.
+
+**Edge app window.** When `msedge.exe` is found, through App Paths in HKLM
+then HKCU, then its usual folders, [DASH] opens
+`--app="file:///...dashboard.html#token=..."`. That is a window with no
+address bar, so the token is never on screen. If Edge is not found or does
+not start, it uses the default browser as before. `rig.ini`
+`DashboardAppWindow=0` always uses the default browser. The log says which
+was used, and still never logs the URL or token. `data/dashboard.html` is
+ignored by git.
+
+**Gated.** `tests/dashboard_launch.cpp` sections 4 and 5 check:
+
+- the fonts go first inside `<head>`, before the page's own rules, and not
+  inside `<header>`;
+- nothing else in the page changes;
+- the night flag is added, replaced and never doubled, with tags found in any
+  case;
+- a page with no `<head>`;
+- the `--app=` argument, quoted, with the token still in the fragment;
+- Edge's candidate folders.
+
+These pass under g++ here. MSVC CI is the real gate for `main.cpp`.
+
+**Not seen.** Edge cannot run here. Owner check:
+
+- [DASH] opens a window with no address bar;
+- it connects by itself;
+- the numbers are in Space Mono;
+- with night vision on when [DASH] is pressed, `<html>` carries
+  `data-mode="night"`. Nothing in the page reacts to the flag until 132.10d.

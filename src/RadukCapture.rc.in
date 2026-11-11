@@ -30,6 +30,10 @@ IDI_RADUK ICON "@RADUK_ICON_PATH@"
 303 RCDATA "@RADUK_FONT_DIR@/SpaceMono-Regular.ttf"
 304 RCDATA "@RADUK_FONT_DIR@/SpaceMono-Bold.ttf"
 
+// Phase 132.10a: the browser dashboard, carried in the exe and written
+// out by [DASH] (core/DashboardLaunch.h, kDashboardResourceId).
+305 RCDATA "@RADUK_DASHBOARD_PATH@"
+
 // Version information
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION     @RADUK_VERSION_COMMA@

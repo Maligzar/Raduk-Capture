@@ -1787,8 +1787,31 @@ The sheet is IMCCE's own form, filled in: the event, your site
 (`PhemuSite` in rig.ini names it), the telescope, the filter, the exposure
 and gain, and both clock checks. Lines marked `[FILL IN]` need you, and
 `[CHECK]` flags anything to look at, such as a clock that could not be
-confirmed to 0.05 s. The light curve itself (`<event ID>.dat`) is phase
-141.2. `Shift+J` again cancels.
+confirmed to 0.05 s. `Shift+J` again cancels.
+
+**The light curve: `phemu_lightcurve`** (phase 141.2), a command-line tool
+built beside the app. IMCCE wants the light curve as `<event ID>.dat`
+next to the sheet. From the folder with the recording:
+
+1. `phemu_lightcurve <event>.ser --list` lists the moons it finds on the
+   first frame, with an index each. Jupiter and anything cut by the frame's
+   edge are left out. A moon marked CLIPPED was saturated: IMCCE cannot use
+   it, so lower the gain or exposure next time.
+2. `phemu_lightcurve <event>.ser --pair-idx A B --ref-idx R --sheet <event ID>.txt`
+   measures the two moons of the event together and a third as the
+   reference, and writes `<event ID>.dat`.
+
+The pair is measured together on purpose: during an occultation the two
+moons merge into one blob, and IMCCE's own example measures them that way.
+`--sheet` reads the clock offsets Shift+J measured and corrects every date
+to UTC, then notes the `.dat` on the sheet. Without it the dates stay PC
+times and the tool says so. Frames with a clipped pixel in an aperture are
+dropped and counted, and the points are binned between 0.2 and 2 seconds
+to stay within IMCCE's 10,000 lines. The "deepest point" it prints is a
+quick look, not a fit: IMCCE does the fitting.
+
+Send the `.txt` and the `.dat` together, after filling in the `[FILL IN]`
+lines (IMCCE's address is at the top of the sheet).
 
 Frame times are stamped from the PC clock and are not corrected; the sheet
 gives the offset to add. The delay between the camera's exposure and the

@@ -92,6 +92,8 @@ int main() {
               "size, depth and pattern from the header");
         Check(in.frames == N && !in.recovered, "the header's count is used");
         Check(!in.swap16, "the app's little-endian data is not swapped");
+        Check(in.littleEndianFlag == 0 && !ser::PippWouldMisread(in),
+              "the app writes LittleEndian 0, which PIPP reads right");
         Check(in.hasTimestamps, "the trailer is found");
         bool same = true;
         std::vector<uint8_t> raw;
@@ -173,6 +175,61 @@ int main() {
         Check(!r.GetInfo().swap16, "little-endian data under flag 0 is not swapped");
         r.Close();
         remove(p.c_str());
+    }
+
+    // ── 3b. Repairing the flag for PIPP (2026-11-10) ──────────
+    {
+        // As the app wrote 16-bit files until today: 1 over little-endian.
+        const std::string p = Temp("repair");
+        const int W = 64, H = 32;
+        auto b = Header(ser::MONO, 1, W, H, 16, 2);
+        for (int k = 0; k < 2; ++k)
+            for (int y = 0; y < H; ++y) for (int x = 0; x < W; ++x) {
+                const uint16_t v = Smooth(x, y, k);
+                b.push_back((uint8_t)(v & 0xFF)); b.push_back((uint8_t)(v >> 8));
+            }
+        WriteFile(p, b);
+        ser::Reader r;
+        r.Open(p);
+        Check(ser::PippWouldMisread(r.GetInfo()), "flag 1 over little-endian: PIPP would misread it");
+        r.Close();
+        Check(ser::RepairEndianFlag(p) == ser::FlagRepair::Fixed, "the repair rewrites it");
+        std::vector<uint8_t> after;
+        {
+            FILE* f = fopen(p.c_str(), "rb");
+            after.resize(b.size());
+            fread(after.data(), 1, after.size(), f);
+            fclose(f);
+        }
+        int32_t flag = -1; memcpy(&flag, &after[22], 4);
+        bool rest = after.size() == b.size();
+        for (size_t i = 0; rest && i < b.size(); ++i) if ((i < 22 || i > 25) && after[i] != b[i]) rest = false;
+        Check(flag == 0 && rest, "to 0, and not one other byte changes");
+        Check(ser::RepairEndianFlag(p) == ser::FlagRepair::AlreadyRight, "a second repair leaves it alone");
+        remove(p.c_str());
+
+        // Big-endian samples under flag 0: the repair says 1.
+        auto c = Header(ser::MONO, 0, W, H, 16, 2);
+        for (int k = 0; k < 2; ++k)
+            for (int y = 0; y < H; ++y) for (int x = 0; x < W; ++x) {
+                const uint16_t v = Smooth(x, y, k);
+                c.push_back((uint8_t)(v >> 8)); c.push_back((uint8_t)(v & 0xFF));
+            }
+        WriteFile(p, c);
+        Check(ser::RepairEndianFlag(p) == ser::FlagRepair::Fixed, "big-endian samples under 0 are repaired too");
+        r.Open(p);
+        Check(r.GetInfo().littleEndianFlag == 1 && r.GetInfo().swap16, "to 1");
+        r.Close();
+        remove(p.c_str());
+
+        auto e = Header(ser::MONO, 1, 16, 8, 8, 1);
+        for (int i = 0; i < 16 * 8; ++i) e.push_back((uint8_t)i);
+        WriteFile(p, e);
+        Check(ser::RepairEndianFlag(p) == ser::FlagRepair::EightBit, "8-bit files are left alone");
+        remove(p.c_str());
+        std::string why;
+        Check(ser::RepairEndianFlag(Temp("missing2"), &why) == ser::FlagRepair::Failed && !why.empty(),
+              "a missing file fails with a reason");
     }
 
     // ── 4. 12-bit samples ──────────────────────────────────────

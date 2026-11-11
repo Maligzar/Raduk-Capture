@@ -5474,11 +5474,11 @@ static int RunApp(bool useEmulator) {
         OPENFILENAMEW ofn{};
         ofn.lStructSize = sizeof(ofn);
         ofn.hwndOwner   = window.Handle();
-        ofn.lpstrFilter = L"FITS cubes (*.fits, *.fit)\0*.fits;*.fit\0All files\0*.*\0";
+        ofn.lpstrFilter = L"FITS to convert, SER to repair (*.fits, *.fit, *.ser)\0*.fits;*.fit;*.ser\0All files\0*.*\0";
         ofn.lpstrFile   = buf.data();
         ofn.nMaxFile    = (DWORD)buf.size();
         ofn.lpstrInitialDir = initDir.empty() ? nullptr : initDir.c_str();
-        ofn.lpstrTitle  = L"Convert FITS to SER - pick one or more";
+        ofn.lpstrTitle  = L"Convert FITS to SER, or repair a SER for PIPP - pick one or more";
         ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR |
                           OFN_ALLOWMULTISELECT | OFN_EXPLORER;
         if (!GetOpenFileNameW(&ofn)) return;
@@ -5495,6 +5495,36 @@ static int RunApp(bool useEmulator) {
         std::vector<std::string> files;
         if (parts.size() == 1) files.push_back(ansi(parts[0]));
         else for (size_t i = 1; i < parts.size(); ++i) files.push_back(ansi(parts[0] + L"\\" + parts[i]));
+        // 2026-11-10: .ser files picked here are repaired, not converted.
+        // Until today the app wrote LittleEndian = 1, which PIPP reads as
+        // big-endian and shows as noise. Four bytes rewritten in place, so
+        // it is done now, on this thread, whatever the file's size.
+        {
+            int fixedN = 0, rightN = 0, failedN = 0;
+            std::vector<std::string> fits;
+            for (const std::string& p : files) {
+                const size_t n = p.size();
+                if (n < 4 || _stricmp(p.c_str() + n - 4, ".ser") != 0) { fits.push_back(p); continue; }
+                std::string why;
+                using FR = raduk::core::ser::FlagRepair;
+                const FR r = raduk::core::ser::RepairEndianFlag(p, &why);
+                if (r == FR::Fixed) ++fixedN;
+                else if (r == FR::Failed) ++failedN;
+                else ++rightN;
+                Log("[TOSER] %s: %s%s\n", p.c_str(),
+                    r == FR::Fixed ? "byte-order flag repaired for PIPP"
+                    : r == FR::Failed ? "could not repair: "
+                    : r == FR::EightBit ? "8-bit, nothing to repair" : "already right",
+                    r == FR::Failed ? why.c_str() : "");
+            }
+            if (fixedN + rightN + failedN > 0) {
+                std::wstring m = L"SER: " + std::to_wstring(fixedN) + L" repaired for PIPP, " +
+                                 std::to_wstring(rightN) + L" already right";
+                if (failedN) m += L", " + std::to_wstring(failedN) + L" failed (see the log)";
+                if (failedN) notifBar.NotifyWarn(m); else notifBar.NotifyInfo(m);
+            }
+            files.swap(fits);
+        }
         if (files.empty()) return;
         fitsBatch.Start(files);
         Log("[TOSER] Converting %zu FITS file(s) to SER\n", files.size());

@@ -123,7 +123,8 @@ int main() {
         if (b.size() == 210) {
             Check(memcmp(b.data(), "LUCAM-RECORDER", 14) == 0, "file id");
             Check(At<int32_t>(b, 18) == 8, "ColorID is RGGB");
-            Check(At<int32_t>(b, 22) == 1, "little-endian flag");
+            // 0 over little-endian samples: what PIPP reads (SERWriter.h).
+            Check(At<int32_t>(b, 22) == 0, "LittleEndian 0, as PIPP reads it");
             Check(At<int32_t>(b, 26) == 4 && At<int32_t>(b, 30) == 2, "size");
             Check(At<int32_t>(b, 34) == 8, "depth");
             Check(At<int32_t>(b, 38) == 2, "the count is patched at close");

@@ -9,6 +9,8 @@
 //    2. a crashed cube: NAXIS3 = 0, every whole frame recovered, a
 //       partial last frame dropped
 //    3. samples: big-endian BZERO-offset 16-bit becomes little-endian
+//    4. (2026-11-10) the FRAMES table's MJD_MID times become the SER's
+//       timestamp trailer, to the tick; a cube without one gets none
 //       unsigned, exactly; the SER header says so
 // ============================================================
 
@@ -75,7 +77,8 @@ int main() {
               std::to_string(s.size()));
         Check(I32(s, 38) == 5 && I32(s, 26) == W && I32(s, 30) == H && I32(s, 34) == 16,
               "header: count, size and depth");
-        Check(I32(s, 18) == 8 && I32(s, 22) == 1, "RGGB, little-endian, as the app's own SER");
+        Check(I32(s, 18) == 8 && I32(s, 22) == 0,
+              "RGGB, and LittleEndian 0 over little-endian samples, as PIPP reads it");
         Check(memcmp(&s[0], "LUCAM-RECORDER", 14) == 0, "SER signature");
     }
 
@@ -116,7 +119,52 @@ int main() {
         Check(h.bayer == "RGGB" && h.object == "Saturn" && h.headerBytes % 2880 == 0,
               "Bayer pattern, target and header length read", h.bayer + " " + h.object);
     }
-    for (const char* p : {"t_closed.fits", "t_closed.ser", "t_crash.fits", "t_crash.ser"}) remove(p);
+    printf("\n4. Frame times\n");
+    {
+        // A cube as FITSWriter closes one: frames, padding, the FRAMES table.
+        ObservationRecord r;
+        r.width = W; r.height = H; r.bitDepth = 16; r.colour = "RGGB"; r.target = "Saturn";
+        const std::string hdr = fits::BuildHeader(r, fits::HeaderExtras{}, fits::RunTimes{}, 3);
+        FILE* f = fopen("t_times.fits", "wb");
+        fwrite(hdr.data(), 1, hdr.size(), f);
+        std::vector<uint8_t> frame(W * H * 2, 0);
+        for (int i = 0; i < 3; ++i) fwrite(frame.data(), 1, frame.size(), f);
+        std::vector<uint8_t> pad(fits::PaddingFor(3 * frame.size()), 0);
+        fwrite(pad.data(), 1, pad.size(), f);
+        const std::string th = fits::BuildTableHeader(3);
+        fwrite(th.data(), 1, th.size(), f);
+        // 2026-11-08 01:04:37.250 UTC, then 25 ms apart.
+        const int64_t t0 = (int64_t)739927 * fits::kTicksPerDay + (int64_t)(3877.25 * 1e7);
+        uint8_t rows[3 * fits::kTableRowBytes];
+        for (int i = 0; i < 3; ++i)
+            fits::PutTableRow(rows + i * fits::kTableRowBytes,
+                              fits::MjdFromTicks(t0 + i * 250000LL), 10.0f);
+        fwrite(rows, 1, sizeof rows, f);
+        std::vector<uint8_t> pad2(fits::PaddingFor(sizeof rows), 0);
+        fwrite(pad2.data(), 1, pad2.size(), f);
+        fclose(f);
+    }
+    Check(fits2ser::Convert("t_times.fits", "t_times.ser"), "converts");
+    {
+        const auto s = ReadAll("t_times.ser");
+        const size_t trailer = 178 + 3 * W * H * 2;
+        Check(s.size() == trailer + 3 * 8, "three frames and three timestamps", std::to_string(s.size()));
+        if (s.size() == trailer + 24) {
+            int64_t a, b, c;
+            memcpy(&a, &s[trailer], 8); memcpy(&b, &s[trailer + 8], 8); memcpy(&c, &s[trailer + 16], 8);
+            const int64_t t0 = (int64_t)739927 * fits::kTicksPerDay + (int64_t)(3877.25 * 1e7);
+            // A double MJD holds about 1 us at this date; the trailer is
+            // 100 ns ticks, so agreement to 20 us is the round trip.
+            Check(llabs(a - t0) < 200, "the first time, to within 20 us", std::to_string(a - t0));
+            Check(llabs((b - a) - 250000) < 200 && llabs((c - b) - 250000) < 200, "25 ms apart");
+        }
+    }
+    {
+        const auto s = ReadAll("t_closed.ser");
+        Check(s.size() == 178 + 5 * W * H * 2, "a cube with no real FRAMES table gets no trailer");
+    }
+    for (const char* p : {"t_closed.fits", "t_closed.ser", "t_crash.fits", "t_crash.ser",
+                          "t_times.fits", "t_times.ser"}) remove(p);
 
     printf("\n%s\n", g_fail ? "SOME CHECKS FAILED" : "ALL CHECKS PASSED");
     return g_fail ? 1 : 0;

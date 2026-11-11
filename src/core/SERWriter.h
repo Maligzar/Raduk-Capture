@@ -34,13 +34,21 @@ enum class SERColorId : int32_t {
     BGR        = 101,
 };
 
+// What the LittleEndian field holds over little-endian samples, which is
+// all this app writes. 0, against the letter of the SER spec, because
+// that is what FireCapture writes and what PIPP expects: PIPP read the
+// spec's 1 as big-endian and showed every 16-bit file as noise
+// (2026-11-10). AutoStakkert reads either. core/SerReader.h does not
+// trust the flag at all and decides from the pixels.
+constexpr int32_t kSerLittleEndianFlag = 0;
+
 // SER v3 header — 178 bytes, little-endian
 #pragma pack(push, 1)
 struct SERHeader {
     char     FileID[14];        // "LUCAM-RECORDER"
     int32_t  LuID;              // 0
     int32_t  ColorID;           // SERColorId
-    int32_t  LittleEndian;      // 0 = big, 1 = little
+    int32_t  LittleEndian;      // spec: 1 = little. Practice: 0 = little (kSerLittleEndianFlag)
     int32_t  ImageWidth;
     int32_t  ImageHeight;
     int32_t  PixelDepthPerPlane; // 8 or 16

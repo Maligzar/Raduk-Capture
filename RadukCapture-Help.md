@@ -597,6 +597,24 @@ boxes, the boxes silently won every time. One section, one set of values.
     keeps them.
   - Each SER is as large as its FITS, so check the free space first.
   - The same conversion is `build\Release\fits2ser.exe` on the command line.
+- **PLAY** — Just before TO SER. Opens a `.ser` in the PLAY window, so you
+  can look through a recording before PIPP or AutoStakkert see it. You can
+  also drop a `.ser` on the main window or on PLAY itself.
+  - The slider doubles as a quality trace. Every frame is scored in the
+    background, using the same target finder and planet focus measure that
+    autofocus uses. Tall bars are the sharp stretches. Red ticks along the
+    bottom are frames with no target in them: the planet drifted out, cloud
+    came over, or the camera recorded nothing.
+  - **Space** play/pause · **←/→** step (Shift ×10, Ctrl ×100) · **Home/End** ·
+    **↑/↓** speed · **B** best frame · **S** auto stretch on/off ·
+    **C** colour/RAW · **O** open · mouse wheel zoom, drag to pan, double-click
+    to fit · **F11** full screen · **Esc** close. Click or drag on the trace to
+    scrub.
+  - The arrow keys step frames here. They do not jog the mount while this
+    window has focus.
+  - It reads recordings the app never closed (it counts the frames from the
+    file size) and 16-bit files from other programs whose byte-order flag is
+    wrong. FITS recordings need converting with TO SER first.
 - **Frames / Sec radio** — Capture limit mode: by frame count or by time. Also
   set by a profile load — a time-limited profile selects **Sec** for you,
   which it previously did not, so it loaded its seconds into the box and

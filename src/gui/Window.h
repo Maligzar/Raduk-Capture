@@ -11,6 +11,7 @@
 #endif
 
 #include <windows.h>
+#include <shellapi.h>   // DragAcceptFiles
 #include <d2d1.h>
 #include <dwrite.h>
 #include <cstdint>
@@ -91,6 +92,12 @@ public:
     // Handler should show confirm dialog if needed, then call DestroyWindow(Handle())
     // to proceed. If handler is not set, default WM_CLOSE behaviour (destroy) applies.
     void SetCloseRequestHandler(std::function<void()> h)      { m_onCloseRequest        = h; }
+    // 2026-11-10: files dropped on the window (an HDROP, which the
+    // handler owns and must DragFinish). Accepting drops is turned on here.
+    void SetDropFilesHandler(std::function<void(WPARAM)> h) {
+        m_onDropFiles = h;
+        if (m_hwnd) DragAcceptFiles(m_hwnd, h ? TRUE : FALSE);
+    }
 
     // Called by main when notification bar shows/hides to reflow preview child
     void SetNotifBarHeight(int h) {
@@ -273,6 +280,7 @@ private:
     std::function<void()>               m_onAIToggle;
     std::function<void()>               m_onGhostToggle;
     std::function<void()>               m_onCloseRequest;
+    std::function<void(WPARAM)>         m_onDropFiles;
     int                                 m_notifBarH = 0;
     std::function<void(float,float)>    m_onPixelClick;
     std::function<void()>               m_onZoomCycle;

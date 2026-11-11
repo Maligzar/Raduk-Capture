@@ -513,6 +513,8 @@ public:
     }
     // [TO SER] beside the output folder: convert FITS cubes to SER.
     void SetToSerCallback(std::function<void()> cb) { m_onToSer = std::move(cb); }
+    // 2026-11-10: [PLAY] beside it opens a SER in the PLAY window.
+    void SetPlayCallback(std::function<void()> cb) { m_onPlay = std::move(cb); }
     std::string GetOutputDir() const;
 
     // Notes — profile-linked (Phase 24 / notes redesign)
@@ -880,6 +882,7 @@ private:
     HWND m_editOutputDir   = nullptr;
     HWND m_btnBrowseDir    = nullptr;
     HWND m_btnToSer        = nullptr;
+    HWND m_btnPlay         = nullptr;
     HWND m_editFilePrefix  = nullptr;
     HWND m_comboFrameType  = nullptr;
     HWND m_comboCaptureFormat = nullptr;
@@ -976,6 +979,7 @@ private:
         ID_BTN_GATE_ENABLE,
         ID_EDIT_NOTES = 1900,
         ID_BTN_TO_SER,          // 2026-11-11: FITS cubes to SER
+        ID_BTN_PLAY,            // 2026-11-10: a SER in the PLAY window
     };
 
     // ── Callbacks ─────────────────────────────────────────────
@@ -1000,6 +1004,7 @@ private:
     std::function<void()>                   m_onCalDark;
     std::function<void(bool)>               m_onCaptureFormat;
     std::function<void()>                   m_onToSer;
+    std::function<void()>                   m_onPlay;
     std::function<void(int,int)>            m_onStretch;
     std::function<void()>                   m_onCalFlat;
     std::function<void()>                   m_onCalClear;

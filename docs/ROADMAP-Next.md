@@ -1407,7 +1407,8 @@ request review.** The bench order, top first:
    and 4% of the disc); Saturn mostly peaked at 19-42% of full scale at
    0.1-2 ms. The metering fault is confirmed on small targets; the files
    are thin, not blown.
-4. **140.1 and 140.2 (row 40), size S-M.** Category 1. Auto-exposure
+4. **140.1 and 140.2 (row 40), size S-M.** Category 1. **140.1 written
+   2026-11-11: AE meters the target, not the frame.** Auto-exposure
    measures a percentile of the whole frame, which on a small planet
    lands on the sky, and its clip guard measures the frame too. 140.2
    becomes a per-planet exposure band with a floor, because the audit

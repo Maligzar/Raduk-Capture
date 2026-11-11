@@ -525,6 +525,7 @@ are set through the profile editor, which accepts up to 60 s.
   - `AE OFF` — Manual control only.
   - `AE ADV` — Advisory mode: suggests gain/exposure changes but does not apply them.
   - `AE AUTO` — Automatically adjusts gain and exposure to bring the planet's highlights to 185–215 DN. It raises exposure to about 20 ms, then gain, so a dim target keeps a short exposure. The sliders follow what it sets.
+  - It measures the planet itself, not the whole frame (phase 140.1): the brightest part of whatever stands clear of the sky, and how much of *that* is clipped. It used to read the whole frame, which on a small planet is mostly sky, so it kept adding light. With nothing in the frame it holds and shows `AE: held for no target in the frame`.
 
 Every slider has a box beside it. Type a value and press Enter; Escape restores the current value, and a value out of range clamps and shows the clamp.
 

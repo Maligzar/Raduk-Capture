@@ -49,6 +49,7 @@ $Tests = @(
     @{ Name = "sntp_offset";       Sources = @() }
     @{ Name = "phemu_sheet";       Sources = @() }
     @{ Name = "moon_photometry";   Sources = @() }
+    @{ Name = "target_meter";      Sources = @() }
     @{ Name = "ser_timestamp_midpoint"; Sources = @() }
     @{ Name = "paths_resolution"; Sources = @() }
     @{ Name = "ascom_driver_choice"; Sources = @() }

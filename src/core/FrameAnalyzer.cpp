@@ -216,6 +216,16 @@ void FrameAnalyzer::Run() {
             r.headroomG = HeadroomOf((int)r.highlightG, r.clipG);
             r.headroomB = HeadroomOf((int)r.highlightB, r.clipB);
 
+            // Phase 140.1: the target's own figures, for auto-exposure.
+            {
+                const TargetMeter tm = MeterTarget(r.histogram, r.histR, r.histG, r.histB, countL);
+                r.targetFound       = tm.found;
+                r.targetHighlightDN = tm.highlightDN;
+                r.targetClipPct     = tm.clipPct;
+                r.targetFramePct    = tm.framePct;
+                r.targetWhy         = tm.why;
+            }
+
             // The channel that clips first is the one that decides the
             // exposure; the others have room to spare. On an RGGB
             // sensor under a warm-ish light that is usually red, but

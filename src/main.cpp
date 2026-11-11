@@ -7393,11 +7393,16 @@ static int RunApp(bool useEmulator) {
                 double curExpMs = curExpUs / 1000.0;
 
                 // Phase 112: see AutoExposureAssistant::SetHold.
+                // Phase 140.1: it steers by the target's own highlight and
+                // clipping. With no target clear of the sky it holds: the
+                // whole-frame figure it used to fall back to is the sky's,
+                // which is what pushed exposure up on small planets.
                 ae.SetHold(autofocus.IsRunning()  ? "autofocus"
-                         : capturer.IsRecording() ? "recording" : nullptr);
-                ae.Feed(lastAnalysis.highlightDN,
+                         : capturer.IsRecording() ? "recording"
+                         : !lastAnalysis.targetFound ? "no target in the frame" : nullptr);
+                ae.Feed(lastAnalysis.targetHighlightDN,
                         lastAnalysis.meanBrightness,
-                        lastAnalysis.clipPct,
+                        lastAnalysis.targetClipPct,
                         curGain, curExpMs);
                 auto sug = ae.Tick();
 

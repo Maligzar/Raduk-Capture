@@ -36,7 +36,11 @@ bool SERWriter::Open(const std::string& path,
     hdr.ColorID           = (int32_t)(bayerRGGB
                                 ? SERColorId::BAYER_RGGB
                                 : SERColorId::MONO);
-    hdr.LittleEndian      = 1;
+    // 0 over little-endian samples. The SER spec says 1 means
+    // little-endian, but FireCapture writes 0 and PIPP reads by that
+    // habit: with 1, PIPP byte-swapped every 16-bit pixel into noise
+    // (2026-11-10, an 11,836-frame Saturn file). 8-bit is unaffected.
+    hdr.LittleEndian      = kSerLittleEndianFlag;
     hdr.ImageWidth        = width;
     hdr.ImageHeight       = height;
     hdr.PixelDepthPerPlane = bitDepth;

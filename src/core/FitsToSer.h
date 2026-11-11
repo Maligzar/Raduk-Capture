@@ -17,14 +17,22 @@
 //     our cubes.
 //
 // Samples: FITS 16-bit is big-endian, signed, offset by BZERO 32768; SER
-// is little-endian unsigned (this app writes LittleEndian = 1). So each
-// sample is byte-swapped and its top bit flipped. 8-bit is copied.
+// is little-endian unsigned. So each
+// sample is byte-swapped and its top bit flipped. 8-bit is copied. The
+// header's LittleEndian field is 0 over that, as SERWriter writes it
+// (kSerLittleEndianFlag): what PIPP expects, not what the spec says.
+//
+// Times: a closed FITS from FITSWriter ends in a FRAMES table, one
+// MJD_MID per frame. Those become the SER's timestamp trailer, so
+// WinJUPOS and PLAY see real frame times. A cube with no table (an
+// unclosed recording, or another program's) gets no trailer.
 //
 // Portable C++ (64-bit file offsets), no Windows: tests/fits_to_ser.cpp
 // round-trips a cube through it, and tools/fits2ser.cpp is the command.
 // ============================================================
 
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -135,6 +143,38 @@ inline Plan PlanFor(const Header& h, int64_t fileSize) {
     return p;
 }
 
+// The FRAMES table after the image data, as SER ticks (100 ns since
+// 0001-01-01), one per frame. False when there is no such table or it
+// does not have exactly `p.frames` rows of MJD_MID.
+inline bool ReadFrameTimes(FILE* f, const Header& img, const Plan& p,
+                           std::vector<int64_t>& out) {
+    out.clear();
+    const int64_t data = p.frames * p.frameBytes;
+    const int64_t tableAt = img.headerBytes + (data + 2879) / 2880 * 2880;
+    if (detail::Seek(f, tableAt) != 0) return false;
+    const Header t = ReadHeader(f);
+    bool frames = false;
+    for (const std::string& c : t.cards)
+        if (c.rfind("EXTNAME", 0) == 0 && c.find("FRAMES") != std::string::npos) frames = true;
+    if (!frames || t.w != 12 || t.h != p.frames) return false;
+    if (detail::Seek(f, tableAt + t.headerBytes) != 0) return false;
+    std::vector<unsigned char> rows((size_t)(t.w * t.h));
+    if (fread(rows.data(), 1, rows.size(), f) != rows.size()) return false;
+    out.resize((size_t)p.frames);
+    for (int64_t i = 0; i < p.frames; ++i) {
+        unsigned char be[8];
+        for (int k = 0; k < 8; ++k) be[k] = rows[(size_t)i * 12 + 7 - k];
+        double mjd = 0;
+        memcpy(&mjd, be, 8);
+        // Whole days and the fraction apart: a tick count is too large
+        // for a double to hold exactly. 678575 = MJD 0 in days from 0001.
+        const double day = std::floor(mjd);
+        out[(size_t)i] = ((int64_t)day + 678575) * 864000000000LL +
+                         (int64_t)std::llround((mjd - day) * 864000000000.0);
+    }
+    return true;
+}
+
 // Converts `in` (FITS) to `out` (SER). Reports through `log`; stops,
 // removing the partial SER, if `cancel` becomes true. True on success.
 inline bool Convert(const std::string& in, const std::string& out,
@@ -164,7 +204,7 @@ inline bool Convert(const std::string& in, const std::string& out,
     int32_t color = 0;
     if (h.bayer == "RGGB") color = 8; else if (h.bayer == "GRBG") color = 9;
     else if (h.bayer == "GBRG") color = 10; else if (h.bayer == "BGGR") color = 11;
-    put32(14, 0); put32(18, color); put32(22, 1);
+    put32(14, 0); put32(18, color); put32(22, 0);   // 0 = little-endian, as PIPP reads it
     put32(26, (int32_t)h.w); put32(30, (int32_t)h.h); put32(34, h.bitpix);
     put32(38, (int32_t)p.frames);
     snprintf((char*)hdr + 82, 40, "RadukCapture fits2ser");
@@ -190,6 +230,16 @@ inline bool Convert(const std::string& in, const std::string& out,
         if (log && (i + 1) % 200 == 0) {
             snprintf(b, sizeof b, "  %lld / %lld frames", (long long)(i + 1), (long long)p.frames);
             say(b);
+        }
+    }
+    // The FRAMES table, if the cube has one for exactly these frames.
+    if (ok && !cancelled && !p.recovered) {
+        std::vector<int64_t> stamps;
+        if (ReadFrameTimes(f, h, p, stamps)) {
+            ok = fwrite(stamps.data(), 8, stamps.size(), o) == stamps.size();
+            say("frame times copied from the FRAMES table");
+        } else {
+            say("no FRAMES table for these frames; the SER has no timestamps");
         }
     }
     fclose(f);

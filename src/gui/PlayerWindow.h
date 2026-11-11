@@ -145,6 +145,8 @@ public:
                  m_fps > 0 ? (std::to_string((int)std::lround(m_fps)) + " fps").c_str() : "no timestamps",
                  in.recovered ? ", unclosed: count from file size" : "",
                  in.swap16 ? ", big-endian samples" : "");
+        if (raduk::core::ser::PippWouldMisread(in))
+            Say("[PLAY] " + Leaf(path) + ": the byte-order flag does not match the samples; PIPP will misread it");
         Say(b);
         LoadFrame(0);
         Show();
@@ -589,6 +591,7 @@ private:
         }
         if (in.recovered) s += L"    UNCLOSED: count from file size";
         if (in.swap16)    s += L"    big-endian samples";
+        if (raduk::core::ser::PippWouldMisread(in)) s += L"    PIPP WILL MISREAD THIS: pick it in TO SER to repair";
         Text(s, D2D1::RectF(kPad, y + kInfoH, (float)m_w - kPad, y + 2 * kInfoH),
              sc == 0 ? m_red : m_dim, m_data, DWRITE_TEXT_ALIGNMENT_LEADING);
     }

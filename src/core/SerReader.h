@@ -18,9 +18,11 @@
 //   - Files of any size. One frame is read per call, at a 64-bit offset;
 //     nothing is mapped or loaded whole.
 //   - 16-bit byte order. The SER spec says LittleEndian = 1 means
-//     little-endian samples, and this app writes that. But several
-//     capture programs write 0 over little-endian data, and a reader
-//     that trusts the flag shows those files as noise. So the order is
+//     little-endian samples, but FireCapture writes 0 over little-endian
+//     data and PIPP reads by that habit. This app wrote 1 until
+//     2026-11-10 and now writes 0 (SERWriter.h, kSerLittleEndianFlag);
+//     files from both eras exist. A reader that trusts the flag shows
+//     half of them as noise. So the order is
 //     decided from the data: the right order is the smooth one, because
 //     the high byte changes slowly between neighbouring pixels and the
 //     low byte does not. A tie (blank frames) reads little-endian.
@@ -263,6 +265,41 @@ private:
     Info                 m_info;
     std::vector<int64_t> m_stamps;
 };
+
+// ── Repairing the flag for PIPP ────────────────────────────────
+//
+// PIPP takes LittleEndian = 0 to mean little-endian samples. Files this
+// app wrote before 2026-11-10 say 1 over little-endian samples, and PIPP
+// shows them as noise. This rewrites those four bytes in place, to what
+// the samples actually are (decided from the data, as Reader does), and
+// touches nothing else: instant whatever the file's size.
+enum class FlagRepair { Fixed, AlreadyRight, EightBit, Failed };
+
+inline FlagRepair RepairEndianFlag(const std::string& path, std::string* why = nullptr) {
+    int32_t want = 0, have = 0;
+    {
+        Reader r;
+        if (!r.Open(path)) { if (why) *why = r.GetInfo().error; return FlagRepair::Failed; }
+        const Info& in = r.GetInfo();
+        if (in.BytesPerSample() == 1) return FlagRepair::EightBit;
+        want = in.swap16 ? 1 : 0;   // big-endian samples: 1; little: 0
+        have = in.littleEndianFlag;
+    }   // closed before writing
+    if (have == want) return FlagRepair::AlreadyRight;
+    FILE* f = fopen(path.c_str(), "r+b");
+    if (!f) { if (why) *why = "cannot open the file for writing"; return FlagRepair::Failed; }
+    const bool ok = detail::Seek(f, 22) == 0 && fwrite(&want, 4, 1, f) == 1;
+    const bool closed = fclose(f) == 0;
+    if (!ok || !closed) { if (why) *why = "the write failed"; return FlagRepair::Failed; }
+    return FlagRepair::Fixed;
+}
+
+// True when PIPP would misread this file: 16-bit with the flag not
+// matching the samples, as above.
+inline bool PippWouldMisread(const Info& in) {
+    return in.ok && in.BytesPerSample() == 2 &&
+           in.littleEndianFlag != (in.swap16 ? 1 : 0);
+}
 
 // ── Samples ────────────────────────────────────────────────────
 //

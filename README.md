@@ -204,8 +204,8 @@ The emulator build simulates the camera, focuser and mount, so the whole
 application runs on any Windows PC.
 
 ```bat
-git clone https://github.com/Maligzar/Raduk-Capture.git
-cd Raduk-Capture
+git clone https://github.com/Maligzar/RadukCapture.git
+cd RadukCapture
 build_emulator.bat
 launch_emulator.bat
 ```
@@ -297,7 +297,7 @@ app also loads as reference context for the AI assistant.
 
 ## Documentation
 
-- **[Wiki](https://github.com/Maligzar/Raduk-Capture/wiki)**: architecture,
+- **[Wiki](https://github.com/Maligzar/RadukCapture/wiki)**: architecture,
   threading, the capture pipeline, every subsystem, and why each is built the
   way it is. Source lives in [`wiki/`](wiki) and is published with
   `wiki\publish-wiki.bat` (or `wiki/publish-wiki.sh` under bash).

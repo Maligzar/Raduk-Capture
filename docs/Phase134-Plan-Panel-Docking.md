@@ -231,3 +231,43 @@ than half a tree.
 **Gated.** `tests/dock_geometry.cpp`, 38 checks, passes under g++ with
 AddressSanitizer and UBSan here. It is added to `tests/run-tests.ps1`, so
 MSVC CI runs it.
+
+### 134.1, 2026-11-11: panels snap
+
+`src/gui/PanelDock.h` is the Win32 side:
+- a list of the panels that dock;
+- the rectangles of the others that can be targets: visible, not minimised,
+  not maximised, not fullscreen, checked on every message, so nothing ever
+  needs unregistering;
+- the monitor's work area;
+- distances scaled to the window's DPI.
+
+`WindowChrome::Filter` calls it for registered panels only:
+- **`WM_MOVING` and `WM_SIZING`:** `dock::Snap` adjusts the proposed
+  rectangle in place, and the message is answered TRUE.
+- **Shift held:** the panel is placed freely.
+- **`WM_GETMINMAXINFO`:** sets 240 x 120, scaled. These are the first minimum
+  sizes any panel has had.
+
+Every in-scope panel already passes all of its messages through `Filter`:
+the `Attach` windows first in their proc, and GoTo through `Install`'s hook.
+No panel handled any of these three messages itself, so nothing is skipped.
+
+`main.cpp` registers skymap, skymap2, goto, histogram, sharpness,
+temperature, status and adcalign after placing them, and the player where it
+is created. It logs `[DOCK] N panels snap to each other`. `rig.ini`
+`PanelSnap=0` turns snapping off; the minimum sizes stay.
+
+`DockGeometry.h` gains `EdgesFromSizing`, which maps `WM_SIZING`'s `WMSZ_*`
+to the edge mask so a corner drag snaps both of its edges. It is gated in
+`tests/dock_geometry.cpp` section 1b.
+
+**Deferred: the accent joint line.** It moves to 134.2. It needs an overlay
+window, and it earns its place once joints mean a group.
+
+**Not seen.** This cannot run here. Owner check:
+- drag Histogram near Status and it snaps flush;
+- with Shift held, it does not;
+- the screen edge snaps;
+- no panel goes below 240 x 120;
+- `PanelSnap=0` turns snapping off.

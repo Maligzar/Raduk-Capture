@@ -30,6 +30,7 @@
 
 #include "BundledFonts.h"
 #include "ChromeLayout.h"
+#include "PanelDock.h"
 #include "Theme.h"
 
 #pragma comment(lib, "comctl32.lib")
@@ -115,6 +116,26 @@ public:
     // True when handled, with the result in out.
     bool Filter(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT& out) {
         if (hwnd != m_hwnd || !Showing()) return false;
+        // Phase 134.1: the panels that dock snap while dragged or sized,
+        // and none can be made smaller than 240 x 120. The proposed
+        // rectangle is adjusted in place and the message answered here,
+        // TRUE as Windows documents for both. No panel handles these
+        // three itself (checked 2026-11-11), so nothing is skipped.
+        if (panel_dock::IsRegistered(hwnd)) {
+            if (msg == WM_GETMINMAXINFO && lp) {
+                auto* mm = reinterpret_cast<MINMAXINFO*>(lp);   // already holds the defaults
+                mm->ptMinTrackSize.x = panel_dock::Scaled(hwnd, dock::kMinW);
+                mm->ptMinTrackSize.y = panel_dock::Scaled(hwnd, dock::kMinH);
+                out = 0;
+                return true;
+            }
+            if (panel_dock::Enabled() && (msg == WM_MOVING || msg == WM_SIZING)) {
+                panel_dock::SnapProposed(hwnd, reinterpret_cast<RECT*>(lp), msg == WM_SIZING,
+                                         msg == WM_SIZING ? dock::EdgesFromSizing((int)wp) : 0);
+                out = TRUE;
+                return true;
+            }
+        }
         switch (msg) {
         case WM_NCCALCSIZE: {
             if (!wp) return false;

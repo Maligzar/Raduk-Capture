@@ -71,6 +71,15 @@ int main() {
         Check(r5.rect == grow, "  and not an inactive one");
     }
 
+    printf("\n1b. WM_SIZING's edge as a mask\n");
+    {
+        const int want[9] = { 0, Left, Right, Top, Top | Left, Top | Right, Bottom, Bottom | Left, Bottom | Right };
+        bool all = true;
+        for (int w = 0; w <= 8; ++w) all = all && EdgesFromSizing(w) == want[w];
+        Check(all, "all eight WMSZ values, and 0 for anything else");
+        Check(EdgesFromSizing(9) == 0 && EdgesFromSizing(-1) == 0, "  out of range is no edge");
+    }
+
     printf("\n2. Groups\n");
     {
         const Rect B{ 500, 100, 800, 400 };    // right of A

@@ -752,6 +752,16 @@ This is also why the generated default layout pins the main window to
 the primary screen and never moves it. Every other window can go
 anywhere; the preview is the one with a cost attached.
 
+### Panels snap together (phase 134.1)
+
+Drag one panel near another or near a screen edge and it snaps flush, so
+panels line up without fiddling. This applies to Histogram, Sharpness,
+Temperature, Status, ADC, both sky maps, GoTo and the SER player. Resizing
+snaps the edge you drag in the same way. No panel goes smaller than 240 by
+120. **Hold Shift** while dragging to place a panel freely. `PanelSnap=0` in
+`rig.ini` turns snapping off. Groups that move together, and the dock
+window, come in later stages.
+
 ### Why a window can be stuck
 
 A window can be on screen, fully drawn, and still impossible to move,

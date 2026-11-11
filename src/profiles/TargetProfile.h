@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 // ============================================================
 // TargetProfile.h — Camera + EAF + capture profile per target
 //
@@ -186,6 +187,40 @@ struct TargetProfile {
         return b;
     }
 
+    // ── Phase 140.2: the exposure band ──────────────────────────
+    //
+    // Per target, the exposure auto-exposure keeps inside: it lengthens
+    // the exposure up to bandCeilMs at the HCG gain floor before it adds
+    // gain, and to dim it lowers gain first and shortens the exposure no
+    // further than bandFloorMs. Gain amplifies; only exposure collects
+    // light, so a frame made bright by gain at a fraction of a
+    // millisecond is a noisy frame. The owner's audit (140.0) found
+    // Saturn recorded at 0.1 to 2 ms with peaks at 19 to 42% of full
+    // scale. The ceiling keeps the seeing frozen; the floor keeps the
+    // signal.
+    //
+    // 0 = no band (the type's rail, as before). The defaults below are
+    // STARTING POINTS from amateur practice for an 8-inch at f/10, not
+    // measurements; clear-night item 55 (the exposure ladder) is how to
+    // set them, in the profile's .ini under [exposure_band].
+    double      bandFloorMs  = 0.0;
+    double      bandCeilMs   = 0.0;
+    bool HasBand() const { return bandFloorMs > 0.0 && bandCeilMs > bandFloorMs; }
+
+    // The rail auto-exposure is held to: the type's rail, narrowed to the
+    // band when there is one, with the gain knee at the floor so exposure
+    // takes all the light up to the ceiling before gain moves.
+    CameraRails::ExposureRail AERail() const {
+        CameraRails::ExposureRail r = CameraRails::RailsFor(targetType);
+        if (!HasBand()) return r;
+        r.minMs     = (std::max)(r.minMs, bandFloorMs);
+        r.maxMs     = (std::min)(r.maxMs, bandCeilMs);
+        if (r.maxMs <= r.minMs) return CameraRails::RailsFor(targetType);   // a band outside the rail
+        r.expKneeMs = r.maxMs;
+        r.gainKnee  = r.gainFloor;
+        return r;
+    }
+
     // ── Camera ─────────────────────────────────────────────────
     int         gain         = 200;   // >= 182 for HCG mode (0.8e read noise)
     double      exposureMs   = 8.0;
@@ -297,6 +332,8 @@ inline TargetProfile DefaultJupiter() {
               "Adjust gain until histogram peaks 50-70%. "
               "UV/IR cut filter recommended. ADC if alt < 40 deg. "
               "Stack 30% best frames in AutoStakkert.";
+    p.bandFloorMs = 4.0;      // 140.2 starting band, to be set by clear-night item 55
+    p.bandCeilMs  = 12.0;
     return p;
 }
 
@@ -327,6 +364,8 @@ inline TargetProfile DefaultSaturn() {
               "if histogram too low. Rings require careful WB. "
               "ADC strongly recommended at any altitude. "
               "IR685 filter can improve detail.";
+    p.bandFloorMs = 8.0;      // 140.2 starting band, to be set by clear-night item 55
+    p.bandCeilMs  = 25.0;
     return p;
 }
 
@@ -356,6 +395,8 @@ inline TargetProfile DefaultMars() {
               "Best near opposition when disk > 15\". "
               "Reduce gain when near opposition (bright). "
               "IR610 or orange filter can boost surface contrast.";
+    p.bandFloorMs = 3.0;      // 140.2 starting band, to be set by clear-night item 55
+    p.bandCeilMs  = 10.0;
     return p;
 }
 
@@ -385,6 +426,8 @@ inline TargetProfile DefaultVenus() {
               "cloud structure invisible in white light. "
               "Phase is striking — crescent at inferior conjunction. "
               "Best imaged at dusk/dawn when sky not fully dark.";
+    p.bandFloorMs = 1.0;      // 140.2 starting band, to be set by clear-night item 55
+    p.bandCeilMs  = 5.0;
     return p;
 }
 
@@ -416,6 +459,8 @@ inline TargetProfile DefaultMercury() {
     p.filePrefix  = "Mercury_";
     p.notes = "Starting point. Always low near the Sun: short exposures, "
               "small box, expect poor seeing. A red or IR filter helps.";
+    p.bandFloorMs = 1.0;      // 140.2 starting band, to be set by clear-night item 55
+    p.bandCeilMs  = 8.0;
     return p;
 }
 
@@ -442,6 +487,8 @@ inline TargetProfile DefaultUranus() {
     p.filePrefix  = "Uranus_";
     p.notes = "Starting point. About 3.7\" (~18 px): high gain, longer "
               "exposures than Saturn. Shows as a pale blue-green disc.";
+    p.bandFloorMs = 10.0;      // 140.2 starting band, to be set by clear-night item 55
+    p.bandCeilMs  = 50.0;
     return p;
 }
 
@@ -468,6 +515,8 @@ inline TargetProfile DefaultNeptune() {
     p.filePrefix  = "Neptune_";
     p.notes = "Starting point. About 2.3\" (~11 px): the highest gain and "
               "longest exposures of the planets.";
+    p.bandFloorMs = 15.0;      // 140.2 starting band, to be set by clear-night item 55
+    p.bandCeilMs  = 50.0;
     return p;
 }
 
@@ -498,6 +547,8 @@ inline TargetProfile DefaultMoon() {
               "use 1920x1080 ROI for full disk at good FPS, or crop "
               "to 640x480 for crater detail at 100+ fps. "
               "Best at quarter phase — terminator shows crater relief.";
+    p.bandFloorMs = 1.0;      // 140.2 starting band, to be set by clear-night item 55
+    p.bandCeilMs  = 10.0;
     return p;
 }
 

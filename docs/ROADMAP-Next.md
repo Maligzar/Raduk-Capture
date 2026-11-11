@@ -1407,7 +1407,10 @@ request review.** The bench order, top first:
    and 4% of the disc); Saturn mostly peaked at 19-42% of full scale at
    0.1-2 ms. The metering fault is confirmed on small targets; the files
    are thin, not blown.
-4. **140.1 and 140.2 (row 40), size S-M.** Category 1. Auto-exposure
+4. **140.1 and 140.2 (row 40), size S-M.** Category 1. **140.1 written
+   2026-11-11: AE meters the target, not the frame. 140.2 written
+   2026-11-11: per-planet exposure bands; the starting values wait on
+   clear-night item 55.** Auto-exposure
    measures a percentile of the whole frame, which on a small planet
    lands on the sky, and its clip guard measures the frame too. 140.2
    becomes a per-planet exposure band with a floor, because the audit
@@ -1423,10 +1426,10 @@ request review.** The bench order, top first:
    placing of Phase 132 first: 140 and 139 at the owner's word of
    2026-11-11, 135 by the ranking rule at the top of this file, which
    the owner can reverse.
-7. **140.3 and 139.3 (rows 40, 39), size S-M each.** A live view
-   stretched for the eye on the target, display only and labelled, so
-   short high-gain exposures are easy to see; and the autofocus
-   readiness indicator.
+7. **140.3 and 139.3 (rows 40, 39), size S-M each.** **140.3 written
+   2026-11-11** (Shift+L, on by default): a live view stretched for the
+   eye on the target, display only and labelled, so short exposures are
+   easy to see. 139.3 still to build: the autofocus readiness indicator.
 8. **132.10b to 132.10d (row 32)**, the dashboard restyle and its live
    night mode, with #95's behaviour ported into 132.10b.
 9. **Phase 136, satellite elements as OMM (row 36), size S.** Category 3:

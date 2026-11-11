@@ -152,6 +152,10 @@ public:
         m_black = black; m_white = white;
     }
     void SetStretchEnabled(bool on) { m_stretchOn = on; }
+    // Phase 140.3: whether the stretch was chosen from the target, for
+    // the on-image tag.
+    void SetStretchAuto(bool on)    { m_stretchAuto = on; }
+    bool StretchAuto() const        { return m_stretchAuto; }
     bool StretchEnabled() const     { return m_stretchOn; }
     int  StretchBlack()   const     { return m_black; }
     int  StretchWhite()   const     { return m_white; }
@@ -698,6 +702,7 @@ private:
     const raduk::core::CalibrationFrames* m_cal = nullptr;
     bool                    m_calEnabled    = true;
     bool                    m_stretchOn     = false;
+    bool                    m_stretchAuto   = false;   // phase 140.3
     int                     m_black         = 0;
     int                     m_white         = 255;
     bool                    m_calApplied    = false;

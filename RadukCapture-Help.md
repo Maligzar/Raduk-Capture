@@ -525,6 +525,8 @@ are set through the profile editor, which accepts up to 60 s.
   - `AE OFF` — Manual control only.
   - `AE ADV` — Advisory mode: suggests gain/exposure changes but does not apply them.
   - `AE AUTO` — Automatically adjusts gain and exposure to bring the planet's highlights to 185–215 DN. It raises exposure to about 20 ms, then gain, so a dim target keeps a short exposure. The sliders follow what it sets.
+  - It measures the planet itself, not the whole frame (phase 140.1): the brightest part of whatever stands clear of the sky, and how much of *that* is clipped. It used to read the whole frame, which on a small planet is mostly sky, so it kept adding light. With nothing in the frame it holds and shows `AE: held for no target in the frame`.
+  - Each planet has an **exposure band** (phase 140.2), a shortest and longest exposure. AUTO lengthens the exposure up to the band's longest before it adds gain, and to dim it lowers gain first and shortens the exposure no further than the band's shortest: gain brightens the picture, but only exposure collects light. Starting bands: Jupiter 4-12 ms, Saturn 8-25, Mars 3-10, Venus 1-5, Mercury 1-8, Uranus 10-50, Neptune 15-50, the Moon 1-10. They are starting points, not measurements; set your own in the profile's `.ini` under `[exposure_band]` (`floor_ms`, `ceiling_ms`) after the exposure ladder on a clear night.
 
 Every slider has a box beside it. Type a value and press Enter; Escape restores the current value, and a value out of range clamps and shows the clamp.
 

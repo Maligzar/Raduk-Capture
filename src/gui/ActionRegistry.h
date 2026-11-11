@@ -86,6 +86,7 @@ inline const std::vector<Action>& All() {
         {"quality",     "Quality graph",            "seeing sharpness overlay",             "Q",            'Q', false, false, 0, false},
         {"zoom",        "Zoom: next step",          "magnify enlarge",                      "Z",            'Z', false, false, 0, false},
         {"stretch",     "Display stretch",          "levels brighten contrast",             "L",            'L', false, false, 0, false},
+        {"autostretch", "Display stretch from the planet", "auto levels brighten view dim planet", "Shift+L",  'L', true,  false, 0, false},
         {"channel",     "Colour channel: next",     "red green blue mono rgb",              "H",            'H', false, false, 0, false},
         {"fx",          "Display effect: next",     "filter enhance sharpen",               "B",            'B', false, false, 0, false},
         {"pixel",       "Pixel readout",            "value adu inspect",                    "X",            'X', false, false, 0, false},

@@ -106,6 +106,12 @@ did, so this instruction could not have worked from the `[GOTO]` button):
        <- set PlateScaleArcsecPx to the solved value
 ```
 
+**Before the night: install ASTAP's D80 database** (added 2026-11-11). The
+full sensor is about 0.12° high, which is under the floor ASTAP rates even
+D80 for (0.15°; D50 is 0.2°). H18 is the older database D80 replaced. Pick a
+star-rich field, an open cluster in the Milky Way, rather than a lone bright
+star. See `research_notes/Data-Sources-2026-11-11.md`, finding 2.
+
 **What to do:**
 
 1. Full sensor at bin 1, not a ROI. A 640x480 crop is about 0.03° and is
@@ -124,7 +130,9 @@ making, since the figure is otherwise a calculation.
 **If solves keep failing on good stars:** ASTAP's `-fov` hint is built from
 this same rig.ini figure, so a badly wrong scale can look like "no solve".
 That is unproven, and it is the one case this line cannot report. Try the
-frame in ASTAP by hand with `-fov 0`.
+frame in ASTAP by hand with `-fov 0`. The app also asks ASTAP to downsample 2x
+(`-z 2`), which throws away the faintest stars in a field already short of
+them; by hand, try `-z 1` too.
 
 ---
 

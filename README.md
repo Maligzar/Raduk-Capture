@@ -245,7 +245,7 @@ another disk. Nothing in those folders is tracked by git.
 
 | Tool | Enables | Without it |
 |---|---|---|
-| [ASTAP](https://www.hnsky.org/astap.htm) with a star catalogue (H18 or D80) | Plate solving and mount sync | Solves fail with a clear message |
+| [ASTAP](https://www.hnsky.org/astap.htm) with the D80 star database (the full-sensor field, about 0.12° high, is under even D80's rated 0.15°; smaller databases fare worse) | Plate solving and mount sync | Solves fail with a clear message |
 | [Ollama](https://ollama.com) on `localhost:11434` | The local AI assistant | The chat panel reports no model |
 | AutoStakkert! 4 | One-button handoff of a finished recording | The button reports it could not find it |
 

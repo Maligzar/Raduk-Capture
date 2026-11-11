@@ -350,6 +350,8 @@ emergency stop.
 | `Z` | Cycle Zoom (FIT → 50% → 100% → 200%) |
 | `K` | Stac**K** the last finished recording. A SER stacks hidden; a FITS file opens in AutoStakkert's window |
 | `Shift+K` | Open the last finished recording in the program Windows has for that file type |
+| `J` | **J**upiter's moons: the mutual events (one moon eclipsing or passing in front of another) coming up at this site, for IMCCE's PHEMU campaign. See *Mutual events* below |
+| `Shift+J` | Record the next mutual event, with the clock checked and the settings locked; again to cancel. Asks twice |
 | `↑↓←→` | Jog mount (hold to slew) |
 | `+` / `-` | Fine focus step |
 | `[` / `]` | Coarse focus step |
@@ -1730,6 +1732,95 @@ while a dashboard is open.
 
 ---
 
+## Mutual events of Jupiter's moons (`J`, phase 141.0)
+
+Around each Jupiter equinox, about every six years, the four large moons
+pass in front of one another and through one another's shadows. Light
+curves of these events, timed to better than a tenth of a second, refine
+the moons' orbits, and IMCCE (Paris Observatory) collects them from
+observers worldwide in its PHEMU campaign. This season runs from May 2026
+to August 2027, with Jupiter's equinox on 16 December 2026 and most
+eclipses between October and January.
+
+**`J`** lists the events in the next seven days that can be seen from your
+site: Jupiter at least 15 degrees up and the Sun below civil twilight.
+Each line gives the middle of the event in UTC, which moon dims which,
+how long it lasts, how deep the drop is predicted to be, and the window to
+record in. The full list goes to the log; the notification shows the
+next one. Half an hour before an event's recording window opens, a
+reminder goes up.
+
+**The recording window** starts at least ten minutes before the predicted
+start and ends ten minutes after the predicted end, and for an event
+longer than ten minutes by its own length. IMCCE warns that long events
+can come five to ten minutes off the prediction, and the reduction needs
+the flat light before and after the dip.
+
+**What the cautions mean.** They are IMCCE's own advice on which events
+to prefer: a drop under 10% is hard to measure; an event within three
+Jupiter radii of the planet's limb sits in its glare; a grazing or
+penumbral-only event may not happen as predicted. Occultations, and
+events involving Callisto, are preferred.
+
+**Where the predictions come from.** IMCCE's own service, fetched when
+the app is online and kept in `phemu_jupiter_2026_27.txt` in the data
+folder, so the list works offline afterwards. They are refreshed when a
+month old. Nothing about your site is sent; visibility is worked out on
+this machine. The file is IMCCE's material, kept for your use: do not
+publish or share it.
+
+**Recording one: `Shift+J`** (phase 141.1). It asks twice, like anything
+that starts a sequence. It arms the next event visible in the coming 18
+hours and then:
+
+1. checks the PC clock against a time server (`TimeServer` in rig.ini,
+   `pool.ntp.org` by default), because IMCCE needs every frame dated to
+   UTC within 0.1 s and the frames are stamped from the PC clock;
+2. switches off auto-exposure, autofocus and ROI-following, so nothing
+   changes the brightness or the framing during the event. **Set gain and
+   exposure before you arm it** so no moon clips: they will not change;
+3. starts recording when the window opens and stops when it closes;
+4. checks the clock again, writes IMCCE's observation sheet beside the SER
+   as `<event ID>.txt`, and puts your settings back.
+
+The sheet is IMCCE's own form, filled in: the event, your site
+(`PhemuSite` in rig.ini names it), the telescope, the filter, the exposure
+and gain, and both clock checks. Lines marked `[FILL IN]` need you, and
+`[CHECK]` flags anything to look at, such as a clock that could not be
+confirmed to 0.05 s. `Shift+J` again cancels.
+
+**The light curve: `phemu_lightcurve`** (phase 141.2), a command-line tool
+built beside the app. IMCCE wants the light curve as `<event ID>.dat`
+next to the sheet. From the folder with the recording:
+
+1. `phemu_lightcurve <event>.ser --list` lists the moons it finds on the
+   first frame, with an index each. Jupiter and anything cut by the frame's
+   edge are left out. A moon marked CLIPPED was saturated: IMCCE cannot use
+   it, so lower the gain or exposure next time.
+2. `phemu_lightcurve <event>.ser --pair-idx A B --ref-idx R --sheet <event ID>.txt`
+   measures the two moons of the event together and a third as the
+   reference, and writes `<event ID>.dat`.
+
+The pair is measured together on purpose: during an occultation the two
+moons merge into one blob, and IMCCE's own example measures them that way.
+`--sheet` reads the clock offsets Shift+J measured and corrects every date
+to UTC, then notes the `.dat` on the sheet. Without it the dates stay PC
+times and the tool says so. Frames with a clipped pixel in an aperture are
+dropped and counted, and the points are binned between 0.2 and 2 seconds
+to stay within IMCCE's 10,000 lines. The "deepest point" it prints is a
+quick look, not a fit: IMCCE does the fitting.
+
+Send the `.txt` and the `.dat` together, after filling in the `[FILL IN]`
+lines (IMCCE's address is at the top of the sheet).
+
+Frame times are stamped from the PC clock and are not corrected; the sheet
+gives the offset to add. The delay between the camera's exposure and the
+PC's timestamp has not been measured, and the sheet says so. If UDP port
+123 is blocked, the clock check fails and the sheet says that too.
+
+Frame the moons, not Jupiter: both moons of the event in the frame, a
+third as a reference if it fits, and Jupiter outside if you can.
+
 ## Weather from Leoben
 
 Leoben, the assistant on Elminster, already runs a careful weather service
@@ -2657,6 +2748,8 @@ real site is stored. Most of it is written for you.
 | `WsLan` | `1` = the dashboard server listens on the home network too, not only this PC. Off by default. See **From another device on your home network**. |
 | `WsLanOpen` | `1` = a device on the home network (a private address) needs no token. Only with `WsLan=1`. This PC and outside addresses still need it. |
 | `LeobenUrl` | Where Leoben is, as `http://name:port` -- for example `http://elminster:5000`. Empty = no weather from Leoben. See **Weather from Leoben**. |
+| `TimeServer` | The time server the PC clock is checked against before and after a mutual event recording (UDP 123). Default `pool.ntp.org`. |
+| `PhemuSite` | The site and telescope name on IMCCE's observation sheet, no spaces, different for each telescope. Default `RadukCapture_8SE`. |
 | `LeobenToken` | Leoben's API token (its `LEOBEN_API_TOKEN`). Never logged. |
 | `FilterLowNm` / `FilterHighNm` | Band edges in nanometres; these are what the ADC model actually uses. Edit them for a filter that is not a preset — the SETUP picker will then show blank rather than overwrite them. Both are reset to the UV/IR cut default if either falls outside 300–1200nm, or the band is narrower than 10nm, because a nonsense band would push the Edlen model outside its domain and return an authoritative-looking meaningless figure. |
 

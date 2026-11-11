@@ -100,6 +100,7 @@ inline const std::vector<Action>& All() {
         {"pause",       "Pause or resume recording", "hold continue",                       "P",            'P', false, false, 0, false},
         {"stack",       "Stack the last recording", "autostakkert process",                 "K",            'K', false, false, 0, false},
         {"openlast",    "Open the last recording",  "file explorer show",                   "Shift+K",      'K', true,  false, 0, false},
+        {"phemu",       "Jupiter's moons: mutual events", "phemu imcce eclipse occultation io europa ganymede callisto", "J", 'J', false, false, 0, false},
 
         // Things that move hardware, or start a sequence: guarded.
         {"autofocus",   "Autofocus: start or stop", "focus sweep hfd",                      "A",            'A', false, false, 0, true},
@@ -109,6 +110,7 @@ inline const std::vector<Action>& All() {
         {"recall",      "Recall a capture's framing", "goto past capture return",           "Shift+G",      'G', true,  false, 0, true},
         {"recalloff",   "Recall the target's place in that frame", "offset nudge centre",   "Ctrl+Shift+G", 'G', true,  true,  0, true},
         {"mosaic",      "Mosaic: start or stop",    "panels tiles lunar sequence",          "Ctrl+Shift+M", 'M', true,  true,  0, true},
+        {"phemurec",    "Record the next mutual event, or cancel it", "phemu imcce record light curve clock", "Shift+J", 'J', true, false, 0, true},
     };
     return a;
 }

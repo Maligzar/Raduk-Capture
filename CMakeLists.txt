@@ -179,6 +179,12 @@ add_executable(RadukCapture WIN32
 add_executable(fits2ser tools/fits2ser.cpp)
 target_include_directories(fits2ser PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
+# phemu_lightcurve (phase 141.2): a mutual event's light curve from its
+# SER, written as IMCCE's .dat beside the observation sheet Shift+J
+# wrote. Built beside the app: build\Release\phemu_lightcurve.exe.
+add_executable(phemu_lightcurve tools/phemu_lightcurve.cpp)
+target_include_directories(phemu_lightcurve PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
 # ── Include directories ────────────────────────────────────────
 
 target_include_directories(RadukCapture PRIVATE

@@ -45,6 +45,10 @@ $Tests = @(
     @{ Name = "dashboard_launch";  Sources = @() }
     @{ Name = "dock_geometry";     Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
+    @{ Name = "mutual_events";     Sources = @() }
+    @{ Name = "sntp_offset";       Sources = @() }
+    @{ Name = "phemu_sheet";       Sources = @() }
+    @{ Name = "moon_photometry";   Sources = @() }
     @{ Name = "ser_timestamp_midpoint"; Sources = @() }
     @{ Name = "paths_resolution"; Sources = @() }
     @{ Name = "ascom_driver_choice"; Sources = @() }

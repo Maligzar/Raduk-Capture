@@ -359,6 +359,15 @@ struct RigConfig {
     std::string leobenUrl;
     std::string leobenToken;
 
+    // Phase 141.1, the PHEMU event recording. The time server the PC
+    // clock is checked against before and after an event (UDP 123), and
+    // the name IMCCE's observation sheet gives this site and telescope:
+    // no spaces, and a different name for a different telescope.
+    //   TimeServer=pool.ntp.org
+    //   PhemuSite=Home_8SE
+    std::string timeServer = "pool.ntp.org";
+    std::string phemuSite  = "RadukCapture_8SE";
+
     // Singleton — loads rig.ini on first access
     static RigConfig& Get() {
         static RigConfig cfg = LoadFromDisk();
@@ -584,6 +593,10 @@ private:
         cfg.wsLanOpen   = rs("WsLanOpen", "0") == "1";
         cfg.leobenUrl   = rs("LeobenUrl", "");
         cfg.leobenToken = rs("LeobenToken", "");
+        cfg.timeServer  = rs("TimeServer", cfg.timeServer);
+        if (cfg.timeServer.empty()) cfg.timeServer = "pool.ntp.org";
+        cfg.phemuSite   = rs("PhemuSite", cfg.phemuSite);
+        if (cfg.phemuSite.empty()) cfg.phemuSite = "RadukCapture_8SE";
 
         // Sanity clamps — a corrupted INI must not produce absurd pulse
         // sizing or site math

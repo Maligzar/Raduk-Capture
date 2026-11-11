@@ -88,6 +88,9 @@
 #include "core/FitsBatch.h"        // [TO SER]: FITS cubes to SER, in the background
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
+#include "core/PhemuDesk.h"       // phase 141.0: Galilean mutual events
+#include "core/PhemuSheet.h"      // phase 141.1: IMCCE's observation sheet
+#include "net/SntpClient.h"       // phase 141.1: the PC clock against UTC
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "advapi32.lib")   // RegGetValueW: finding Edge for [DASH]
@@ -4617,17 +4620,20 @@ static int RunApp(bool useEmulator) {
         } else {
             Log("[ACQ] Calibration FAILED: %s — back to SEARCHING\n", msg.c_str());
             slog.Mount("Calibration failed: %s", msg.c_str());
-            notifBar.NotifyWarn(L"Calibration refused - mount stopped. "
-                                L"Press PLANET LOCK to try again.");
+            // It used to say "mount stopped", which was never what
+            // happened: the axes go back to the hand control's tracking.
+            notifBar.NotifyWarn(L"Calibration failed: " + raduk::core::ToWide(msg) +
+                                L". Tracking handed back to the mount - "
+                                L"press PLANET LOCK to try again.");
         }
     });
     tracker.SetAbortCallback([&](const std::string& msg) {
-        Log("[ACQ] Guiding abandoned: %s — mount stopped, calibration "
-            "discarded, back to SEARCHING\n", msg.c_str());
-        slog.Mount("Guiding abandoned: %s - mount stopped, calibration discarded",
+        Log("[ACQ] Guiding abandoned: %s — axes stopped and tracking handed back, "
+            "calibration discarded, back to SEARCHING\n", msg.c_str());
+        slog.Mount("Guiding abandoned: %s - tracking handed back, calibration discarded",
                    msg.c_str());
         notifBar.NotifyWarn(L"Guiding stopped: the planet was moving away. "
-                            L"Mount stopped - press PLANET LOCK to recalibrate.");
+                            L"Tracking handed back to the mount - press PLANET LOCK to recalibrate.");
     });
 
     // Phase 6.6: auto-solve callback — fires from worker thread after Stage 3 lock
@@ -5116,6 +5122,213 @@ static int RunApp(bool useEmulator) {
     skyMap.SetSatFollowCallback(followSat);
     skyMap2.SetSatFollowCallback(followSat);
     auto lastNeoTick = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+
+    // ── Phase 141.0: Galilean mutual events, for IMCCE's PHEMU ──
+    // The season's predictions, fetched from IMCCE off the UI thread and
+    // cached; J lists what is coming at this site, and a reminder goes
+    // up when an event's recording window is half an hour away. 141.1
+    // adds the recording itself.
+    raduk::core::PhemuDesk phemuDesk;
+    phemuDesk.Load();
+    phemuDesk.Refresh(false);
+    auto lastPhemuTick = std::chrono::steady_clock::now() - std::chrono::seconds(120);
+    std::vector<double> phemuReminded;   // greatest JDs already announced
+    auto listMutualEvents = [&]() {
+        const double now = raduk::sky::PreciseJdNow();
+        bool siteKnown = false;
+        const auto site = raduk::gui::GoToPanel::SiteObserver();
+        const auto picks = phemuDesk.Picks(now, now + 7.0, site, &siteKnown);
+        if (phemuDesk.Count() == 0) {
+            notifBar.NotifyWarn(phemuDesk.Busy()
+                ? L"Mutual events: fetching IMCCE's predictions, try again in a minute"
+                : L"Mutual events: no predictions yet. They are fetched from IMCCE when online");
+            if (!phemuDesk.Busy()) phemuDesk.Refresh(true);
+            return;
+        }
+        Log("[PHEMU] Mutual events in the next 7 days%s:\n",
+            siteKnown ? " visible from this site" : " (no site set, so visibility is not judged)");
+        for (const auto& p : picks) Log("[PHEMU]   %s\n", raduk::sky::phemu::PickLine(p).c_str());
+        if (picks.empty()) {
+            notifBar.NotifyInfo(L"Mutual events: none visible from this site in the next 7 days");
+            return;
+        }
+        const auto& first = picks.front();
+        notifBar.NotifyInfo(L"Mutual events: " + std::to_wstring(picks.size()) +
+                            L" in 7 days (listed in the log). Next: " +
+                            raduk::core::ToWide(raduk::sky::phemu::PickLine(first)));
+    };
+    window.SetMutualEventsHandler(listMutualEvents);
+
+    // ── Phase 141.1: recording a mutual event for IMCCE ────────
+    // Shift+J arms the next visible event. The PC clock is checked
+    // against a time server, auto-exposure, autofocus and ROI-following
+    // are switched off so nothing changes the photometry, and the
+    // recording opens and closes on the event's window. The clock is
+    // checked again afterwards and IMCCE's observation sheet is written
+    // beside the SER as <ID>.txt. Shift+J again cancels.
+    enum class PhemuStage { Idle, Waiting, Recording, CheckingAfter };
+    struct PhemuRun {
+        PhemuStage stage = PhemuStage::Idle;
+        raduk::sky::phemu::Event ev;
+        raduk::net::sntp::Sample before, after;
+        bool   haveBefore = false;
+        double recStartJd = 0, recEndJd = 0;
+        double expMs = 0, gain = 0;
+        std::string serPath;
+        bool   prevRoiFollow = false;
+        bool   prevAeEnabled = false, prevAeAuto = false;
+    } phemuRun;
+    raduk::net::ClockCheck phemuClock;
+    auto lastPhemuRunTick = std::chrono::steady_clock::now();
+
+    auto phemuRestore = [&](const char* why) {
+        auto& rig = raduk::core::RigConfig::Get();
+        rig.roiFollow = phemuRun.prevRoiFollow;   // not saved: it was never changed on disk
+        toolbar.SetFollowOn(rig.roiFollow);
+        ae.SetEnabled(phemuRun.prevAeEnabled);
+        if (phemuRun.prevAeEnabled) ae.SetAuto(phemuRun.prevAeAuto);
+        controls.SetAEState(!phemuRun.prevAeEnabled ? 0 : (phemuRun.prevAeAuto ? 2 : 1));
+        phemuRun.stage = PhemuStage::Idle;
+        Log("[PHEMU] settings restored (%s)\n", why);
+    };
+
+    window.SetMutualRecordHandler([&]() {
+        if (phemuRun.stage != PhemuStage::Idle) {
+            if (phemuRun.stage == PhemuStage::Recording) endRecording(true, "mutual event cancelled");
+            phemuRestore("cancelled");
+            notifBar.NotifyInfo(L"Mutual event recording cancelled - settings restored");
+            return;
+        }
+        if (capturer.IsRecording()) { notifBar.NotifyWarn(L"Mutual event: a recording is already running"); return; }
+        if (autorun.Running())      { notifBar.NotifyWarn(L"Mutual event: an Autorun sequence is running"); return; }
+        const auto site = raduk::gui::GoToPanel::SiteObserver();
+        if (!site.set) { notifBar.NotifyWarn(L"Mutual event: set the observing site first"); return; }
+        const double now = raduk::sky::PreciseJdNow();
+        bool siteKnown = false;
+        const auto picks = phemuDesk.Picks(now, now + 0.75, site, &siteKnown);
+        const raduk::sky::phemu::Pick* next = nullptr;
+        for (const auto& p : picks)
+            if (p.greatestVisible && raduk::sky::phemu::RecordEndJd(p.ev) > now) { next = &p; break; }
+        if (!next) {
+            notifBar.NotifyInfo(L"Mutual event: none visible from this site in the next 18 hours (J lists them)");
+            return;
+        }
+        phemuRun = PhemuRun{};
+        phemuRun.ev = next->ev;
+        // Lock what would change the photometry, remembering it.
+        auto& rig = raduk::core::RigConfig::Get();
+        phemuRun.prevRoiFollow = rig.roiFollow;
+        phemuRun.prevAeEnabled = ae.IsEnabled();
+        phemuRun.prevAeAuto    = ae.IsAuto();
+        if (autofocus.IsRunning() || afWaitingForAE) abortAutofocus();
+        ae.SetEnabled(false);
+        controls.SetAEState(0);
+        controls.SetAEStatus(L"AE: off for the mutual event");
+        rig.roiFollow = false;
+        toolbar.SetFollowOn(false);
+        phemuClock.Start(rig.timeServer);
+        phemuRun.stage = PhemuStage::Waiting;
+        const double opens = raduk::sky::phemu::RecordStartJd(phemuRun.ev);
+        Log("[PHEMU] armed: %s; clock check against %s\n",
+            raduk::sky::phemu::PickLine(*next).c_str(), rig.timeServer.c_str());
+        notifBar.NotifyInfo(L"Armed: " + raduk::core::ToWide(phemuRun.ev.Describe()) +
+                            L". Recording opens " +
+                            raduk::core::ToWide(raduk::sky::phemu::IsoFromJd(opens, 0).substr(11, 5)) +
+                            L" UTC. Set gain and exposure now so no moon clips: they will not change");
+    });
+
+    // Called once a second from the main loop.
+    auto phemuTick = [&]() {
+        if (phemuRun.stage == PhemuStage::Idle) return;
+        const double now = raduk::sky::PreciseJdNow();
+        // The first check's result, whenever it lands.
+        if (!phemuRun.haveBefore && phemuRun.stage != PhemuStage::CheckingAfter && phemuClock.Done()) {
+            phemuRun.before = phemuClock.Result();
+            phemuRun.haveBefore = true;
+            Log("[PHEMU] clock before: %s\n", raduk::net::sntp::Describe(phemuRun.before).c_str());
+            if (!raduk::net::sntp::Confirmed(phemuRun.before))
+                notifBar.NotifyWarn(L"Mutual event: " + raduk::core::ToWide(raduk::net::sntp::Describe(phemuRun.before)));
+        }
+        if (phemuRun.stage == PhemuStage::Waiting) {
+            if (now < raduk::sky::phemu::RecordStartJd(phemuRun.ev)) return;
+            if (capturer.IsRecording()) {   // someone started one by hand meanwhile
+                phemuRestore("a recording was already running at the window");
+                notifBar.NotifyWarn(L"Mutual event skipped: a recording was already running");
+                return;
+            }
+            const double endJd = raduk::sky::phemu::RecordEndJd(phemuRun.ev);
+            CaptureConfig cfg = capturer.Config();
+            cfg.filePrefix = "PHEMU_" + raduk::core::phemu_sheet::SafeName(phemuRun.ev.Describe());
+            cfg.outputDir  = controls.GetOutputDir();
+            cfg.frameType  = "Light";
+            cfg.format     = CaptureFormat::SER;
+            cfg.limitType  = LimitType::Time;
+            cfg.limitTimeSec = (std::max)(60.0, (endJd - now) * 86400.0);
+            cfg.derotationStopSec = 0.0;   // photometry, not surface detail
+            capturer.SetConfig(cfg);
+            CreateDirectoryA(cfg.outputDir.c_str(), nullptr);
+            phemuRun.expMs = cam.GetControlValue(ControlId::ExposureUs) / 1000.0;
+            phemuRun.gain  = (double)cam.GetControlValue(ControlId::Gain);
+            if (!capturer.StartRecording(roiWidth, roiHeight, roiBits)) {
+                phemuRestore("the recording would not start");
+                notifBar.NotifyError(L"Mutual event: the recording would not start");
+                return;
+            }
+            usbMgr.SetCapturing(true);
+            phemuRun.recStartJd = now;
+            phemuRun.stage = PhemuStage::Recording;
+            Log("[PHEMU] recording %s for %.0f s\n", phemuRun.ev.Describe().c_str(), cfg.limitTimeSec);
+            slog.Capture("Mutual event recording: %s", phemuRun.ev.Describe().c_str());
+            notifBar.NotifyInfo(L"Recording the mutual event: " + raduk::core::ToWide(phemuRun.ev.Describe()));
+            return;
+        }
+        if (phemuRun.stage == PhemuStage::Recording) {
+            if (capturer.IsRecording() && now > raduk::sky::phemu::RecordEndJd(phemuRun.ev) + 60.0 / 86400.0)
+                endRecording(true, "mutual event window ended");
+            if (capturer.IsRecording()) return;
+            usbMgr.SetCapturing(false);
+            phemuRun.recEndJd = now;
+            phemuRun.serPath = capturer.LastFilePath();
+            // The second check waits for the first, if it is still out.
+            if (!phemuClock.Busy()) {
+                if (!phemuRun.haveBefore && phemuClock.Done()) { phemuRun.before = phemuClock.Result(); phemuRun.haveBefore = true; }
+                phemuClock.Start(raduk::core::RigConfig::Get().timeServer);
+                phemuRun.stage = PhemuStage::CheckingAfter;
+            }
+            return;
+        }
+        if (phemuRun.stage == PhemuStage::CheckingAfter) {
+            if (!phemuClock.Done()) return;
+            phemuRun.after = phemuClock.Result();
+            Log("[PHEMU] clock after: %s\n", raduk::net::sntp::Describe(phemuRun.after).c_str());
+            const auto& r = raduk::core::RigConfig::Get();
+            raduk::core::phemu_sheet::Rig rig;
+            rig.siteName  = r.phemuSite;
+            rig.siteKnown = r.SiteIsSet();
+            rig.latDeg = r.siteLatDeg; rig.lonDeg = r.siteLonDeg; rig.elevM = r.siteElevationM;
+            rig.apertureMm = r.apertureMm;
+            rig.filter = r.filterName;
+            raduk::core::phemu_sheet::Run run;
+            const size_t slash = phemuRun.serPath.find_last_of("\\/");
+            run.serFile = slash == std::string::npos ? phemuRun.serPath : phemuRun.serPath.substr(slash + 1);
+            run.startJd = phemuRun.recStartJd; run.endJd = phemuRun.recEndJd;
+            run.before = phemuRun.before; run.after = phemuRun.after;
+            run.exposureMs = phemuRun.expMs; run.gain = phemuRun.gain;
+            const std::string id = raduk::core::phemu_sheet::PhenomenonId(phemuRun.ev, rig.siteName);
+            const std::string dir = slash == std::string::npos ? std::string(".") : phemuRun.serPath.substr(0, slash);
+            const std::string sheetPath = dir + "\\" + id + ".txt";
+            bool wrote = false;
+            if (FILE* f = fopen(sheetPath.c_str(), "w")) {
+                const std::string text = raduk::core::phemu_sheet::Sheet(phemuRun.ev, rig, run);
+                wrote = fwrite(text.data(), 1, text.size(), f) == text.size();
+                fclose(f);
+            }
+            Log("[PHEMU] observation sheet %s: %s\n", wrote ? "written" : "NOT written", sheetPath.c_str());
+            phemuRestore("event recorded");
+            if (wrote) notifBar.NotifyInfo(L"Mutual event recorded. IMCCE sheet: " + raduk::core::ToWide(id) + L".txt", raduk::core::ToWide(dir));
+            else       notifBar.NotifyError(L"Mutual event recorded, but the IMCCE sheet could not be written");
+        }
+    };
     int lastNeoShown = -1;
 
     // ── Phase 130: satellites and rocket bodies on both maps ───
@@ -6325,6 +6538,38 @@ static int RunApp(bool useEmulator) {
 
         // Phase 128: NEO positions every ten seconds, and the fetch's news.
         for (const auto& m : neoDesk.TakeMessages()) Log("%s\n", m.c_str());
+
+        // Phase 141.1: the armed mutual event, once a second.
+        if (std::chrono::steady_clock::now() - lastPhemuRunTick > std::chrono::seconds(1)) {
+            lastPhemuRunTick = std::chrono::steady_clock::now();
+            phemuTick();
+        }
+
+        // Phase 141.0: the PHEMU fetch's news, and a reminder half an hour
+        // before an event's recording window opens.
+        for (const auto& m : phemuDesk.TakeMessages()) Log("%s\n", m.c_str());
+        if (std::chrono::steady_clock::now() - lastPhemuTick > std::chrono::seconds(60)) {
+            lastPhemuTick = std::chrono::steady_clock::now();
+            phemuDesk.Refresh(false);   // a no-op until the cache is a month old
+            const double now = raduk::sky::PreciseJdNow();
+            bool siteKnown = false;
+            const auto soon = phemuDesk.Picks(now, now + 1.0 / 24.0,
+                                              raduk::gui::GoToPanel::SiteObserver(), &siteKnown);
+            for (const auto& p : soon) {
+                const double opens = raduk::sky::phemu::RecordStartJd(p.ev);
+                const double minsToOpen = (opens - now) * 1440.0;
+                if (!siteKnown || !p.greatestVisible || minsToOpen > 30.0 || minsToOpen < -5.0) continue;
+                bool told = false;
+                for (double g : phemuReminded) if (std::fabs(g - p.ev.greatestJd) < 1e-6) told = true;
+                if (told) continue;
+                phemuReminded.push_back(p.ev.greatestJd);
+                Log("[PHEMU] Coming up: %s\n", raduk::sky::phemu::PickLine(p).c_str());
+                notifBar.NotifyInfo(L"Mutual event: " + raduk::core::ToWide(p.ev.Describe()) +
+                                    L". Start recording at " +
+                                    raduk::core::ToWide(raduk::sky::phemu::IsoFromJd(opens, 0).substr(11, 5)) +
+                                    L" UTC (J for details)");
+            }
+        }
         if (std::chrono::steady_clock::now() - lastNeoTick > std::chrono::seconds(10)) {
             lastNeoTick = std::chrono::steady_clock::now();
             neoDesk.Refresh(false);   // a no-op until six hours have passed

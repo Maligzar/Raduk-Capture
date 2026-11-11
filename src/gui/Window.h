@@ -58,6 +58,8 @@ public:
     void SetFXCycleHandler(std::function<void()> h)           { m_onFXCycle             = h; }
     void SetStackLastHandler(std::function<void()> h)         { m_onStackLast           = h; }
     void SetOpenLastHandler (std::function<void()> h)         { m_onOpenLast            = h; }
+    void SetMutualEventsHandler(std::function<void()> h)      { m_onMutualEvents        = h; }
+    void SetMutualRecordHandler(std::function<void()> h)      { m_onMutualRecord        = h; }
     void SetNightVisionHandler(std::function<void()> h)       { m_onNightVision         = h; }
     void SetChannelCycleHandler(std::function<void()> h)      { m_onChannelCycle        = h; }  // H key
     void SetFramingShotHandler(std::function<void()> h)       { m_onFramingShot        = h; }  // Shift+S
@@ -264,6 +266,8 @@ private:
     std::function<void()>               m_onFXCycle;
     std::function<void()>               m_onStackLast;
     std::function<void()>               m_onOpenLast;
+    std::function<void()>               m_onMutualEvents;   // phase 141.0, J
+    std::function<void()>               m_onMutualRecord;   // phase 141.1, Shift+J
     std::function<void()>               m_onNightVision;
     std::function<void()>               m_onChannelCycle;
     std::function<void()>               m_onFramingShot;

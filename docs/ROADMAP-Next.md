@@ -1386,6 +1386,15 @@ request review.** The bench order, top first:
    review). #129 and #131 are merged; #91 and #95 are closed, #95's
    remaining behaviour going into 132.10b.
 2. **141.0 and 141.1, Galilean mutual events (row 41), size S-M.**
+   **141.0 written 2026-11-11 (predictions from IMCCE's Opale service,
+   `J` and reminders). 141.1 written 2026-11-11: `Shift+J` records the
+   next event with the PC clock checked by SNTP before and after,
+   settings locked, and IMCCE's observation sheet written beside the SER.
+   Owes: one SNTP reply on the owner's network, and one event recorded.
+   141.2 written 2026-11-11: `phemu_lightcurve` turns an event's SER into
+   IMCCE's `.dat`, dates corrected to UTC from the sheet's clock checks.
+   Owes: one real event reduced. UDP 123 confirmed open on the owner's
+   network 2026-11-11 (w32tm); the PC clock was about 0.12 s off.**
    Time-critical science: IMCCE's PHEMU season runs to August 2027 with
    the equinox on 2026-12-16 and most eclipses from October to January,
    and the next season is about six years off. Event predictions on
@@ -1552,6 +1561,23 @@ consolidated](#live-sky-debt-consolidated).
 | — | **Assistant: a larger model** (P3.6 option A) | — | M | Behind D4. An 8B at 4-bit fits the 2060's 6 GB |
 | — | **Emulator blur, further** (P4.4a tail) | Bench | S | Only if full-sensor bench work becomes routine. Focusing the emulated EAF skips it entirely today |
 | — | **AI runs on CPU** (D4) | — | — | Not actionable in code. Driver 546.01 caps at CUDA 12.3 |
+
+### Found by the owner in the emulator, 2026-11-11: a failed calibration left the axes slewing
+
+**Fixed in the PR that carries this entry; owes one look in the emulator.**
+Slewed to Venus, pressed PLANET LOCK, the calibration failed, and Venus
+ran off the screen; from then on lock never worked. `CentroidTracker::_HandBack`
+switched the hand control's tracking back on but never stopped the two
+variable-rate commands the calibration had sent (tracking plus the guide
+offset, about 26 and 15 "/s). The real NexStar's hand control overwrites a
+guide-scale rate, which hid this on the rig; the default emulator keeps it,
+so the planet left at about 75 px/s and no later search could find it. The
+hand-back now stops both axes first. `tests/rate_guide.cpp` section 5 failed
+before the fix (both axes still commanded) and passes after. The
+notification that said "Calibration refused - mount stopped" said neither
+true thing; it now gives the reason and says tracking was handed back.
+**Still open:** why the calibration failed on Venus in the first place.
+The `[CAL]` lines in that session's log will say.
 
 <a name="found-2026-10-25"></a>
 ### Found by the 2026-10-25 review

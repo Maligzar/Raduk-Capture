@@ -76,4 +76,102 @@ inline void SnapProposed(HWND self, RECT* proposed, bool resizing, int edges) {
     *proposed = FromDock(r.rect);
 }
 
+// ── Phase 134.2: groups ──────────────────────────────────────
+//
+// A drag starts with a snapshot (WM_ENTERSIZEMOVE): every target panel's
+// rectangle, and the groups they form. Each WM_MOVING / WM_SIZING then
+// works from that snapshot, not from where the members have got to, so
+// rounding never accumulates over a long drag. Holding Shift when the
+// drag STARTS makes it solo: the panel moves alone, and since groups are
+// only geometry, it has left its group the moment it is no longer flush.
+// A group spanning monitors at different scaling is also dragged solo,
+// until per-monitor DPI (119.6) lands.
+
+struct Drag {
+    HWND self = nullptr;
+    std::vector<HWND> hwnds;
+    std::vector<dock::Rect> start;
+    std::vector<int> ids;
+    int selfIndex = -1;
+    int members = 0;      // panels in self's group, self included
+    bool solo = true;
+};
+inline Drag& D() { static Drag d; return d; }
+
+inline void BeginDrag(HWND self) {
+    Drag d;
+    d.self = self;
+    for (HWND p : S().panels) {
+        if (p != self && !IsTarget(p)) continue;
+        RECT r;
+        if (!GetWindowRect(p, &r)) continue;
+        if (p == self) d.selfIndex = (int)d.hwnds.size();
+        d.hwnds.push_back(p);
+        d.start.push_back(ToDock(r));
+    }
+    if (d.selfIndex < 0) { D() = Drag{}; return; }
+    d.ids = dock::Groups(d.start);
+    const int g = d.ids[d.selfIndex];
+    const UINT dpi = GetDpiForWindow(self);
+    bool mixedDpi = false;
+    for (size_t i = 0; i < d.hwnds.size(); ++i)
+        if (d.ids[i] == g) {
+            ++d.members;
+            mixedDpi = mixedDpi || GetDpiForWindow(d.hwnds[i]) != dpi;
+        }
+    d.solo = GetKeyState(VK_SHIFT) < 0 || d.members < 2 || mixedDpi;
+    D() = std::move(d);
+}
+
+inline void EndDrag() { D() = Drag{}; }
+
+// Every member but self to where `rects` says, in one batch.
+inline void PlaceMembers(const std::vector<dock::Rect>& rects) {
+    const Drag& d = D();
+    HDWP batch = BeginDeferWindowPos((int)d.members);
+    for (size_t i = 0; i < d.hwnds.size(); ++i) {
+        if ((int)i == d.selfIndex || d.ids[i] != d.ids[d.selfIndex]) continue;
+        const dock::Rect& r = rects[i];
+        if (batch)
+            batch = DeferWindowPos(batch, d.hwnds[i], nullptr, r.l, r.t, r.w(), r.h(),
+                                   SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+    }
+    if (batch) EndDeferWindowPos(batch);
+}
+
+// WM_MOVING: a group moves as one and snaps as one block.
+inline void DragMove(HWND self, RECT* proposed) {
+    const Drag& d = D();
+    if (!proposed) return;
+    if (d.self != self || d.solo) { SnapProposed(self, proposed, false, 0); return; }
+    const auto moved = dock::MoveGroupSnapped(d.start, d.ids, d.selfIndex, ToDock(*proposed),
+                                              WorkAreaFor(*proposed), Scaled(self, dock::kSnapPx));
+    *proposed = FromDock(moved[d.selfIndex]);
+    PlaceMembers(moved);
+}
+
+// WM_SIZING: snap the dragged edges against panels outside the group,
+// then carry every member on the same line with them (the splitter).
+inline void DragSize(HWND self, RECT* proposed, int edges) {
+    const Drag& d = D();
+    if (!proposed) return;
+    if (d.self != self || d.solo) { SnapProposed(self, proposed, true, edges); return; }
+    const int g = d.ids[d.selfIndex];
+    std::vector<dock::Rect> outside;
+    for (size_t i = 0; i < d.start.size(); ++i)
+        if (d.ids[i] != g) outside.push_back(d.start[i]);
+    dock::Rect cur = ToDock(*proposed);
+    if (GetKeyState(VK_SHIFT) >= 0)
+        cur = dock::Snap(cur, outside, WorkAreaFor(*proposed), Scaled(self, dock::kSnapPx),
+                         true, edges).rect;
+    std::vector<dock::Rect> rects = d.start;
+    const int minW = Scaled(self, dock::kMinW), minH = Scaled(self, dock::kMinH);
+    if (edges & dock::Left)   rects = dock::ResizeEdge(rects, d.ids, d.selfIndex, dock::Left,   cur.l, minW, minH);
+    if (edges & dock::Right)  rects = dock::ResizeEdge(rects, d.ids, d.selfIndex, dock::Right,  cur.r, minW, minH);
+    if (edges & dock::Top)    rects = dock::ResizeEdge(rects, d.ids, d.selfIndex, dock::Top,    cur.t, minW, minH);
+    if (edges & dock::Bottom) rects = dock::ResizeEdge(rects, d.ids, d.selfIndex, dock::Bottom, cur.b, minW, minH);
+    *proposed = FromDock(rects[d.selfIndex]);
+    PlaceMembers(rects);
+}
+
 } // namespace raduk::gui::panel_dock

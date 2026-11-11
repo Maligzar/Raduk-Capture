@@ -129,9 +129,17 @@ public:
                 out = 0;
                 return true;
             }
-            if (panel_dock::Enabled() && (msg == WM_MOVING || msg == WM_SIZING)) {
-                panel_dock::SnapProposed(hwnd, reinterpret_cast<RECT*>(lp), msg == WM_SIZING,
-                                         msg == WM_SIZING ? dock::EdgesFromSizing((int)wp) : 0);
+            // 134.2: a drag's snapshot is taken at its start and dropped at
+            // its end; both messages carry on to the window afterwards.
+            if (panel_dock::Enabled() && msg == WM_ENTERSIZEMOVE) panel_dock::BeginDrag(hwnd);
+            if (msg == WM_EXITSIZEMOVE) panel_dock::EndDrag();
+            if (panel_dock::Enabled() && msg == WM_MOVING) {
+                panel_dock::DragMove(hwnd, reinterpret_cast<RECT*>(lp));
+                out = TRUE;
+                return true;
+            }
+            if (panel_dock::Enabled() && msg == WM_SIZING) {
+                panel_dock::DragSize(hwnd, reinterpret_cast<RECT*>(lp), dock::EdgesFromSizing((int)wp));
                 out = TRUE;
                 return true;
             }

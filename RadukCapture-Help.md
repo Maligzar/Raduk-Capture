@@ -759,8 +759,15 @@ panels line up without fiddling. This applies to Histogram, Sharpness,
 Temperature, Status, ADC, both sky maps, GoTo and the SER player. Resizing
 snaps the edge you drag in the same way. No panel goes smaller than 240 by
 120. **Hold Shift** while dragging to place a panel freely. `PanelSnap=0` in
-`rig.ini` turns snapping off. Groups that move together, and the dock
-window, come in later stages.
+`rig.ini` turns snapping off.
+
+**Panels that touch form a group** (phase 134.2). Drag any one of them and
+the whole group moves, snapping as one block. Drag the edge two panels share
+and both resize, like a splitter, and the joint stays closed. To take a panel
+out, **hold Shift as you start dragging it**. Once it is no longer flush, it
+has left. A group spread over two monitors with different scaling moves one
+panel at a time for now. Group fullscreen and the dock window come in later
+stages.
 
 ### Why a window can be stuck
 

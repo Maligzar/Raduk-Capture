@@ -110,6 +110,32 @@ int main() {
         Check(m[2] == rs[2], "  a panel outside the group stays");
     }
 
+    printf("\n3b. Moving a group that snaps as one block (134.2)\n");
+    {
+        // A | B joined; C outside, to the right of B with a 200 px gap.
+        const std::vector<Rect> rs{ A, { 500, 100, 800, 400 }, { 1000, 100, 1300, 400 } };
+        const auto g = Groups(rs);
+        // Drag A right by 192: B would land 8 px short of C.
+        auto m = MoveGroupSnapped(rs, g, 0, { 292, 100, 692, 400 }, work, kSnapPx);
+        Check(m[1].r == 1000, "the group's outer edge snaps to a panel outside it", S(m[1]));
+        Check(m[0].r == m[1].l && m[0].w() == 400 && m[1].w() == 300,
+              "  every member keeps its offset and size", S(m[0]));
+        Check(m[2] == rs[2], "  the outside panel does not move");
+
+        // A tiny drag inside the group's own joint distance: members are not
+        // targets, so the group moves by exactly what was asked.
+        auto t = MoveGroupSnapped(rs, g, 0, { 103, 104, 503, 404 }, work, kSnapPx);
+        Check(t[0] == Rect{ 103, 104, 503, 404 } && t[1] == Rect{ 503, 104, 803, 404 },
+              "it never snaps to its own members");
+
+        // Far from everything: the same as MoveGroup.
+        const std::vector<Rect> lone{ { 600, 600, 900, 800 }, { 900, 600, 1100, 800 } };
+        const auto gl = Groups(lone);
+        Check(MoveGroupSnapped(lone, gl, 0, { 650, 620, 950, 820 }, work, kSnapPx) ==
+                  MoveGroup(lone, gl, 0, { 650, 620, 950, 820 }),
+              "nothing near: exactly MoveGroup");
+    }
+
     printf("\n4. A shared edge resized like a splitter\n");
     {
         // A | B side by side, C under both, sharing A's and B's bottoms.

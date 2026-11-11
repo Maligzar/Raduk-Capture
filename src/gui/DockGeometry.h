@@ -181,6 +181,32 @@ inline std::vector<Rect> MoveGroup(std::vector<Rect> rects, const std::vector<in
     return rects;
 }
 
+// Phase 134.2: the leader dragged to `proposed`, its group following,
+// and the group snapping as ONE block -- its bounding box against the
+// panels outside it and the work area, never against its own members,
+// which would otherwise pin it where it already is.
+inline std::vector<Rect> MoveGroupSnapped(const std::vector<Rect>& rects,
+                                          const std::vector<int>& groupIds, int leader,
+                                          const Rect& proposed, const Rect& work, int th) {
+    const int g = groupIds[leader];
+    Rect bb{};
+    bool first = true;
+    std::vector<Rect> outside;
+    for (size_t i = 0; i < rects.size(); ++i) {
+        if (groupIds[i] != g) { outside.push_back(rects[i]); continue; }
+        const Rect& r = rects[i];
+        if (first) { bb = r; first = false; continue; }
+        bb.l = (std::min)(bb.l, r.l); bb.t = (std::min)(bb.t, r.t);
+        bb.r = (std::max)(bb.r, r.r); bb.b = (std::max)(bb.b, r.b);
+    }
+    const int dx = proposed.l - rects[leader].l, dy = proposed.t - rects[leader].t;
+    const Rect moved{ bb.l + dx, bb.t + dy, bb.r + dx, bb.b + dy };
+    const Rect snapped = Snap(moved, outside, work, th, false, 0).rect;
+    const Rect lead = rects[leader];
+    const int fx = dx + (snapped.l - moved.l), fy = dy + (snapped.t - moved.t);
+    return MoveGroup(rects, groupIds, leader, { lead.l + fx, lead.t + fy, lead.r + fx, lead.b + fy });
+}
+
 // ── A shared edge, resized like a splitter ───────────────────
 
 // Drags edge `e` (one of Left, Top, Right, Bottom) of panel `index` to

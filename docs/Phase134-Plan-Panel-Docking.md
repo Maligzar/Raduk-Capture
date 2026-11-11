@@ -271,3 +271,49 @@ window, and it earns its place once joints mean a group.
 - the screen edge snaps;
 - no panel goes below 240 x 120;
 - `PanelSnap=0` turns snapping off.
+
+### 134.2, 2026-11-11: groups move and resize together
+
+**The snapshot.** On `WM_ENTERSIZEMOVE`, `panel_dock::BeginDrag` records
+every target panel's rectangle and `dock::Groups` over them. Every
+`WM_MOVING` and `WM_SIZING` in the drag works from that snapshot rather
+than from where members have got to, so rounding never accumulates. The
+snapshot is dropped on `WM_EXITSIZEMOVE`. Both messages still reach the
+window.
+
+**Moving.** The new `dock::MoveGroupSnapped` shifts the group's bounding
+box by the leader's delta and snaps it against panels outside the group and
+the work area. It never snaps against the group's own members, which would
+pin it in place. Every member gets the corrected delta. The other members
+are moved in one `DeferWindowPos` batch. They receive no `WM_MOVING`, so
+nothing recurses.
+
+**Resizing.** The dragged edges snap against panels outside the group.
+`ResizeEdge` then carries every member with an edge on the same line, from
+the snapshot. That is the splitter: the joint stays closed and nothing goes
+below 240 x 120, scaled. A corner drag does each of its edges in turn.
+
+**Solo.** A drag is solo, behaving exactly as in 134.1, when:
+- Shift is held as it starts;
+- the panel is alone;
+- its group spans monitors with different DPI, until 119.6.
+
+A solo panel has left its group as soon as it is no longer flush, because
+groups are only geometry.
+
+**Gated.** `tests/dock_geometry.cpp` 3b checks that:
+- the group's outer edge snaps to an outside panel;
+- members keep their offsets and sizes;
+- it never snaps to its own members;
+- with nothing near, the result equals `MoveGroup`.
+
+The splitter is section 4, from 134.0.
+
+**Deferred: the joint accent line.** It moves to 134.3. Group fullscreen
+needs a "this is a group" cue too, and one overlay can serve both.
+
+**Not seen.** Owner check on the rig:
+- snap Histogram under Status, drag Status, and both move;
+- Shift-drag Histogram out, and it leaves the group;
+- drag their shared edge, and both resize, stopping at 240 x 120;
+- a lone panel behaves exactly as in 134.1.

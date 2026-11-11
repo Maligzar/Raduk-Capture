@@ -116,16 +116,25 @@ public:
     // True when handled, with the result in out.
     bool Filter(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT& out) {
         // Phase 134.3: F11 on a panel in a group fills the monitor with the
-        // group; F11 or Esc restores it. Checked BEFORE the caption test,
-        // because a member in group fullscreen has no caption. A panel
-        // alone falls through to its own F11, single fullscreen as before.
-        if (hwnd == m_hwnd && msg == WM_KEYDOWN && panel_dock::IsRegistered(hwnd)) {
-            if (panel_dock::InGroupFull(hwnd) && (wp == VK_F11 || wp == VK_ESCAPE)) {
-                panel_dock::ExitGroupFull();
-                out = 0;
+        // group, and F11 again restores it. Checked BEFORE the caption
+        // test, because a member in group fullscreen has no caption.
+        //
+        // The main loop routes keys thread-wide (Window::RouteThreadKey),
+        // so F11 only reaches a panel that claims it through
+        // WM_GETDLGCODE, as the sky map learned. A panel claims it only
+        // when it is in a group or in group fullscreen; a lone panel's F11
+        // goes where it always went. Esc is never claimed: it is the
+        // emergency stop and must reach the mount from every window.
+        if (hwnd == m_hwnd && panel_dock::IsRegistered(hwnd)) {
+            const bool grouped = panel_dock::InGroupFull(hwnd) ||
+                                 (Showing() && panel_dock::GroupOf(hwnd).size() >= 2);
+            if (msg == WM_GETDLGCODE && lp && wp == VK_F11 && grouped) {
+                out = DLGC_WANTMESSAGE;
                 return true;
             }
-            if (wp == VK_F11 && Showing() && panel_dock::EnterGroupFull(hwnd)) {
+            if (msg == WM_KEYDOWN && wp == VK_F11 && grouped) {
+                if (panel_dock::InGroupFull(hwnd)) panel_dock::ExitGroupFull();
+                else panel_dock::EnterGroupFull(hwnd);
                 out = 0;
                 return true;
             }

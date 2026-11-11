@@ -770,8 +770,8 @@ panel at a time for now.
 
 **F11 on a panel in a group fills the monitor with the whole group**
 (phase 134.3). The panels keep their proportions, lose their title bars, and
-leave no gaps, so the group reads as one instrument. Press F11 or Esc to put
-every panel back where it was. F11 on a panel that is not in a group still
+leave no gaps, so the group reads as one instrument. Press F11 again to put
+every panel back where it was. Esc stays the emergency stop, as everywhere. F11 on a panel that is not in a group still
 makes that one panel fullscreen. The dock window comes in a later stage.
 
 ### Why a window can be stuck

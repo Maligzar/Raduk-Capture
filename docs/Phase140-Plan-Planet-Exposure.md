@@ -61,8 +61,9 @@ did.
 
 - 140.1: on Saturn at the full sensor, AE settles with the globe at 185
   to 215 DN and the audit shows under 1% of the target clipped.
-- 140.2: whether the ceilings freeze the seeing without starving the
-  signal, judged by the quality trace in [PLAY].
+- 140.2: the exposure ladder, clear-night item 55. Four exposures from
+  2 to 15 ms, gain set so each peaks near 70%, stacked and processed
+  identically. The best sets the band; until then the band is a guess.
 - 140.3: whether the stretched view is what the owner wants to frame and
   focus by.
 

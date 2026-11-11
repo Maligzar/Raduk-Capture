@@ -1278,3 +1278,15 @@ the bench already showed, so the night only has to confirm it. The plan is
     different planet's profile by hand and record again: the run should be
     filed under the planet the scope is on, and the bar should say
     "Recording X on the Y profile's settings".
+55. **Exposure ladder** (140.2, added 2026-11-11). The 2026-11-07 Saturn
+    files were short and thin: 0.1-2 ms, peaks at 19-42% of full scale.
+    This finds out whether that is what made them poor. Focus once, then
+    leave the focuser alone. Record Saturn (or Jupiter) for 90 s at each of
+    about 2, 5, 10 and 15 ms, setting gain by hand each time so the planet
+    peaks near 70% on the histogram. Same ROI, same bit depth, back to back
+    so the seeing is as alike as it gets. Stack all four in AutoStakkert
+    with identical settings, process them identically, and compare side by
+    side. The best of the four sets the floor and ceiling of the band.
+    Before starting, look at the corrector plate with a torch: dew there
+    dims and softens everything, and the 2026-11-07 fade (F13) was never
+    explained.

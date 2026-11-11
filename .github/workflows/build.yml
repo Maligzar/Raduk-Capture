@@ -2,17 +2,16 @@ name: Build and test
 
 # Builds both configurations and runs the bench tests.
 #
-# Where it runs (2026-11-11, the owner's call): on Star Machine, the
-# owner's own PC, through a self-hosted runner labelled star-machine,
-# so no GitHub-hosted minutes are used. Setting the runner up, and why
-# a fork's pull request must never reach it, is in
-# docs/CI-On-Star-Machine.md. While Star Machine is off, runs wait for
-# it.
+# Where it runs: GitHub's windows-latest, a stock machine with no D:
+# drive, no rig.ini and no hardware, which proves a fresh clone builds
+# for anyone. For a public repository these runs are free: the owner's
+# billing page on 2026-11-11 showed RadukCapture's Actions usage fully
+# discounted, $0 billable.
 #
-# "Run workflow" (workflow_dispatch) can send one run to GitHub's own
-# windows-latest instead, to prove a fresh clone builds on a stock
-# machine with no D: drive, no rig.ini and no hardware, which is what
-# this workflow originally checked.
+# "Run workflow" (workflow_dispatch) can send one run to Star Machine,
+# the owner's own PC, through a self-hosted runner labelled
+# star-machine, if one is installed. docs/CI-On-Star-Machine.md covers
+# setting it up and the repository setting that must come first.
 
 on:
   push:
@@ -39,10 +38,10 @@ on:
   workflow_dispatch:
     inputs:
       runner:
-        description: 'Where to run: star-machine (the owner''s PC) or github (windows-latest)'
+        description: 'Where to run: github (windows-latest) or star-machine (the owner''s PC, if its runner is installed)'
         type: choice
-        options: [star-machine, github]
-        default: star-machine
+        options: [github, star-machine]
+        default: github
 
 # A new push to the same pull request (or branch) cancels the run still
 # going for the last one: only the newest commit's result decides a merge.
@@ -55,19 +54,18 @@ permissions:
 
 jobs:
   windows:
-    # Never a fork's pull request on Star Machine: a stranger's code would
-    # run on the owner's PC. A fork can edit this file, so this line alone
-    # does not protect it; the repository setting in
-    # docs/CI-On-Star-Machine.md (approval for outside contributors) is the
-    # real gate. This line keeps the owner's own pull requests from waiting
-    # behind a fork's.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'github') && 'windows-latest' || fromJSON('["self-hosted", "windows", "star-machine"]') }}
+    # Only a manual run that asks for it goes to Star Machine; every pull
+    # request and push runs on GitHub's machines, so a fork's pull request
+    # never reaches the owner's PC through this file. (A fork can edit
+    # this file; the repository setting in docs/CI-On-Star-Machine.md is
+    # what stops that, and matters only once a runner is installed.)
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'star-machine') && fromJSON('["self-hosted", "windows", "star-machine"]') || 'windows-latest' }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
-      # A self-hosted runner has only what Star Machine has on its PATH.
+      # On GitHub's image CMake is on the PATH already. A self-hosted
+      # runner has only what Star Machine has on its PATH.
       # CMake is found the way build_all.bat finds it, or from Visual
       # Studio's own copy.
       - name: Find CMake

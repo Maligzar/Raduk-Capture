@@ -1,29 +1,29 @@
 # CI on Star Machine
 
-Set up 2026-11-11 at the owner's call: the build-and-test workflow
-(`.github/workflows/build.yml`) runs on Star Machine, the owner's own PC,
-through a GitHub Actions self-hosted runner, and not on GitHub's hosted
-runners. The workflow's job asks for a runner with the labels
-`self-hosted`, `windows` and `star-machine`; until one is online, runs
-wait.
+**Optional, revised 2026-11-11.** The build-and-test workflow
+(`.github/workflows/build.yml`) runs on GitHub's `windows-latest` for every
+pull request and push to master. For this public repository those runs
+are free: the owner's billing page that evening showed RadukCapture's
+Actions usage of $13.37 wholly discounted, $0 billable, and the evening's
+slow starts were GitHub's queue, not a limit. Star Machine, the owner's
+own PC, is the manual alternative: **Actions → Build and test → Run
+workflow → runner: star-machine**, once a self-hosted runner with that
+label is installed. Nothing else is sent to it.
 
 ## Why, and the one thing that must be set first
 
 This repository is public. Two things follow.
 
-- **GitHub's own runners are normally free for a public repository** on
-  the standard machine sizes (third-party pricing guides, 2026; GitHub's
-  billing page is the authority). If the owner's usage page shows a limit
-  reached, it is worth reading which product it is; it may not be
-  Actions on this repository. The workflow keeps a manual way to use
-  GitHub's runners (below).
+- **GitHub's own runners are free for a public repository** on the
+  standard machine sizes; the owner's billing page confirmed it for this
+  repository (above).
 - **GitHub advises that self-hosted runners should almost never be used
   with public repositories**, because anyone can open a pull request from
   a fork, and a fork can change the workflow file to run its own code on
-  the runner, here on Star Machine. The workflow skips forks' pull
-  requests, but a fork can edit that line too, so it is not the
+  the runner, here on Star Machine. The workflow sends only manual runs
+  there, but a fork can edit the workflow too, so that is not the
   protection. **The protection is a repository setting**, and it must be
-  on before the runner is:
+  on before a runner is installed:
 
   GitHub → this repository → Settings → Actions → General → the section on
   fork pull request workflows → require approval for **all** external
@@ -79,9 +79,9 @@ Studio's own copy), and Git for the checkout.
   `wiki/` or `.gitignore` do not start a run: no test reads them.
   `docs/` still does, because `tests/ai_context_facts.cpp` scans it.
 
-## Running on GitHub's machines instead
+## Why GitHub's machines stay the default
 
-Actions → **Build and test** → **Run workflow** → runner: `github`. That
-runs once on `windows-latest`, a stock machine with no `D:` drive, no
-`rig.ini` and no hardware, which is the check that a fresh clone builds
-for anyone else.
+They run whether Star Machine is on or not, they are a stock machine (no
+`D:` drive, no `rig.ini`, no hardware), which is the check that a fresh
+clone builds for anyone else, and no pull request from a fork can reach
+the owner's PC through them.

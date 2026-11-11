@@ -317,3 +317,126 @@ needs a "this is a group" cue too, and one overlay can serve both.
 - Shift-drag Histogram out, and it leaves the group;
 - drag their shared edge, and both resize, stopping at 240 x 120;
 - a lone panel behaves exactly as in 134.1.
+
+### 134.3, 2026-11-11: a group fills its monitor
+
+**Entering.** `WindowChrome::Filter` catches F11 on a registered panel. It
+does this before its caption test, because a member in group fullscreen has
+no caption. If the panel's group has two or more members, all at the same
+DPI, `panel_dock::EnterGroupFull` does four things:
+1. saves each member's rectangle and style;
+2. maps the rectangles onto `rcMonitor` with `dock::FillMonitor`, which
+   leaves no gap at any joint;
+3. removes `WS_CAPTION` and `WS_THICKFRAME`;
+4. places each member with `SWP_FRAMECHANGED`.
+
+The chrome hides itself when the caption goes, exactly as in single
+fullscreen.
+
+**Restoring.** F11 on any member puts every style and rectangle back.
+
+**Keys, and why not Esc.** The main loop routes keys thread-wide
+(`Window::RouteThreadKey`), so a panel only receives F11 if it claims it
+through `WM_GETDLGCODE`, the lesson the sky map learned. `Filter` claims
+F11 only for a panel that is in a group or in group fullscreen. A lone
+panel's F11 goes exactly where it went before. Esc is never claimed: it is
+the emergency stop and must reach the mount from every window. The plan's
+"F11 or Esc" became F11 only when this was found, before anything shipped.
+
+**Lone panels and mixed scaling.** A lone panel's F11 behaves as before.
+In a group spanning monitors with different DPI, F11 does nothing until
+119.6, rather than produce a mis-scaled group. The panels' own
+`m_fullscreen` flags stay false during group fullscreen.
+
+**Saving the layout.** Ctrl+Shift+End restores a fullscreen group before
+`CaptureCurrent`, so stretched rectangles are never saved as normal ones.
+Bringing a group back fullscreen after a restart is 134.5's persistence.
+
+**No new arithmetic.** `FillMonitor` has been gated since 134.0, section 5,
+including an odd-sized monitor at negative coordinates.
+
+**Deferred, a third time: the joint accent line.** It moves to 134.4. The
+dock window needs an overlay for drop zones and splitters, and one overlay
+serves all three. 134.4 must deliver it or drop it in writing.
+
+**Not seen.** Owner check on the rig:
+- group three panels and press F11 on any one: they fill the monitor in
+  proportion, with no gaps and no title bars;
+- F11 again restores them exactly, and Esc still stops the mount;
+- F11 on a lone panel does what it did before;
+- Ctrl+Shift+End during group fullscreen saves the normal positions.
+
+### 134.4a, 2026-11-11: the dock window
+
+**Split.** The plan's 134.4 was its largest stage, so it is now two stages:
+- **134.4a, this one:** the dock window. Panels go in and out through their
+  window menu.
+- **134.4b:** dragging a panel onto the dock, with drop zones.
+
+**The joint accent line is dropped.** 134.3 said 134.4 must deliver it or
+drop it in writing. It is dropped because snapping is already visible: the
+panel jumps flush. Docking by menu needs no overlay. If the owner wants the
+line, it can come back with 134.4b's drop-zone overlay.
+
+**`src/gui/DockWindow.h`** creates the `RadukDock` window. It is owned by
+the main window, uses the shared chrome for its title bar, and is hidden
+until a panel is docked.
+
+**Docking a panel:**
+- its style, rectangle and owner are saved;
+- its owner becomes the dock (`GWLP_HWNDPARENT`), which keeps it above the
+  dock;
+- it loses `WS_THICKFRAME`, but keeps its own title bar and menu;
+- it is appended to the split tree.
+
+**Not reparented.** A docked panel keeps its window, its render target and
+its night handling. `Relayout` places every panel over its slot in one
+`DeferWindowPos` batch on every move, resize and change. The first panel
+docked opens the dock where that panel was.
+
+**Splitter bars** are hit-tested from `dock::Splitters`, show the
+resize cursor, and are dragged with mouse capture through `RatioAt` and
+`SetRatio`. They are painted in `BORDER` on `DEEP` through `Theme::Brush`,
+so in night vision they are red only. An empty dock says how to dock a
+panel.
+
+**F11** toggles the dock's fullscreen, in the house pattern, and is
+claimed through `WM_GETDLGCODE`. F11 on a docked panel is forwarded to the
+dock. Esc is never claimed.
+
+**Taking a panel out.** Choose Undock, which restores the panel's style,
+owner and rectangle. Or Shift-drag it away, which restores the style and
+size but keeps the position the mouse has. Closing the dock undocks
+everything.
+
+**`PanelDock.h`:**
+- roles, so the tree names panels the way `workspace.ini` does;
+- a docked set: docked panels are not snap targets, are not in groups, and
+  a docked panel's `WM_MOVING` pins it to its slot even with `PanelSnap=0`;
+- the window menu's Dock / Undock item, `SC` value `0xD010`;
+- `SC_MAXIMIZE` blocked for docked panels;
+- callbacks to the dock window, so this header does not depend on it.
+
+The dock is registered as a panel, so it snaps and groups like one.
+Ctrl+Shift+Home gathers the dock but leaves docked panels in their slots.
+
+**Gated.** `tests/dock_geometry.cpp` section 6b checks the pure tree edits:
+- `Append` places the new panel beside in a wide area and below in a tall
+  one;
+- panels plus splitter bars tile the dock exactly;
+- `Remove` collapses the parent, the last leaf leaves nothing, and an unknown
+  role changes nothing;
+- a bar dragged to a position lands there;
+- drags past the ends are clamped, and a bad path is refused.
+
+**Not yet:**
+- the dock is not remembered between runs (134.5);
+- a hidden docked panel leaves an empty slot until it is shown again.
+
+**Not seen.** Owner check on the rig:
+- dock three panels: they tile;
+- drag a bar: both sides resize;
+- F11 fills the monitor, and F11 restores it;
+- Undock, and Shift-drag out;
+- close the dock: everything returns;
+- in night vision, the dock is red only.

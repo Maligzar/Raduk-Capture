@@ -10,6 +10,7 @@
 #include "gui/DockGeometry.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 
 using namespace raduk::gui::dock;
@@ -207,6 +208,51 @@ int main() {
         std::string deep;
         for (int i = 0; i < 100; ++i) deep += "H(0.5,a,";
         Check(!ParseText(deep), "a pathologically deep line is refused");
+    }
+
+    printf("\n6b. Editing the dock's tree (134.4a)\n");
+    {
+        const Rect wide{ 0, 0, 1600, 900 };
+        Node t = Append(std::nullopt, "histogram", wide);
+        Check(t.IsLeaf() && t.role == "histogram", "the first panel is the whole tree");
+        t = Append(t, "status", wide);
+        Check(t.split == 'H' && t.ratio == 0.5, "the second sits beside it in a wide dock", ToText(t));
+        t = Append(t, "sharpness", { 0, 0, 600, 900 });
+        Check(t.split == 'V', "  and below in a tall one", ToText(t));
+        std::vector<std::string> roles;
+        Roles(t, roles);
+        Check(roles.size() == 3 && roles[0] == "histogram" && roles[2] == "sharpness",
+              "every role is still there, in order");
+
+        auto L = Layout(t, wide, 6);
+        long long sum = 0;
+        for (const auto& [r, rc] : L) sum += (long long)rc.w() * rc.h();
+        const auto bars = Splitters(t, wide, 6);
+        for (const auto& b : bars) sum += (long long)b.bar.w() * b.bar.h();
+        Check(bars.size() == 2 && sum == (long long)wide.w() * wide.h(),
+              "panels plus splitter bars tile the dock exactly");
+        Check(L[0].second.r == bars[1].bar.l && bars[1].bar.r == L[1].second.l,
+              "  each bar sits in its split's gap");
+
+        auto r = Remove(t, "status");
+        Check(r && ToText(*r) == "V(0.5,histogram,sharpness)", "removing a middle leaf collapses its parent",
+              r ? ToText(*r) : "none");
+        Check(Remove(Leaf("x"), "x") == std::nullopt, "removing the last leaf leaves nothing");
+        auto same = Remove(t, "nosuch");
+        Check(same && ToText(*same) == ToText(t), "an unknown role changes nothing");
+
+        // The outer split is 'V' (stacked): drag its bar to y = 600 and the
+        // layout follows.
+        Node d = t;
+        const auto outer = Splitters(d, wide, 6)[0];
+        Check(outer.dir == 'V' && SetRatio(d, outer.path, RatioAt(outer, 600, 6)),
+              "a drag sets the split's ratio");
+        const int barT = Splitters(d, wide, 6)[0].bar.t;
+        Check(std::abs(barT - 600) <= 1 && Layout(d, wide, 6).back().second.t == barT + 6,
+              "  and the bar lands where the mouse put it, the panel below it", std::to_string(barT));
+        Check(RatioAt(outer, -500, 6) == kMinRatio && RatioAt(outer, 99999, 6) == kMaxRatio,
+              "a drag past the ends is clamped");
+        Check(!SetRatio(d, { 0, 0, 0 }, 0.5), "a path into a leaf is refused");
     }
 
     printf("\n%s\n", g_fail == 0 ? "ALL CHECKS PASSED" : "SOME CHECKS FAILED");

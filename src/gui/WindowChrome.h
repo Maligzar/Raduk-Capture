@@ -115,6 +115,49 @@ public:
 
     // True when handled, with the result in out.
     bool Filter(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT& out) {
+        // Phase 134.3: F11 on a panel in a group fills the monitor with the
+        // group, and F11 again restores it. Checked BEFORE the caption
+        // test, because a member in group fullscreen has no caption.
+        //
+        // The main loop routes keys thread-wide (Window::RouteThreadKey),
+        // so F11 only reaches a panel that claims it through
+        // WM_GETDLGCODE, as the sky map learned. A panel claims it only
+        // when it is in a group or in group fullscreen; a lone panel's F11
+        // goes where it always went. Esc is never claimed: it is the
+        // emergency stop and must reach the mount from every window.
+        if (hwnd == m_hwnd && panel_dock::IsRegistered(hwnd)) {
+            // 134.4a: Dock / Undock on the window menu (right-click the
+            // title, or Alt+Space). The menu is only prepared here; it
+            // goes on to Windows to be shown.
+            if (msg == WM_INITMENUPOPUP && HIWORD(lp))
+                panel_dock::PrepareMenu(hwnd, reinterpret_cast<HMENU>(wp));
+            if (msg == WM_SYSCOMMAND) {
+                const UINT cmd = (UINT)(wp & 0xFFF0);
+                if (cmd == panel_dock::kDockCmd) { panel_dock::ToggleDock(hwnd); out = 0; return true; }
+                // A docked panel is sized by the dock; maximising it would
+                // tear it out of its slot.
+                if (cmd == SC_MAXIMIZE && panel_dock::IsDocked(hwnd)) { out = 0; return true; }
+            }
+            // F11 on a docked panel fills the monitor with the dock.
+            if (panel_dock::IsDocked(hwnd)) {
+                if (msg == WM_GETDLGCODE && lp && wp == VK_F11) { out = DLGC_WANTMESSAGE; return true; }
+                if (msg == WM_KEYDOWN && wp == VK_F11) { panel_dock::DockFullscreen(); out = 0; return true; }
+            }
+        }
+        if (hwnd == m_hwnd && panel_dock::IsRegistered(hwnd) && !panel_dock::IsDocked(hwnd)) {
+            const bool grouped = panel_dock::InGroupFull(hwnd) ||
+                                 (Showing() && panel_dock::GroupOf(hwnd).size() >= 2);
+            if (msg == WM_GETDLGCODE && lp && wp == VK_F11 && grouped) {
+                out = DLGC_WANTMESSAGE;
+                return true;
+            }
+            if (msg == WM_KEYDOWN && wp == VK_F11 && grouped) {
+                if (panel_dock::InGroupFull(hwnd)) panel_dock::ExitGroupFull();
+                else panel_dock::EnterGroupFull(hwnd);
+                out = 0;
+                return true;
+            }
+        }
         if (hwnd != m_hwnd || !Showing()) return false;
         // Phase 134.1: the panels that dock snap while dragged or sized,
         // and none can be made smaller than 240 x 120. The proposed
@@ -133,7 +176,7 @@ public:
             // its end; both messages carry on to the window afterwards.
             if (panel_dock::Enabled() && msg == WM_ENTERSIZEMOVE) panel_dock::BeginDrag(hwnd);
             if (msg == WM_EXITSIZEMOVE) panel_dock::EndDrag();
-            if (panel_dock::Enabled() && msg == WM_MOVING) {
+            if ((panel_dock::Enabled() || panel_dock::IsDocked(hwnd)) && msg == WM_MOVING) {
                 panel_dock::DragMove(hwnd, reinterpret_cast<RECT*>(lp));
                 out = TRUE;
                 return true;

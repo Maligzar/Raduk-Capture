@@ -82,6 +82,7 @@
 #include "gui/CommandPalette.h"   // 132.7: Ctrl+K
 #include "gui/AudioCues.h"        // 132.8: record and fault tones
 #include "gui/WebPalette.h"       // 132.9: pages in the app's look
+#include "gui/DockWindow.h"        // 134.4a: the dock window
 #include "gui/DarkScrollbars.h"   // 132.6b
 #include "core/CrashDiag.h"        // what crashed, and where
 #include "core/FitsBatch.h"        // [TO SER]: FITS cubes to SER, in the background
@@ -2215,11 +2216,21 @@ static int RunApp(bool useEmulator) {
     // Phase 134.1: the operator panels that dock. The audience screens
     // (share, objectpanel) and the topmost tools stay out, by the owner's
     // call on 2026-11-11. The player registers where it is created.
-    for (HWND h : { skyMap.Handle(), skyMap2.Handle(), gotoPanel.Handle(), histWindow.Handle(),
-                    sharpWindow.Handle(), tempWindow.Handle(), statusWindow.Handle(),
-                    adcAlignWindow.Handle() })
-        raduk::gui::panel_dock::Register(h);
+    for (const auto& [role, h] : std::initializer_list<std::pair<const char*, HWND>>{
+             { "skymap", skyMap.Handle() }, { "skymap2", skyMap2.Handle() }, { "goto", gotoPanel.Handle() },
+             { "histogram", histWindow.Handle() }, { "sharpness", sharpWindow.Handle() },
+             { "temperature", tempWindow.Handle() }, { "status", statusWindow.Handle() },
+             { "adcalign", adcAlignWindow.Handle() } })
+        raduk::gui::panel_dock::Register(h, role);
     raduk::gui::panel_dock::SetEnabled(RigConfig::Get().panelSnap);
+
+    // Phase 134.4a: the dock window. Hidden until a panel is docked into
+    // it from the panel's window menu; it snaps and groups like a panel.
+    static raduk::gui::DockWindow dockWindow;
+    if (dockWindow.Create(window.Handle()))
+        raduk::gui::panel_dock::Register(dockWindow.Handle(), "dock");
+    else
+        Log("[DOCK] The dock window could not be created\n");
 
     // Some panels take the foreground when shown, and restoring
     // several in a row leaves whichever came last holding focus. After
@@ -2269,6 +2280,9 @@ static int RunApp(bool useEmulator) {
     // app opens with from then on. A generated default will never guess
     // an arrangement somebody built by hand.
     window.SetSaveLayoutHandler([&]() {
+        // 134.3: a group in fullscreen would save its stretched rectangles
+        // as the panels' normal places. Put it back first.
+        raduk::gui::panel_dock::ExitGroupFull();
         workspace.CaptureCurrent(kPlacedWindows);
         const bool wrote = workspace.Save(kWorkspacePath);
 
@@ -2343,7 +2357,13 @@ static int RunApp(bool useEmulator) {
         // window back", and a window stranded on a monitor that has
         // gone away is exactly as unreachable whether or not the
         // layout file happens to know its name.
-        workspace.GatherToPrimary(ourWindows());
+        // 134.4a: a docked panel belongs to the dock's layout; cascading
+        // it would tear it out of its slot. The dock itself is gathered,
+        // and its panels follow it.
+        std::vector<HWND> loose;
+        for (HWND h : ourWindows())
+            if (!raduk::gui::panel_dock::IsDocked(h)) loose.push_back(h);
+        workspace.GatherToPrimary(loose);
     });
     // Phase 50a DB wire — both AI panel and object info panel share the same DB
     objectInfo.SetKnowledgeDB(&aiChat.GetKnowledgeDB());
@@ -5614,7 +5634,7 @@ static int RunApp(bool useEmulator) {
     // by dropping a .ser on the main window.
     static raduk::gui::PlayerWindow player;
     player.Create(window.Handle());
-    raduk::gui::panel_dock::Register(player.Handle());   // 134.1
+    raduk::gui::panel_dock::Register(player.Handle(), "player");   // 134.1
     Log("[DOCK] %d panels snap to each other%s\n", raduk::gui::panel_dock::Count(),
         raduk::gui::panel_dock::Enabled() ? "" : " - OFF (PanelSnap=0 in rig.ini)");
     player.SetLog([](const std::string& s) { Log("%s\n", s.c_str()); });

@@ -319,6 +319,91 @@ inline std::vector<std::pair<std::string, Rect>> Layout(const Node& n, const Rec
     return out;
 }
 
+// ── Phase 134.4a: editing the tree, and its splitters ────────
+
+// A panel joins the dock: alone, it is the tree; otherwise the tree and
+// the newcomer share the area half and half, side by side when the area
+// is wider than tall, stacked when not. No choice to make, and the dock
+// tiles itself.
+inline Node Append(std::optional<Node> root, const std::string& role, const Rect& area) {
+    if (!root) return Leaf(role);
+    return Split(area.w() >= area.h() ? 'H' : 'V', 0.5, std::move(*root), Leaf(role));
+}
+
+// A panel leaves: its leaf goes and its parent split gives way to the
+// sibling. The last leaf leaving leaves nothing; an unknown role
+// changes nothing.
+inline std::optional<Node> Remove(const Node& n, const std::string& role) {
+    if (n.IsLeaf()) return n.role == role ? std::nullopt : std::optional<Node>(n);
+    if (n.kids.size() != 2) return n;
+    auto a = Remove(n.kids[0], role), b = Remove(n.kids[1], role);
+    if (!a) return b;
+    if (!b) return a;
+    Node out = n;
+    out.kids[0] = std::move(*a);
+    out.kids[1] = std::move(*b);
+    return out;
+}
+
+inline void Roles(const Node& n, std::vector<std::string>& out) {
+    if (n.IsLeaf()) { out.push_back(n.role); return; }
+    for (const Node& k : n.kids) Roles(k, out);
+}
+
+// A splitter bar: where it is, the area of the split it divides, which
+// way, and the path of child indices from the root to that split.
+struct SplitBar {
+    Rect bar, area;
+    char dir = 'H';
+    std::vector<int> path;
+};
+
+inline void SplittersInto(const Node& n, const Rect& a, int splitter, std::vector<int>& path,
+                          std::vector<SplitBar>& out) {
+    if (n.IsLeaf() || n.kids.size() != 2) return;
+    Rect first, second, bar;
+    if (n.split == 'H') {
+        const int f = (int)std::lround((std::max)(0, a.w() - splitter) * n.ratio);
+        first = { a.l, a.t, a.l + f, a.b };
+        bar = { a.l + f, a.t, a.l + f + splitter, a.b };
+        second = { a.l + f + splitter, a.t, a.r, a.b };
+    } else {
+        const int f = (int)std::lround((std::max)(0, a.h() - splitter) * n.ratio);
+        first = { a.l, a.t, a.r, a.t + f };
+        bar = { a.l, a.t + f, a.r, a.t + f + splitter };
+        second = { a.l, a.t + f + splitter, a.r, a.b };
+    }
+    out.push_back({ bar, a, n.split, path });
+    path.push_back(0); SplittersInto(n.kids[0], first, splitter, path, out); path.pop_back();
+    path.push_back(1); SplittersInto(n.kids[1], second, splitter, path, out); path.pop_back();
+}
+inline std::vector<SplitBar> Splitters(const Node& n, const Rect& area, int splitter) {
+    std::vector<SplitBar> out;
+    std::vector<int> path;
+    SplittersInto(n, area, splitter, path, out);
+    return out;
+}
+
+// The ratio that puts the bar's leading edge at `mousePos` (an x for an
+// 'H' split, a y for a 'V'), clamped as every ratio is.
+inline double RatioAt(const SplitBar& s, int mousePos, int splitter) {
+    const int origin = s.dir == 'H' ? s.area.l : s.area.t;
+    const int avail = (std::max)(1, (s.dir == 'H' ? s.area.w() : s.area.h()) - splitter);
+    const double r = double(mousePos - origin) / avail;
+    return (std::max)(kMinRatio, (std::min)(kMaxRatio, r));
+}
+
+inline bool SetRatio(Node& n, const std::vector<int>& path, double ratio) {
+    Node* at = &n;
+    for (int i : path) {
+        if (at->IsLeaf() || i < 0 || i >= (int)at->kids.size()) return false;
+        at = &at->kids[i];
+    }
+    if (at->IsLeaf()) return false;
+    at->ratio = (std::max)(kMinRatio, (std::min)(kMaxRatio, ratio));
+    return true;
+}
+
 // workspace.ini's form: H(0.62,V(0.5,histogram,sharpness),status).
 inline std::string ToText(const Node& n) {
     if (n.IsLeaf()) return n.role;

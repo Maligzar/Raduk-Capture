@@ -233,6 +233,9 @@ struct RigConfig {
     // Phase 132.10a: [DASH] opens the dashboard as an Edge app window (no
     // address bar). DashboardAppWindow=0 uses the default browser instead.
     bool dashboardAppWindow = true;
+    // Phase 134.1: panels snap to each other and to the screen edge while
+    // dragged or sized. PanelSnap=0 turns it off; Shift does it per drag.
+    bool panelSnap = true;
     // Preview overlay telemetry (histogram / temperature / sharpness
     // drawn on the image). Remembered, because on a multi-screen desk
     // it gets turned off once and should stay off.
@@ -415,6 +418,7 @@ struct RigConfig {
         wf("AudioCues", audioCues ? 1.0 : 0.0);
         wf("DarkScrollbars", darkScrollbars ? 1.0 : 0.0);
         wf("DashboardAppWindow", dashboardAppWindow ? 1.0 : 0.0);
+        wf("PanelSnap", panelSnap ? 1.0 : 0.0);
         wf("OverlayTelemetry", overlayTelemetry ? 1.0 : 0.0);
         wf("ADCFitted", adcFitted ? 1.0 : 0.0);
         wf("AdvisoryEnabled",   advisoryEnabled ? 1.0 : 0.0);
@@ -500,6 +504,7 @@ private:
         cfg.audioCues             = rf("AudioCues", 0.0) != 0.0;
         cfg.darkScrollbars        = rf("DarkScrollbars", 1.0) != 0.0;
         cfg.dashboardAppWindow    = rf("DashboardAppWindow", 1.0) != 0.0;
+        cfg.panelSnap             = rf("PanelSnap", 1.0) != 0.0;
         cfg.overlayTelemetry      = rf("OverlayTelemetry", 1.0) != 0.0;
         cfg.adcFitted             = rf("ADCFitted", 0.0) != 0.0;
         cfg.advisoryEnabled       = rf("AdvisoryEnabled", 0.0) != 0.0;

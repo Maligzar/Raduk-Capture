@@ -128,6 +128,19 @@ inline SnapResult Snap(Rect moving, const std::vector<Rect>& others, const Rect&
     return out;
 }
 
+// WM_SIZING's wParam (WMSZ_LEFT 1 ... WMSZ_BOTTOMRIGHT 8) as an Edge
+// mask, so a corner drag snaps both its edges. The values are Windows'
+// and fixed; written out here so this header needs no windows.h.
+inline int EdgesFromSizing(int wmsz) {
+    switch (wmsz) {
+    case 1: return Left;            case 2: return Right;
+    case 3: return Top;             case 4: return Top | Left;
+    case 5: return Top | Right;     case 6: return Bottom;
+    case 7: return Bottom | Left;   case 8: return Bottom | Right;
+    default: return 0;
+    }
+}
+
 // ── Adjacency and groups ─────────────────────────────────────
 
 inline bool Touching(const Rect& a, const Rect& b, int minOverlap = kMinOverlap, int tol = 1) {

@@ -2212,6 +2212,15 @@ static int RunApp(bool useEmulator) {
     for (const auto& [role, hwnd] : kPlacedWindows)
         workspace.Place(role, hwnd);
 
+    // Phase 134.1: the operator panels that dock. The audience screens
+    // (share, objectpanel) and the topmost tools stay out, by the owner's
+    // call on 2026-11-11. The player registers where it is created.
+    for (HWND h : { skyMap.Handle(), skyMap2.Handle(), gotoPanel.Handle(), histWindow.Handle(),
+                    sharpWindow.Handle(), tempWindow.Handle(), statusWindow.Handle(),
+                    adcAlignWindow.Handle() })
+        raduk::gui::panel_dock::Register(h);
+    raduk::gui::panel_dock::SetEnabled(RigConfig::Get().panelSnap);
+
     // Some panels take the foreground when shown, and restoring
     // several in a row leaves whichever came last holding focus. After
     // Place, not before: placing a window can raise it too. The
@@ -5605,6 +5614,9 @@ static int RunApp(bool useEmulator) {
     // by dropping a .ser on the main window.
     static raduk::gui::PlayerWindow player;
     player.Create(window.Handle());
+    raduk::gui::panel_dock::Register(player.Handle());   // 134.1
+    Log("[DOCK] %d panels snap to each other%s\n", raduk::gui::panel_dock::Count(),
+        raduk::gui::panel_dock::Enabled() ? "" : " - OFF (PanelSnap=0 in rig.ini)");
     player.SetLog([](const std::string& s) { Log("%s\n", s.c_str()); });
     player.SetFolderSource([&]() { return toWide(controls.GetOutputDir()); });
     controls.SetPlayCallback([&]() { player.OpenWithDialog(); });

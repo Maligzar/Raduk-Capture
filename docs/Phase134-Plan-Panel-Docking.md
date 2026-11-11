@@ -181,11 +181,11 @@ One stage is one PR, merged after the owner has looked, as with phase 132.
   drag across that line pulls the panel out of its group rather than
   producing a mis-scaled group.
 
-## For the owner
+## Decided 2026-11-11
 
-- **The pull-out modifier.** Shift+drag is proposed. Alt clashes with Windows'
-  menu key; Ctrl is free.
-- **The snap distance.** 12 px is proposed. Windows' own edge snap is about
-  that.
-- **Which panels may dock.** The list above leaves out the topmost tools and
-  the two audience screens. Say if any of them should join.
+The owner approved the plan's defaults:
+
+- **Pull-out modifier:** Shift+drag.
+- **Snap distance:** 12 px at 96 DPI, scaled.
+- **Panels that may dock:** the list under Scope above. The share view, the
+  object panel and the topmost tools stay out for now.

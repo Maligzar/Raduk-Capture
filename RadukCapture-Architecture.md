@@ -1,7 +1,8 @@
 # RadukCapture: Architecture and Roadmap
 
 Planetary capture software for the ZWO ASI678MC, ZWO EAF and Celestron 8SE.
-Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 131.
+Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 131;
+updated 2026-11-11 through phase 133, with 132.10a written and 134 planned.
 
 This file describes how the application is built, what exists, and what is
 left to do. It was rewritten because its old build plan had stopped at about
@@ -576,6 +577,7 @@ scenario is the way to retire a row below.
 | Item | Note |
 |---|---|
 | **Fast targets on the sky** | Phases 116 to 122 are built and, since phase 127, run end to end in the emulator as scenarios. What they owe now is the sky, checklist 39 to 43 |
+| **Panel docking (Phase 134)** | Planned 2026-11-11. Lego snap groups and a dock window, fullscreen on a monitor. [`docs/Phase134-Plan-Panel-Docking.md`](docs/Phase134-Plan-Panel-Docking.md) |
 | GoTo map learning (6.6) | Phase 123 built the correcting half. Every solve grades the map, and a setting applies it. Nobody knows yet whether it helps on the 8SE: checklist 44 |
 
 ### 13.4 Smaller bench work

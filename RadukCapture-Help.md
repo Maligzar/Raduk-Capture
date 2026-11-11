@@ -766,8 +766,13 @@ the whole group moves, snapping as one block. Drag the edge two panels share
 and both resize, like a splitter, and the joint stays closed. To take a panel
 out, **hold Shift as you start dragging it**. Once it is no longer flush, it
 has left. A group spread over two monitors with different scaling moves one
-panel at a time for now. Group fullscreen and the dock window come in later
-stages.
+panel at a time for now.
+
+**F11 on a panel in a group fills the monitor with the whole group**
+(phase 134.3). The panels keep their proportions, lose their title bars, and
+leave no gaps, so the group reads as one instrument. Press F11 again to put
+every panel back where it was. Esc stays the emergency stop, as everywhere. F11 on a panel that is not in a group still
+makes that one panel fullscreen. The dock window comes in a later stage.
 
 ### Why a window can be stuck
 

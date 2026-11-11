@@ -317,3 +317,51 @@ needs a "this is a group" cue too, and one overlay can serve both.
 - Shift-drag Histogram out, and it leaves the group;
 - drag their shared edge, and both resize, stopping at 240 x 120;
 - a lone panel behaves exactly as in 134.1.
+
+### 134.3, 2026-11-11: a group fills its monitor
+
+**Entering.** `WindowChrome::Filter` catches F11 on a registered panel. It
+does this before its caption test, because a member in group fullscreen has
+no caption. If the panel's group has two or more members, all at the same
+DPI, `panel_dock::EnterGroupFull` does four things:
+1. saves each member's rectangle and style;
+2. maps the rectangles onto `rcMonitor` with `dock::FillMonitor`, which
+   leaves no gap at any joint;
+3. removes `WS_CAPTION` and `WS_THICKFRAME`;
+4. places each member with `SWP_FRAMECHANGED`.
+
+The chrome hides itself when the caption goes, exactly as in single
+fullscreen.
+
+**Restoring.** F11 on any member puts every style and rectangle back.
+
+**Keys, and why not Esc.** The main loop routes keys thread-wide
+(`Window::RouteThreadKey`), so a panel only receives F11 if it claims it
+through `WM_GETDLGCODE`, the lesson the sky map learned. `Filter` claims
+F11 only for a panel that is in a group or in group fullscreen. A lone
+panel's F11 goes exactly where it went before. Esc is never claimed: it is
+the emergency stop and must reach the mount from every window. The plan's
+"F11 or Esc" became F11 only when this was found, before anything shipped.
+
+**Lone panels and mixed scaling.** A lone panel's F11 behaves as before.
+In a group spanning monitors with different DPI, F11 does nothing until
+119.6, rather than produce a mis-scaled group. The panels' own
+`m_fullscreen` flags stay false during group fullscreen.
+
+**Saving the layout.** Ctrl+Shift+End restores a fullscreen group before
+`CaptureCurrent`, so stretched rectangles are never saved as normal ones.
+Bringing a group back fullscreen after a restart is 134.5's persistence.
+
+**No new arithmetic.** `FillMonitor` has been gated since 134.0, section 5,
+including an odd-sized monitor at negative coordinates.
+
+**Deferred, a third time: the joint accent line.** It moves to 134.4. The
+dock window needs an overlay for drop zones and splitters, and one overlay
+serves all three. 134.4 must deliver it or drop it in writing.
+
+**Not seen.** Owner check on the rig:
+- group three panels and press F11 on any one: they fill the monitor in
+  proportion, with no gaps and no title bars;
+- F11 again restores them exactly, and Esc still stops the mount;
+- F11 on a lone panel does what it did before;
+- Ctrl+Shift+End during group fullscreen saves the normal positions.

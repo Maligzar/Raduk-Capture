@@ -2269,6 +2269,9 @@ static int RunApp(bool useEmulator) {
     // app opens with from then on. A generated default will never guess
     // an arrangement somebody built by hand.
     window.SetSaveLayoutHandler([&]() {
+        // 134.3: a group in fullscreen would save its stretched rectangles
+        // as the panels' normal places. Put it back first.
+        raduk::gui::panel_dock::ExitGroupFull();
         workspace.CaptureCurrent(kPlacedWindows);
         const bool wrote = workspace.Save(kWorkspacePath);
 

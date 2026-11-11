@@ -88,6 +88,7 @@
 #include "core/FitsBatch.h"        // [TO SER]: FITS cubes to SER, in the background
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
+#include "core/PhemuDesk.h"       // phase 141.0: Galilean mutual events
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "advapi32.lib")   // RegGetValueW: finding Edge for [DASH]
@@ -5116,6 +5117,42 @@ static int RunApp(bool useEmulator) {
     skyMap.SetSatFollowCallback(followSat);
     skyMap2.SetSatFollowCallback(followSat);
     auto lastNeoTick = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+
+    // ── Phase 141.0: Galilean mutual events, for IMCCE's PHEMU ──
+    // The season's predictions, fetched from IMCCE off the UI thread and
+    // cached; J lists what is coming at this site, and a reminder goes
+    // up when an event's recording window is half an hour away. 141.1
+    // adds the recording itself.
+    raduk::core::PhemuDesk phemuDesk;
+    phemuDesk.Load();
+    phemuDesk.Refresh(false);
+    auto lastPhemuTick = std::chrono::steady_clock::now() - std::chrono::seconds(120);
+    std::vector<double> phemuReminded;   // greatest JDs already announced
+    auto listMutualEvents = [&]() {
+        const double now = raduk::sky::PreciseJdNow();
+        bool siteKnown = false;
+        const auto site = raduk::gui::GoToPanel::SiteObserver();
+        const auto picks = phemuDesk.Picks(now, now + 7.0, site, &siteKnown);
+        if (phemuDesk.Count() == 0) {
+            notifBar.NotifyWarn(phemuDesk.Busy()
+                ? L"Mutual events: fetching IMCCE's predictions, try again in a minute"
+                : L"Mutual events: no predictions yet. They are fetched from IMCCE when online");
+            if (!phemuDesk.Busy()) phemuDesk.Refresh(true);
+            return;
+        }
+        Log("[PHEMU] Mutual events in the next 7 days%s:\n",
+            siteKnown ? " visible from this site" : " (no site set, so visibility is not judged)");
+        for (const auto& p : picks) Log("[PHEMU]   %s\n", raduk::sky::phemu::PickLine(p).c_str());
+        if (picks.empty()) {
+            notifBar.NotifyInfo(L"Mutual events: none visible from this site in the next 7 days");
+            return;
+        }
+        const auto& first = picks.front();
+        notifBar.NotifyInfo(L"Mutual events: " + std::to_wstring(picks.size()) +
+                            L" in 7 days (listed in the log). Next: " +
+                            raduk::core::ToWide(raduk::sky::phemu::PickLine(first)));
+    };
+    window.SetMutualEventsHandler(listMutualEvents);
     int lastNeoShown = -1;
 
     // ── Phase 130: satellites and rocket bodies on both maps ───
@@ -6325,6 +6362,32 @@ static int RunApp(bool useEmulator) {
 
         // Phase 128: NEO positions every ten seconds, and the fetch's news.
         for (const auto& m : neoDesk.TakeMessages()) Log("%s\n", m.c_str());
+
+        // Phase 141.0: the PHEMU fetch's news, and a reminder half an hour
+        // before an event's recording window opens.
+        for (const auto& m : phemuDesk.TakeMessages()) Log("%s\n", m.c_str());
+        if (std::chrono::steady_clock::now() - lastPhemuTick > std::chrono::seconds(60)) {
+            lastPhemuTick = std::chrono::steady_clock::now();
+            phemuDesk.Refresh(false);   // a no-op until the cache is a month old
+            const double now = raduk::sky::PreciseJdNow();
+            bool siteKnown = false;
+            const auto soon = phemuDesk.Picks(now, now + 1.0 / 24.0,
+                                              raduk::gui::GoToPanel::SiteObserver(), &siteKnown);
+            for (const auto& p : soon) {
+                const double opens = raduk::sky::phemu::RecordStartJd(p.ev);
+                const double minsToOpen = (opens - now) * 1440.0;
+                if (!siteKnown || !p.greatestVisible || minsToOpen > 30.0 || minsToOpen < -5.0) continue;
+                bool told = false;
+                for (double g : phemuReminded) if (std::fabs(g - p.ev.greatestJd) < 1e-6) told = true;
+                if (told) continue;
+                phemuReminded.push_back(p.ev.greatestJd);
+                Log("[PHEMU] Coming up: %s\n", raduk::sky::phemu::PickLine(p).c_str());
+                notifBar.NotifyInfo(L"Mutual event: " + raduk::core::ToWide(p.ev.Describe()) +
+                                    L". Start recording at " +
+                                    raduk::core::ToWide(raduk::sky::phemu::IsoFromJd(opens, 0).substr(11, 5)) +
+                                    L" UTC (J for details)");
+            }
+        }
         if (std::chrono::steady_clock::now() - lastNeoTick > std::chrono::seconds(10)) {
             lastNeoTick = std::chrono::steady_clock::now();
             neoDesk.Refresh(false);   // a no-op until six hours have passed

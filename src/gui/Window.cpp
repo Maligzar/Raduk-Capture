@@ -505,6 +505,9 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (shift) { if (firstPress && m_onOpenLast) m_onOpenLast(); }
             else if (firstPress && m_onStackLast) m_onStackLast();
             return true;
+        case 'J':   // Jupiter's moons: the coming mutual events (phase 141.0)
+            if (firstPress && m_onMutualEvents) m_onMutualEvents();
+            return true;
         case 'N':
             if (firstPress && m_onNightVision) m_onNightVision();
             return true;

@@ -1386,6 +1386,8 @@ request review.** The bench order, top first:
    review). #129 and #131 are merged; #91 and #95 are closed, #95's
    remaining behaviour going into 132.10b.
 2. **141.0 and 141.1, Galilean mutual events (row 41), size S-M.**
+   **141.0 written 2026-11-11 (predictions from IMCCE's Opale service,
+   `J` and reminders), in review; 141.1 next.**
    Time-critical science: IMCCE's PHEMU season runs to August 2027 with
    the equinox on 2026-12-16 and most eclipses from October to January,
    and the next season is about six years off. Event predictions on

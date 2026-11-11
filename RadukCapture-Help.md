@@ -350,6 +350,7 @@ emergency stop.
 | `Z` | Cycle Zoom (FIT → 50% → 100% → 200%) |
 | `K` | Stac**K** the last finished recording. A SER stacks hidden; a FITS file opens in AutoStakkert's window |
 | `Shift+K` | Open the last finished recording in the program Windows has for that file type |
+| `J` | **J**upiter's moons: the mutual events (one moon eclipsing or passing in front of another) coming up at this site, for IMCCE's PHEMU campaign. See *Mutual events* below |
 | `↑↓←→` | Jog mount (hold to slew) |
 | `+` / `-` | Fine focus step |
 | `[` / `]` | Coarse focus step |
@@ -1729,6 +1730,49 @@ bytes twice a second, and the preview picture about 11 KB a second, only
 while a dashboard is open.
 
 ---
+
+## Mutual events of Jupiter's moons (`J`, phase 141.0)
+
+Around each Jupiter equinox, about every six years, the four large moons
+pass in front of one another and through one another's shadows. Light
+curves of these events, timed to better than a tenth of a second, refine
+the moons' orbits, and IMCCE (Paris Observatory) collects them from
+observers worldwide in its PHEMU campaign. This season runs from May 2026
+to August 2027, with Jupiter's equinox on 16 December 2026 and most
+eclipses between October and January.
+
+**`J`** lists the events in the next seven days that can be seen from your
+site: Jupiter at least 15 degrees up and the Sun below civil twilight.
+Each line gives the middle of the event in UTC, which moon dims which,
+how long it lasts, how deep the drop is predicted to be, and the window to
+record in. The full list goes to the log; the notification shows the
+next one. Half an hour before an event's recording window opens, a
+reminder goes up.
+
+**The recording window** starts at least ten minutes before the predicted
+start and ends ten minutes after the predicted end, and for an event
+longer than ten minutes by its own length. IMCCE warns that long events
+can come five to ten minutes off the prediction, and the reduction needs
+the flat light before and after the dip.
+
+**What the cautions mean.** They are IMCCE's own advice on which events
+to prefer: a drop under 10% is hard to measure; an event within three
+Jupiter radii of the planet's limb sits in its glare; a grazing or
+penumbral-only event may not happen as predicted. Occultations, and
+events involving Callisto, are preferred.
+
+**Where the predictions come from.** IMCCE's own service, fetched when
+the app is online and kept in `phemu_jupiter_2026_27.txt` in the data
+folder, so the list works offline afterwards. They are refreshed when a
+month old. Nothing about your site is sent; visibility is worked out on
+this machine. The file is IMCCE's material, kept for your use: do not
+publish or share it.
+
+**Not built yet.** Recording an event with the settings locked and the PC
+clock checked against a time server is phase 141.1. Until then, record
+by hand: auto-exposure and autofocus off, gain and exposure fixed so no
+moon clips, a frame wide enough for both moons and a third as a
+reference, and check the PC clock before and after.
 
 ## Weather from Leoben
 

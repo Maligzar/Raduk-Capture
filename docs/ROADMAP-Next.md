@@ -1382,44 +1382,56 @@ request review.** The bench order, top first:
 
 1. **The open pull requests**, as resolved above: merge #129, close #91,
    close #95 into 132.10b.
-2. **140.0, the capture audit (row 40): DONE 2026-11-11.** The owner ran
+2. **141.0 and 141.1, Galilean mutual events (row 41), size S-M.**
+   Time-critical science: IMCCE's PHEMU season runs to August 2027 with
+   the equinox on 2026-12-16 and most eclipses from October to January,
+   and the next season is about six years off. Event predictions on
+   screen, and a recording mode with settings locked and the clock
+   checked. It does not wait for Phase 140, because an event recording
+   locks exposure by hand. Placed first by its deadline, raised by the
+   owner's question of 2026-11-11 about contributing to science.
+3. **140.0, the capture audit (row 40): DONE 2026-11-11.** The owner ran
    it on 41 files from 2026-11-07. Only two Uranus files clipped (48%
    and 4% of the disc); Saturn mostly peaked at 19-42% of full scale at
    0.1-2 ms. The metering fault is confirmed on small targets; the files
    are thin, not blown.
-3. **140.1 and 140.2 (row 40), size S-M.** Category 1. Auto-exposure
+4. **140.1 and 140.2 (row 40), size S-M.** Category 1. Auto-exposure
    measures a percentile of the whole frame, which on a small planet
    lands on the sky, and its clip guard measures the frame too. 140.2
    becomes a per-planet exposure band with a floor, because the audit
    found exposures far too short, not too long.
-4. **139.0 to 139.2 (row 39), size S-M.** Autofocus redesigned now,
+5. **139.0 to 139.2 (row 39), size S-M.** Autofocus redesigned now,
    **approved by the owner 2026-11-11** without waiting for a night's
    measurement: fit one sweep direction, measure and apply the backlash
    once, and manual moves that approach from one side.
-5. **135.1 and 135.2 (row 35), size S.** Category 1: a failed disk write
+6. **135.1 and 135.2 (row 35), size S.** Category 1: a failed disk write
    leaves the run "recording" into RAM, and a crash leaves a SER whose
    header says it holds no frames. Both silent, both on `master` today.
    Phases 140, 139 and 135 all go ahead of the owner's 2026-11-07
    placing of Phase 132 first: 140 and 139 at the owner's word of
    2026-11-11, 135 by the ranking rule at the top of this file, which
    the owner can reverse.
-6. **140.3 and 139.3 (rows 40, 39), size S-M each.** A live view
+7. **140.3 and 139.3 (rows 40, 39), size S-M each.** A live view
    stretched for the eye on the target, display only and labelled, so
    short high-gain exposures are easy to see; and the autofocus
    readiness indicator.
-7. **132.10b to 132.10d (row 32)**, the dashboard restyle and its live
+8. **132.10b to 132.10d (row 32)**, the dashboard restyle and its live
    night mode, with #95's behaviour ported into 132.10b.
-8. **Phase 136, satellite elements as OMM (row 36), size S.** Category 3:
+9. **Phase 136, satellite elements as OMM (row 36), size S.** Category 3:
    the sky map and pass list advertise rocket bodies, and every object
    catalogued since 2026-07-11 cannot reach them.
-9. **Phase 137, Jupiter events (row 37), size M.** Category 4, and
+10. **Phase 137, Jupiter events (row 37), size M.** Category 4, and
    season-bound: opposition is about 2027-02-10, so it pays only if it
    ships this winter. Ahead of the rest of Phase 134 for that reason
    alone; docking is category 5 and keeps.
-10. **134.4 onward (row 34)**, the dock window.
-11. **135.3 to 135.5 (row 35).** Wedge recovery in seconds rather than
+11. **141.2, 142 and 143 (rows 41 to 43), S to M.** The mutual-event
+   light curves from the season's SERs, every Jupiter recording handed
+   to DeTeCt for impact flashes, and records complete enough to submit
+   to PVOL. After 137, which supplies the longitudes.
+12. **134.4 onward (row 34)**, the dock window.
+13. **135.3 to 135.5 (row 35).** Wedge recovery in seconds rather than
    ten, empty files removed, thread names.
-12. **Phase 138, the seeing forecast logged against the measured sky
+14. **Phase 138, the seeing forecast logged against the measured sky
    (row 38), size S.** The Leoben half is Leoben's work.
 
 A clear night still goes first, to 133.3 and 133.4, and the plate scale
@@ -1522,6 +1534,9 @@ consolidated](#live-sky-debt-consolidated).
 | 36 | **Phase 136: satellite elements as OMM, and more of them** - QUEUED 2026-11-11, plan to write | Bench | S | Category 3. CelesTrak's five-digit catalog numbers ran out on 2026-07-11 and TLE cannot carry six. `SatDesk.h:356` fetches `FORMAT=tle` and `Sgp4.h:132` reads a five-digit field, so the newest rocket bodies, the primary targets, never arrive and nothing says so. Fetch OMM JSON (same mean elements, SGP4 unchanged), widen from `visual` to `stations` and recent launches, and take the ISS from CelesTrak's supplemental elements, fitted forward from NASA's own ephemeris. Gate: an OMM fixture with a six-digit catalog number propagates and appears on the map. Owes: one live fetch, since this review could not reach CelesTrak. [`Data-Sources-2026-11-11.md`](../research_notes/Data-Sources-2026-11-11.md) finding 1 |
 | 37 | **Phase 137: Jupiter events, the moons and the Red Spot** - QUEUED 2026-11-11, plan to write | Bench, then one clear night | M | Category 4, season-bound (opposition about 2027-02-10). Nothing outside the emulator knows when a moon or its shadow crosses the disc, or when the Red Spot is on the meridian, and those decide which hour of a Jupiter night is worth the derotation window. Moon events from Horizons' per-moon visibility codes (tested live 2026-11-11); shadow transits from the Sun-moon line against the disc, using the Horizons vectors `Ephemeris.h` already fetches, cached at dusk; Red Spot transits from the System II meridian and a `rig.ini` longitude with an epoch, a drift rate and a staleness warning, because published longitudes disagree and each degree is 1.65 minutes. Into the imaging windows, Autorun and the assistant's snapshot. Later: measure the spot's longitude from our own SER captures. [`Data-Sources-2026-11-11.md`](../research_notes/Data-Sources-2026-11-11.md) finding 3 |
 | 38 | **Phase 138: seeing forecast against the measured sky** - QUEUED 2026-11-11, plan to write | Bench (RadukCapture), and Leoben | S | Category 4, slowly. Leoben passes through 7Timer's seeing field (it must follow 7Timer's new 302 redirect) and Open-Meteo's 200 and 250 hPa winds (km/h; 126 km/h is the bad-seeing line); `LeobenConditions` gains the fields; the session log writes each night's forecast beside `SeeingMonitor`'s median. After about ten nights the log says which source, if any, predicts this site. meteoblue's paid seeing waits for that answer. Pairs with Phase 114. [`Data-Sources-2026-11-11.md`](../research_notes/Data-Sources-2026-11-11.md) finding 4 |
+| 41 | **Phase 141: Galilean mutual events, the 2026-27 season** - PLANNED 2026-11-11 | Bench, then clear nights through January | S-M, in 3 stages | The owner asked how the app can contribute to science. Around each Jupiter equinox the Galilean moons eclipse and occult each other, and IMCCE's PHEMU campaign collects amateur light curves to refine their orbits. This season runs May 2026 to August 2027, equinox 2026-12-16, most eclipses October to January. **141.0** the season's predictions filtered to the site; **141.1** an event recording with settings locked, ROI-following off and the clock checked (B4 promoted); **141.2** the light curve from the SERs, which can follow the season. [`Science-Contributions-Plan.md`](Science-Contributions-Plan.md) |
+| 42 | **Phase 142: Jupiter impact flashes through DeTeCt** - PLANNED 2026-11-11 | Bench | S | Hand every Jupiter recording to DeTeCt, the open-source amateur flash detector, as the app already hands recordings to AutoStakkert, and keep the result with the capture so coverage can be reported; empty hours count toward the impact rate. No detector of our own. First check DeTeCt reads this app's SER files. [`Science-Contributions-Plan.md`](Science-Contributions-Plan.md) |
+| 43 | **Phase 143: records good enough to submit** - PLANNED 2026-11-11 | Bench | S | Central meridian longitudes, the filter and whether the clock was confirmed, in the observation record and FITS header, and a per-session sheet of what PVOL asks for. This is the visible-light version of the long Saturn baseline the owner raised, which amateurs largely keep. [`Science-Contributions-Plan.md`](Science-Contributions-Plan.md) |
 | 40 | **Phase 140: exposure set by the planet, and a view bright enough to use** - PLANNED 2026-11-11 from the owner's report | Bench, then the sky | S-M, in 4 stages | Raised by the owner: AE keeps pushing exposure far too high, every SER in the capture folder is overexposed, and short high-gain exposures are hard to see. Found in the code: AE steers on the 99.9th percentile of the **whole frame**, which on Saturn at the full sensor (about 0.07% of the frame) lands on the sky, and its clip guard needs 1.5% of the frame clipped, more than any planet covers here. **140.0** audits the captures: **done 2026-11-11**, 39 of 41 files unclipped, Saturn mostly at 19-42% of full scale and 0.1-2 ms, two Uranus files clipped where AE metered the sky. **140.1** meters the target and counts clipping on the target. **140.2** a per-planet exposure band, floor and ceiling, so exposure is lengthened before gain is raised past the HCG floor. **140.3** stretches the live view for the eye on the target, display only and labelled. [`Phase140-Plan-Planet-Exposure.md`](Phase140-Plan-Planet-Exposure.md) |
 | 39 | **Phase 139: focus that respects backlash, and says when it can work** - PLANNED 2026-11-11 from the owner's report | Bench, then one clear night | S-M, in 4 stages | Raised by the owner: returning to the step number where focus was sharp gives a blur, and going away and coming back sometimes restores it. The EAF counts motor steps, not mirror position, so outward and inward arrivals at one number are a backlash apart. Two consequences in the code: the out-and-back sweep (F9) averages two V-curves shifted against each other, and the 200-step final overshoot is a guess while the EAF firmware's own backlash is never read. **139.0** logs the firmware backlash and both sweep directions. **139.1** fits one direction and applies the measured backlash once. **139.2** makes manual moves approach from one side, which is the owner's fix. **139.3** is the owner's request: an AUTO FOCUS indicator, READY or NOT NOW with one reason, judged from what is in the frame. **This reverses Phase 133's "no autofocus redesign"; the owner approved the redesign on 2026-11-11 without waiting for a night's measurement.** [`Phase139-Plan-Focus-Backlash-And-Readiness.md`](Phase139-Plan-Focus-Backlash-And-Readiness.md) |
 | 34 | **Phase 134: panels that dock together** - PLANNED 2026-11-11, defaults approved by the owner 2026-11-11 | Bench, then eyes on a screen | L, in 6 stages | Asked for by the owner: the operator panels (Histogram, Status, Sharpness, Temperature, ADC, both sky maps, GoTo, the player) snap together like Lego. Groups are derived from geometry, move as one and resize along shared edges, and F11 fills a monitor with the group. **134.0 to 134.2 merged (#126 to #128); 134.3 is PR #129. From 134.4 on, it waits behind rows 36 and 37 (order of 2026-11-11).** A dock window holds panels in a split tree and can go fullscreen. Panels are positioned, not reparented. Shift+drag pulls one out; the snap distance is 12 px. 134.0 is pure geometry and tests, with no pixel changes. [`Phase134-Plan-Panel-Docking.md`](Phase134-Plan-Panel-Docking.md) |
@@ -2080,8 +2095,9 @@ within 0.9 s of UTC by definition, no leap second is due, and TT minus
 UT is a sound constant. The timing that is not checked is the Windows
 clock itself, which stamps every SER frame and times every satellite
 pass. A readiness line that warns when the clock is more than about 2 s
-from a time server. Category 6 until Phase 137 makes event times worth
-quoting to the minute. Size S.
+from a time server. Size S. **Promoted 2026-11-11 into 141.1**: a
+mutual-event light curve is a timing measurement, so the clock is no
+longer category 6.
 
 ### Unstarted features, not yet scheduled
 

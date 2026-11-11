@@ -106,6 +106,12 @@ did, so this instruction could not have worked from the `[GOTO]` button):
        <- set PlateScaleArcsecPx to the solved value
 ```
 
+**Before the night: install ASTAP's D80 database** (added 2026-11-11). The
+full sensor is about 0.12° high, which is under the floor ASTAP rates even
+D80 for (0.15°; D50 is 0.2°). H18 is the older database D80 replaced. Pick a
+star-rich field, an open cluster in the Milky Way, rather than a lone bright
+star. See `research_notes/Data-Sources-2026-11-11.md`, finding 2.
+
 **What to do:**
 
 1. Full sensor at bin 1, not a ROI. A 640x480 crop is about 0.03° and is
@@ -124,7 +130,9 @@ making, since the figure is otherwise a calculation.
 **If solves keep failing on good stars:** ASTAP's `-fov` hint is built from
 this same rig.ini figure, so a badly wrong scale can look like "no solve".
 That is unproven, and it is the one case this line cannot report. Try the
-frame in ASTAP by hand with `-fov 0`.
+frame in ASTAP by hand with `-fov 0`. The app also asks ASTAP to downsample 2x
+(`-z 2`), which throws away the faintest stars in a field already short of
+them; by hand, try `-z 1` too.
 
 ---
 
@@ -1240,6 +1248,11 @@ the bench already showed, so the night only has to confirm it. The plan is
     show HFD, not sharpness, and a re-sweep only when the curve was not
     bracketed. Write down the final position and whether the image looks
     sharp. If the target fades during a run, note it, because that is item 52.
+    **With 139.0 merged**, also copy the log's outward and inward peaks and
+    their difference: that difference is the focuser's backlash, and
+    139.1 and 139.2 are waiting on it. Then the owner's own test: note a
+    sharp step number, move 1000 steps inward, go back to the number, and
+    write down whether it is still sharp.
 48. **A box change while locked** (F5). With PLANET LOCK holding, change the
     box 3840 → 1280 → 640 → 3840. Guiding should hold, not hand tracking
     back, and the planet should re-centre.
@@ -1265,3 +1278,15 @@ the bench already showed, so the night only has to confirm it. The plan is
     different planet's profile by hand and record again: the run should be
     filed under the planet the scope is on, and the bar should say
     "Recording X on the Y profile's settings".
+55. **Exposure ladder** (140.2, added 2026-11-11). The 2026-11-07 Saturn
+    files were short and thin: 0.1-2 ms, peaks at 19-42% of full scale.
+    This finds out whether that is what made them poor. Focus once, then
+    leave the focuser alone. Record Saturn (or Jupiter) for 90 s at each of
+    about 2, 5, 10 and 15 ms, setting gain by hand each time so the planet
+    peaks near 70% on the histogram. Same ROI, same bit depth, back to back
+    so the seeing is as alike as it gets. Stack all four in AutoStakkert
+    with identical settings, process them identically, and compare side by
+    side. The best of the four sets the floor and ceiling of the band.
+    Before starting, look at the corrector plate with a torch: dew there
+    dims and softens everything, and the 2026-11-07 fade (F13) was never
+    explained.

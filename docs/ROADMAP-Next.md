@@ -1426,10 +1426,10 @@ request review.** The bench order, top first:
    placing of Phase 132 first: 140 and 139 at the owner's word of
    2026-11-11, 135 by the ranking rule at the top of this file, which
    the owner can reverse.
-7. **140.3 and 139.3 (rows 40, 39), size S-M each.** A live view
-   stretched for the eye on the target, display only and labelled, so
-   short high-gain exposures are easy to see; and the autofocus
-   readiness indicator.
+7. **140.3 and 139.3 (rows 40, 39), size S-M each.** **140.3 written
+   2026-11-11** (Shift+L, on by default): a live view stretched for the
+   eye on the target, display only and labelled, so short exposures are
+   easy to see. 139.3 still to build: the autofocus readiness indicator.
 8. **132.10b to 132.10d (row 32)**, the dashboard restyle and its live
    night mode, with #95's behaviour ported into 132.10b.
 9. **Phase 136, satellite elements as OMM (row 36), size S.** Category 3:

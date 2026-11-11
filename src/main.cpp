@@ -90,6 +90,7 @@
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include "core/PhemuDesk.h"       // phase 141.0: Galilean mutual events
 #include "core/PhemuSheet.h"      // phase 141.1: IMCCE's observation sheet
+#include "core/DisplayStretch.h"  // phase 140.3: the stretch chosen from the target
 #include "net/SntpClient.h"       // phase 141.1: the PC clock against UTC
 #include <shlwapi.h>               // AssocQueryStringW: which browser [DASH] uses
 #pragma comment(lib, "shlwapi.lib")
@@ -4933,9 +4934,15 @@ static int RunApp(bool useEmulator) {
     // Black and white points on the DISPLAY. This is the control that
     // lets a faint target be seen without touching gain or exposure,
     // which would change what gets recorded.
+    // Phase 140.3: the stretch chosen from the target, on by default.
+    // Display only; the sliders, L, or turning it off hand it back.
+    bool autoStretch = true;
     auto stretchStatus = [&]() {
         wchar_t b[96];
-        if (!preview.StretchEnabled())
+        if (autoStretch && preview.StretchEnabled())
+            swprintf(b, 96, L"Stretch: auto %d-%d (Shift+L)", preview.StretchBlack(),
+                     preview.StretchWhite());
+        else if (!preview.StretchEnabled())
             swprintf(b, 96, L"Stretch: off (L)");
         else if (!preview.StretchActive())
             swprintf(b, 96, L"Stretch: on, 0-255 (no effect)");
@@ -4945,6 +4952,9 @@ static int RunApp(bool useEmulator) {
         controls.SetStretchLabel(b);
     };
     controls.SetStretchCallback([&](int black, int white) {
+        // A hand on the sliders takes the stretch back from 140.3's auto.
+        autoStretch = false;
+        preview.SetStretchAuto(false);
         preview.SetStretch(black, white);
         // Moving a slider implies wanting to see the effect; requiring a
         // separate switch-on would just look broken.
@@ -4958,12 +4968,23 @@ static int RunApp(bool useEmulator) {
     });
     auto doStretchToggle = [&]() {
         preview.SetStretchEnabled(!preview.StretchEnabled());
+        if (!preview.StretchEnabled()) { autoStretch = false; preview.SetStretchAuto(false); }
         Log("[STRETCH] %s (%d-%d)\n",
             preview.StretchEnabled() ? "ON" : "OFF",
             preview.StretchBlack(), preview.StretchWhite());
         stretchStatus();
     };
     window.SetStretchToggleHandler([&]() { doStretchToggle(); });
+    window.SetAutoStretchToggleHandler([&]() {
+        autoStretch = !autoStretch;
+        preview.SetStretchAuto(autoStretch);
+        if (!autoStretch) preview.SetStretchEnabled(false);
+        Log("[STRETCH] auto %s\n", autoStretch ? "ON" : "OFF");
+        notifBar.NotifyInfo(autoStretch
+            ? L"Display stretch from the planet: on (the recording is not changed)"
+            : L"Display stretch from the planet: off");
+        stretchStatus();
+    });
     stretchStatus();
 
     // Phase 26: N key and panel button toggle Night Vision Mode
@@ -7388,6 +7409,22 @@ static int RunApp(bool useEmulator) {
 
             controls.UpdateReadouts();
             mountCtrl.UpdateReadouts();
+
+            // Phase 140.3: the display stretch from the target, twice a
+            // second. Display only: the analyser, histogram and recording
+            // keep raw data.
+            if (autoStretch && lastAnalysis.valid) {
+                const auto sp = raduk::core::AutoStretchFor(lastAnalysis.targetFound,
+                    lastAnalysis.targetSkyDN, lastAnalysis.targetHighlightDN);
+                if (sp.apply && (sp.black != preview.StretchBlack() ||
+                                 sp.white != preview.StretchWhite() || !preview.StretchEnabled())) {
+                    preview.SetStretch(sp.black, sp.white);
+                    preview.SetStretchEnabled(true);
+                    preview.SetStretchAuto(true);
+                    controls.SetStretchPoints(preview.StretchBlack(), preview.StretchWhite());
+                    stretchStatus();
+                }
+            }
 
             // Phase 12 — Auto-Exposure: feed analysis, tick, apply/display
             if (ae.IsEnabled() && lastAnalysis.valid && cam.IsOpen()) {

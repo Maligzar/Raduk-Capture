@@ -518,7 +518,9 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (firstPress && m_onAdvisoryToggle) m_onAdvisoryToggle();
             return true;
         case 'L':   // Levels -- Phase 37 display stretch on/off
-            if (firstPress && m_onStretchToggle) m_onStretchToggle();
+            // Shift+L: the stretch chosen from the target (phase 140.3).
+            if (shift) { if (firstPress && m_onAutoStretchToggle) m_onAutoStretchToggle(); }
+            else if (firstPress && m_onStretchToggle) m_onStretchToggle();
             return true;
         case 'H':
             // Shift+H opens the histogram window. On the channel key

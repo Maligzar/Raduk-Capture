@@ -223,6 +223,7 @@ void FrameAnalyzer::Run() {
                 r.targetHighlightDN = tm.highlightDN;
                 r.targetClipPct     = tm.clipPct;
                 r.targetFramePct    = tm.framePct;
+                r.targetSkyDN       = tm.skyDN;
                 r.targetWhy         = tm.why;
             }
 

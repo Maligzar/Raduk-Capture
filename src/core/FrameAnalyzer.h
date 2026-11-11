@@ -138,6 +138,7 @@ struct AnalysisResult {
     float targetHighlightDN = 0.0f;
     float targetClipPct     = 0.0f;
     float targetFramePct    = 0.0f;
+    float targetSkyDN       = 0.0f;   // the sky's median, 140.3's black point
     std::string targetWhy;   // why no target, when not found
 
     // ── Sharpness / seeing ─────────────────────────────────────

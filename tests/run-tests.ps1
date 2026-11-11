@@ -51,6 +51,7 @@ $Tests = @(
     @{ Name = "moon_photometry";   Sources = @() }
     @{ Name = "target_meter";      Sources = @() }
     @{ Name = "exposure_band";     Sources = @() }
+    @{ Name = "display_stretch";   Sources = @() }
     @{ Name = "ser_timestamp_midpoint"; Sources = @() }
     @{ Name = "paths_resolution"; Sources = @() }
     @{ Name = "ascom_driver_choice"; Sources = @() }

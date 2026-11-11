@@ -42,7 +42,7 @@ public:
             WNDCLASSEXW wc{ sizeof(wc) };
             wc.lpfnWndProc = Proc;
             wc.hInstance = inst;
-            wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+            wc.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));   // IDC_ARROW; the build is ANSI, so IDC_* is narrow
             wc.lpszClassName = L"RadukDock";
             if (!RegisterClassExW(&wc)) return false;
             registered = true;
@@ -85,7 +85,8 @@ public:
         if (!IsWindowVisible(m_hwnd)) {
             const int cap = WindowChrome::CaptionFor(m_hwnd);
             SetWindowPos(m_hwnd, nullptr, e.rect.left, e.rect.top - cap,
-                         (std::max)(e.rect.right - e.rect.left, 480), (std::max)(e.rect.bottom - e.rect.top + cap, 320),
+                         (std::max)((int)(e.rect.right - e.rect.left), 480),
+                         (std::max)((int)(e.rect.bottom - e.rect.top) + cap, 320),
                          SWP_NOZORDER | SWP_NOACTIVATE);
             ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
         }
@@ -252,7 +253,7 @@ private:
                 ScreenToClient(h, &p);
                 const int b = self->BarAt(p.x, p.y);
                 if (b >= 0) {
-                    SetCursor(LoadCursorW(nullptr, self->m_bars[b].dir == 'H' ? IDC_SIZEWE : IDC_SIZENS));
+                    SetCursor(LoadCursorW(nullptr, MAKEINTRESOURCEW(self->m_bars[b].dir == 'H' ? 32644 : 32645)));   // IDC_SIZEWE / IDC_SIZENS
                     return TRUE;
                 }
             }

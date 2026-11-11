@@ -15,6 +15,8 @@
 
 #include <windows.h>
 
+#include <functional>
+#include <string>
 #include <vector>
 
 #include "DockGeometry.h"
@@ -23,11 +25,36 @@ namespace raduk::gui::panel_dock {
 
 struct State {
     std::vector<HWND> panels;
+    std::vector<std::string> roles;   // parallel to panels: the workspace role
+    std::vector<HWND> docked;         // 134.4a: panels in the dock window
     bool enabled = true;
+    // 134.4a: the dock window, through callbacks so this header does not
+    // depend on it. Set by DockWindow::Create.
+    HWND dockWnd = nullptr;
+    std::function<void(HWND)> toggleDock;     // dock or undock this panel
+    std::function<void(HWND)> undockForDrag;  // Shift-drag out: keep where the mouse is
+    std::function<void()> dockFullscreen;     // F11 on a docked panel
 };
 inline State& S() { static State s; return s; }
 
-inline void Register(HWND h) { if (h) S().panels.push_back(h); }
+inline void Register(HWND h, const char* role = "") {
+    if (!h) return;
+    S().panels.push_back(h);
+    S().roles.push_back(role ? role : "");
+}
+inline std::string RoleOf(HWND h) {
+    for (size_t i = 0; i < S().panels.size(); ++i) if (S().panels[i] == h) return S().roles[i];
+    return std::string();
+}
+inline bool IsDocked(HWND h) {
+    for (HWND d : S().docked) if (d == h) return true;
+    return false;
+}
+inline void SetDocked(HWND h, bool on) {
+    auto& v = S().docked;
+    for (size_t i = 0; i < v.size(); ++i) if (v[i] == h) { if (!on) v.erase(v.begin() + i); return; }
+    if (on) v.push_back(h);
+}
 inline void SetEnabled(bool on) { S().enabled = on; }
 inline bool Enabled() { return S().enabled; }
 inline int Count() { return (int)S().panels.size(); }
@@ -39,9 +66,10 @@ inline bool IsRegistered(HWND h) {
 inline dock::Rect ToDock(const RECT& r) { return { r.left, r.top, r.right, r.bottom }; }
 inline RECT FromDock(const dock::Rect& r) { return { r.l, r.t, r.r, r.b }; }
 
-// A panel another can snap to: on screen, in its normal state.
+// A panel another can snap to: on screen, in its normal state, and not
+// inside the dock window, which lays it out itself.
 inline bool IsTarget(HWND h) {
-    return IsWindow(h) && IsWindowVisible(h) && !IsIconic(h) && !IsZoomed(h) &&
+    return IsWindow(h) && IsWindowVisible(h) && !IsIconic(h) && !IsZoomed(h) && !IsDocked(h) &&
            (GetWindowLongW(h, GWL_STYLE) & WS_CAPTION) == WS_CAPTION;
 }
 
@@ -143,6 +171,20 @@ inline void PlaceMembers(const std::vector<dock::Rect>& rects) {
 inline void DragMove(HWND self, RECT* proposed) {
     const Drag& d = D();
     if (!proposed) return;
+    // 134.4a: a docked panel stays in its slot; Shift-drag takes it out
+    // and it carries on following the mouse at its own size.
+    if (IsDocked(self)) {
+        if (GetKeyState(VK_SHIFT) < 0 && S().undockForDrag) {
+            S().undockForDrag(self);
+            RECT now;
+            GetWindowRect(self, &now);
+            *proposed = { proposed->left, proposed->top,
+                          proposed->left + (now.right - now.left), proposed->top + (now.bottom - now.top) };
+        } else {
+            GetWindowRect(self, proposed);
+        }
+        return;
+    }
     if (d.self != self || d.solo) { SnapProposed(self, proposed, false, 0); return; }
     const auto moved = dock::MoveGroupSnapped(d.start, d.ids, d.selfIndex, ToDock(*proposed),
                                               WorkAreaFor(*proposed), Scaled(self, dock::kSnapPx));
@@ -192,6 +234,7 @@ struct GroupFull {
 inline GroupFull& GF() { static GroupFull g; return g; }
 
 inline std::vector<HWND> GroupOf(HWND self) {
+    if (IsDocked(self)) return { self };   // the dock is its own group
     std::vector<HWND> hw;
     std::vector<dock::Rect> rs;
     int si = -1;
@@ -261,5 +304,28 @@ inline bool EnterGroupFull(HWND self) {
     GF() = std::move(g);
     return true;
 }
+
+// ── Phase 134.4a: the window menu's Dock / Undock ─────────────
+
+inline constexpr UINT kDockCmd = 0xD010;   // a SC_ value: low four bits clear, below 0xF000
+
+// On WM_INITMENUPOPUP for the window menu: one item, labelled for what
+// it will do. Not for the dock window itself.
+inline void PrepareMenu(HWND h, HMENU menu) {
+    if (!menu || h == S().dockWnd || !S().toggleDock) return;
+    const wchar_t* label = IsDocked(h) ? L"Undock" : L"Dock";
+    if (GetMenuState(menu, kDockCmd, MF_BYCOMMAND) == (UINT)-1) {
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(menu, MF_STRING, kDockCmd, label);
+    } else {
+        ModifyMenuW(menu, kDockCmd, MF_BYCOMMAND | MF_STRING, kDockCmd, label);
+    }
+}
+
+inline void ToggleDock(HWND h) {
+    if (h != S().dockWnd && S().toggleDock) S().toggleDock(h);
+}
+
+inline void DockFullscreen() { if (S().dockFullscreen) S().dockFullscreen(); }
 
 } // namespace raduk::gui::panel_dock

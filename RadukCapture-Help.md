@@ -772,7 +772,18 @@ panel at a time for now.
 (phase 134.3). The panels keep their proportions, lose their title bars, and
 leave no gaps, so the group reads as one instrument. Press F11 again to put
 every panel back where it was. Esc stays the emergency stop, as everywhere. F11 on a panel that is not in a group still
-makes that one panel fullscreen. The dock window comes in a later stage.
+makes that one panel fullscreen.
+
+**The dock window** (phase 134.4a) holds panels as one window. Right-click
+a panel's title, or press Alt+Space with the panel focused, and choose
+**Dock**. The dock opens where that panel was. Each panel you add takes half
+the space beside or below the others, and you drag the bars between panels
+to share the space differently. F11 on the dock, or on any panel in it,
+fills the monitor; press F11 again to return. To take a panel out, choose
+**Undock** from its title menu or **Shift-drag** it away. Closing the dock
+returns every panel to where it was. The dock snaps to other panels like a
+panel. For now the dock is not remembered between runs (phase 134.5), and
+dragging a panel onto the dock is a later stage (134.4b).
 
 ### Why a window can be stuck
 

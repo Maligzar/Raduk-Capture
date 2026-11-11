@@ -80,6 +80,64 @@ int main() {
               "  including anything that could be markup");
     }
 
+    printf("\n4. The page the app writes (132.10a)\n");
+    {
+        const std::string page =
+            "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n"
+            "<style>:root{--text:#b8d4e8}</style>\n</head>\n<body><header>x</header></body></html>";
+        const std::string css = "@font-face{font-family:'Space Mono'}";
+
+        const std::string day = PrepareDashboardHtml(page, css, false);
+        const size_t ours = day.find("<style id=\"raduk-app\">");
+        Check(ours != std::string::npos, "the fonts go in as a style of our own");
+        Check(ours == day.find("<head>") + 6, "  first thing inside <head>");
+        Check(ours < day.find("<style>:root"),
+              "  before the page's own rules, so the page still wins a tie");
+        Check(day.find("<header>x</header>") != std::string::npos &&
+                  day.find("<style id", day.find("<body>")) == std::string::npos,
+              "  and not inside <header>, whose name starts the same way");
+        Check(day.find("data-mode") == std::string::npos, "day: no night flag");
+        Check(day.size() == page.size() + css.size() + std::string("<style id=\"raduk-app\"></style>").size(),
+              "nothing else in the page changes");
+
+        const std::string night = PrepareDashboardHtml(page, css, true);
+        Check(night.find("<html lang=\"en\" data-mode=\"night\">") != std::string::npos,
+              "night: the flag goes on <html>");
+
+        const std::string was =
+            "<html data-mode=\"night\" lang=\"en\"><head></head></html>";
+        Check(PrepareDashboardHtml(was, "", false) == "<html lang=\"en\"><head></head></html>",
+              "a flag already there is removed for day");
+        Check(PrepareDashboardHtml(was, "", true) ==
+                  "<html lang=\"en\" data-mode=\"night\"><head></head></html>",
+              "  and not doubled for night");
+        Check(PrepareDashboardHtml("<HTML><HEAD></HEAD></HTML>", "a", true) ==
+                  "<HTML data-mode=\"night\"><HEAD><style id=\"raduk-app\">a</style></HEAD></HTML>",
+              "tags in capitals are found");
+        Check(PrepareDashboardHtml("<p>bare</p>", "a", true) ==
+                  "<style id=\"raduk-app\">a</style><p>bare</p>",
+              "no <head>: the style goes first, and no flag has anywhere to go");
+        Check(PrepareDashboardHtml(page, "", false) == page,
+              "no CSS and day: the page is returned unchanged");
+    }
+
+    printf("\n5. Edge's app window\n");
+    {
+        const std::string url = DashboardUrl(L"C:\\R C\\data\\dashboard.html", std::string(64, 'f'));
+        const std::wstring a = EdgeAppArguments(url);
+        Check(a == L"--app=\"" + std::wstring(url.begin(), url.end()) + L"\"",
+              "--app= with the whole URL, quoted");
+        Check(a.find(L"#token=") != std::wstring::npos, "  the token still in the fragment");
+        Check(a.find(L' ', 7) == std::wstring::npos, "  a space in the path cannot split it",
+              Narrow(a));
+        const auto c = EdgeCandidates(L"C:\\Program Files (x86)", L"C:\\Program Files",
+                                      L"C:\\Users\\u\\AppData\\Local");
+        Check(c.size() == 3 &&
+                  c[0] == L"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+              "Edge's usual home first", c.empty() ? "" : Narrow(c[0]));
+        Check(EdgeCandidates(L"", L"C:\\PF", L"").size() == 1, "an unknown folder is skipped");
+    }
+
     printf("\n%s\n", g_fail == 0 ? "ALL CHECKS PASSED" : "SOME CHECKS FAILED");
     return g_fail == 0 ? 0 : 1;
 }

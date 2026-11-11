@@ -43,6 +43,7 @@ $Tests = @(
     @{ Name = "ws_server_loopback"; Sources = @("src\net\WebSocketServer.cpp"); Asan = $true }
     @{ Name = "preview_frame";     Sources = @("src\net\PreviewStreamer.cpp") }
     @{ Name = "dashboard_launch";  Sources = @() }
+    @{ Name = "dock_geometry";     Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
     @{ Name = "ser_timestamp_midpoint"; Sources = @() }
     @{ Name = "paths_resolution"; Sources = @() }

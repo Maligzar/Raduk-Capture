@@ -14,7 +14,8 @@ deliver. No frameworks, no .NET, no Qt. The whole application runs with no
 hardware attached, through device emulators that follow the real ZWO SDK and
 NexStar semantics.
 
-Version 3.0.0, source release. Developed through phase 131.
+Version 3.0.0, source release. Developed through phase 133, and first used
+under the sky on 2026-11-07.
 
 ## Who this is for
 
@@ -48,12 +49,22 @@ Version 3.0.0, source release. Developed through phase 131.
   seeing, stop at the derotation limit, and rank their runs
 - **Derotation limit** computed from tonight's apparent diameter and the
   aperture (Jupiter at 44 arcseconds comes to 176 s)
+- **SER player** ([PLAY]): step through any SER recording with a per-frame
+  quality trace on the slider, jump to the best frame, zoom and pan; drop a
+  `.ser` on the window to open it
+- **FITS to SER**: [TO SER] converts one or many FITS cubes for PIPP and
+  AutoStakkert, and the `fits2ser` command rescues a cube left unclosed by a
+  crash by recovering every whole frame on disk
+- **Fade warning** when the target dims steadily during autofocus or a
+  recording, naming dew when the weather feed's dew risk is up
 
 ### Tracking and pointing
 
-- **Closed-loop planet tracking**: three-stage centroid acquisition with
-  PHD2-style measured guide calibration (camera rotation, plate scale and
-  guide rate are measured, never assumed)
+- **Closed-loop planet tracking**: three-stage acquisition with PHD2-style
+  measured guide calibration (camera rotation, plate scale and guide rate are
+  measured, never assumed). The target is found by light gathered over an
+  area with a local background, so a hot pixel at high gain cannot capture
+  the lock
 - **ROI following and surface lock**: the camera's crop window follows the
   planet on the capture thread, and on a Moon or Sun that fills the frame the
   lock holds a patch of the surface instead of a centroid
@@ -93,8 +104,15 @@ Version 3.0.0, source release. Developed through phase 131.
 
 ### Operating at night
 
-- **Night vision across the whole interface**, with a designed luminance
-  ladder so warnings stay brighter than labels once colour is gone
+- **Instrument-style interface**: a single palette defined as tokens and
+  shared with the browser pages, custom-drawn buttons, lists and tabs, and
+  restrained motion that can be switched off
+- **Night vision across the whole interface** that emits red and nothing
+  else, with a designed luminance ladder so warnings stay brighter than
+  labels once colour is gone
+- **Command palette** (Ctrl+K): type part of any command; anything that
+  moves the telescope or focuser asks for Enter twice
+- **Audio cues** for record start, stop and fault (off by default)
 - **Display aids**: stretch with black and white points, single-channel view,
   RGB alignment, movable and rotatable reticles (crosshair, circle,
   collimation rings, framing box), and a five-second framing boost
@@ -112,11 +130,14 @@ Version 3.0.0, source release. Developed through phase 131.
 ### Testing without a telescope
 
 - **Full device emulators** for the camera, mount and focuser: closed tracking
-  loop, fault injection, defocus and sensor noise, a real star field,
-  per-planet rendering at tonight's apparent size, and a textured Moon
+  loop, fault injection, defocus and sensor noise, hot pixels, a real star
+  field, per-planet rendering at tonight's apparent size, a textured Moon, and
+  a mount mode that reproduces the NexStar 8SE as measured on the real rig
 - **Scenario runner**: `--scenario` drives the emulator build end to end and
   reports pass or fail, so most indoor checks are automated
-- **Bench tests** gate every merge (`tests\run-tests.bat`)
+- **Bench tests** gate every merge (`tests\run-tests.bat`), and a screenshot
+  baseline catches any window that changes when a stage did not mean it to
+- **Crash diagnostics** that name the exception and the stack at the throw
 
 ## Supported hardware
 
@@ -134,23 +155,34 @@ rig (2032 mm at f/10 with 2.0 um pixels).
 
 ## Status
 
-Raduk-Capture is in active development and in use on one rig. Capture,
+RadukCapture is in active development and in use on one rig. Capture,
 tracking, GoTo, autofocus, the ADC advisor, the quick-look stacker, the
 readiness check and the emulators are built and in use.
 
-Much of the recent work (FITS, ROI following, surface lock, mosaics, Autorun,
-lunar features, satellites, NEOs, Horizons targets and image-only tracking) is
-built and gated by bench tests and emulator scenarios, but **has not yet been
-proven under the sky.** Every phase's evidence, and what it still owes, is in
-[docs/PHASE-STATUS.md](docs/PHASE-STATUS.md), the only file that asserts
-status. The order of what remains is in
+**First field night, 2026-11-07, on Saturn.** Proven under the sky: rate
+guiding (PLANET LOCK held Saturn to 1 to 2 arcseconds) and the area-flux
+target finder. Proven at the rig: the serialized NexStar command sender and
+tracking kept across stops. The night also found real defects, fixed since:
+a centroid that locked onto a hot pixel, jogging that could lock the hand
+control, and a crash on closing a FITS recording. Still open: the
+mount's pointing error of about 8 degrees, and why Saturn faded 40% in 90
+seconds during a focus sweep (dew or haze).
+
+Much of the rest (FITS, ROI following, surface lock, mosaics, Autorun, lunar
+features, satellites, NEOs, Horizons targets and image-only tracking) is
+built and gated by bench tests and emulator scenarios, but **has not yet
+been proven under the sky.** Every phase's evidence, and what it still owes,
+is in [docs/PHASE-STATUS.md](docs/PHASE-STATUS.md), the only file that
+asserts status. The order of what remains is in
 [docs/ROADMAP-Next.md](docs/ROADMAP-Next.md) and section 13 of
 [RadukCapture-Architecture.md](RadukCapture-Architecture.md).
 
-Next on the bench is phase 132, the instrument UI. Not built: AVI output,
-multi-star FWHM, a Bahtinov focus aid, deep-sky annotation and stellar
-photometry. Polar alignment is backlogged because the mount is alt-az with no
-wedge. Calibration frames are a preview aid only; recordings stay raw. Full
+In progress: phase 132, the instrument UI, has stages 132.0 to 132.9 written
+and 132.10 planned. Phase 133's remaining stages, the field proof of the
+night's fixes, need a clear night. Not built: AVI output, multi-star FWHM, a
+Bahtinov focus aid, deep-sky annotation and stellar photometry. Polar
+alignment is backlogged because the mount is alt-az with no wedge.
+Calibration frames are a preview aid only; recordings stay raw. Full
 stacking is deliberately out of scope, since AutoStakkert does it better.
 There is no installer or binary download yet.
 

@@ -189,3 +189,45 @@ The owner approved the plan's defaults:
 - **Snap distance:** 12 px at 96 DPI, scaled.
 - **Panels that may dock:** the list under Scope above. The share view, the
   object panel and the topmost tools stay out for now.
+
+## As built
+
+### 134.0, 2026-11-11: the geometry
+
+`src/gui/DockGeometry.h` (namespace `raduk::gui::dock`) is pure: no
+Windows headers, and `(std::min)`/`(std::max)` throughout, so it is safe
+to include after `windows.h`. That was checked by compiling it with
+`windows.h`'s `min` and `max` macros defined. No window, and no pixel,
+changes in this stage.
+
+**Snap.** Each axis snaps on its own, to the nearest edge within the
+threshold. Moving shifts the panel and keeps its size. Resizing moves only
+the dragged edges. A panel is a target when the two overlap on the other
+axis, or come within the snap distance of it. That last part was found by
+the test: a panel dropped 5 px under another should close the gap and line
+up its left edge in the same move, and under a strict overlap rule it did
+neither. The joints made are returned for 134.1's accent line. Lining up
+edges is not a joint.
+
+**Groups.** `Touching` means flush within 1 px with at least 40 px of
+overlap, so a corner contact does not join. `Groups` takes the connected
+components with a union-find; each id is the lowest index in its group.
+
+**Move and resize.** `MoveGroup` translates the group by the leader's delta.
+`ResizeEdge` moves every group member with an edge on the dragged line: the
+same side, so the outline stays square, and the opposite side, so the joint
+stays closed. It clamps so that none of them goes below 240 x 120.
+
+**Fill a monitor.** Each coordinate goes through one rounding function of
+its own value, so joints that met still meet. The test checks that areas
+sum exactly to the monitor's area, on 1920x1080 and on an odd 1441x900 at
+negative coordinates.
+
+**Split tree.** `Layout` tiles the area exactly, with the splitters.
+`ToText` and `ParseText` round-trip. Ratios are clamped to 0.1 to 0.9.
+Damaged text, and anything nested more than 32 deep, returns nothing rather
+than half a tree.
+
+**Gated.** `tests/dock_geometry.cpp`, 40 checks, passes under g++ with
+AddressSanitizer and UBSan here. It is added to `tests/run-tests.ps1`, so
+MSVC CI runs it.

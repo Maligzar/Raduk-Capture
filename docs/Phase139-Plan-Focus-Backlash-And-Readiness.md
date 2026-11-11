@@ -40,8 +40,10 @@ about direction at all, which is exactly where the owner met it.
 **This reverses one line of Phase 133.** That plan says "No autofocus
 redesign. F9's fix is plausible and tested; it needs a sky sweep, not more
 code." The owner's observation is new evidence against the out-and-back
-averaging that F9 introduced. So 139.0 changes no behaviour and only makes
-the 133.3 night measure the backlash; the redesign waits for that number.
+averaging that F9 introduced, and **the owner approved the redesign on
+2026-11-11 without waiting for a night's measurement.** 139.0 to 139.2 are
+built together; until the sky gives the real backlash, 139.1 and 139.2 use
+the EAF firmware's figure, or 200 steps if that is zero, and say which.
 
 ## Stages
 
@@ -52,10 +54,10 @@ the 133.3 night measure the backlash; the redesign waits for that number.
 | **139.2** | **Manual moves approach from one side.** Every EAF move that ends inward goes past by the measured backlash and comes back outward, so a step number means one focus position however it was reached. This is the fix for the owner's report. On by default, with a setting to turn it off | Bench | S |
 | **139.3** | **Autofocus readiness, from what is in the frame.** A pure `AutofocusReadiness(inputs)` returns READY or NOT NOW with one reason, shown on the AUTO FOCUS button and its status line, and checked again when it is pressed. Inputs, each already measured somewhere in the app: focuser connected and idle; not recording; exactly one target found by the area-flux finder; its disc between a lower size limit (too few pixels to measure HFD) and the frame (a full-frame Moon or Sun needs the surface metric, so it says so); peak signal neither clipped nor under a floor; the target far enough from the frame edge to survive the mirror's shift across a sweep; the lock holding or the mount tracking; no fade trend in progress (`FadeWatch`); seeing steady enough that a curve could be fitted (spread of `SeeingMonitor`'s recent medians). Pressing it while NOT NOW asks for a second press, as moving controls already do, rather than refusing outright. Gate: `tests/af_readiness.cpp`, one case per reason, and a scenario in the emulator | Bench | M |
 
-Order: 139.0 before the next clear night, so the night measures backlash
-while it tests autofocus. 139.1 and 139.2 once the number is in. 139.3
-can go any time after 139.0, since it does not depend on the backlash
-figure.
+Order (changed 2026-11-11 at the owner's word): 139.0 to 139.2 together,
+after Phase 140's auto-exposure fix, since a sweep run on a clipped planet
+measures nothing. 139.3 with 140.3. The first clear night after them
+measures the backlash and replaces the provisional figure.
 
 ## What it owes the sky
 

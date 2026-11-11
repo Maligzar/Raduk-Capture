@@ -256,8 +256,10 @@ tests\run-tests.bat
 ```
 
 Bench tests need no hardware and exit non-zero on any failure. GitHub
-Actions builds both configurations and runs them on every push and pull
-request.
+Actions builds both configurations and runs them on every pull request and
+push to master, on the owner's own PC through a self-hosted runner; see
+[docs/CI-On-Star-Machine.md](docs/CI-On-Star-Machine.md). A fork's pull
+request is not run automatically.
 
 ## Configuration
 

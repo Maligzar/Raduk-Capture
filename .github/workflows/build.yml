@@ -1,35 +1,111 @@
 name: Build and test
 
-# Proves a fresh clone builds on a stock Windows machine with no
-# D: drive, no rig.ini and no hardware, which is the first thing
-# anyone pulling this repository will try.
+# Builds both configurations and runs the bench tests.
+#
+# Where it runs (2026-11-11, the owner's call): on Star Machine, the
+# owner's own PC, through a self-hosted runner labelled star-machine,
+# so no GitHub-hosted minutes are used. Setting the runner up, and why
+# a fork's pull request must never reach it, is in
+# docs/CI-On-Star-Machine.md. While Star Machine is off, runs wait for
+# it.
+#
+# "Run workflow" (workflow_dispatch) can send one run to GitHub's own
+# windows-latest instead, to prove a fresh clone builds on a stock
+# machine with no D: drive, no rig.ini and no hardware, which is what
+# this workflow originally checked.
 
 on:
   push:
     branches: [master]
+    paths-ignore:
+      # Nothing here is compiled or read by a test. docs/ is NOT on this
+      # list: tests/ai_context_facts.cpp scans docs/*.md, and a docs-only
+      # change failed it on 2026-11-11.
+      - 'README.md'
+      - 'LICENSE'
+      - 'research_notes/**'
+      - 'reports/**'
+      - 'wiki/**'
+      - '.gitignore'
   pull_request:
+    paths-ignore:
+      # The same list as for push.
+      - 'README.md'
+      - 'LICENSE'
+      - 'research_notes/**'
+      - 'reports/**'
+      - 'wiki/**'
+      - '.gitignore'
   workflow_dispatch:
+    inputs:
+      runner:
+        description: 'Where to run: star-machine (the owner''s PC) or github (windows-latest)'
+        type: choice
+        options: [star-machine, github]
+        default: star-machine
+
+# A new push to the same pull request (or branch) cancels the run still
+# going for the last one: only the newest commit's result decides a merge.
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   windows:
-    runs-on: windows-latest
+    # Never a fork's pull request on Star Machine: a stranger's code would
+    # run on the owner's PC. A fork can edit this file, so this line alone
+    # does not protect it; the repository setting in
+    # docs/CI-On-Star-Machine.md (approval for outside contributors) is the
+    # real gate. This line keeps the owner's own pull requests from waiting
+    # behind a fork's.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'github') && 'windows-latest' || fromJSON('["self-hosted", "windows", "star-machine"]') }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
-      - name: Emulator build
+      # A self-hosted runner has only what Star Machine has on its PATH.
+      # CMake is found the way build_all.bat finds it, or from Visual
+      # Studio's own copy.
+      - name: Find CMake
+        shell: powershell
         run: |
-          cmake -S . -B build_emu -DRADUK_EMULATOR=ON
-          cmake --build build_emu --config Release
+          $cmake = Get-Command cmake -ErrorAction SilentlyContinue
+          if ($cmake) { Write-Host "CMake on PATH: $($cmake.Source)"; exit 0 }
+          $candidates = @("D:\Program Files\CMake\bin", "C:\Program Files\CMake\bin")
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            $vs = & $vswhere -latest -property installationPath
+            if ($vs) { $candidates += (Join-Path $vs "Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin") }
+          }
+          foreach ($c in $candidates) {
+            if (Test-Path (Join-Path $c "cmake.exe")) {
+              Write-Host "CMake: $c"
+              Add-Content -Path $env:GITHUB_PATH -Value $c
+              exit 0
+            }
+          }
+          Write-Host "::error::CMake not found. Install it, or Visual Studio's C++ CMake tools."
+          exit 1
+
+      - name: Emulator build
+        shell: cmd
+        run: |
+          cmake -S . -B build_emu -DRADUK_EMULATOR=ON || exit /b 1
+          cmake --build build_emu --config Release || exit /b 1
 
       - name: Hardware build
+        shell: cmd
         run: |
-          cmake -S . -B build
-          cmake --build build --config Release
+          cmake -S . -B build || exit /b 1
+          cmake --build build --config Release || exit /b 1
 
+      # Windows PowerShell with the policy bypassed for this one script, so
+      # it runs on a PC whose default policy would refuse it, and needs no
+      # PowerShell 7.
       - name: Bench tests
-        shell: pwsh
-        run: ./tests/run-tests.ps1
+        shell: cmd
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\run-tests.ps1

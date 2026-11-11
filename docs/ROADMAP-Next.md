@@ -1374,8 +1374,8 @@ at `2fb9c5e` on 2026-11-11, and again at `aa44131` the same evening.
 | [#129](https://github.com/Maligzar/RadukCapture/pull/129) | Phase 134.3: F11 on a grouped panel fills the monitor with the group | **Merged 2026-11-11** | Resolved |
 | [#131](https://github.com/Maligzar/RadukCapture/pull/131) | Phase 134.4a: the dock window | **Merged 2026-11-11**, by the build session, which was working from the order before this review | Resolved. 134.4b and 134.5 wait at row 34's place in the order below |
 | [#130](https://github.com/Maligzar/RadukCapture/pull/130) | This review: phases 135 and 139 to 143, the data sources, this table | Draft, green | **Merge next.** Until it does, the roadmap on `master` is the pre-review one, and a session building from `master` follows the old order, as #131 did |
-| [#91](https://github.com/Maligzar/RadukCapture/pull/91) | Comparison against seeing-things/zwo, and a recording-hardening plan numbered 133 | Draft, 40 commits behind, conflicts in `PHASE-STATUS.md` | **Superseded; close once the PR carrying this review merges.** Its plan is now [Phase 135](Phase135-Plan-Recording-Hardening.md), renumbered because 133 is the field-proof phase, and its comparison note moved to `research_notes/` unchanged except for the number. Every defect it describes is still on `master` |
-| [#95](https://github.com/Maligzar/RadukCapture/pull/95) | Dashboard: the user's time zone instead of Phoenix | Draft, 36 commits behind, conflicts in `RadukCaptureDashboard.html` | **Half superseded; close and port the rest into 132.10b.** `master` took the browser time zone in #93. Not on `master`: an IANA zone override saved with the location, sunrise and sunset on the -0.833° horizon, astro dark reported as NONE when the Sun never reaches -18°, the twilight bar following local sunset through dawn, user-entered Bortle and SQM instead of site lines, and the saved location that never reloads (a `JSON.parse` on an already parsed object). Rebasing a 427-line diff onto the page 132.10b is about to restyle would be done twice; porting the behaviour while the restyle is open is done once |
+| [#91](https://github.com/Maligzar/RadukCapture/pull/91) | Comparison against seeing-things/zwo, and a recording-hardening plan numbered 133 | **Closed 2026-11-11**, superseded | **Superseded.** Its plan is now [Phase 135](Phase135-Plan-Recording-Hardening.md), renumbered because 133 is the field-proof phase, and its comparison note moved to `research_notes/` unchanged except for the number. Every defect it describes is still on `master` |
+| [#95](https://github.com/Maligzar/RadukCapture/pull/95) | Dashboard: the user's time zone instead of Phoenix | **Closed 2026-11-11**, unmerged; the branch is kept to port from | **Half superseded; the rest is ported into 132.10b.** `master` took the browser time zone in #93. Not on `master`: an IANA zone override saved with the location, sunrise and sunset on the -0.833° horizon, astro dark reported as NONE when the Sun never reaches -18°, the twilight bar following local sunset through dawn, user-entered Bortle and SQM instead of site lines, and the saved location that never reloads (a `JSON.parse` on an already parsed object). Rebasing a 427-line diff onto the page 132.10b is about to restyle would be done twice; porting the behaviour while the restyle is open is done once |
 
 ### Next, in order
 
@@ -1383,8 +1383,8 @@ at `2fb9c5e` on 2026-11-11, and again at `aa44131` the same evening.
 request review.** The bench order, top first:
 
 1. **The open pull requests**, as resolved above: merge #130 (this
-   review), then close #91 and close #95 into 132.10b. #129 and #131
-   are merged.
+   review). #129 and #131 are merged; #91 and #95 are closed, #95's
+   remaining behaviour going into 132.10b.
 2. **141.0 and 141.1, Galilean mutual events (row 41), size S-M.**
    Time-critical science: IMCCE's PHEMU season runs to August 2027 with
    the equinox on 2026-12-16 and most eclipses from October to January,

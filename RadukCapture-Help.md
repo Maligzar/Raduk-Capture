@@ -584,6 +584,19 @@ boxes, the boxes silently won every time. One section, one set of values.
   hidden run does not process FITS. Auto-stack is SER only. `Shift+K` opens the
   last recording in whatever program Windows has for that file type.
 - **Output directory** — Where recordings are saved (default: `D:\RadukCapture\captures`).
+- **TO SER** — At the end of the output-directory row. Converts FITS
+  recordings to SER, for PIPP and AutoStakkert: pick one or several `.fits`
+  files, and each gets a `.ser` beside it. The conversion runs in the
+  background, and its progress shows on the notification bar.
+  - Press **TO SER** again to stop. The file in progress is removed; files
+    already done are kept.
+  - It will not start during a recording. A recording started mid-conversion
+    stops it, because both need the disk and the recording comes first.
+  - A FITS recording that was never closed (the app went down mid-run) has a
+    header claiming no frames. TO SER counts the whole frames in the file and
+    keeps them.
+  - Each SER is as large as its FITS, so check the free space first.
+  - The same conversion is `build\Release\fits2ser.exe` on the command line.
 - **Frames / Sec radio** — Capture limit mode: by frame count or by time. Also
   set by a profile load — a time-limited profile selects **Sec** for you,
   which it previously did not, so it loaded its seconds into the box and

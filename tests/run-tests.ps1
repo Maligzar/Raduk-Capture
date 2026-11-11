@@ -107,6 +107,7 @@ $Tests = @(
     @{ Name = "dark_scrollbars"; Sources = @() }
     @{ Name = "crash_diag";      Sources = @() }
     @{ Name = "fits_to_ser";     Sources = @() }
+    @{ Name = "fits_batch";      Sources = @() }
 )
 
 # ── Locate the compiler ─────────────────────────────────────

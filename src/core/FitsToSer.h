@@ -24,10 +24,12 @@
 // round-trips a cube through it, and tools/fits2ser.cpp is the command.
 // ============================================================
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -133,9 +135,11 @@ inline Plan PlanFor(const Header& h, int64_t fileSize) {
     return p;
 }
 
-// Converts `in` (FITS) to `out` (SER). Reports through `log`. True on success.
+// Converts `in` (FITS) to `out` (SER). Reports through `log`; stops,
+// removing the partial SER, if `cancel` becomes true. True on success.
 inline bool Convert(const std::string& in, const std::string& out,
-                    void (*log)(const char*) = nullptr) {
+                    const std::function<void(const char*)>& log = nullptr,
+                    const std::atomic<bool>* cancel = nullptr) {
     auto say = [&](const std::string& s) { if (log) log(s.c_str()); };
     FILE* f = fopen(in.c_str(), "rb");
     if (!f) { say("cannot open " + in); return false; }
@@ -172,7 +176,9 @@ inline bool Convert(const std::string& in, const std::string& out,
     std::vector<unsigned char> buf((size_t)p.frameBytes);
     detail::Seek(f, h.headerBytes);
     const bool flip = h.bitpix == 16 && h.bzero == 32768.0;
+    bool cancelled = false;
     for (int64_t i = 0; ok && i < p.frames; ++i) {
+        if (cancel && cancel->load()) { cancelled = true; ok = false; break; }
         if (fread(buf.data(), 1, buf.size(), f) != buf.size()) { ok = false; break; }
         if (h.bitpix == 16)
             for (size_t k = 0; k + 1 < buf.size(); k += 2) {
@@ -188,6 +194,7 @@ inline bool Convert(const std::string& in, const std::string& out,
     }
     fclose(f);
     ok = fclose(o) == 0 && ok;
+    if (cancelled) { remove(out.c_str()); say("cancelled; the partial SER was removed"); return false; }
     snprintf(b, sizeof b, "%s %lld frames to %s", ok ? "wrote" : "FAILED after", (long long)p.frames, out.c_str());
     say(b);
     return ok;

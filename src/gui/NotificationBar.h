@@ -130,6 +130,20 @@ public:
     // Called on every error-level notice (phase 132.8's fault tone).
     void SetErrorCallback(std::function<void()> cb) { m_onError = std::move(cb); }
 
+    // An info notice whose text changes in place: a progress line. If one
+    // is already up, only the words change -- no slide, no re-layout of
+    // the preview, which a line updated every few seconds would cost.
+    void UpdateInfo(const std::wstring& text) {
+        if (!IsVisible() || m_level != NotifLevel::Info || !m_folderPath.empty()) {
+            NotifyInfo(text);
+            return;
+        }
+        m_text = text;
+        InvalidateRect(m_hwnd, nullptr, TRUE);
+        KillTimer(m_hwnd, NOTIF_TIMER_ID);
+        SetTimer(m_hwnd, NOTIF_TIMER_ID, NOTIF_TIMEOUT_MS, nullptr);
+    }
+
     void Dismiss() { Hide(); }
 
     bool IsVisible() const {

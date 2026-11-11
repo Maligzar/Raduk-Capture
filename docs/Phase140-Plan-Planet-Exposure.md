@@ -65,3 +65,56 @@ did.
   signal, judged by the quality trace in [PLAY].
 - 140.3: whether the stretched view is what the owner wants to frame and
   focus by.
+
+## 140.0 result, 2026-11-11: the owner's audit of D:\RadukCapture\captures
+
+41 files from the 2026-11-07 night, run by the owner with
+`tools/ser_exposure_audit.py`. **It does not support "every SER is
+overexposed", and it does confirm the metering fault on small targets.**
+
+- **39 of 41 files have no clipping on the target.** The two that do are
+  Uranus: `0918_9` (640x480, 19.5 ms, gain 528) has 48% of the disc
+  clipped, and `0920_2` (full sensor) 3.9%.
+- **Saturn is mostly under-exposed, not over.** Peaks run from 19% to 82%
+  of full scale. The 8-bit files sit at 19-32%, most of the 16-bit
+  640x480 files at 20-42%, and the best at 72-82% (`0409` to `0417`,
+  `0801` to `0803`). The usual planetary aim is about 60-80% (recalled
+  practitioner convention, and the 185-215 DN AE target is the same
+  idea).
+- **Exposures were already very short.** Saturn ran at 0.1 to 6.3 ms,
+  mostly under 2 ms, with gain 278 to 466. So the "too much exposure"
+  report is not in these files. The thin signal is: at 0.7 ms and gain
+  389 the brightest part of Saturn reached about 20-30% of full scale.
+- **The metering fault shows exactly where predicted.** Uranus covers
+  0.04-0.12% of the frame. In `0918_9` AE's whole-frame percentile read
+  148 DN while the disc was clipped, and AE had run gain to 528, near its
+  ceiling. On the full-sensor 8-bit Saturn file `0409_5` (0.081% of the
+  frame) AE read 81 DN against a peak of 183 DN.
+
+**What this changes.**
+
+- **140.1 stands, and is confirmed.** On a small target AE steers on the
+  sky. The cost seen was clipped Uranus; on Saturn the same fault reads
+  low, so AE would add light.
+- **140.2 changes from "ceilings" to a band.** The captures show the
+  opposite failure to the one planned for: exposures far below what the
+  seeing requires, with gain doing work it cannot do. Gain amplifies; it
+  adds no photons. Above the HCG floor (182) read noise is already near
+  its minimum, so beyond it a short exposure at high gain is a noisy frame
+  made bright, and the shot noise is set by the photons the exposure
+  collected. 140.2 sets a per-planet exposure band, with a floor as well
+  as a ceiling, so AE lengthens exposure toward the ceiling before
+  raising gain beyond the floor, and never drops under the floor without
+  saying so. The owner's "low exposure, high gain" holds against long
+  exposures; the floor stops it going so low that the signal is lost.
+  Band values are to be set with the owner and tuned on the sky.
+- **Why the files look overexposed to the owner is still open.** Two
+  candidates, both outside these numbers: (1) the 16-bit files predate
+  #125 (2026-11-10), so PIPP and AutoStakkert byte-swapped them into
+  noise unless they were repaired; (2) a viewer's auto-stretch or the
+  preview's 2x and 4x boosts showing a dim planet as blown. Asked of the
+  owner 2026-11-11.
+
+Audit caveats: 16-bit samples are read by their high byte, which the
+sensible peaks across sessions support; "target" is pixels above half
+the frame's peak, so a faint limb is not counted; five frames per file.

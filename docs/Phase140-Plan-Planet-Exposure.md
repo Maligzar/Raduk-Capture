@@ -87,7 +87,7 @@ overexposed", and it does confirm the metering fault on small targets.**
   report is not in these files. The thin signal is: at 0.7 ms and gain
   389 the brightest part of Saturn reached about 20-30% of full scale.
 - **The metering fault shows exactly where predicted.** Uranus covers
-  0.04-0.12% of the frame. In `0918_9` AE's whole-frame percentile read
+  0.04 to 0.12% of the frame. In `0918_9` AE's whole-frame percentile read
   148 DN while the disc was clipped, and AE had run gain to 528, near its
   ceiling. On the full-sensor 8-bit Saturn file `0409_5` (0.081% of the
   frame) AE read 81 DN against a peak of 183 DN.

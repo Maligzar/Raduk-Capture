@@ -1248,6 +1248,11 @@ the bench already showed, so the night only has to confirm it. The plan is
     show HFD, not sharpness, and a re-sweep only when the curve was not
     bracketed. Write down the final position and whether the image looks
     sharp. If the target fades during a run, note it, because that is item 52.
+    **With 139.0 merged**, also copy the log's outward and inward peaks and
+    their difference: that difference is the focuser's backlash, and
+    139.1 and 139.2 are waiting on it. Then the owner's own test: note a
+    sharp step number, move 1000 steps inward, go back to the number, and
+    write down whether it is still sharp.
 48. **A box change while locked** (F5). With PLANET LOCK holding, change the
     box 3840 → 1280 → 640 → 3840. Guiding should hold, not hand tracking
     back, and the planet should re-centre.

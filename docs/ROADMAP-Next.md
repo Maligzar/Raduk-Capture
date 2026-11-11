@@ -1382,25 +1382,36 @@ request review.** The bench order, top first:
 
 1. **The open pull requests**, as resolved above: merge #129, close #91,
    close #95 into 132.10b.
-2. **135.1 and 135.2 (row 35), size S.** Category 1: a failed disk write
+2. **139.0 (row 39), size S, before the next clear night.** It changes
+   no behaviour: it logs the EAF's own backlash setting and fits each
+   sweep's outward and inward passes separately, so the 133.3 night's
+   autofocus run also measures the backlash. Raised by the owner
+   2026-11-11: returning to the step number where focus was sharp gives
+   a blur. 139.1 to 139.3 come after the night.
+3. **135.1 and 135.2 (row 35), size S.** Category 1: a failed disk write
    leaves the run "recording" into RAM, and a crash leaves a SER whose
    header says it holds no frames. Both silent, both on `master` today.
    This is the one place the order departs from the owner's 2026-11-07
    placing of Phase 132 first, by the ranking rule at the top of this
    file; the owner can reverse it.
-3. **132.10b to 132.10d (row 32)**, the dashboard restyle and its live
+4. **132.10b to 132.10d (row 32)**, the dashboard restyle and its live
    night mode, with #95's behaviour ported into 132.10b.
-4. **Phase 136, satellite elements as OMM (row 36), size S.** Category 3:
+5. **Phase 136, satellite elements as OMM (row 36), size S.** Category 3:
    the sky map and pass list advertise rocket bodies, and every object
    catalogued since 2026-07-11 cannot reach them.
-5. **Phase 137, Jupiter events (row 37), size M.** Category 4, and
+6. **139.1 to 139.3 (row 39), sizes S to M**, once the night has
+   measured the backlash: autofocus fitted in one direction, manual
+   moves that approach from one side, and the readiness indicator.
+   Category 3 and 4: autofocus is advertised, and averaging two curves
+   a backlash apart can move or erase the peak it is fitting.
+7. **Phase 137, Jupiter events (row 37), size M.** Category 4, and
    season-bound: opposition is about 2027-02-10, so it pays only if it
    ships this winter. Ahead of the rest of Phase 134 for that reason
    alone; docking is category 5 and keeps.
-6. **134.4 onward (row 34)**, the dock window.
-7. **135.3 to 135.5 (row 35).** Wedge recovery in seconds rather than
+8. **134.4 onward (row 34)**, the dock window.
+9. **135.3 to 135.5 (row 35).** Wedge recovery in seconds rather than
    ten, empty files removed, thread names.
-8. **Phase 138, the seeing forecast logged against the measured sky
+10. **Phase 138, the seeing forecast logged against the measured sky
    (row 38), size S.** The Leoben half is Leoben's work.
 
 A clear night still goes first, to 133.3 and 133.4, and the plate scale
@@ -1503,6 +1514,7 @@ consolidated](#live-sky-debt-consolidated).
 | 36 | **Phase 136: satellite elements as OMM, and more of them** - QUEUED 2026-11-11, plan to write | Bench | S | Category 3. CelesTrak's five-digit catalog numbers ran out on 2026-07-11 and TLE cannot carry six. `SatDesk.h:356` fetches `FORMAT=tle` and `Sgp4.h:132` reads a five-digit field, so the newest rocket bodies, the primary targets, never arrive and nothing says so. Fetch OMM JSON (same mean elements, SGP4 unchanged), widen from `visual` to `stations` and recent launches, and take the ISS from CelesTrak's supplemental elements, fitted forward from NASA's own ephemeris. Gate: an OMM fixture with a six-digit catalog number propagates and appears on the map. Owes: one live fetch, since this review could not reach CelesTrak. [`Data-Sources-2026-11-11.md`](../research_notes/Data-Sources-2026-11-11.md) finding 1 |
 | 37 | **Phase 137: Jupiter events, the moons and the Red Spot** - QUEUED 2026-11-11, plan to write | Bench, then one clear night | M | Category 4, season-bound (opposition about 2027-02-10). Nothing outside the emulator knows when a moon or its shadow crosses the disc, or when the Red Spot is on the meridian, and those decide which hour of a Jupiter night is worth the derotation window. Moon events from Horizons' per-moon visibility codes (tested live 2026-11-11); shadow transits from the Sun-moon line against the disc, using the Horizons vectors `Ephemeris.h` already fetches, cached at dusk; Red Spot transits from the System II meridian and a `rig.ini` longitude with an epoch, a drift rate and a staleness warning, because published longitudes disagree and each degree is 1.65 minutes. Into the imaging windows, Autorun and the assistant's snapshot. Later: measure the spot's longitude from our own SER captures. [`Data-Sources-2026-11-11.md`](../research_notes/Data-Sources-2026-11-11.md) finding 3 |
 | 38 | **Phase 138: seeing forecast against the measured sky** - QUEUED 2026-11-11, plan to write | Bench (RadukCapture), and Leoben | S | Category 4, slowly. Leoben passes through 7Timer's seeing field (it must follow 7Timer's new 302 redirect) and Open-Meteo's 200 and 250 hPa winds (km/h; 126 km/h is the bad-seeing line); `LeobenConditions` gains the fields; the session log writes each night's forecast beside `SeeingMonitor`'s median. After about ten nights the log says which source, if any, predicts this site. meteoblue's paid seeing waits for that answer. Pairs with Phase 114. [`Data-Sources-2026-11-11.md`](../research_notes/Data-Sources-2026-11-11.md) finding 4 |
+| 39 | **Phase 139: focus that respects backlash, and says when it can work** - PLANNED 2026-11-11 from the owner's report | Bench, then one clear night | S-M, in 4 stages | Raised by the owner: returning to the step number where focus was sharp gives a blur, and going away and coming back sometimes restores it. The EAF counts motor steps, not mirror position, so outward and inward arrivals at one number are a backlash apart. Two consequences in the code: the out-and-back sweep (F9) averages two V-curves shifted against each other, and the 200-step final overshoot is a guess while the EAF firmware's own backlash is never read. **139.0** measures and changes nothing, before the night. **139.1** fits one direction and applies the measured backlash once. **139.2** makes manual moves approach from one side, which is the owner's fix. **139.3** is the owner's request: an AUTO FOCUS indicator, READY or NOT NOW with one reason, judged from what is in the frame. **This reverses Phase 133's "no autofocus redesign"**, on new evidence; the redesign still waits for the night's measurement. [`Phase139-Plan-Focus-Backlash-And-Readiness.md`](Phase139-Plan-Focus-Backlash-And-Readiness.md) |
 | 34 | **Phase 134: panels that dock together** - PLANNED 2026-11-11, defaults approved by the owner 2026-11-11 | Bench, then eyes on a screen | L, in 6 stages | Asked for by the owner: the operator panels (Histogram, Status, Sharpness, Temperature, ADC, both sky maps, GoTo, the player) snap together like Lego. Groups are derived from geometry, move as one and resize along shared edges, and F11 fills a monitor with the group. **134.0 to 134.2 merged (#126 to #128); 134.3 is PR #129. From 134.4 on, it waits behind rows 36 and 37 (order of 2026-11-11).** A dock window holds panels in a split tree and can go fullscreen. Panels are positioned, not reparented. Shift+drag pulls one out; the snap distance is 12 px. 134.0 is pure geometry and tests, with no pixel changes. [`Phase134-Plan-Panel-Docking.md`](Phase134-Plan-Panel-Docking.md) |
 | 33 | **Phase 133: field proof for the 2026-11-07 night** - PLANNED 2026-11-08, **ahead of 132.3e at the owner's word** | Bench, then one clear night | M | The night's fixes are merged (#105), but only guiding and the target finder are proven on the sky. Autofocus has not run a sweep on the sky, four guiding fixes are bench-only, and the ~8° pointing error is open. Category 1 and 3 by the ranking above. The emulated mount learns the NexStar behaviours measured that night, and the scenarios gate the guiding fixes indoors. [`Phase133-Plan-Field-Proof.md`](Phase133-Plan-Field-Proof.md) |
 | 32 | **Phase 132: the instrument UI** - PLANNED 2026-11-07, **PRIORITIZED by the owner 2026-11-07: first on the bench** | Bench, then eyes on a screen | L, in 11 stages | Asked for by the owner: away from the generic neon-cyan look toward a precision instrument (warm graphite, one muted accent, engraved hairlines, small-caps labels, tabular readouts). It also covers the HTML pages, which the app will write itself from its own tokens and embedded fonts. By the categories above it is category 5, but the owner has put it ahead of every other bench item, including row 7. It still ranks below the clear-night items, which need sky rather than bench time. Next stage: 132.10b, the dashboard restyle (132.0 to 132.9 and 132.10a are written). **132.10b also takes in PR #95's behaviour that `master` lacks** (listed under [Open pull requests](#open-pull-requests)), and comes after 135.1 and 135.2. It is built to be paused: one PR per stage, `master` field-ready between them, and a visual baseline diff (132.0) ahead of any pixel change. 132.1 drops the 10% green from night vision, which sits near the rods' peak and is the one stage that changes what the eye receives. It finishes 96.4b and 119.5 rather than restarting them. [`Phase132-Plan-Instrument-UI.md`](Phase132-Plan-Instrument-UI.md) |

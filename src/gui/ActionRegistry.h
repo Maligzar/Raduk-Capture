@@ -110,6 +110,7 @@ inline const std::vector<Action>& All() {
         {"recall",      "Recall a capture's framing", "goto past capture return",           "Shift+G",      'G', true,  false, 0, true},
         {"recalloff",   "Recall the target's place in that frame", "offset nudge centre",   "Ctrl+Shift+G", 'G', true,  true,  0, true},
         {"mosaic",      "Mosaic: start or stop",    "panels tiles lunar sequence",          "Ctrl+Shift+M", 'M', true,  true,  0, true},
+        {"phemurec",    "Record the next mutual event, or cancel it", "phemu imcce record light curve clock", "Shift+J", 'J', true, false, 0, true},
     };
     return a;
 }

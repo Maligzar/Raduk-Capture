@@ -351,6 +351,7 @@ emergency stop.
 | `K` | Stac**K** the last finished recording. A SER stacks hidden; a FITS file opens in AutoStakkert's window |
 | `Shift+K` | Open the last finished recording in the program Windows has for that file type |
 | `J` | **J**upiter's moons: the mutual events (one moon eclipsing or passing in front of another) coming up at this site, for IMCCE's PHEMU campaign. See *Mutual events* below |
+| `Shift+J` | Record the next mutual event, with the clock checked and the settings locked; again to cancel. Asks twice |
 | `↑↓←→` | Jog mount (hold to slew) |
 | `+` / `-` | Fine focus step |
 | `[` / `]` | Coarse focus step |
@@ -1768,11 +1769,34 @@ month old. Nothing about your site is sent; visibility is worked out on
 this machine. The file is IMCCE's material, kept for your use: do not
 publish or share it.
 
-**Not built yet.** Recording an event with the settings locked and the PC
-clock checked against a time server is phase 141.1. Until then, record
-by hand: auto-exposure and autofocus off, gain and exposure fixed so no
-moon clips, a frame wide enough for both moons and a third as a
-reference, and check the PC clock before and after.
+**Recording one: `Shift+J`** (phase 141.1). It asks twice, like anything
+that starts a sequence. It arms the next event visible in the coming 18
+hours and then:
+
+1. checks the PC clock against a time server (`TimeServer` in rig.ini,
+   `pool.ntp.org` by default), because IMCCE needs every frame dated to
+   UTC within 0.1 s and the frames are stamped from the PC clock;
+2. switches off auto-exposure, autofocus and ROI-following, so nothing
+   changes the brightness or the framing during the event. **Set gain and
+   exposure before you arm it** so no moon clips: they will not change;
+3. starts recording when the window opens and stops when it closes;
+4. checks the clock again, writes IMCCE's observation sheet beside the SER
+   as `<event ID>.txt`, and puts your settings back.
+
+The sheet is IMCCE's own form, filled in: the event, your site
+(`PhemuSite` in rig.ini names it), the telescope, the filter, the exposure
+and gain, and both clock checks. Lines marked `[FILL IN]` need you, and
+`[CHECK]` flags anything to look at, such as a clock that could not be
+confirmed to 0.05 s. The light curve itself (`<event ID>.dat`) is phase
+141.2. `Shift+J` again cancels.
+
+Frame times are stamped from the PC clock and are not corrected; the sheet
+gives the offset to add. The delay between the camera's exposure and the
+PC's timestamp has not been measured, and the sheet says so. If UDP port
+123 is blocked, the clock check fails and the sheet says that too.
+
+Frame the moons, not Jupiter: both moons of the event in the frame, a
+third as a reference if it fits, and Jupiter outside if you can.
 
 ## Weather from Leoben
 
@@ -2701,6 +2725,8 @@ real site is stored. Most of it is written for you.
 | `WsLan` | `1` = the dashboard server listens on the home network too, not only this PC. Off by default. See **From another device on your home network**. |
 | `WsLanOpen` | `1` = a device on the home network (a private address) needs no token. Only with `WsLan=1`. This PC and outside addresses still need it. |
 | `LeobenUrl` | Where Leoben is, as `http://name:port` -- for example `http://elminster:5000`. Empty = no weather from Leoben. See **Weather from Leoben**. |
+| `TimeServer` | The time server the PC clock is checked against before and after a mutual event recording (UDP 123). Default `pool.ntp.org`. |
+| `PhemuSite` | The site and telescope name on IMCCE's observation sheet, no spaces, different for each telescope. Default `RadukCapture_8SE`. |
 | `LeobenToken` | Leoben's API token (its `LEOBEN_API_TOKEN`). Never logged. |
 | `FilterLowNm` / `FilterHighNm` | Band edges in nanometres; these are what the ADC model actually uses. Edit them for a filter that is not a preset — the SETUP picker will then show blank rather than overwrite them. Both are reset to the UV/IR cut default if either falls outside 300–1200nm, or the band is narrower than 10nm, because a nonsense band would push the Edlen model outside its domain and return an authoritative-looking meaningless figure. |
 

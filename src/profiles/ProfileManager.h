@@ -107,6 +107,9 @@ public:
         WS("capture", "file_prefix",   profile.filePrefix);
 
         WS("notes",   "text",          profile.notes);
+        // Phase 140.2: the exposure band, 0 = none.
+        WF("exposure_band", "floor_ms",   profile.bandFloorMs);
+        WF("exposure_band", "ceiling_ms", profile.bandCeilMs);
 
         printf("[ProfileManager] Saved: %s\n", path.c_str());
         return true;
@@ -178,6 +181,9 @@ public:
         out.filePrefix    = RS("capture", "file_prefix", "");
 
         out.notes = RS("notes", "text", "");
+        // Phase 140.2: a file without the section keeps the default band.
+        out.bandFloorMs = RF("exposure_band", "floor_ms",   out.bandFloorMs);
+        out.bandCeilMs  = RF("exposure_band", "ceiling_ms", out.bandCeilMs);
 
         // Extract filename from path
         size_t slash = path.find_last_of("\\/");

@@ -4462,8 +4462,10 @@ static int RunApp(bool useEmulator) {
     // never expose a sub at all.
     profileHooks.setAERails = [&](const TargetProfile& p) {
         auto cfg = ae.Config_();
-        const auto rail = raduk::profiles::CameraRails::RailsFor(p.targetType);
+        // Phase 140.2: the profile's exposure band narrows the type's rail.
+        const auto rail = p.AERail();
         if (cfg.expMinMs == rail.minMs && cfg.expMaxMs == rail.maxMs &&
+            cfg.expKneeMs == rail.expKneeMs && cfg.gainKnee == rail.gainKnee &&
             cfg.gainMin == rail.gainFloor) return;
         cfg.expMinMs  = rail.minMs;
         cfg.expMaxMs  = rail.maxMs;
@@ -4473,8 +4475,9 @@ static int RunApp(bool useEmulator) {
         cfg.gainMax   = rail.gainMax;
         ae.SetConfig(cfg);
         Log("[AE] ladder now %.3g-%.3g ms, knee %.3g ms, gain %d/%d/%d for "
-            "a '%s' target\n", rail.minMs, rail.maxMs, rail.expKneeMs,
-            rail.gainFloor, rail.gainKnee, rail.gainMax, p.targetType.c_str());
+            "a '%s' target%s\n", rail.minMs, rail.maxMs, rail.expKneeMs,
+            rail.gainFloor, rail.gainKnee, rail.gainMax, p.targetType.c_str(),
+            p.HasBand() ? " (the profile's exposure band)" : "");
     };
 
     controls.SetAECallback([&](bool enabled, bool autoApply) {

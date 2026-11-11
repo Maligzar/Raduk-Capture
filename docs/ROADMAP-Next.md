@@ -1408,7 +1408,9 @@ request review.** The bench order, top first:
    0.1-2 ms. The metering fault is confirmed on small targets; the files
    are thin, not blown.
 4. **140.1 and 140.2 (row 40), size S-M.** Category 1. **140.1 written
-   2026-11-11: AE meters the target, not the frame.** Auto-exposure
+   2026-11-11: AE meters the target, not the frame. 140.2 written
+   2026-11-11: per-planet exposure bands; the starting values wait on
+   clear-night item 55.** Auto-exposure
    measures a percentile of the whole frame, which on a small planet
    lands on the sky, and its clip guard measures the frame too. 140.2
    becomes a per-planet exposure band with a floor, because the audit

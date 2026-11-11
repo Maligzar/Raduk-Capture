@@ -228,6 +228,6 @@ negative coordinates.
 Damaged text, and anything nested more than 32 deep, returns nothing rather
 than half a tree.
 
-**Gated.** `tests/dock_geometry.cpp`, 40 checks, passes under g++ with
+**Gated.** `tests/dock_geometry.cpp`, 38 checks, passes under g++ with
 AddressSanitizer and UBSan here. It is added to `tests/run-tests.ps1`, so
 MSVC CI runs it.

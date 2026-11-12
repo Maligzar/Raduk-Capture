@@ -159,6 +159,7 @@ public:
     void Profile(const char* fmt, ...) { va_list a; va_start(a, fmt); WriteV("PROFILE", fmt, a); va_end(a); }
     void Safety(const char* fmt, ...)  { va_list a; va_start(a, fmt); WriteV("SAFETY",  fmt, a); va_end(a); }
     void System(const char* fmt, ...)  { va_list a; va_start(a, fmt); WriteV("SYSTEM",  fmt, a); va_end(a); }
+    void Seeing(const char* fmt, ...)  { va_list a; va_start(a, fmt); WriteV("SEEING",  fmt, a); va_end(a); }   // phase 138
 
 private:
     void WriteV(const char* category, const char* fmt, va_list args) {

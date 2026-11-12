@@ -2992,6 +2992,7 @@ order.
 | 3.1.0 | 140 | Auto-exposure meters the planet within a per-planet band, and the live view can be stretched for the eye |
 | 3.1.0 | 141 | Galilean mutual events: predictions, a recording mode with the clock checked, and the light curve for IMCCE |
 | 3.1.0 | 142, 143 | Jupiter runs listed for DeTeCt impact searches, and records with central meridians and a submission sheet |
+| 3.1.1 | 138 | Once an hour the session log gets a `SEEING` line: the seeing forecast Leoben passed on (7Timer's class, the jet stream at 200 and 250 hPa) beside the seeing measured that hour, to learn which forecast, if any, predicts this site |
 
 ---
 

@@ -182,6 +182,26 @@ int main() {
               "with no reading, no weather key is written at all");
     }
 
+    printf("\nPhase 138. The seeing forecasts, when Leoben passes them on\n");
+    {
+        net::LeobenConditions c;
+        Check(net::ParseLeobenCurrent(kCompact, c) && c.seeing7Timer == -1 &&
+                  c.wind200hPaKmh == -1 && c.wind250hPaKmh == -1,
+              "today's Leoben sends none: all three read as not given");
+        std::string with = kCompact;
+        with.insert(with.find("\"cloud_pct\""),
+                    "\"seeing_7timer\":3,\"wind_200hpa_kmh\":95.5,\"wind_250hpa_kmh\":131,");
+        net::LeobenConditions s;
+        Check(net::ParseLeobenCurrent(with, s) && s.seeing7Timer == 3 && s.wind200hPaKmh == 95.5 &&
+                  s.wind250hPaKmh == 131,
+              "given, they are read");
+        std::string odd = kCompact;
+        odd.insert(odd.find("\"cloud_pct\""), "\"seeing_7timer\":0,\"wind_200hpa_kmh\":-4,");
+        net::LeobenConditions o;
+        Check(net::ParseLeobenCurrent(odd, o) && o.valid && o.seeing7Timer == -1 && o.wind200hPaKmh == -1,
+              "out of range: ignored, and the rest of the reply still stands");
+    }
+
     printf("\n%s\n", g_fail == 0 ? "ALL CHECKS PASSED" : "SOME CHECKS FAILED");
     return g_fail == 0 ? 0 : 1;
 }

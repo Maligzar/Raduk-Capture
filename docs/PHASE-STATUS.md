@@ -148,7 +148,7 @@ fixed. What each test does not cover is stated in its row.
 |---|---|---|
 | 42 | Five-monitor workspace | `WIRED (rig)` — `66d62a1`, in use on five screens; placement matched on device interface path · owes: nothing |
 | 36 | Sensor analysis / smart histogram | `GATED (bench)` — `tests/sensor_analysis.cpp` |
-| 92 | Object panel | `GATED (bench)` — `tests/object_knowledge.cpp`, `tests/object_panel_text.cpp` · owes: phase 103 closed the clipping and the bleed; a derived line long enough to wrap still loses its second row (B1 in `ROADMAP-Next.md`) |
+| 92 | Object panel | `GATED (bench)` — `tests/object_knowledge.cpp`, `tests/object_panel_text.cpp` · owes: phase 103 closed the clipping and the bleed; B1 closed 2026-11-12 (3.2.1): a star's one-column summary no longer runs under the scale diagram, and a wrapped derived line keeps its second row; gated by `tests/object_panel_fit.cpp`, not yet seen on a screen |
 | 50 / 12b | Local AI assistant, Ollama | `GATED (bench)` — `tests/ai_context_facts.cpp`, which also gates the rule that the observing site never reaches the model at more than one decimal |
 | 91 | Emulator field of view | `MEASURED (bench)` — `4af73e6`; the 1280×960 cap is gone and the full sensor is exercised |
 

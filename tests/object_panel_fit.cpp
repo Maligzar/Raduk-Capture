@@ -179,11 +179,52 @@ static void TestJupiter() {
        "nor larger than the mythology's");
 }
 
+// B1, closed 2026-11-12: a star's narrative, which has no second column, must not
+// run under the scale diagram; and a derived line that wraps keeps its
+// second row.
+static void TestStar() {
+    printf("A star: one column, beside or below the diagram\n");
+    const float want = 28.0f;
+    {
+        const auto s = OP::PlaceSoloColumn(300, 900.0f, 600.0f, 1300.0f, 450.0f, want);
+        ok(s.beside && s.px == want, "a short summary sits beside the diagram at full size");
+    }
+    {
+        // Long text, little room beside, a lot below: below wins, larger.
+        const size_t n = 2400;
+        const auto s = OP::PlaceSoloColumn(n, 500.0f, 300.0f, 1300.0f, 700.0f, want);
+        const float pb = OP::FitBodyPx(n, 500.0f, 300.0f, want);
+        const float pf = OP::FitBodyPx(n, 1300.0f, 700.0f, want);
+        ok(!s.beside && s.px == pf && pf > pb, "with more room below, it goes below, at the larger size");
+    }
+    {
+        const size_t n = 2400;
+        const auto s = OP::PlaceSoloColumn(n, 900.0f, 900.0f, 1300.0f, 200.0f, want);
+        ok(s.beside && s.px >= OP::FitBodyPx(n, 1300.0f, 200.0f, want),
+           "with more room beside, it stays beside");
+    }
+    ok(OP::PlaceSoloColumn(800, 900.0f, 500.0f, 1300.0f, 0.0f, want).beside,
+       "no room below: beside");
+    ok(!OP::PlaceSoloColumn(800, 0.0f, 500.0f, 1300.0f, 400.0f, want).beside,
+       "no width beside: below");
+
+    printf("Derived lines that wrap\n");
+    const std::string bright =
+        "40 times brighter than the faintest star the eye can see.";
+    const float px = 20.0f;
+    const float wide = OP::DerivedLineHeight(bright.size(), 1600.0f, px);
+    const float narrow = OP::DerivedLineHeight(bright.size(), 250.0f, px);
+    ok(std::fabs(wide - px * OP::BODY_LINE_EM) < 0.01f, "one line in a wide column");
+    ok(narrow >= 2.0f * px * OP::BODY_LINE_EM, "two or more lines in a narrow one");
+    ok(narrow > px / 0.80f * 1.3f, "taller than the old fixed 1.3 em box, so the second row survives");
+}
+
 int main() {
     printf("=== phase 103: fitting the object panel's narrative ===\n\n");
     TestLines();
     TestFit();
     TestJupiter();
+    TestStar();
     printf("\n%d checks, %d failures\n", checks, failures);
     if (failures == 0) printf("PASS\n");
     return failures ? 1 : 0;

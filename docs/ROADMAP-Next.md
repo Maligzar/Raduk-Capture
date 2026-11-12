@@ -2023,7 +2023,10 @@ depend on them:
 
 ### Backlog — raised, not yet scheduled
 
-#### B1 · The object panel clips its text, and bleeds it over the diagram
+#### B1 · The object panel clips its text, and bleeds it over the diagram — DONE 2026-11-12
+
+**Closed 2026-11-12 (3.2.1), from the owner's report that a star's panel bled over the rest of the window.** The star case was still open: with no mythology column, the summary took the full width from beside the scale diagram and painted across it. It now goes beside the diagram, the derived lines' width, or below it at full width, whichever fits at the larger size (`objectpanel::PlaceSoloColumn`). Each derived line gets the height its wrap needs (`DerivedLineHeight`), so a wrapped line keeps its second row. Gated by `tests/object_panel_fit.cpp`. Still an estimate from an average advance, not a DirectWrite measurement; the clip stays as the backstop. Not yet seen on a screen.
+
 
 **Phase 103 closed the clipping and the bleed.** The third instance is
 only half closed: `Text` now clips to its rect, so a wrapped derived line

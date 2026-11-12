@@ -383,6 +383,19 @@ struct RigConfig {
     int  focuserBacklashSteps = -1;
     bool focuserOneSidedMoves = true;
 
+    // Phase 137. The Great Red Spot's System II longitude, measured on a
+    // date, and its drift. Published figures disagree (Sky & Telescope
+    // assumed 91 on 2026-06-01, drifting +1.75 deg a month; Project Pluto
+    // about 16 deg a year), and each degree moves a transit 1.65 min, so
+    // set it from a recent ALPO, BAA or JUPOS measurement. The app warns
+    // when the date is more than 60 days old.
+    //   GrsLonSys2=91
+    //   GrsEpoch=2026-06-01
+    //   GrsDriftDegPerMonth=1.75
+    double      grsLonSys2 = 91.0;
+    std::string grsEpoch   = "2026-06-01";
+    double      grsDriftDegPerMonth = 1.75;
+
     // Singleton — loads rig.ini on first access
     static RigConfig& Get() {
         static RigConfig cfg = LoadFromDisk();
@@ -421,6 +434,9 @@ struct RigConfig {
         wf("AutorunSeeingHoldSec", autorunSeeingHoldSec);
         wf("FocuserBacklashSteps", focuserBacklashSteps);
         ws("FocuserOneSidedMoves", focuserOneSidedMoves ? "1" : "0");
+        wf("GrsLonSys2", grsLonSys2);
+        ws("GrsEpoch", grsEpoch);
+        wf("GrsDriftDegPerMonth", grsDriftDegPerMonth);
         wf("NeoMagLimit", neoMagLimit);
         wf("ApertureMm", apertureMm);
         ws("AutoStackOnStop", autoStackOnStop ? "1" : "0");
@@ -594,6 +610,9 @@ private:
         cfg.focuserBacklashSteps  = (int)rf("FocuserBacklashSteps", cfg.focuserBacklashSteps);
         if (cfg.focuserBacklashSteps < -1 || cfg.focuserBacklashSteps > 20000) cfg.focuserBacklashSteps = -1;
         cfg.focuserOneSidedMoves  = rs("FocuserOneSidedMoves", cfg.focuserOneSidedMoves ? "1" : "0") == "1";
+        cfg.grsLonSys2            = rf("GrsLonSys2", cfg.grsLonSys2);
+        cfg.grsEpoch              = rs("GrsEpoch", cfg.grsEpoch);
+        cfg.grsDriftDegPerMonth   = rf("GrsDriftDegPerMonth", cfg.grsDriftDegPerMonth);
         cfg.neoMagLimit           = (float)rf("NeoMagLimit", cfg.neoMagLimit);
         cfg.apertureMm            = (float)rf("ApertureMm", cfg.apertureMm);
         cfg.autoStackOnStop       = rs("AutoStackOnStop", cfg.autoStackOnStop ? "1" : "0") == "1";

@@ -327,6 +327,56 @@ int main() {
         Check(!p.valid, "a move bigger than the frame: refused", p.why);
     }
 
+    printf("\n10. Phase 143: filter, central meridians, clock, and the submission sheet\n");
+    {
+        ObservationRecord r;
+        r.file = "Jupiter_x.ser"; r.target = "Jupiter"; r.startUnix = 1794500000; r.durationSec = 60;
+        r.frames = 3000; r.filter = "UV/IR cut";
+        r.cmSysIDeg = 12.34; r.cmSysIIDeg = 210.5; r.cmSysIIIDeg = 99.25;
+        r.clockConfirmed = 1; r.clockOffsetMs = -12.5;
+        ObservationRecord b; std::string why;
+        const bool ok = ParseObservation(SerializeObservation(r), b, &why);
+        Check(ok && b.filter == "UV/IR cut", "the filter round-trips", b.filter);
+        Check(ok && Near(b.cmSysIDeg, 12.34, 1e-9) && Near(b.cmSysIIDeg, 210.5, 1e-9) &&
+              Near(b.cmSysIIIDeg, 99.25, 1e-9), "the three central meridians round-trip");
+        Check(ok && b.clockConfirmed == 1 && Near(b.clockOffsetMs, -12.5, 1e-9), "and the clock check");
+        ObservationRecord u;
+        const std::string su = SerializeObservation(u);
+        Check(su.find("\ncm_sys") == std::string::npos && su.find("\nclock_") == std::string::npos,
+              "unknown meridians and an unchecked clock write no lines");
+        const std::string line = SubmissionSheetLine(r, "Celestron 8SE", "ZWO ASI678MC");
+        Check(line.find("Jupiter_x.ser\tJupiter\t") == 0, "the sheet line starts with the file and target", line);
+        Check(line.find(FormatUtcIso(1794500030)) != std::string::npos, "the time is the middle of the run");
+        Check(line.find("\t12.3\t210.5\t99.2\t") != std::string::npos ||
+              line.find("\t12.3\t210.5\t99.3\t") != std::string::npos, "with the meridians");
+        Check(line.size() > 1 && line[line.size() - 2] == 's', "and the clock: yes");
+        int tabsH = 0, tabsL = 0;
+        const std::string hdr = SubmissionSheetHeader();
+        const std::string last = hdr.substr(hdr.rfind('\n', hdr.size() - 2) + 1);
+        for (char c : last) tabsH += c == '\t';
+        for (char c : line) tabsL += c == '\t';
+        Check(tabsH == tabsL, "as many columns as the header", std::to_string(tabsL));
+    }
+
+    printf("\n11. Phase 142: the night's DeTeCt list\n");
+    {
+        ObservationRecord j; j.target = "Jupiter"; j.frameType = "Light"; j.startUnix = 1794500000; j.durationSec = 90;
+        ObservationRecord p; p.profile = "Jupiter - GRS"; p.frameType = "Light";
+        ObservationRecord s; s.target = "Saturn"; s.frameType = "Light";
+        ObservationRecord d; d.target = "Jupiter"; d.frameType = "Dark";
+        Check(IsJupiterRun(j) && IsJupiterRun(p), "Jupiter, by target or by profile, goes on the list");
+        Check(!IsJupiterRun(s) && !IsJupiterRun(d), "Saturn and a dark frame do not");
+        j.detect = "queued";
+        ObservationRecord b; std::string why;
+        Check(ParseObservation(SerializeObservation(j), b, &why) && b.detect == "queued", "the record says so");
+        ObservationRecord k = j; k.durationSec = 30;
+        const std::string list = DetectListHeader() + DetectListLine(j, "D:\\cap\\a.ser") +
+                                 DetectListLine(k, "D:\\cap\\b.ser");
+        Check(Near(DetectListMinutes(list), 2.0, 1e-9), "the night's minutes are summed from the list",
+              std::to_string(DetectListMinutes(list)));
+        Check(DetectListLine(j, "x.ser").find("x.ser\t2026-") == 0, "each line: path, start, length");
+    }
+
     printf("\n%s: %d failure(s)\n", g_fail ? "FAILED" : "PASSED", g_fail);
     return g_fail ? 1 : 0;
 }

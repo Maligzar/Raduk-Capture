@@ -89,6 +89,8 @@
 #include "core/SessionStats.h"    // [STATS]: phase 124, every session at once
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include "core/PhemuDesk.h"       // phase 141.0: Galilean mutual events
+#include "core/JupiterDesk.h"     // phase 137: moon and shadow transits, the Red Spot
+#include "core/AfReadiness.h"     // phase 139.3
 #include "core/PhemuSheet.h"      // phase 141.1: IMCCE's observation sheet
 #include "core/DisplayStretch.h"  // phase 140.3: the stretch chosen from the target
 #include "net/SntpClient.h"       // phase 141.1: the PC clock against UTC
@@ -1837,6 +1839,10 @@ static int RunApp(bool useEmulator) {
     // runs so far, for the list written when the sequence ends.
     raduk::core::SeeingMonitor seeing;
     raduk::core::FadeWatch fadeWatch;   // 133.2
+    // Phase 139.3: autofocus readiness, and when a fade last fired.
+    auto lastFadeAt = std::chrono::steady_clock::now() - std::chrono::hours(1);
+    raduk::core::AfReadyOut afReady;
+    auto afConfirmUntil = std::chrono::steady_clock::now() - std::chrono::seconds(1);
     std::vector<raduk::core::RunResult> autorunResults;
     std::string autorunLastPath;
     bool autorunWasHolding = false;
@@ -4317,8 +4323,15 @@ static int RunApp(bool useEmulator) {
         return n.prefix;
     });
 
+    // Phase 143: the clock check behind the next recording, when there is
+    // one (set by the mutual-event recording, cleared after each start).
+    struct { int confirmed = -1; double offsetMs = 0; } nextRecClock;
     capturer.SetObservationSource([&](raduk::core::ObservationRecord& r) {
         r.appVersion = RADUK_VERSION_A;
+        r.filter = RigConfig::Get().filterName;
+        r.clockConfirmed = nextRecClock.confirmed;
+        if (nextRecClock.confirmed >= 0) r.clockOffsetMs = nextRecClock.offsetMs;
+        nextRecClock.confirmed = -1;
         r.target = outputTarget();
         if (const TargetProfile* ap = profiles.Active()) r.profile = ap->name;
         if (cam.IsOpen()) {
@@ -4465,6 +4478,18 @@ static int RunApp(bool useEmulator) {
     // Button callback — toggles start/abort
     controls.SetAutofocusCallback([&](bool start) {
         if (start) {
+            // Phase 139.3: NOT NOW asks for a second press within 5 s
+            // rather than refusing; the owner may know better.
+            const auto nowC = std::chrono::steady_clock::now();
+            if (!afReady.ready && focuser.IsOpen() && nowC > afConfirmUntil) {
+                afConfirmUntil = nowC + std::chrono::seconds(5);
+                const std::wstring w(afReady.why.begin(), afReady.why.end());
+                controls.SetAutofocusStatus((L"Not now: " + w + L". Press again within 5 s to focus anyway").c_str());
+                Log("[AF] Not ready (%s): asked for a second press\n", afReady.why.c_str());
+                return;
+            }
+            if (!afReady.ready) Log("[AF] Started although not ready (%s): the owner pressed twice\n", afReady.why.c_str());
+            afConfirmUntil = nowC - std::chrono::seconds(1);
             startAutofocus();
         } else {
             Log("[AF] Abort requested\n");
@@ -5214,11 +5239,69 @@ static int RunApp(bool useEmulator) {
     phemuDesk.Refresh(false);
     auto lastPhemuTick = std::chrono::steady_clock::now() - std::chrono::seconds(120);
     std::vector<double> phemuReminded;   // greatest JDs already announced
+
+    // ── Phase 137: Jupiter's moons, shadows and Red Spot ───────
+    // The next three days of transits, shadow transits, occultations and
+    // eclipses from JPL Horizons, cached; the central meridians and the
+    // Red Spot's transits worked out here. Listed with the mutual events
+    // on J, judged for the site.
+    raduk::core::JupiterDesk jupiterDesk;
+    jupiterDesk.Load();
+    jupiterDesk.Refresh(false);
+    auto grsModel = [&]() {
+        const auto& rig = RigConfig::Get();
+        raduk::sky::jupiter::GrsModel g;
+        g.lonSysII = rig.grsLonSys2;
+        g.driftDegPerMonth = rig.grsDriftDegPerMonth;
+        const double e = raduk::sky::jupiter::JdFromIsoDate(rig.grsEpoch);
+        if (e > 0) g.epochJd = e;
+        return g;
+    };
+    auto listJupiter = [&](double now, const raduk::sky::LunarObserver& site) {
+        using namespace raduk::sky::jupiter;
+        auto up = [&](double jd) {
+            if (!site.set) return true;
+            const auto s = raduk::core::PhemuDesk::SkyAtSite(jd, site);
+            return s.ok && s.jupiterAltDeg > 15.0 && s.sunAltDeg < -6.0;
+        };
+        const Meridians m = CentralMeridians(now);
+        Log("[JUPITER] Central meridian now: System I %.1f, II %.1f, III %.1f\n", m.sysI, m.sysII, m.sysIII);
+        const GrsModel g = grsModel();
+        if (g.AgeDays(now) > GrsModel::kStaleDays)
+            Log("[JUPITER] Red Spot longitude (GrsLonSys2=%.1f on %s) is %.0f days old: transit times may be "
+                "minutes out; set a recent ALPO, BAA or JUPOS figure in rig.ini\n",
+                g.lonSysII, RigConfig::Get().grsEpoch.c_str(), g.AgeDays(now));
+        int shown = 0;
+        for (double t : GrsTransits(g, now, now + 2.0)) {
+            if (!up(t)) continue;
+            Log("[JUPITER]   Red Spot on the meridian %s UTC (%s, System II %.0f)\n",
+                raduk::sky::phemu::IsoFromJd(t, 0).substr(5, 11).c_str(), site.set ? "Jupiter up" : "site not set",
+                g.LongitudeAt(t));
+            ++shown;
+        }
+        for (const auto& e : jupiterDesk.Events(now, now + 2.0)) {
+            if (!up(e.startJd) && !up(e.endJd)) continue;
+            Log("[JUPITER]   %s %s\n", raduk::sky::phemu::IsoFromJd(e.startJd, 0).substr(5, 5).c_str(),
+                EventLine(e).c_str());
+            ++shown;
+        }
+        if (jupiterDesk.CoverToJd() < now + 1.0) {
+            Log("[JUPITER] moon events not fetched yet (JPL Horizons, when online)\n");
+            if (!jupiterDesk.Busy()) jupiterDesk.Refresh(true);
+        }
+        return shown;
+    };
+
     auto listMutualEvents = [&]() {
         const double now = raduk::sky::PreciseJdNow();
         bool siteKnown = false;
         const auto site = raduk::gui::GoToPanel::SiteObserver();
         const auto picks = phemuDesk.Picks(now, now + 7.0, site, &siteKnown);
+        // Phase 137: the next two days of Jupiter, ahead of the mutual events.
+        const int jup = listJupiter(now, site);
+        if (jup > 0)
+            notifBar.NotifyInfo(L"Jupiter: " + std::to_wstring(jup) +
+                                L" Red Spot and moon events in the next 2 days (listed in the log)");
         if (phemuDesk.Count() == 0) {
             notifBar.NotifyWarn(phemuDesk.Busy()
                 ? L"Mutual events: fetching IMCCE's predictions, try again in a minute"
@@ -5350,6 +5433,10 @@ static int RunApp(bool useEmulator) {
             CreateDirectoryA(cfg.outputDir.c_str(), nullptr);
             phemuRun.expMs = cam.GetControlValue(ControlId::ExposureUs) / 1000.0;
             phemuRun.gain  = (double)cam.GetControlValue(ControlId::Gain);
+            if (phemuRun.haveBefore) {   // phase 143: into the observation record too
+                nextRecClock.confirmed = raduk::net::sntp::Confirmed(phemuRun.before) ? 1 : 0;
+                nextRecClock.offsetMs  = phemuRun.before.offsetSec * 1000.0;
+            }
             if (!capturer.StartRecording(roiWidth, roiHeight, roiBits)) {
                 phemuRestore("the recording would not start");
                 notifBar.NotifyError(L"Mutual event: the recording would not start");
@@ -5423,15 +5510,13 @@ static int RunApp(bool useEmulator) {
     int lastSatUp = -1;
     auto lastSatLog = lastSatTick;
     auto loadMapSats = [&]() {
-        const std::string path = raduk::core::SatDesk::ElementsPath();
+        const std::string path = raduk::core::SatDesk::CurrentElementsPath();
         const double age = raduk::core::SatDesk::FileAgeHours(path);
         if (age > 1.0e8) return;                            // no file yet
         if (mapSatsAge >= 0.0 && age >= mapSatsAge) { mapSatsAge = age; return; }
         mapSatsAge = age;
-        std::ifstream f(path, std::ios::binary);
-        std::stringstream ss; ss << f.rdbuf();
         mapSats.clear();
-        for (const auto& t : raduk::sky::ParseTleText(ss.str())) {
+        for (const auto& t : raduk::core::SatDesk::ReadElements()) {   // phase 136: OMM
             MapSat m;
             if (!m.sgp.Init(t)) continue;
             m.name = t.name;
@@ -6649,9 +6734,11 @@ static int RunApp(bool useEmulator) {
         // Phase 141.0: the PHEMU fetch's news, and a reminder half an hour
         // before an event's recording window opens.
         for (const auto& m : phemuDesk.TakeMessages()) Log("%s\n", m.c_str());
+        for (const auto& m : jupiterDesk.TakeMessages()) Log("%s\n", m.c_str());
         if (std::chrono::steady_clock::now() - lastPhemuTick > std::chrono::seconds(60)) {
             lastPhemuTick = std::chrono::steady_clock::now();
             phemuDesk.Refresh(false);   // a no-op until the cache is a month old
+            jupiterDesk.Refresh(false); // a no-op while the next two days are cached
             const double now = raduk::sky::PreciseJdNow();
             bool siteKnown = false;
             const auto soon = phemuDesk.Picks(now, now + 1.0 / 24.0,
@@ -6983,6 +7070,7 @@ static int RunApp(bool useEmulator) {
                     (long)cam.GetControlValue(ControlId::ExposureUs),
                     (int)cam.GetControlValue(ControlId::Gain));
                 if (fade.fired) {
+                    lastFadeAt = std::chrono::steady_clock::now();   // 139.3
                     const auto ls = leoben.Get();
                     const bool fresh = raduk::net::LeobenFresh(ls.last, (int64_t)std::time(nullptr));
                     const std::wstring msg = FadeMessage(fade, fresh ? ls.last.dewRisk : std::string());
@@ -7512,6 +7600,29 @@ static int RunApp(bool useEmulator) {
                 }
             }
 
+            // Phase 139.3: can autofocus work on this frame?
+            {
+                raduk::core::AfReadyIn ri;
+                ri.focuserOpen   = focuser.IsOpen();
+                ri.focuserMoving = focuser.IsOpen() && focuser.IsMoving();
+                ri.afRunning     = autofocus.IsRunning() || afWaitingForAE;
+                ri.recording     = capturer.IsRecording();
+                ri.targetFound   = lastAnalysis.valid && lastAnalysis.targetFound;
+                ri.focusValid    = lastAnalysis.valid && lastAnalysis.focusValid;
+                ri.hfdPx         = lastAnalysis.focusHfdPx;
+                ri.framePct      = lastAnalysis.targetFramePct;
+                ri.clipPct       = lastAnalysis.targetClipPct;
+                ri.peakDN        = (float)lastAnalysis.centroidPeak;
+                ri.cx = lastAnalysis.centroidX; ri.cy = lastAnalysis.centroidY;
+                ri.fw = (int)lastAnalysis.width; ri.fh = (int)lastAnalysis.height;
+                ri.tracking = tracker.IsRunning() ||
+                              (mount && mount->IsConnected() && mount->GetTrackingMode() != IMount::OFF);
+                ri.fading = std::chrono::steady_clock::now() - lastFadeAt < std::chrono::minutes(2);
+                afReady = raduk::core::AutofocusReadiness(ri);
+                if (!ri.afRunning)
+                    controls.SetAutofocusReady(afReady.ready,
+                                               std::wstring(afReady.why.begin(), afReady.why.end()));
+            }
             // Phase 12 — Auto-Exposure: feed analysis, tick, apply/display
             if (ae.IsEnabled() && lastAnalysis.valid && cam.IsOpen()) {
                 long curGain = cam.GetControlValue(ControlId::Gain);

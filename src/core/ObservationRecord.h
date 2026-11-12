@@ -135,6 +135,20 @@ struct ObservationRecord {
     double      imagingScore = kObsUnknown;   // Leoben's 0-100
     std::string wxVerdict;                    // GO / CAUTION / NO-GO
 
+    // Phase 143: what a measurer needs. The filter fitted (rig.ini); the
+    // central meridian longitudes at the middle of the run, for Jupiter
+    // (Systems I, II and III, phase 137; Saturn not yet); and whether the
+    // PC clock was checked against a time server for this run (1 yes and
+    // within 0.05 s, 0 checked and not, -1 not checked) with the offset.
+    std::string filter;
+    double      cmSysIDeg   = kObsUnknown;
+    double      cmSysIIDeg  = kObsUnknown;
+    double      cmSysIIIDeg = kObsUnknown;
+    int         clockConfirmed = -1;
+    double      clockOffsetMs  = kObsUnknown;   // UTC minus the PC clock
+    // Phase 142: "queued" when the run was put on the night's DeTeCt list.
+    std::string detect;
+
     bool HasMountPosition() const {
         return ObsKnown(raHours) && ObsKnown(decDeg);
     }
@@ -272,6 +286,7 @@ inline std::string SerializeObservation(const ObservationRecord& r) {
     o += "#       ra_hours*15=RA dec_deg=DEC bin=XBINNING/YBINNING\n";
     o += "#       colour=BAYERPAT site_lat_deg=SITELAT site_lon_deg=SITELONG\n";
     o += "#       air_temp_c=AMBTEMP humidity_pct=HUMIDITY pressure_hpa=PRESSURE\n";
+    o += "#       filter=FILTER cm_sys1/2/3_deg=CMSYS1/2/3 clock_confirmed=CLOCKOK\n";
     o += "#\n";
 
     char fv[48];
@@ -339,7 +354,93 @@ inline std::string SerializeObservation(const ObservationRecord& r) {
     Num(o, "pressure_hpa",  r.pressureHpa,  1);
     Num(o, "imaging_score", r.imagingScore, 0);
     Str(o, "wx_verdict",    r.wxVerdict);
+
+    Str(o, "filter",          r.filter);
+    Num(o, "cm_sys1_deg",     r.cmSysIDeg,   2);
+    Num(o, "cm_sys2_deg",     r.cmSysIIDeg,  2);
+    Num(o, "cm_sys3_deg",     r.cmSysIIIDeg, 2);
+    Int(o, "clock_confirmed", r.clockConfirmed, r.clockConfirmed >= 0);
+    Num(o, "clock_offset_ms", r.clockOffsetMs, 1);
+    Str(o, "detect",          r.detect);
     return o;
+}
+
+// ── Phase 143.1: the night's submission sheet ────────────────
+//
+// One line per Light capture, appended to submission_<YYYYMMDD>.txt in
+// the capture folder, so after a session the owner has, per run, what a
+// measurer or an archive asks for when a processed image is uploaded:
+// the time at mid-run, the central meridians, the instrument, the
+// filter, the site and whether the clock was checked. PVOL2's own form
+// could not be read when this was written, so the sheet holds what the
+// records know, not a claim about which fields PVOL requires.
+inline std::string SubmissionSheetHeader() {
+    return "# RadukCapture submission sheet - one line per capture, tab separated\n"
+           "# Times are UTC at the middle of the run. CM: Jupiter central meridian\n"
+           "# longitudes (System I, II, III), blank for other targets. clock: yes =\n"
+           "# checked against a time server within 0.05 s, no = checked and not,\n"
+           "# blank = not checked. PVOL2's own form was not checked against this list.\n"
+           "file\ttarget\tmid_utc\tduration_s\tframes\tcm1\tcm2\tcm3\ttelescope\tcamera\t"
+           "filter\tsite_lat\tsite_lon\tclock\n";
+}
+inline std::string SubmissionSheetLine(const ObservationRecord& r, const char* telescope,
+                                       const char* camera) {
+    auto num = [](double v, int d) {
+        if (!ObsKnown(v)) return std::string();
+        char b[32]; std::snprintf(b, sizeof(b), "%.*f", d, v); return std::string(b);
+    };
+    const int64_t mid = r.startUnix + (ObsKnown(r.durationSec) ? (int64_t)(r.durationSec / 2.0 + 0.5) : 0);
+    std::string o;
+    o += obs_detail::Clean(r.file) + "\t" + obs_detail::Clean(r.target) + "\t" + FormatUtcIso(mid) + "\t";
+    o += num(r.durationSec, 1) + "\t" + (r.frames >= 0 ? std::to_string(r.frames) : std::string()) + "\t";
+    o += num(r.cmSysIDeg, 1) + "\t" + num(r.cmSysIIDeg, 1) + "\t" + num(r.cmSysIIIDeg, 1) + "\t";
+    o += std::string(telescope) + "\t" + camera + "\t" + obs_detail::Clean(r.filter) + "\t";
+    o += num(r.siteLatDeg, 4) + "\t" + num(r.siteLonDeg, 4) + "\t";
+    o += r.clockConfirmed == 1 ? "yes" : r.clockConfirmed == 0 ? "no" : "";
+    return o + "\n";
+}
+
+// ── Phase 142: the night's DeTeCt list ───────────────────────
+//
+// DeTeCt (Marc Delcroix's open-source impact-flash detector) searches
+// Jupiter videos for flashes, and the impact-rate statistics count the
+// hours searched, empty ones included. Its batch mode works through a
+// folder. Its command line could not be confirmed when this was
+// written, so the app does not launch it: each Jupiter Light run goes on
+// detect_jupiter_<YYYYMMDD>.txt in the capture folder with its length,
+// and the night's searched minutes are summed from it.
+inline bool IsJupiterRun(const ObservationRecord& r) {
+    auto has = [](std::string s) {
+        for (auto& c : s) c = (char)std::tolower((unsigned char)c);
+        return s.find("jupiter") != std::string::npos;
+    };
+    return (r.frameType.empty() || r.frameType == "Light") && (has(r.target) || has(r.profile));
+}
+inline std::string DetectListHeader() {
+    return "# Jupiter recordings for DeTeCt (impact flashes), one per line, tab separated:\n"
+           "# path, start UTC, duration in seconds. Point DeTeCt's batch mode at the capture\n"
+           "# folder; the minutes listed here are the night's coverage, flashes or not.\n";
+}
+inline std::string DetectListLine(const ObservationRecord& r, const std::string& fullPath) {
+    char d[32] = "";
+    if (ObsKnown(r.durationSec)) std::snprintf(d, sizeof(d), "%.1f", r.durationSec);
+    return obs_detail::Clean(fullPath) + "\t" + FormatUtcIso(r.startUnix) + "\t" + d + "\n";
+}
+// The minutes on a list's text: the sum of the third column.
+inline double DetectListMinutes(const std::string& text) {
+    double sec = 0;
+    size_t at = 0;
+    while (at < text.size()) {
+        size_t end = text.find('\n', at);
+        if (end == std::string::npos) end = text.size();
+        const std::string l = text.substr(at, end - at);
+        at = end + 1;
+        if (l.empty() || l[0] == '#') continue;
+        const size_t t2 = l.rfind('\t');
+        if (t2 == std::string::npos) continue;
+        sec += std::atof(l.c_str() + t2 + 1);
+    }
+    return sec / 60.0;
 }
 
 // ── Read ──────────────────────────────────────────────────────
@@ -460,6 +561,13 @@ inline bool ParseObservation(const std::string& text, ObservationRecord& r,
         else if (k == "pressure_hpa")  ToDouble(v, r.pressureHpa);
         else if (k == "imaging_score") ToDouble(v, r.imagingScore);
         else if (k == "wx_verdict")    r.wxVerdict = v;
+        else if (k == "filter")        r.filter = v;
+        else if (k == "cm_sys1_deg")   ToDouble(v, r.cmSysIDeg);
+        else if (k == "cm_sys2_deg")   ToDouble(v, r.cmSysIIDeg);
+        else if (k == "cm_sys3_deg")   ToDouble(v, r.cmSysIIIDeg);
+        else if (k == "clock_confirmed") { double c = -1; if (ToDouble(v, c)) r.clockConfirmed = (int)c; }
+        else if (k == "clock_offset_ms") ToDouble(v, r.clockOffsetMs);
+        else if (k == "detect")          r.detect = v;
         // anything else: a later version's field, ignored
     }
 

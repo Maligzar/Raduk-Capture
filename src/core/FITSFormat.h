@@ -318,6 +318,8 @@ inline std::string BuildHeader(const ObservationRecord& r,
     if (r.clockConfirmed >= 0)
         add(CardInt("CLOCKOK", r.clockConfirmed, "1: PC clock checked against NTP"));
     addReal("CLOCKOFF", r.clockOffsetMs, 1, "ms, UTC minus PC clock");
+    // Phase 144.1: no comment, so the text keeps the card's 68 characters.
+    if (!r.jupiterDisc.empty()) add(CardString("JUPDISC", r.jupiterDisc));
 
     add(CardComment("Per-frame times are in the FRAMES table, column MJD_MID:"));
     add(CardComment("UTC midpoint of integration, not arrival at the host."));

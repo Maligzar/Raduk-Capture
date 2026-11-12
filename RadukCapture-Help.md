@@ -2994,6 +2994,7 @@ order.
 | 3.1.0 | 142, 143 | Jupiter runs listed for DeTeCt impact searches, and records with central meridians and a submission sheet |
 | 3.1.1 | 138 | Once an hour the session log gets a `SEEING` line: the seeing forecast Leoben passed on (7Timer's class, the jet stream at 200 and 250 hPa) beside the seeing measured that hour, to learn which forecast, if any, predicts this site |
 | 3.2.0 | 144 | Jupiter's events put to work: on Jupiter, Autorun puts a due focus sweep off while the Red Spot is near the meridian or a moon or shadow is on the disc (30 min at most, `AutorunPrimeDeferMin`), the run list says what was on the disc for each run, and the assistant knows the next 8 hours |
+| 3.2.1 | 144.1 | A Jupiter run's observation record (`jupiter_disc`) and FITS header (`JUPDISC`) say what was on the disc as it started: the Red Spot near the meridian, moons and shadows crossing |
 
 ---
 

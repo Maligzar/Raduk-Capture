@@ -4363,6 +4363,9 @@ static int RunApp(bool useEmulator) {
     // Phase 143: the clock check behind the next recording, when there is
     // one (set by the mutual-event recording, cleared after each start).
     struct { int confirmed = -1; double offsetMs = 0; } nextRecClock;
+    // Phase 144.1: what is on Jupiter's disc now, as words. Set once the
+    // Red Spot model and the Horizons cache exist, further down.
+    std::function<std::string()> jupiterDiscNow;
     capturer.SetObservationSource([&](raduk::core::ObservationRecord& r) {
         r.appVersion = RADUK_VERSION_A;
         r.filter = RigConfig::Get().filterName;
@@ -4371,6 +4374,11 @@ static int RunApp(bool useEmulator) {
         nextRecClock.confirmed = -1;
         r.target = outputTarget();
         if (const TargetProfile* ap = profiles.Active()) r.profile = ap->name;
+        {
+            std::string t = r.target;
+            for (auto& ch : t) ch = (char)tolower((unsigned char)ch);
+            if (jupiterDiscNow && t.find("jupiter") != std::string::npos) r.jupiterDisc = jupiterDiscNow();
+        }
         if (cam.IsOpen()) {
             r.exposureMs = cam.GetControlValue(ControlId::ExposureUs) / 1000.0;
             r.gain       = (double)cam.GetControlValue(ControlId::Gain);
@@ -5328,6 +5336,9 @@ static int RunApp(bool useEmulator) {
         if (jupiterDesk.CoverToJd() < jd + 8.0 / 24.0)
             out += "  (moon events not fetched yet: they come from JPL Horizons when online)\n";
         return out;
+    };
+    jupiterDiscNow = [&]() {
+        return raduk::sky::jupiter::DiscLine(jupiterDisc(raduk::sky::PreciseJdNow()));
     };
     double jupiterSnapshotJd = 0.0;
     std::string jupiterSnapshotText;

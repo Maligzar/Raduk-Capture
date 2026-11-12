@@ -1493,8 +1493,9 @@ bench order, top first:
    the owner 2026-11-12 when the order above was used up. **Written
    2026-11-12, as 3.2.0:** Autorun on Jupiter puts a due sweep off through
    a Red Spot or moon spell, the run list notes what was on the disc, and
-   the assistant's snapshot carries the next 8 hours. Owes clear-night
-   item 57.
+   the assistant's snapshot carries the next 8 hours. Merged as #146.
+   **144.1 written 2026-11-12, as 3.2.1:** the same line in the
+   observation record and FITS. Owes clear-night item 57.
 
 A clear night still goes first, to 133.3 and 133.4, and the plate scale
 needs D80 installed before that night (see [Blocked on

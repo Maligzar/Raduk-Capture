@@ -47,6 +47,7 @@
 #include <chrono>
 
 #include "DeviceFactory.h"
+#include "FocusDirection.h"   // phase 139
 
 namespace raduk::core {
 
@@ -65,6 +66,8 @@ struct AutofocusParams {
     int   framesPerStep = 8;     // frames to average sharpness at each position
     int   settleMs      = 600;   // ms to wait after EAF stops moving
     int   backlash      = 200;   // steps of backlash compensation on final move
+                                 // (phase 139: from rig.ini or the EAF, see
+                                 // ResolveBacklash in FocusDirection.h)
     float minSharpness  = 2.0f;  // abort if peak never exceeds this (no star/planet)
     int   maxStepBound  = 600000;// clamp to EAF physical range
     int   minStepBound  = 0;
@@ -214,6 +217,8 @@ public:
     int         CurrentStep()  const { return m_currentStep.load(); }
     int         TotalSteps()   const { return 2 * m_params.nSteps; }   // out and back
     int         BestPosition() const { return m_bestPosition.load(); }
+    // Phase 139.0: the last sweep's outward minus inward peak, -1 if none.
+    int         MeasuredBacklash() const { return m_measuredBacklash.load(); }
     float       BestSharpness()const { return m_bestSharpness.load(); }
 
     // Status text — safe to read from any thread (atomic string via index trick)
@@ -287,14 +292,20 @@ private:
         if (pass > 0) {
             Emit("[AF] Sweep %d: %d -> %d\n", pass + 1, startPos, endPos);
         }
-        // 2026-11-08, Saturn: the target faded and blurred steadily
-        // through a sweep (peak 255 -> 154 in 90 s; dew or haze), and the
-        // score fell with TIME at every position, swamping focus. So each
-        // position is visited twice, out and back, half the frames each,
-        // and the two are averaged: a steady trend lowers the early-out
-        // and late-back visits alike and cancels, focus does not.
-        std::vector<float> visitSum((size_t)n, 0.0f);
-        std::vector<int>   visitCnt((size_t)n, 0);
+        // Each position is visited twice, out (rising numbers) and back.
+        // 2026-11-08 (F9) averaged the two, to cancel a target fading
+        // through the sweep. Phase 139.1 stops that: the knob's slack
+        // puts the two visits to one step number a backlash apart in
+        // focus, so their average is two V-curves shifted against each
+        // other, flatter, and peaked half a backlash from where the
+        // outward final approach must land (tests/af_direction_fit.cpp).
+        // The position now comes from the OUTWARD curve, the direction of
+        // the final approach; the inward one measures the backlash. The
+        // fade F9 answered matters less than it did: the score has since
+        // become 1000 / the half-flux diameter, which a dimmer target
+        // does not lower, and 133.2 warns of a fade during a sweep.
+        std::vector<float> outScore((size_t)n, 0.0f), backScore((size_t)n, 0.0f);
+        std::vector<int>   posAt((size_t)n, 0);
         for (int v = 0; v < 2 * n; v++) {
             const int i = (v < n) ? v : (2 * n - 1 - v);
             if (m_abortFlag.load()) {
@@ -310,8 +321,22 @@ private:
             sprintf_s(buf, "Scanning %d/%d  pos=%d", v + 1, 2 * n, pos);
             SetStatus(buf);
 
-            // Move to position
-            m_focuser->MoveTo(pos);
+            // One leg: the sweep measures both directions on purpose. But
+            // the outward pass's first point is approached from below, so
+            // the slack is already taken up outward when the pass starts:
+            // reached moving inward (from a start above the sweep), it sat
+            // half a backlash high, the first two points were that much
+            // closer at the mirror than in steps, and seeing noise made a
+            // false peak between them (tests/autofocus_saturn.cpp, case 4).
+            if (v == 0 && m_params.backlash > 0) {
+                const int below = (std::max)(m_params.minStepBound, pos - m_params.backlash);
+                m_focuser->MoveToDirect(below);
+                if (!WaitForMove()) {
+                    Finish(false, m_startPosition, 0.0f, startSharpness, "EAF move timed out");
+                    return;
+                }
+            }
+            m_focuser->MoveToDirect(pos);
 
             // Wait for motion to complete
             if (!WaitForMove()) {
@@ -389,19 +414,16 @@ private:
                 m_sharpnessMutex.unlock();
             }
 
-            if (nSamples > 0) { visitSum[(size_t)i] += meanSharp; visitCnt[(size_t)i]++; }
+            posAt[(size_t)i] = pos;
+            if (nSamples > 0) (v < n ? outScore : backScore)[(size_t)i] = meanSharp;
             Emit("[AF] Step %d/%d (%s)  pos=%d  sharp=%.1f%%  (%d samples, "
                  "%d distinct, centroid %d/%d ok, peak %d-%d)\n",
                  v + 1, 2 * n, v < n ? "out" : "back", pos, meanSharp, nSamples, nDistinct,
                  nCentOk, nSamples, peakMax < 0 ? -1 : peakMin, peakMax);
         }
-        for (int i = 0; i < n; i++) {
-            const int pos = startPos + (int)((float)i / (n - 1) * range);
-            const float m = visitCnt[(size_t)i] ? visitSum[(size_t)i] / visitCnt[(size_t)i] : 0.0f;
-            m_samples.push_back({pos, m});
-        }
+        for (int i = 0; i < n; i++) m_samples.push_back({posAt[(size_t)i], outScore[(size_t)i]});
         {
-            std::string line = "[AF] Out-and-back means:";
+            std::string line = "[AF] Outward curve:";
             char b[48];
             for (const auto& smp : m_samples) {
                 sprintf_s(b, " %d=%.2f", smp.position, smp.sharpness);
@@ -409,6 +431,19 @@ private:
             }
             line += "\n";
             Emit("%s", line.c_str());
+        }
+        // Phase 139.0: each direction alone, and the average F9 used.
+        {
+            const DirectionFit df = FitDirections(posAt, outScore, backScore);
+            auto P = [](const CurvePeak& c) { return c.ok ? (int)std::lround(c.pos) : -1; };
+            Emit("[AF] Direction fits: outward=%d inward=%d averaged=%d (-1: no peak)\n",
+                 P(df.out), P(df.back), P(df.mean));
+            if (df.haveBacklash) {
+                m_measuredBacklash.store((int)std::lround(df.backlash));
+                Emit("[AF] Backlash measured on this sweep: %d steps (outward peak minus "
+                     "inward); in use: %d. Set FocuserBacklashSteps in rig.ini once "
+                     "several sweeps agree.\n", (int)std::lround(df.backlash), m_params.backlash);
+            }
         }
 
         // ── Fit parabola to find best position ────────────────
@@ -474,13 +509,13 @@ private:
             int approachFrom = finalPos - m_params.backlash;
             approachFrom = (approachFrom < m_params.minStepBound)
                 ? m_params.minStepBound : approachFrom;
-            m_focuser->MoveTo(approachFrom);
+            m_focuser->MoveToDirect(approachFrom);
             if (!WaitForMove())
                 printf("[AF] backlash approach to %d did not complete\n", approachFrom);
             Sleep(300);
         }
 
-        m_focuser->MoveTo(finalPos);
+        m_focuser->MoveToDirect(finalPos);
         if (!WaitForMove())
             printf("[AF] final move to %d did not complete - focus may be off\n", finalPos);
         Sleep(m_params.settleMs);
@@ -554,10 +589,10 @@ private:
                 if (m_params.backlash > 0) {
                     int approachFrom = finalPos - m_params.backlash;
                     if (approachFrom < m_params.minStepBound) approachFrom = m_params.minStepBound;
-                    m_focuser->MoveTo(approachFrom);
+                    m_focuser->MoveToDirect(approachFrom);
                     WaitForMove();
                 }
-                m_focuser->MoveTo(finalPos);
+                m_focuser->MoveToDirect(finalPos);
                 WaitForMove();
                 m_bestPosition.store(finalPos);
                 m_bestSharpness.store(finalSharp);
@@ -871,6 +906,7 @@ private:
     std::atomic<AFState>   m_state{AFState::Idle};
     std::atomic<int>       m_currentStep{0};
     std::atomic<int>       m_bestPosition{0};
+    std::atomic<int>       m_measuredBacklash{-1};
     std::atomic<float>     m_bestSharpness{0.0f};
     std::atomic<float>     m_pendingSharpness{-1.0f};
     std::atomic<int>       m_samplesNeeded{0};

@@ -1418,7 +1418,9 @@ request review.** The bench order, top first:
 5. **139.0 to 139.2 (row 39), size S-M.** Autofocus redesigned now,
    **approved by the owner 2026-11-11** without waiting for a night's
    measurement: fit one sweep direction, measure and apply the backlash
-   once, and manual moves that approach from one side.
+   once, and manual moves that approach from one side. **Written
+   2026-11-12**; owes the first clear night's backlash figure (item 47)
+   and the owner's return-to-the-number test.
 6. **135.1 and 135.2 (row 35), size S.** Category 1: a failed disk write
    leaves the run "recording" into RAM, and a crash leaves a SER whose
    header says it holds no frames. Both silent, both on `master` today.

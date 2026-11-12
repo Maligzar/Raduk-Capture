@@ -52,13 +52,17 @@ bool EAFFocuser::Open(int index) {
     }
 
     m_isOpen = true;
-    printf("[EAFFocuser] Opened: id=%d, maxStep=%d\n", id, m_info.MaxStep);
+    m_fwBacklashAtOpen = GetBacklash();
+    printf("[EAFFocuser] Opened: id=%d, maxStep=%d, firmware backlash=%d\n",
+           id, m_info.MaxStep, m_fwBacklashAtOpen);
     return true;
 }
 
 void EAFFocuser::Close() {
     if (!m_isOpen) return;
-    
+
+    if (m_fwBacklashAtOpen >= 0 && GetBacklash() != m_fwBacklashAtOpen)
+        EAFSetBacklash(m_focuserId, m_fwBacklashAtOpen);
     EAFClose(m_focuserId);
     printf("[EAFFocuser] Closed: id=%d\n", m_focuserId);
     
@@ -70,7 +74,20 @@ void EAFFocuser::Close() {
 
 bool EAFFocuser::MoveTo(int position) {
     if (!m_isOpen) return false;
-    
+    const int from = GetPosition();
+    const int leg  = m_approach.Begin(from, position);
+    EAF_ERROR_CODE err = EAFMove(m_focuserId, leg);
+    if (err != EAF_SUCCESS) {
+        m_approach.Cancel();
+        printf("[EAFFocuser] MoveTo(%d) failed: %d\n", leg, (int)err);
+        return false;
+    }
+    return true;
+}
+
+bool EAFFocuser::MoveToDirect(int position) {
+    if (!m_isOpen) return false;
+    m_approach.Direct(GetPosition(), position);
     EAF_ERROR_CODE err = EAFMove(m_focuserId, position);
     if (err != EAF_SUCCESS) {
         printf("[EAFFocuser] MoveTo(%d) failed: %d\n", position, (int)err);
@@ -87,6 +104,7 @@ bool EAFFocuser::MoveRelative(int steps) {
 
 bool EAFFocuser::Stop() {
     if (!m_isOpen) return false;
+    m_approach.Cancel();
     return EAFStop(m_focuserId) == EAF_SUCCESS;
 }
 
@@ -99,8 +117,14 @@ bool EAFFocuser::IsMoving() const {
     bool bHandControl = false;
     
     EAFIsMoving(m_focuserId, &bMoving, &bHandControl);
-    
-    return bMoving;
+    if (bMoving) return true;
+    // Phase 139.2: the first leg is done; command the second.
+    const int next = m_approach.NextLeg(GetPosition());
+    if (next >= 0) {
+        if (EAFMove(m_focuserId, next) != EAF_SUCCESS) return false;
+        return true;
+    }
+    return false;
 }
 
 int EAFFocuser::GetPosition() const {
@@ -127,6 +151,13 @@ void EAFFocuser::SetReverse(bool reversed) {
 void EAFFocuser::SetBacklash(int steps) {
     if (!m_isOpen) return;
     EAFSetBacklash(m_focuserId, steps);
+}
+
+int EAFFocuser::GetBacklash() const {
+    if (!m_isOpen) return -1;
+    int v = -1;
+    if (EAFGetBacklash(m_focuserId, &v) != EAF_SUCCESS) return -1;
+    return v;
 }
 
 } // namespace raduk::core

@@ -127,6 +127,7 @@
 #include "core/DerotationLimit.h"
 #include "core/AutorunRunner.h"
 #include "core/SeeingMonitor.h"
+#include "core/SeeingTally.h"     // phase 138: forecast against the measured sky
 #include "core/AutoExposureAssistant.h"
 #include "core/TargetNaming.h"     // 2026-11-08: one name for the target, files included
 
@@ -1841,6 +1842,9 @@ static int RunApp(bool useEmulator) {
     // Phase 114: how the sky is doing against tonight's best, and the
     // runs so far, for the list written when the sequence ends.
     raduk::core::SeeingMonitor seeing;
+    // Phase 138: an hourly SEEING line in the session log, the forecast
+    // Leoben passed on beside the seeing measured that hour.
+    raduk::core::SeeingTally seeingTally;
     raduk::core::FadeWatch fadeWatch;   // 133.2
     // Phase 139.3: autofocus readiness, and when a fade last fired.
     auto lastFadeAt = std::chrono::steady_clock::now() - std::chrono::hours(1);
@@ -7135,6 +7139,27 @@ static int RunApp(bool useEmulator) {
             }
         } else {
             fadeWatch.Reset();
+        }
+
+        // Phase 138: every analysed frame of a target, outside a focus
+        // sweep, counts toward the hour's measured seeing -- not only
+        // during Autorun, which is phase 114's own use below.
+        if (freshAnalysis && lastAnalysis.valid && !autofocus.IsRunning() && !afWaitingForAE)
+            seeingTally.Measured(raduk::core::SeeingMonitor::Normalised(
+                                     lastAnalysis.sharpnessPct, lastAnalysis.highlightDN),
+                                 targetNow());
+        if (seeingTally.Due((int64_t)std::time(nullptr))) {
+            const auto ls = leoben.Get();
+            if (raduk::net::LeobenFresh(ls.last, (int64_t)std::time(nullptr))) {
+                raduk::core::SeeingForecast f;
+                f.seeing7Timer = ls.last.seeing7Timer;
+                f.jet200Kmh = ls.last.wind200hPaKmh;
+                f.jet250Kmh = ls.last.wind250hPaKmh;
+                seeingTally.Forecast(f);
+            } else {
+                seeingTally.ClearForecast();
+            }
+            slog.Seeing("%s", seeingTally.TakeLine((int64_t)std::time(nullptr)).c_str());
         }
 
         // Phase 114. Not during a sweep: defocus is not the sky.

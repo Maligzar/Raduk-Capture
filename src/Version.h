@@ -27,5 +27,5 @@
 // recompile, so the two always move together.
 // ============================================================
 
-#define RADUK_VERSION_W  L"3.1.0"
-#define RADUK_VERSION_A   "3.1.0"
+#define RADUK_VERSION_W  L"3.1.1"
+#define RADUK_VERSION_A   "3.1.1"

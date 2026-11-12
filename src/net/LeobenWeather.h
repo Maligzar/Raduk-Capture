@@ -48,6 +48,10 @@ struct LeobenConditions {
     std::string dewRisk;               // "safe" | "elevated" | "warning"
     std::string goNoGo;                // "GO" | "CAUTION" | "NO-GO"
     std::string capturedAt;            // Leoben's own ISO timestamp
+    // Phase 138: seeing forecasts, when Leoben passes them on. -1 = absent.
+    double      seeing7Timer   = -1;   // 7Timer seeing class, 1 best .. 8 worst
+    double      wind200hPaKmh  = -1;   // Open-Meteo wind at 200 hPa
+    double      wind250hPaKmh  = -1;   // and at 250 hPa
 
     double TempC()      const { return (tempF - 32.0) * 5.0 / 9.0; }
     double DewPointC()  const { return (dewPointF - 32.0) * 5.0 / 9.0; }
@@ -138,6 +142,12 @@ inline bool ParseLeobenCurrent(const std::string& body, LeobenConditions& out) {
     JsonString(body, "dew_risk",      out.dewRisk);
     JsonString(body, "go_nogo",       out.goNoGo);
     JsonString(body, "captured_at",   out.capturedAt);
+    // Phase 138: optional, and range-checked, so a missing or odd value
+    // stays -1 (not given) rather than becoming a forecast.
+    double v = -1;
+    if (JsonNumber(body, "seeing_7timer", v) && v >= 1 && v <= 8) out.seeing7Timer = v;
+    if (JsonNumber(body, "wind_200hpa_kmh", v) && v >= 0 && v < 600) out.wind200hPaKmh = v;
+    if (JsonNumber(body, "wind_250hpa_kmh", v) && v >= 0 && v < 600) out.wind250hPaKmh = v;
     out.valid = true;
     return true;
 }

@@ -78,6 +78,10 @@ int main() {
         Check(std::fabs(byOut - kFocus) < 120, "outward fit, outward approach: on focus", F(byOut - kFocus));
         Check(std::fabs(byMean - kFocus) > B / 2 - 120, "averaged fit, outward approach: off by half the slack",
               F(byMean - kFocus));
+        // What autofocus does (139.1): the average, shifted up by half the
+        // backlash, which keeps the average's cancellation of a fade.
+        const double byShift = land(f.mean.pos + B / 2);
+        Check(std::fabs(byShift - kFocus) < 120, "averaged fit + half the backlash: on focus", F(byShift - kFocus));
     }
 
     printf("\n3. One-sided moves\n");

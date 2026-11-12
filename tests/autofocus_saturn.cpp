@@ -131,7 +131,12 @@ int main() {
                     c.name, c.start, end, end - kFocus, meas, m.c_str());
         CHECK(std::abs(end - kFocus) <= 400, "%s with slack: mirror ended %+d from focus",
               c.name, end - kFocus);
-        CHECK(meas > 200 && meas < 600, "%s: the sweep measured the slack (%d)", c.name, meas);
+        // A diagnostic, not the position: one sweep at 600-step spacing
+        // read this 400-step slack anywhere from 230 to 740 over repeated
+        // runs (the near-focus start reads high), which is why the log
+        // asks for several sweeps that agree before FocuserBacklashSteps
+        // is set. This catches a missing or wrong-signed reading.
+        CHECK(meas > 100 && meas < 900, "%s: the sweep measured a slack (%d)", c.name, meas);
     }
 
     if (g_fail) { std::printf("autofocus_saturn: %d FAILED\n", g_fail); return 1; }

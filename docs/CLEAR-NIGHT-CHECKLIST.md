@@ -1306,4 +1306,5 @@ the bench already showed, so the night only has to confirm it. The plan is
     note on each run should match what the stacked image shows (the Red
     Spot near the centre, the shadow on the disc). If the Red Spot is well
     off the meridian when the note says it is near, `GrsLonSys2` needs a
-    recent figure.
+    recent figure. The run's `_observation.txt` (`jupiter_disc`) and a FITS
+    run's `JUPDISC` card should say the same as the list.

@@ -87,8 +87,10 @@ labels it as computed, with times in UTC.
 
 ## Not done
 
-- The observation record and FITS do not carry the disc line yet. The run
-  ranking does.
+- ~~The observation record and FITS do not carry the disc line yet.~~
+  Done as 144.1 (3.2.1): `jupiter_disc` in the record and `JUPDISC` in
+  FITS, filled as any run on Jupiter starts, Autorun or not. JUPDISC is
+  cut at the card's 68 characters.
 - Prime spells are not chained: an event that starts inside a spell
   extends the wait only when it is checked again, before the next run.
   Each check sees what is under way at that moment.

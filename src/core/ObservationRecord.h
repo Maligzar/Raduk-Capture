@@ -148,6 +148,10 @@ struct ObservationRecord {
     double      clockOffsetMs  = kObsUnknown;   // UTC minus the PC clock
     // Phase 142: "queued" when the run was put on the night's DeTeCt list.
     std::string detect;
+    // Phase 144.1: what was on Jupiter's disc as the run started ("Red
+    // Spot 12 min past the meridian; Io shadow transit"), from the Red
+    // Spot model and Horizons' moon events. Empty: not Jupiter, or nothing.
+    std::string jupiterDisc;
 
     bool HasMountPosition() const {
         return ObsKnown(raHours) && ObsKnown(decDeg);
@@ -287,6 +291,7 @@ inline std::string SerializeObservation(const ObservationRecord& r) {
     o += "#       colour=BAYERPAT site_lat_deg=SITELAT site_lon_deg=SITELONG\n";
     o += "#       air_temp_c=AMBTEMP humidity_pct=HUMIDITY pressure_hpa=PRESSURE\n";
     o += "#       filter=FILTER cm_sys1/2/3_deg=CMSYS1/2/3 clock_confirmed=CLOCKOK\n";
+    o += "#       jupiter_disc=JUPDISC\n";
     o += "#\n";
 
     char fv[48];
@@ -362,6 +367,7 @@ inline std::string SerializeObservation(const ObservationRecord& r) {
     Int(o, "clock_confirmed", r.clockConfirmed, r.clockConfirmed >= 0);
     Num(o, "clock_offset_ms", r.clockOffsetMs, 1);
     Str(o, "detect",          r.detect);
+    Str(o, "jupiter_disc",    r.jupiterDisc);
     return o;
 }
 
@@ -568,6 +574,7 @@ inline bool ParseObservation(const std::string& text, ObservationRecord& r,
         else if (k == "clock_confirmed") { double c = -1; if (ToDouble(v, c)) r.clockConfirmed = (int)c; }
         else if (k == "clock_offset_ms") ToDouble(v, r.clockOffsetMs);
         else if (k == "detect")          r.detect = v;
+        else if (k == "jupiter_disc")    r.jupiterDisc = v;
         // anything else: a later version's field, ignored
     }
 

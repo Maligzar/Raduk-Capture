@@ -282,6 +282,10 @@ int main() {
         Check(Has(mj, "CMSYS2") && std::fabs(Number(mj, "CMSYS2") - 210.5) < 1e-9 &&
               Number(mj, "CLOCKOK") == 1 && Text(mj, "FILTER") == "UV/IR cut",
               "phase 143: CMSYS2, CLOCKOK and FILTER when known");
+        Check(!Has(mj, "JUPDISC"), "phase 144.1: no JUPDISC card when nothing was on the disc");
+        j.jupiterDisc = "Red Spot 12 min past the meridian; Io shadow transit";
+        const std::string md = BuildHeader(j, HeaderExtras{}, RunTimes{}, 0);
+        Check(Text(md, "JUPDISC") == j.jupiterDisc, "phase 144.1: JUPDISC says what was on the disc");
         Check(Number(m, "NAXIS3") == 0 && EndBlock(m) == (int)kHeaderBlocks - 1,
               "the zero-frame header written at open is valid");
     }

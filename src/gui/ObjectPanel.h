@@ -219,6 +219,37 @@ inline float FitBodyPx(size_t chars, float width, float boxH,
                            audience::BODY_ADVANCE_EM, floorPx);
 }
 
+// B1, closed 2026-11-12. A narrative with no second column -- every star, since
+// mythology and discovery notes exist only for the solar-system rows --
+// went full width from beside the scale diagram and painted across it
+// (B1's second defect, still open after 103). It has two honest places:
+// BESIDE the diagram, the narrower column it shares with the derived
+// lines, starting high; or BELOW it, the full width, starting lower.
+// Whichever fits at the larger size wins, and a tie goes beside, which
+// uses the space next to the diagram instead of leaving it empty.
+struct SoloColumn { bool beside = true; float px = 0.0f; };
+
+inline SoloColumn PlaceSoloColumn(size_t chars, float besideW, float besideH,
+                                  float fullW, float belowH, float want,
+                                  float floorPx = BODY_FLOOR_PX) {
+    SoloColumn s;
+    const bool besideOk = besideW > 0.0f && besideH > 0.0f;
+    const bool belowOk  = fullW > 0.0f && belowH > 0.0f;
+    const float pb = besideOk ? FitBodyPx(chars, besideW, besideH, want, floorPx) : 0.0f;
+    const float pf = belowOk  ? FitBodyPx(chars, fullW,   belowH,  want, floorPx) : 0.0f;
+    s.beside = besideOk && (!belowOk || pb >= pf);
+    s.px = s.beside ? pb : pf;
+    return s;
+}
+
+// How tall one derived line is, wrapped to its column: the rect it is
+// drawn in and how far the next one starts below it. It was a fixed
+// 1.3 em box advancing 1.15 em, so a line that wrapped lost its second
+// row (B1's third instance).
+inline float DerivedLineHeight(size_t chars, float width, float bodyPx) {
+    return EstimatedHeight(chars, width, bodyPx);
+}
+
 } // namespace objectpanel
 
 class ObjectPanel {
@@ -799,9 +830,14 @@ private:
         DrawScaleDiagram(diagX, y, diagW, m_fontPx * 4.6f, alpha);
         const float derivedW = colW - diagW - m_fontPx;
 
+        // B1, closed 2026-11-12: each line gets the height its wrap needs, so a long
+        // one (a bright star's brightness line in a narrow window) keeps
+        // its second row and the next line starts below it.
         for (const auto& line : derived) {
-            Text(m_fBody, W(line), pad, y, derivedW, m_fontPx * 1.3f, ac, alpha);
-            y += m_fontPx * 1.15f;
+            const std::wstring wl = W(line);
+            const float lh = objectpanel::DerivedLineHeight(wl.size(), derivedW, m_bodyPx);
+            Text(m_fBody, wl, pad, y, derivedW, lh, ac, alpha);
+            y += (std::max)(m_fontPx * 1.15f, lh);
         }
         // The diagram is taller than the derived lines when there are
         // only one or two, so the narrative starts below whichever
@@ -863,13 +899,25 @@ private:
                                    ? m_bodyPx
                                    : objectpanel::FitBodyPx(aside.size(),
                                                  cw2, rightH, m_bodyPx));
-                IDWriteTextFormat* bf = BodyAt(fit);
-
-                Text(bf, W(r.summary), pad, yLeft, cw2, left,
-                     fg, alpha * 0.92f);
-                if (!aside.empty())
+                if (aside.empty()) {
+                    // B1, closed 2026-11-12: one column, so it must not reach under
+                    // the diagram. Beside it (the derived lines' width)
+                    // or below it (full width), whichever fits larger.
+                    const auto solo = objectpanel::PlaceSoloColumn(
+                        r.summary.size(), derivedW, left, colW, rightH, m_bodyPx);
+                    if (solo.beside)
+                        Text(BodyAt(solo.px), W(r.summary), pad, yLeft, derivedW, left,
+                             fg, alpha * 0.92f);
+                    else if (rightH > m_fontPx * 2.0f)
+                        Text(BodyAt(solo.px), W(r.summary), pad, yRight, colW, rightH,
+                             fg, alpha * 0.92f);
+                } else {
+                    IDWriteTextFormat* bf = BodyAt(fit);
+                    Text(bf, W(r.summary), pad, yLeft, cw2, left,
+                         fg, alpha * 0.92f);
                     Text(bf, W(aside), pad + cw2 + gut, yRight, cw2,
                          rightH, ac, alpha * 0.85f);
+                }
             }
         } else if (derived.empty() && !r.found) {
             // Nothing at all is known. Say that plainly rather than

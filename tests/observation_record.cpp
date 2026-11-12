@@ -340,6 +340,14 @@ int main() {
         Check(ok && Near(b.cmSysIDeg, 12.34, 1e-9) && Near(b.cmSysIIDeg, 210.5, 1e-9) &&
               Near(b.cmSysIIIDeg, 99.25, 1e-9), "the three central meridians round-trip");
         Check(ok && b.clockConfirmed == 1 && Near(b.clockOffsetMs, -12.5, 1e-9), "and the clock check");
+        // Phase 144.1.
+        ObservationRecord jd = r;
+        jd.jupiterDisc = "Red Spot 12 min past the meridian; Io shadow transit";
+        ObservationRecord jb;
+        Check(ParseObservation(SerializeObservation(jd), jb, &why) && jb.jupiterDisc == jd.jupiterDisc,
+              "phase 144.1: what was on Jupiter's disc round-trips", jb.jupiterDisc);
+        Check(SerializeObservation(r).find("jupiter_disc =") == std::string::npos,
+              "and is absent when nothing was there");
         ObservationRecord u;
         const std::string su = SerializeObservation(u);
         Check(su.find("\ncm_sys") == std::string::npos && su.find("\nclock_") == std::string::npos,

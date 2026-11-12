@@ -1493,8 +1493,9 @@ bench order, top first:
    the owner 2026-11-12 when the order above was used up. **Written
    2026-11-12, as 3.2.0:** Autorun on Jupiter puts a due sweep off through
    a Red Spot or moon spell, the run list notes what was on the disc, and
-   the assistant's snapshot carries the next 8 hours. Owes clear-night
-   item 57.
+   the assistant's snapshot carries the next 8 hours. Merged as #146.
+   **144.1 written 2026-11-12, as 3.2.1:** the same line in the
+   observation record and FITS. Owes clear-night item 57.
 
 A clear night still goes first, to 133.3 and 133.4, and the plate scale
 needs D80 installed before that night (see [Blocked on
@@ -2022,7 +2023,10 @@ depend on them:
 
 ### Backlog — raised, not yet scheduled
 
-#### B1 · The object panel clips its text, and bleeds it over the diagram
+#### B1 · The object panel clips its text, and bleeds it over the diagram — DONE 2026-11-12
+
+**Closed 2026-11-12 (3.2.1), from the owner's report that a star's panel bled over the rest of the window.** The star case was still open: with no mythology column, the summary took the full width from beside the scale diagram and painted across it. It now goes beside the diagram, the derived lines' width, or below it at full width, whichever fits at the larger size (`objectpanel::PlaceSoloColumn`). Each derived line gets the height its wrap needs (`DerivedLineHeight`), so a wrapped line keeps its second row. Gated by `tests/object_panel_fit.cpp`. Still an estimate from an average advance, not a DirectWrite measurement; the clip stays as the backstop. Not yet seen on a screen.
+
 
 **Phase 103 closed the clipping and the bleed.** The third instance is
 only half closed: `Text` now clips to its rect, so a wrapped derived line

@@ -69,6 +69,21 @@ int main() {
               "several things wrong: the first one that applies is named");
     }
 
+    // Phase 145.3: a frame-filling Moon has no disc and no HFD, but the
+    // fine pass's edge metric can focus on the surface.
+    {
+        AfReadyIn in = Good();
+        in.filled = true; in.targetFound = false; in.focusValid = false; in.framePct = 100;
+        in.edgeOnlyOk = true;
+        Check(AutofocusReadiness(in).ready, "a filled frame with the fine pass on: READY (no disc needed)");
+        in.edgeOnlyOk = false;
+        Check(AutofocusReadiness(in).why.find("AutofocusFineStage") != std::string::npos,
+              "with it off: NOT NOW, and it says which setting would do it");
+        in.edgeOnlyOk = true; in.tracking = false;
+        Check(AutofocusReadiness(in).why.find("tracking") != std::string::npos,
+              "a filled frame still needs the mount tracking");
+    }
+
     printf("\n%s\n", g_fail == 0 ? "ALL CHECKS PASSED" : "SOME CHECKS FAILED");
     return g_fail == 0 ? 0 : 1;
 }

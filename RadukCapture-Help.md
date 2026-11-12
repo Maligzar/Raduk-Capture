@@ -1520,6 +1520,40 @@ modes because they looked worse, that was why, and it is fixed.
 genuinely new measurements at the analyser's own rate, which is what
 makes the curve fittable rather than seeing noise.
 
+### The fine pass, and which way moves end (phase 145)
+
+After that coarse sweep, a **fine pass** narrows it. The coarse sweep measures
+the planet's half-flux diameter, which finds focus from far out but barely
+changes near focus on a big disc such as Jupiter. The fine pass sweeps 7 points
+across the coarse curve's width and reads **edge contrast** instead
+(Tenengrad: smoothed, with sensor noise gated out, and normalised so exposure
+cancels). It scores about 20 frames at each point and keeps their 75th
+percentile, which is the focus as it looks in the steadier moments, and each
+point is approached the final way. If the best point lands at an end, it
+sweeps once more centred there. If anything goes wrong, the coarse result
+stands. **On the Moon**, or anything else that fills the frame, there is no
+disc, so the fine pass runs on its own round where the focuser is.
+`AutofocusFineStage=0` in rig.ini turns the fine pass off.
+
+**Every focuser move ends travelling one way**, by at least the backlash
+(phase 139), so a step number means one focus position. On an SCT that last
+travel should push the primary mirror **toward the corrector**, against
+gravity, so it does not sag back as the scope slews. Which step direction
+that is depends on how the EAF is mounted and on its reverse setting, so
+check it once. Watch the focus knob while stepping to higher numbers, and
+compare it with the knob direction your scope's manual gives for moving the
+mirror forward. Then set `FocuserFinalDirection=out` (rising numbers, the
+default) or `in` in rig.ini.
+
+**Checking the backlash by hand.** Autofocus estimates the backlash from
+every sweep (`Backlash measured on this sweep` in the log), but one sweep's
+figure scatters widely. To check it:
+1. Focus on a bright star, finishing the final way.
+2. Step back the other way 10 steps at a time, watching the preview at 200%.
+3. Count the steps until the image first changes: that is the slack.
+4. Set `FocuserBacklashSteps` in rig.ini a little above it, and leave the
+   EAF's own backlash at 0, which the app already does while connected.
+
 **Tips:**
 - Start near focus. The sweep covers ±3000 steps; if true focus is
   outside that it will say so rather than guess.
@@ -2996,6 +3030,7 @@ order.
 | 3.2.0 | 144 | Jupiter's events put to work: on Jupiter, Autorun puts a due focus sweep off while the Red Spot is near the meridian or a moon or shadow is on the disc (30 min at most, `AutorunPrimeDeferMin`), the run list says what was on the disc for each run, and the assistant knows the next 8 hours |
 | 3.2.1 | 144.1 | A Jupiter run's observation record (`jupiter_disc`) and FITS header (`JUPDISC`) say what was on the disc as it started: the Red Spot near the meridian, moons and shadows crossing |
 | 3.2.1 | B1 | The object panel (Shift+I) on a star no longer paints its description across the field diagram: the text goes beside the diagram or below it, whichever fits larger, and a long line under the figures keeps its second row |
+| 3.3.0 | 145 | Autofocus in two stages: the coarse sweep on the half-flux diameter, then a fine pass on edge contrast (20 frames a point, the 75th percentile) that sharpens a big disc's focus and can focus on the Moon; `FocuserFinalDirection` sets which way every move ends, so the last travel can push the mirror against gravity |
 
 ---
 

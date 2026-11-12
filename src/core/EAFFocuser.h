@@ -33,6 +33,7 @@ public:
     bool MoveTo(int position) override;
     bool MoveToDirect(int position) override;
     void SetApproachBacklash(int steps) override { m_approach.SetBacklash(steps); }
+    void SetApproachDirection(int dir) override  { m_approach.SetDirection(dir); }
     int  ApproachBacklash() const override       { return m_approach.Backlash(); }
     bool MoveRelative(int steps) override;
     bool Stop() override;

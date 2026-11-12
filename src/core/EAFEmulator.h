@@ -82,6 +82,7 @@ public:
     }
 
     void SetApproachBacklash(int steps) override { m_approach.SetBacklash(steps); }
+    void SetApproachDirection(int dir) override  { m_approach.SetDirection(dir); }
     int  ApproachBacklash() const override       { return m_approach.Backlash(); }
 
     // Phase 139: the knob's slack, simulated. The mirror (what the

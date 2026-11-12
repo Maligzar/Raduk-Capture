@@ -1007,9 +1007,16 @@ static int RunApp(bool useEmulator) {
         const int b = raduk::core::ResolveBacklash(rig.focuserBacklashSteps, fw, &src);
         if (fw > 0) focuser.SetBacklash(0);
         focuser.SetApproachBacklash(rig.focuserOneSidedMoves ? b : 0);
+        const int finalDir = rig.focuserFinalDirection == "in" ? -1 : 1;
+        focuser.SetApproachDirection(finalDir);
         raduk::core::AutofocusParams ap;
         ap.backlash = b;
+        ap.finalDir = finalDir;
+        ap.fineStage = rig.autofocusFineStage;
         autofocus.SetParams(ap);
+        Log("[FOCUS] every move ends %s (FocuserFinalDirection); fine pass %s (AutofocusFineStage)\n",
+            finalDir > 0 ? "outward, rising numbers" : "inward, falling numbers",
+            rig.autofocusFineStage ? "ON" : "OFF");
         Log("[FOCUS] backlash %d steps, from %s; EAF firmware had %d%s; one-sided moves %s\n",
             b, src, fw, fw > 0 ? " (set to 0 while connected)" : "",
             rig.focuserOneSidedMoves ? "ON" : "OFF");
@@ -4630,6 +4637,10 @@ static int RunApp(bool useEmulator) {
 
     // lastAnalysis also captured by ROILock lambda — must be declared before it
     AnalysisResult lastAnalysis{};
+    // Phase 145.2: the fine pass's edge-metric feed.
+    int afEdgeHalf = -1;
+    auto afLastFastScore = std::chrono::steady_clock::now();
+    raduk::core::EdgeScratch afEdgeScratch;
 
     // Phase 13: Survey frame delivery — wired here so lastFrameForSolve/lastAnalysis are in scope
     gotoPanel.SetSurveyFrameCallback([&]() {
@@ -7054,6 +7065,35 @@ static int RunApp(bool useEmulator) {
         if (frame)
             analyzer.Submit(frame);
 
+        // Phase 145.2: during autofocus's fine pass, score the newest raw
+        // frame on the edge metric, up to 30 times a second, over a region
+        // whose size is fixed for the run (the score is normalised by it).
+        if (!autofocus.IsRunning()) afEdgeHalf = -1;
+        if (frame && frame->data && autofocus.WantsFastScores() &&
+            (frame->imgType == ASI_IMG_RAW8 || frame->imgType == ASI_IMG_RAW16)) {
+            const auto nowF = std::chrono::steady_clock::now();
+            if (nowF - afLastFastScore >= std::chrono::milliseconds(33)) {
+                afLastFastScore = nowF;
+                const bool filled = autofocus.FineOnly() || (lastAnalysis.valid && lastAnalysis.surfaceTracked);
+                if (afEdgeHalf <= 0) {
+                    // A uniform disc's half-flux diameter is sqrt(2) x its radius.
+                    const float r = lastAnalysis.focusHfdPx / 1.41421356f;
+                    afEdgeHalf = filled ? 128 : (std::max)(48, (std::min)(200, (int)(r * 1.3f) + 24));
+                    Log("[AF] fine pass region: %d px each side of the target%s\n", afEdgeHalf,
+                        filled ? " (the surface)" : "");
+                }
+                float ecx = frame->width * 0.5f, ecy = frame->height * 0.5f;
+                if (lastAnalysis.valid && lastAnalysis.centroidValid) {
+                    ecx = lastAnalysis.centroidX; ecy = lastAnalysis.centroidY;
+                }
+                const float bg = filled ? 0.0f : lastAnalysis.centroidBgDN;
+                const raduk::core::EdgeFocus ef = raduk::core::MeasureEdgeFocus(
+                    frame->data, frame->width, frame->height, frame->bitDepth,
+                    ecx, ecy, afEdgeHalf, bg, afEdgeScratch);
+                if (ef.valid) autofocus.SubmitFastScore(ef.score);
+            }
+        }
+
         // B3: dashboard preview. The timer is checked first so the
         // subscriber count (a lock) is asked twice a second, not per pass.
         // RGB24 frames are skipped: DecimateFrame reads one sample a pixel.
@@ -7771,6 +7811,8 @@ static int RunApp(bool useEmulator) {
                 ri.tracking = tracker.IsRunning() ||
                               (mount && mount->IsConnected() && mount->GetTrackingMode() != IMount::OFF);
                 ri.fading = std::chrono::steady_clock::now() - lastFadeAt < std::chrono::minutes(2);
+                ri.filled = lastAnalysis.valid && lastAnalysis.surfaceTracked;
+                ri.edgeOnlyOk = raduk::core::RigConfig::Get().autofocusFineStage;
                 afReady = raduk::core::AutofocusReadiness(ri);
                 if (!ri.afRunning)
                     controls.SetAutofocusReady(afReady.ready,
@@ -7833,7 +7875,13 @@ static int RunApp(bool useEmulator) {
                         waited, pos);
                     slog.Focuser("AutoFocus: starting from pos=%d", pos);
                     controls.SetAutofocusStatus(L"Sweeping, AE held until it ends");
-                    autofocus.Start(pos);
+                    // Phase 145.3: a frame-filling target (the Moon) has
+                    // no disc for the coarse HFD sweep; the edge metric's
+                    // fine pass runs alone.
+                    const bool fineOnly = lastAnalysis.valid && lastAnalysis.surfaceTracked &&
+                                          raduk::core::RigConfig::Get().autofocusFineStage;
+                    if (fineOnly) Log("[AF] the target fills the frame: fine pass on the edge metric only\n");
+                    autofocus.Start(pos, fineOnly);
                 }
             }
 

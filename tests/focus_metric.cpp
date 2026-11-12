@@ -106,6 +106,97 @@ int main() {
         CHECK(ch < 12.0f, "blur %d: exposure moved the score %.1f%%", bl, ch);
     }
 
+    // ── 3. Phase 145.1: the edge metric, one check per correction ──
+    std::printf("3. edge metric (Tenengrad, gated, normalised)\n");
+    EdgeScratch sc;
+    {
+        // (1) The border: a flat field has no gradient anywhere. The
+        // sketch read an unwritten zero ring and scored every ROI's edge.
+        std::vector<uint8_t> flat((size_t)W * H, 120);
+        const EdgeFocus e = MeasureEdgeFocus(flat.data(), W, H, 8, 640, 480, 100, 0.0f, sc);
+        std::printf("   flat field: score %.4f, %d of %d above the gate\n", e.score, e.active, e.points);
+        CHECK(e.valid && e.score == 0.0f && e.active == 0, "a flat field scored %.4f", e.score);
+    }
+    float sharpEdge = 0.0f;
+    {
+        // (3) Falls with blur, at a fixed ROI round the disc.
+        float prevE = 1e9f;
+        for (int bl : blurs) {
+            const auto f = Frame(bl, 1.0, 300 + bl);
+            const EdgeFocus e = MeasureEdgeFocus(f.data(), W, H, 8, 700, 420, 110, 10.0f, sc);
+            std::printf("   blur %2d px: edge score %8.3f  (%d active)\n", bl, e.score, e.active);
+            CHECK(e.valid, "blur %d: no edge measurement", bl);
+            CHECK(e.score < prevE, "blur %d: edge score %.3f did not fall (previous %.3f)", bl, e.score, prevE);
+            if (bl == 0) sharpEdge = e.score;
+            prevE = e.score;
+        }
+    }
+    {
+        // (2) Pure noise mostly fails the gate, so it scores a small
+        // fraction of a sharp planet. At 1.5 x raw sigma nearly all of it passed.
+        std::mt19937 rng(5);
+        std::normal_distribution<double> nz(0.0, 12.0);
+        std::vector<uint8_t> nf((size_t)W * H);
+        for (auto& v : nf) { const double d = 100.0 + nz(rng); v = (uint8_t)(d < 0 ? 0 : d > 255 ? 255 : d); }
+        const EdgeFocus e = MeasureEdgeFocus(nf.data(), W, H, 8, 640, 480, 110, 0.0f, sc);
+        const float frac = e.points ? (float)e.active / (float)e.points : 1.0f;
+        std::printf("   pure noise: %.2f%% above the gate, score %.4f (sharp planet %.3f)\n",
+                    frac * 100.0f, e.score, sharpEdge);
+        CHECK(frac < 0.03f, "noise passed the gate at %.1f%%", frac * 100.0f);
+        CHECK(e.score < 0.02f * sharpEdge, "noise scored %.4f against a planet's %.3f", e.score, sharpEdge);
+    }
+    {
+        // (5) Exposure cancels: half and full exposure, below saturation.
+        for (int bl : { 0, 8 }) {
+            const auto a1 = Frame(bl, 1.0, 21), a2 = Frame(bl, 0.5, 22);
+            const EdgeFocus e1 = MeasureEdgeFocus(a1.data(), W, H, 8, 700, 420, 110, 10.0f, sc);
+            const EdgeFocus e2 = MeasureEdgeFocus(a2.data(), W, H, 8, 700, 420, 110, 10.0f, sc);
+            const float ch = std::fabs(e2.score - e1.score) / e1.score * 100.0f;
+            std::printf("   blur %2d px: edge %.3f at 1x, %.3f at 0.5x (%.1f%%)\n", bl, e1.score, e2.score, ch);
+            CHECK(ch < 15.0f, "blur %d: exposure moved the edge score %.1f%%", bl, ch);
+        }
+    }
+    {
+        // (4a) RAW16, left-aligned, agrees with RAW8 of the same scene.
+        // Its random low byte adds half a count to every pixel on the
+        // 8-bit scale, so its sky is 10.5, not 10.
+        const auto f8 = Frame(4, 1.0, 31);
+        std::vector<uint16_t> f16(f8.size());
+        std::mt19937 rng(9);
+        std::uniform_int_distribution<int> lo(0, 255);
+        for (size_t i = 0; i < f8.size(); ++i) f16[i] = (uint16_t)((f8[i] << 8) | lo(rng));
+        const EdgeFocus e8  = MeasureEdgeFocus(f8.data(), W, H, 8, 700, 420, 110, 10.0f, sc);
+        const EdgeFocus e16 = MeasureEdgeFocus(reinterpret_cast<const uint8_t*>(f16.data()), W, H, 16,
+                                               700, 420, 110, 10.5f, sc);
+        const float ch = std::fabs(e16.score - e8.score) / e8.score * 100.0f;
+        std::printf("   RAW8 %.3f, RAW16 %.3f (%.1f%%)\n", e8.score, e16.score, ch);
+        CHECK(ch < 3.0f, "RAW16 and RAW8 differ by %.1f%%", ch);
+    }
+    {
+        // (4b) Pattern-free: one scene mosaicked as RGGB and as GRBG,
+        // with unequal channel gains, scores the same.
+        const auto base = Frame(2, 1.0, 41);
+        auto mosaic = [&](bool grbg) {
+            std::vector<uint8_t> m(base.size());
+            for (int y = 0; y < H; ++y)
+                for (int x = 0; x < W; ++x) {
+                    const int ex = x & 1, ey = y & 1;
+                    // RGGB: R at (0,0), B at (1,1); GRBG: R at (1,0), B at (0,1).
+                    double g = 1.0;
+                    if (!grbg) { if (!ex && !ey) g = 0.6; else if (ex && ey) g = 0.4; }
+                    else       { if (ex && !ey) g = 0.6; else if (!ex && ey) g = 0.4; }
+                    m[(size_t)y * W + x] = (uint8_t)(base[(size_t)y * W + x] * g);
+                }
+            return m;
+        };
+        const auto a1 = mosaic(false), a2 = mosaic(true);
+        const EdgeFocus e1 = MeasureEdgeFocus(a1.data(), W, H, 8, 700, 420, 110, 6.0f, sc);
+        const EdgeFocus e2 = MeasureEdgeFocus(a2.data(), W, H, 8, 700, 420, 110, 6.0f, sc);
+        const float ch = std::fabs(e2.score - e1.score) / e1.score * 100.0f;
+        std::printf("   RGGB %.3f, GRBG %.3f (%.1f%%)\n", e1.score, e2.score, ch);
+        CHECK(ch < 3.0f, "RGGB and GRBG differ by %.1f%%", ch);
+    }
+
     if (g_fail) { std::printf("focus_metric: %d FAILED\n", g_fail); return 1; }
     std::printf("focus_metric: all passed\n");
     return 0;

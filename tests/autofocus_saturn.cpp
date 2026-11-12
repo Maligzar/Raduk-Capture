@@ -40,11 +40,40 @@ static float Score(int pos, std::mt19937& rng, bool capped) {
     return (float)s;
 }
 
+// Phase 145: the edge metric the fine pass reads. Narrower than the HFD
+// score near focus (what tests/focus_metric_compare.cpp measured), with
+// more single-frame scatter, which the fine pass's 75th percentile of 20
+// frames absorbs.
+static float EdgeScore(int pos, std::mt19937& rng) {
+    const double d = (pos - kFocus) / 350.0;
+    double s = 0.5 + 60.0 / (1.0 + d * d);
+    std::normal_distribution<double> seeing(1.0, 0.15);
+    s *= seeing(rng);
+    return (float)(s < 0 ? 0 : s);
+}
+
+// A Jupiter-sized disc: HFD barely moves near focus, so the coarse score
+// has a flat top a few thousand steps wide (quartic, not quadratic).
+static float FlatScore(int pos, std::mt19937& rng) {
+    const double d = (pos - kFocus) / 2600.0;
+    double s = 6.0 + 235.0 / (1.0 + d * d * d * d);
+    std::normal_distribution<double> seeing(1.0, 0.06);
+    return (float)(s * seeing(rng));
+}
+
+struct RunOpts {
+    bool fine = true;        // the fine pass (phase 145)
+    bool feedEdge = true;    // false: no edge scores arrive (the fallback)
+    bool flat = false;       // the Jupiter-like flat-topped coarse score
+    bool fineOnly = false;   // the Moon: no coarse sweep
+    int  dir = 1;            // FocuserFinalDirection
+};
+
 // slack > 0: the knob's slack (phase 139). The score follows the MIRROR,
 // and the result is where the mirror ends up, which is what the image
 // shows; autofocus is given the same figure as its backlash.
 static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0,
-               int slack = 0, int* measured = nullptr) {
+               int slack = 0, int* measured = nullptr, RunOpts o = {}) {
     EAFFocuser f;
     f.Open(0);
     f.SetSimulatedSlack(slack);
@@ -56,6 +85,8 @@ static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0
     AutofocusParams p;
     p.settleMs = 50;
     if (slack > 0) p.backlash = slack;
+    p.fineStage = o.fine;
+    p.finalDir = o.dir;
     af.SetParams(p);
     af.SetLogger([](const char* s) { if (getenv("AFLOG")) std::printf("%s", s); });
     std::atomic<bool> done{false};
@@ -63,6 +94,7 @@ static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0
     af.SetOnComplete([&](AFResult r) { res = r; done.store(true); });
 
     std::mt19937 rng(start * 7 + (capped ? 1 : 0));
+    std::mt19937 rngE(start * 13 + 5);
     std::atomic<bool> feed{true};
     const auto t0 = std::chrono::steady_clock::now();
     std::thread feeder([&] {
@@ -72,11 +104,16 @@ static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0
             const double el = std::chrono::duration<double>(
                 std::chrono::steady_clock::now() - t0).count();
             const float fade = (float)std::exp(-fadePerSec * el);
-            af.SubmitSharpness(Score(f.GetOpticalPosition(), rng, capped) * fade, true, 120);
-            std::this_thread::sleep_for(std::chrono::milliseconds(15));
+            const int opt = f.GetOpticalPosition();
+            af.SubmitSharpness((o.flat ? FlatScore(opt, rng) : Score(opt, rng, capped)) * fade, true, 120);
+            for (int k = 0; k < 3; ++k) {   // the edge metric arrives faster
+                if (o.feedEdge && af.WantsFastScores())
+                    af.SubmitFastScore(EdgeScore(f.GetOpticalPosition(), rngE) * fade);
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            }
         }
     });
-    af.Start(start);
+    af.Start(start, o.fineOnly);
     for (int i = 0; i < 6000 && !done.load(); ++i)
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     feed.store(false);
@@ -137,6 +174,53 @@ int main() {
         // asks for several sweeps that agree before FocuserBacklashSteps
         // is set. This catches a missing or wrong-signed reading.
         CHECK(meas > 100 && meas < 900, "%s: the sweep measured a slack (%d)", c.name, meas);
+    }
+
+    // ── Phase 145: the fine pass ──────────────────────────────
+    std::printf("5. a Jupiter-sized disc: the coarse curve has a flat top\n");
+    {
+        RunOpts coarse; coarse.flat = true; coarse.fine = false;
+        RunOpts both;   both.flat = true;
+        std::string m1, m2;
+        int worstC = 0, worstF = 0;
+        for (int st : { kFocus + 900, kFocus - 2500 }) {
+            const int c = Run(st, false, m1, 0.0, 0, nullptr, coarse);
+            const int b = Run(st, false, m2, 0.0, 0, nullptr, both);
+            std::printf("   from %d: coarse alone %+d, with the fine pass %+d %s\n",
+                        st, c - kFocus, b - kFocus, m2.c_str());
+            worstC = (std::max)(worstC, std::abs(c - kFocus));
+            worstF = (std::max)(worstF, std::abs(b - kFocus));
+        }
+        CHECK(worstF <= 150, "with the fine pass, worst %d steps from focus", worstF);
+        CHECK(worstF < worstC || worstC <= 150, "the fine pass did not improve on the coarse (%d against %d)",
+              worstF, worstC);
+    }
+
+    std::printf("6. no edge scores arrive: the coarse result stands\n");
+    {
+        RunOpts o; o.feedEdge = false;
+        std::string m;
+        const int end = Run(kFocus + 700, false, m, 0.0, 0, nullptr, o);
+        std::printf("   ended %+d from focus %s\n", end - kFocus, m.c_str());
+        CHECK(std::abs(end - kFocus) <= 400, "fallback: ended %+d steps from focus", end - kFocus);
+    }
+
+    std::printf("7. the Moon: the fine pass alone\n");
+    {
+        RunOpts o; o.fineOnly = true;
+        std::string m;
+        const int end = Run(kFocus + 800, false, m, 0.0, 0, nullptr, o);
+        std::printf("   from %d ended %+d from focus %s\n", kFocus + 800, end - kFocus, m.c_str());
+        CHECK(std::abs(end - kFocus) <= 150, "fine only: ended %+d steps from focus", end - kFocus);
+    }
+
+    std::printf("8. finishing inward (FocuserFinalDirection=in), 400 steps of slack\n");
+    for (const auto& c : cases) {
+        RunOpts o; o.dir = -1;
+        std::string m;
+        const int end = Run(c.start, false, m, 0.0, 400, nullptr, o);
+        std::printf("   %-15s from %d: mirror ended %+d from focus %s\n", c.name, c.start, end - kFocus, m.c_str());
+        CHECK(std::abs(end - kFocus) <= 200, "%s inward: mirror ended %+d from focus", c.name, end - kFocus);
     }
 
     if (g_fail) { std::printf("autofocus_saturn: %d FAILED\n", g_fail); return 1; }

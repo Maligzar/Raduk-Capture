@@ -41,6 +41,10 @@ struct AfReadyIn {
     bool  tracking      = false;   // the mount tracking, or the guider holding it
     bool  fading        = false;   // a fade warning in the last two minutes
     int   seeingSteady  = -1;      // 1 steady, 0 not, -1 not known
+    // Phase 145.3: the target fills the frame (the Moon), and the fine
+    // pass on the edge metric is on, which needs no disc.
+    bool  filled        = false;
+    bool  edgeOnlyOk    = false;
 };
 
 struct AfReadyOut {
@@ -61,6 +65,17 @@ inline AfReadyOut AutofocusReadiness(const AfReadyIn& in) {
     if (in.afRunning)     return no("autofocus is running");
     if (in.focuserMoving) return no("the focuser is moving");
     if (in.recording)     return no("a recording is running");
+    if (in.filled) {
+        // No disc, so no HFD checks: the edge metric reads the surface.
+        if (!in.edgeOnlyOk)
+            return no("the target fills the frame: autofocus needs a disc with sky around it "
+                      "(or AutofocusFineStage=1, which can focus on the surface)");
+        if (!in.tracking)         return no("the mount is not tracking");
+        if (in.fading)            return no("the target is fading (dew or haze?)");
+        if (in.seeingSteady == 0) return no("the seeing is too unsteady for a focus curve");
+        AfReadyOut o; o.ready = true;
+        return o;
+    }
     if (!in.targetFound)  return no("no target in the frame");
     if (!in.focusValid)   return no("the target's sharpness cannot be measured");
     if (in.framePct > kAfMaxFramePct)

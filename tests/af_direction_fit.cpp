@@ -122,6 +122,37 @@ int main() {
         Check(a.ViaFor(100, 50) == 0, "never below step 0");
     }
 
+    printf("\n3b. Phase 145.4: finishing inward mirrors finishing outward\n");
+    {
+        ApproachSequencer q;
+        q.SetBacklash(B);
+        q.SetDirection(-1);
+        Slack s{B / 2, 169500.0};
+        int at = 169500;
+        auto move = [&](int to) {
+            int leg = q.Begin(at, to);
+            int legs = 0;
+            while (leg >= 0) { s.Go(leg); at = leg; legs++; leg = q.NextLeg(at); }
+            return legs;
+        };
+        move(169200);
+        const double sharp = s.optic;
+        move(170200); move(169200);
+        Check(std::fabs(s.optic - sharp) < 1e-9, "inward finish: outward 1000 and back, the same mirror position",
+              F(s.optic) + " vs " + F(sharp));
+        move(168200); move(169200);
+        Check(std::fabs(s.optic - sharp) < 1e-9, "inward finish: inward 1000 and back, the same", F(s.optic));
+        Check(move(169150) == 1, "a small inward nudge, slack already taken: one leg");
+        Check(move(169250) == 2, "a small outward nudge: past and back, two legs");
+        Check(at == 169250, "and it ends on the number asked for", std::to_string(at));
+        OneSidedApproach a; a.backlash = B; a.dir = -1;
+        Check(a.ViaFor(169000, 169500) == 169500 + B, "the first leg goes a backlash past, above",
+              std::to_string(a.ViaFor(169000, 169500)));
+        q.SetDirection(1);
+        Check(q.Direction() == 1 && move(169400) == 2,
+              "switching back to outward forgets the slack: two legs");
+    }
+
     printf("\n4. Which figure\n");
     const char* s1 = ""; const char* s2 = ""; const char* s3 = "";
     const int r1 = ResolveBacklash(350, 80, &s1);

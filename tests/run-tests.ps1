@@ -108,6 +108,7 @@ $Tests = @(
     @{ Name = "seeing_monitor";  Sources = @() }
     @{ Name = "fits_writer";     Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "capture_writer";  Sources = @("src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
+    @{ Name = "capture_header_live"; Sources = @("src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "shot_diff";       Sources = @() }
     @{ Name = "web_theme";       Sources = @() }
     @{ Name = "night_coverage";  Sources = @() }

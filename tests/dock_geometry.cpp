@@ -255,6 +255,39 @@ int main() {
         Check(!SetRatio(d, { 0, 0, 0 }, 0.5), "a path into a leaf is refused");
     }
 
+    printf("\n7. What the dock remembers (134.5)\n");
+    {
+        DockState s;
+        s.tree = "H(0.62,V(0.5,histogram,sharpness),status)";
+        s.visible = true;
+        s.fullscreen = true;
+        s.hasRect = true;
+        s.rect = { -1900, 40, -100, 1040 };
+        s.groupFull = "temperature";
+        const DockState b = ParseDockState(DockStateText(s));
+        Check(b.tree == s.tree && b.visible && b.fullscreen && b.groupFull == "temperature",
+              "the text round-trips");
+        Check(b.hasRect && b.rect == s.rect, "  including a rectangle on a monitor left of the primary", S(b.rect));
+
+        const DockState empty = ParseDockState("");
+        Check(empty.tree.empty() && !empty.visible && !empty.fullscreen && !empty.hasRect &&
+                  empty.groupFull.empty(),
+              "an empty file means no dock");
+        const DockState bad = ParseDockState("# c\r\ntree=status\r\nrect=1,2,x,4\r\nnonsense\r\nfoo=bar\r\nvisible=1\r\n");
+        Check(bad.tree == "status" && bad.visible && !bad.hasRect,
+              "CRLF, comments, unknown keys and a damaged rect: that one setting is lost");
+        Check(!ParseDockState("rect=1,2,0,4").hasRect && !ParseDockState("rect=1,2,3,4,5").hasRect,
+              "  a zero size or a fifth number is refused");
+
+        const Node t = *ParseText("H(0.62,V(0.5,histogram,sharpness),status)");
+        auto p = PruneRoles(t, { "histogram", "status" });
+        Check(p && ToText(*p) == "H(0.62,histogram,status)", "a closed panel is pruned and its split collapses",
+              p ? ToText(*p) : "none");
+        Check(!PruneRoles(t, { "goto" }), "pruning every panel leaves no dock");
+        auto all = PruneRoles(t, { "histogram", "sharpness", "status", "extra" });
+        Check(all && ToText(*all) == ToText(t), "keeping them all changes nothing");
+    }
+
     printf("\n%s\n", g_fail == 0 ? "ALL CHECKS PASSED" : "SOME CHECKS FAILED");
     return g_fail == 0 ? 0 : 1;
 }

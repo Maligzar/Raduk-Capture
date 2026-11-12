@@ -41,6 +41,8 @@ data/*.db-wal
 # is the tracked reference; this one is per-machine state. It was
 # committed by accident once, by a `git add -A` during a crash hunt.
 workspace.ini
+# 134.5: the dock window and group fullscreen, beside workspace.ini.
+dock.ini
 
 # Phase 124: written by the app. The emulator's pointing solves are of a
 # simulated sky, and the stats page is rebuilt on every press of [STATS].

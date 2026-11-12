@@ -72,33 +72,64 @@ public:
         if (!m_hwnd || !h || Has(h)) return;
         panel_dock::ExitGroupFull();
         if (IsZoomed(h)) ShowWindow(h, SW_RESTORE);
-        Entry e;
-        e.h = h;
-        e.role = panel_dock::RoleOf(h);
-        if (e.role.empty()) e.role = "panel" + std::to_string(m_entries.size());
-        e.style = GetWindowLongW(h, GWL_STYLE);
-        GetWindowRect(h, &e.rect);
-        e.owner = reinterpret_cast<HWND>(GetWindowLongPtrW(h, GWLP_HWNDPARENT));
-
+        RECT pr;
+        GetWindowRect(h, &pr);
         // The first panel in: the dock opens where that panel was, a
         // caption taller, so it lands under the operator's eye.
         if (!IsWindowVisible(m_hwnd)) {
             const int cap = WindowChrome::CaptionFor(m_hwnd);
-            SetWindowPos(m_hwnd, nullptr, e.rect.left, e.rect.top - cap,
-                         (std::max)((int)(e.rect.right - e.rect.left), 480),
-                         (std::max)((int)(e.rect.bottom - e.rect.top) + cap, 320),
+            SetWindowPos(m_hwnd, nullptr, pr.left, pr.top - cap,
+                         (std::max)((int)(pr.right - pr.left), 480),
+                         (std::max)((int)(pr.bottom - pr.top) + cap, 320),
                          SWP_NOZORDER | SWP_NOACTIVATE);
             ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
         }
-        SetWindowLongPtrW(h, GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(m_hwnd));
-        SetWindowLongW(h, GWL_STYLE, e.style & ~(LONG)WS_THICKFRAME);
-        SetWindowPos(h, nullptr, 0, 0, 0, 0,
-                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-        m_tree = dock::Append(m_tree, e.role, Content());
-        m_entries.push_back(e);
-        panel_dock::SetDocked(h, true);
-        if (!IsWindowVisible(h)) ShowWindow(h, SW_SHOWNOACTIVATE);
+        const std::string role = Adopt(h);
+        m_tree = dock::Append(m_tree, role, Content());
         Relayout();
+    }
+
+    // ── Phase 134.5: remembered across runs ──────────────────
+    dock::DockState State() const {
+        dock::DockState s;
+        if (!m_hwnd || !m_tree || m_entries.empty()) return s;
+        s.tree = dock::ToText(*m_tree);
+        s.visible = IsWindowVisible(m_hwnd) != FALSE;
+        s.fullscreen = m_full;
+        RECT r{};
+        if (m_full) r = m_place.rcNormalPosition;   // the size it returns to
+        else GetWindowRect(m_hwnd, &r);
+        s.rect = { r.left, r.top, r.right, r.bottom };
+        s.hasRect = r.right > r.left && r.bottom > r.top;
+        return s;
+    }
+
+    // Puts the dock back as saved, with only the panels that are
+    // registered and open now: a panel the operator closed stays closed.
+    // Returns how many panels it docked.
+    int Restore(const dock::DockState& s) {
+        if (!m_hwnd || s.tree.empty() || !s.visible || !m_entries.empty()) return 0;
+        const auto parsed = dock::ParseText(s.tree);
+        if (!parsed) return 0;
+        std::vector<std::string> roles, open;
+        dock::Roles(*parsed, roles);
+        for (const std::string& r : roles) {
+            const HWND h = panel_dock::HwndOf(r);
+            if (h && IsWindowVisible(h)) open.push_back(r);
+        }
+        const auto tree = dock::PruneRoles(*parsed, open);
+        if (!tree) return 0;
+        if (s.hasRect)
+            SetWindowPos(m_hwnd, nullptr, s.rect.l, s.rect.t, s.rect.w(), s.rect.h(),
+                         SWP_NOZORDER | SWP_NOACTIVATE);
+        ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
+        std::vector<std::string> kept;
+        dock::Roles(*tree, kept);
+        for (const std::string& r : kept) Adopt(panel_dock::HwndOf(r));
+        m_tree = tree;
+        Relayout();
+        if (s.fullscreen) ToggleFullscreen();
+        return (int)kept.size();
     }
 
     // `atSavedPlace`: back where it was before docking (Undock, closing
@@ -185,6 +216,27 @@ private:
         RECT rect{};
         HWND owner = nullptr;
     };
+
+    // A panel becomes the dock's: its style, rectangle and owner saved for
+    // Undock, owned by the dock, its sizing border gone, marked docked.
+    // The tree is the caller's.
+    std::string Adopt(HWND h) {
+        Entry e;
+        e.h = h;
+        e.role = panel_dock::RoleOf(h);
+        if (e.role.empty()) e.role = "panel" + std::to_string(m_entries.size());
+        e.style = GetWindowLongW(h, GWL_STYLE);
+        GetWindowRect(h, &e.rect);
+        e.owner = reinterpret_cast<HWND>(GetWindowLongPtrW(h, GWLP_HWNDPARENT));
+        SetWindowLongPtrW(h, GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(m_hwnd));
+        SetWindowLongW(h, GWL_STYLE, e.style & ~(LONG)WS_THICKFRAME);
+        SetWindowPos(h, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        m_entries.push_back(e);
+        panel_dock::SetDocked(h, true);
+        if (!IsWindowVisible(h)) ShowWindow(h, SW_SHOWNOACTIVATE);
+        return e.role;
+    }
 
     int Find(HWND h) const {
         for (size_t i = 0; i < m_entries.size(); ++i) if (m_entries[i].h == h) return (int)i;

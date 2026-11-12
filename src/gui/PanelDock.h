@@ -46,6 +46,11 @@ inline std::string RoleOf(HWND h) {
     for (size_t i = 0; i < S().panels.size(); ++i) if (S().panels[i] == h) return S().roles[i];
     return std::string();
 }
+inline HWND HwndOf(const std::string& role) {
+    if (role.empty()) return nullptr;
+    for (size_t i = 0; i < S().panels.size(); ++i) if (S().roles[i] == role) return S().panels[i];
+    return nullptr;
+}
 inline bool IsDocked(HWND h) {
     for (HWND d : S().docked) if (d == h) return true;
     return false;
@@ -258,6 +263,11 @@ inline bool InGroupFull(HWND h) {
     if (!GF().active) return false;
     for (HWND m : GF().hwnds) if (m == h) return true;
     return false;
+}
+
+// 134.5: the role of a member of the group in fullscreen, to remember it.
+inline std::string GroupFullRole() {
+    return (GF().active && !GF().hwnds.empty()) ? RoleOf(GF().hwnds[0]) : std::string();
 }
 
 inline void ExitGroupFull() {

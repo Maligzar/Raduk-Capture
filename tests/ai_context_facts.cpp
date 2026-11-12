@@ -594,6 +594,21 @@ int main() {
               std::to_string(late.size()) + " bytes");
     }
 
+    // ── Phase 144: Jupiter's next hours ─────────────────────
+    printf("\nPhase 144. Jupiter's events\n");
+    {
+        AIContextBuilder bj;
+        AISessionState sj = s;
+        Check(!Has(bj.Build(sj, planner, "hello"), "Jupiter (computed"),
+              "no Jupiter section when there is nothing to say", "");
+        sj.jupiter = "  Now: Red Spot 12 min past the meridian\n"
+                     "  Io shadow transit 13:54 to 16:10 UTC\n";
+        const std::string pj = bj.Build(sj, planner, "when is the shadow transit?");
+        Check(Has(pj, "Jupiter (computed") && Has(pj, "Io shadow transit 13:54 to 16:10 UTC"),
+              "the lines reach the prompt, marked as computed", "");
+        Check(Has(pj, "times UTC"), "and their times are said to be UTC", "");
+    }
+
     printf("\n");
     if (g_fail == 0)
         printf("=== the assistant is told the truth about the rig ===\n\n");

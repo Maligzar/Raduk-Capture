@@ -177,6 +177,10 @@ struct RigConfig {
     // Phase 114: the bar as a percentage of tonight's best. 0 never waits.
     int         autorunSeeingPct     = 80;
     float       autorunSeeingHoldSec = 180.0f;
+    // Phase 144: on Jupiter, a due focus sweep waits out a prime spell
+    // (the Red Spot near the meridian, a moon or shadow on the disc) for
+    // this many minutes at most. 0 never waits. A starting figure.
+    float       autorunPrimeDeferMin = 30.0f;
     // Phase 128: near-Earth objects fainter than this stay off the sky
     // map. 16 is a guess at what the 8SE and the 678MC show in a few
     // seconds of video; the night will say.
@@ -432,6 +436,7 @@ struct RigConfig {
         wf("AutorunMinAltDeg", autorunMinAltDeg);
         wf("AutorunSeeingPct", autorunSeeingPct);
         wf("AutorunSeeingHoldSec", autorunSeeingHoldSec);
+        wf("AutorunPrimeDeferMin", autorunPrimeDeferMin);
         wf("FocuserBacklashSteps", focuserBacklashSteps);
         ws("FocuserOneSidedMoves", focuserOneSidedMoves ? "1" : "0");
         wf("GrsLonSys2", grsLonSys2);
@@ -607,6 +612,8 @@ private:
         cfg.autorunMinAltDeg      = (float)rf("AutorunMinAltDeg", cfg.autorunMinAltDeg);
         cfg.autorunSeeingPct      = (int)rf("AutorunSeeingPct", cfg.autorunSeeingPct);
         cfg.autorunSeeingHoldSec  = (float)rf("AutorunSeeingHoldSec", cfg.autorunSeeingHoldSec);
+        cfg.autorunPrimeDeferMin  = (float)rf("AutorunPrimeDeferMin", cfg.autorunPrimeDeferMin);
+        if (!(cfg.autorunPrimeDeferMin >= 0.0f) || cfg.autorunPrimeDeferMin > 120.0f) cfg.autorunPrimeDeferMin = 30.0f;
         cfg.focuserBacklashSteps  = (int)rf("FocuserBacklashSteps", cfg.focuserBacklashSteps);
         if (cfg.focuserBacklashSteps < -1 || cfg.focuserBacklashSteps > 20000) cfg.focuserBacklashSteps = -1;
         cfg.focuserOneSidedMoves  = rs("FocuserOneSidedMoves", cfg.focuserOneSidedMoves ? "1" : "0") == "1";

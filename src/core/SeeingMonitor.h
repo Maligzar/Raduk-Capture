@@ -121,6 +121,9 @@ struct RunResult {
     std::string file;
     uint32_t    frames  = 0;
     double      score   = 0.0;
+    // Phase 144: what was on Jupiter's disc as the run started ("Red Spot
+    // 12 min past the meridian; Io shadow transit"). Empty elsewhere.
+    std::string note;
 };
 
 // Best first. An empty run has no score to speak of, whatever it reads.
@@ -155,6 +158,7 @@ inline std::string FormatRunRanking(const std::vector<RunResult>& ranked,
         }
         out += line;
         out += r.file.empty() ? "(no file)" : r.file;
+        if (!r.note.empty()) out += "  [" + r.note + "]";
         out += "\n";
         ++rank;
     }

@@ -103,6 +103,11 @@ struct AISessionState {
     // when there is no fresh reading -- then the model is told it does
     // not know, rather than left to guess at tonight's weather.
     std::string weather;
+
+    // Phase 144: Jupiter's next hours at this site, one event a line:
+    // what is on the disc now, the Red Spot's transits and the moons'
+    // events. Empty when Jupiter is not in play.
+    std::string jupiter;
 };
 
 class AIContextBuilder {
@@ -788,6 +793,9 @@ public:
         ss << "EAF: " << s.eafPos << "  Temp: " << s.eafTempC << "°C\n";
         if (!s.weather.empty())
             ss << "Weather (Leoben, measured): " << s.weather << "\n";
+        if (!s.jupiter.empty())
+            ss << "Jupiter (computed: Red Spot from the longitude in rig.ini, "
+                  "moon events from JPL Horizons; times UTC):\n" << s.jupiter;
         else
             ss << "Weather: unknown - no current reading. Do not guess at the sky.\n";
         ss << "Recording: " << (s.recording ? "YES" : "NO");

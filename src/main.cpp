@@ -90,6 +90,7 @@
 #include "core/NeoDesk.h"         // phase 128: near-Earth objects on the map
 #include "core/PhemuDesk.h"       // phase 141.0: Galilean mutual events
 #include "core/JupiterDesk.h"     // phase 137: moon and shadow transits, the Red Spot
+#include "sky/JupiterPlan.h"      // phase 144: what is on the disc, for Autorun and the assistant
 #include "core/AfReadiness.h"     // phase 139.3
 #include "core/PhemuSheet.h"      // phase 141.1: IMCCE's observation sheet
 #include "core/DisplayStretch.h"  // phase 140.3: the stretch chosen from the target
@@ -1853,6 +1854,11 @@ static int RunApp(bool useEmulator) {
     std::vector<raduk::core::RunResult> autorunResults;
     std::string autorunLastPath;
     bool autorunWasHolding = false;
+    // Phase 144: a sequence on Jupiter puts a due sweep off through a
+    // prime spell, and notes what was on the disc against each run.
+    bool autorunJupiter = false;
+    bool autorunWasDeferring = false;
+    std::string autorunRunNote;
 
     gotoPanel.SetMosaicCapture(
         [&](int ordinal, int total) -> bool {
@@ -5288,6 +5294,43 @@ static int RunApp(bool useEmulator) {
         if (e > 0) g.epochJd = e;
         return g;
     };
+    // Phase 144: what is on Jupiter's disc at jd, from the same model and
+    // cache J lists.
+    auto jupiterDisc = [&](double jd) {
+        return raduk::sky::jupiter::OnDisc(jd, grsModel(), jupiterDesk.Events(jd - 0.5, jd + 0.5));
+    };
+    // Phase 144: the assistant's view of the next eight hours of Jupiter.
+    // Only when Jupiter is the target or the site is known to see it, so a
+    // Saturn night is not padded with Red Spot times. Rebuilt once a
+    // minute by the caller; the snapshot is filled every frame.
+    auto jupiterSnapshot = [&](double jd) -> std::string {
+        using namespace raduk::sky::jupiter;
+        const auto site = raduk::gui::GoToPanel::SiteObserver();
+        const bool onJupiter = _stricmp(targetNow().c_str(), "Jupiter") == 0;
+        if (!onJupiter && !site.set) return {};
+        std::function<bool(double)> up;
+        if (site.set)
+            up = [site](double t) {
+                const auto sky = raduk::core::PhemuDesk::SkyAtSite(t, site);
+                return sky.ok && sky.jupiterAltDeg > 15.0 && sky.sunAltDeg < -6.0;
+            };
+        const auto lines = TonightLines(jd, 8.0, grsModel(), jupiterDesk.Events(jd - 0.5, jd + 0.5), up);
+        if (!onJupiter && lines.empty()) return {};
+        std::string out = "  Now: ";
+        if (up && !up(jd)) {
+            out += "Jupiter is not up in a dark sky here\n";
+        } else {
+            const std::string d = DiscLine(jupiterDisc(jd));
+            out += (d.empty() ? std::string("nothing on or behind the disc") : d) + "\n";
+        }
+        for (const auto& l : lines) out += "  " + l + "\n";
+        if (lines.empty()) out += "  Nothing in the next 8 hours while Jupiter is up and the sky dark\n";
+        if (jupiterDesk.CoverToJd() < jd + 8.0 / 24.0)
+            out += "  (moon events not fetched yet: they come from JPL Horizons when online)\n";
+        return out;
+    };
+    double jupiterSnapshotJd = 0.0;
+    std::string jupiterSnapshotText;
     auto listJupiter = [&](double now, const raduk::sky::LunarObserver& site) {
         using namespace raduk::sky::jupiter;
         auto up = [&](double jd) {
@@ -6184,6 +6227,9 @@ static int RunApp(bool useEmulator) {
         c.minAltDeg    = rig.autorunMinAltDeg;
         c.holdForSeeing = rig.autorunSeeingPct > 0;
         c.seeingHoldSec = rig.autorunSeeingHoldSec;
+        autorunJupiter  = _stricmp(targetNow().c_str(), "Jupiter") == 0;
+        c.deferFocusInPrime = autorunJupiter && rig.autorunPrimeDeferMin > 0.0f;
+        c.primeDeferMaxSec  = rig.autorunPrimeDeferMin * 60.0;
         c.runSec       = raduk::core::AutorunRunSec(
             derotWindowSec, controls.GetLimitByFrames(),
             controls.GetLimitFrames(), controls.GetLimitTimeSec(),
@@ -6198,6 +6244,8 @@ static int RunApp(bool useEmulator) {
         autorunResults.clear();
         autorunLastPath.clear();
         autorunWasHolding = false;
+        autorunWasDeferring = false;
+        autorunRunNote.clear();
         if (!autorun.Start(c, nowSec)) {
             wchar_t msg[128];
             swprintf(msg, 128, L"Runs not started: %hs", autorun.Reason().c_str());
@@ -6207,6 +6255,13 @@ static int RunApp(bool useEmulator) {
         Log("[AUTORUN] start: %d runs of %.0f s, gap %.0f s, focus every %d, "
             "floor %.0f deg, seeing bar %d%%\n", c.runs, c.runSec, c.gapSec,
             c.refocusEvery, c.minAltDeg, rig.autorunSeeingPct);
+        if (autorunJupiter) {
+            const double jd = raduk::sky::PreciseJdNow();
+            const auto d = jupiterDisc(jd);
+            Log("[AUTORUN] Jupiter: %s; a due sweep %s\n",
+                d.Prime() ? raduk::sky::jupiter::DiscLine(d).c_str() : "nothing prime on the disc now",
+                c.deferFocusInPrime ? "waits out a Red Spot or moon spell" : "never waits (AutorunPrimeDeferMin=0)");
+        }
         slog.Capture("Autorun: %d runs of %.0f s", c.runs, c.runSec);
         wchar_t msg[128];
         swprintf(msg, 128, L"Sequence: %d runs of %.1f min", c.runs,
@@ -7460,6 +7515,15 @@ static int RunApp(bool useEmulator) {
                         aiState.weather = wb;
                     }
                 }
+                // Phase 144: Jupiter's next hours, rebuilt once a minute.
+                {
+                    const double jd = raduk::sky::PreciseJdNow();
+                    if (std::fabs(jd - jupiterSnapshotJd) > 60.0 / 86400.0) {
+                        jupiterSnapshotJd = jd;
+                        jupiterSnapshotText = jupiterSnapshot(jd);
+                    }
+                    aiState.jupiter = jupiterSnapshotText;
+                }
                 // Capture + buffer
                 aiState.recording      = capturer.IsRecording();
                 aiState.framesRecorded = capturer.FramesRecorded();
@@ -7779,6 +7843,8 @@ static int RunApp(bool useEmulator) {
                     ai.targetSeen = lastAnalysis.valid && lastAnalysis.centroidValid;
                     ai.altDeg     = preview.MountAltitude();
                     ai.seeingOpen = seeing.Open(nowSec);
+                    if (autorunJupiter)
+                        ai.prime = jupiterDisc(raduk::sky::PreciseJdNow()).Prime();
                     // A disk that will not answer is not a reason to stop.
                     ULARGE_INTEGER avail{};
                     const uint64_t want = raduk::core::AutorunRunBytes(
@@ -7796,7 +7862,7 @@ static int RunApp(bool useEmulator) {
                 auto noteRun = [&]() {
                     autorunResults.push_back({ordinalBefore, autorunLastPath,
                                               capturer.FramesRecorded(),
-                                              seeing.EndRun()});
+                                              seeing.EndRun(), autorunRunNote});
                 };
                 const int doneBefore = autorun.Done();
                 // Phase 128, found by a scenario: a sequence refused at its
@@ -7819,6 +7885,13 @@ static int RunApp(bool useEmulator) {
                         seeing.BeginRun();
                         Log("[AUTORUN] run %d of %d\n", autorun.Ordinal(),
                             autorun.Total());
+                        autorunRunNote.clear();
+                        if (autorunJupiter) {
+                            autorunRunNote = raduk::sky::jupiter::DiscLine(
+                                jupiterDisc(raduk::sky::PreciseJdNow()));
+                            if (!autorunRunNote.empty())
+                                Log("[AUTORUN] on the disc: %s\n", autorunRunNote.c_str());
+                        }
                         slog.Capture("Autorun: run %d of %d", autorun.Ordinal(),
                                      autorun.Total());
                     } else {
@@ -7849,16 +7922,34 @@ static int RunApp(bool useEmulator) {
                         notifBar.NotifyInfo(L"Sequence is waiting for the seeing");
                 }
 
+                // Phase 144: say once when a sweep is put off, and when.
+                if (autorun.DeferringFocus() != autorunWasDeferring) {
+                    autorunWasDeferring = autorun.DeferringFocus();
+                    if (autorunWasDeferring) {
+                        const double jd = raduk::sky::PreciseJdNow();
+                        const auto d = jupiterDisc(jd);
+                        const double end = raduk::sky::jupiter::PrimeEndJd(jd, grsModel(),
+                                               jupiterDesk.Events(jd - 0.5, jd + 0.5));
+                        Log("[AUTORUN] focus put off: %s, until about %s UTC (at most %.0f min)\n",
+                            raduk::sky::jupiter::DiscLine(d).c_str(),
+                            raduk::sky::jupiter::HhMm(end).c_str(),
+                            raduk::core::RigConfig::Get().autorunPrimeDeferMin);
+                        slog.Capture("Autorun: focus put off for %s", raduk::sky::jupiter::DiscLine(d).c_str());
+                    } else {
+                        Log("[AUTORUN] the spell is over or the wait ran out: focus as due\n");
+                    }
+                }
+
                 toolbar.SetRuns(autorun.Running(), autorun.Ordinal());
                 const bool ended = (autorunShown || runningBefore) && !autorun.Running();
                 autorunShown = autorun.Running();
                 if (ended) {
                     const bool ok = autorun.State() == Autorun::Phase::Complete;
                     Log("[AUTORUN] end: %d of %d runs, %d empty, %d focus failed, "
-                        "%d without the seeing: %s\n",
+                        "%d without the seeing, %d with a sweep put off: %s\n",
                         autorun.Done(), autorun.Total(), autorun.Empty(),
                         autorun.FocusFailures(), autorun.SeeingGaveUp(),
-                        autorun.Reason().c_str());
+                        autorun.FocusDeferred(), autorun.Reason().c_str());
 
                     // Phase 114: which runs to stack first.
                     if (!autorunResults.empty()) {

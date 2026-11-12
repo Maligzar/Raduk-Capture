@@ -1298,3 +1298,12 @@ the bench already showed, so the night only has to confirm it. The plan is
     restart can only be learned on the real camera. During a planetary run,
     count `Pipeline wedge` lines in raduk_log.txt: any at all, with frames
     otherwise flowing, means the floor is too tight.
+57. **Autorun around a Jupiter event** (144, added 2026-11-12). Start
+    `[RUNS]` on Jupiter an hour before a Red Spot transit or a shadow
+    transit listed on `J`. Check raduk_log.txt for `[AUTORUN] focus put off`
+    when a sweep falls due inside the spell, and a sweep soon after it ends
+    or 30 minutes on. Then open the `autorun_*.txt` list: the bracketed
+    note on each run should match what the stacked image shows (the Red
+    Spot near the centre, the shadow on the disc). If the Red Spot is well
+    off the meridian when the note says it is near, `GrsLonSys2` needs a
+    recent figure.

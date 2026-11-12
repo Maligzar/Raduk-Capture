@@ -175,7 +175,7 @@ public:
             // 134.2: a drag's snapshot is taken at its start and dropped at
             // its end; both messages carry on to the window afterwards.
             if (panel_dock::Enabled() && msg == WM_ENTERSIZEMOVE) panel_dock::BeginDrag(hwnd);
-            if (msg == WM_EXITSIZEMOVE) panel_dock::EndDrag();
+            if (msg == WM_EXITSIZEMOVE) panel_dock::EndDrag(hwnd);
             if ((panel_dock::Enabled() || panel_dock::IsDocked(hwnd)) && msg == WM_MOVING) {
                 panel_dock::DragMove(hwnd, reinterpret_cast<RECT*>(lp));
                 out = TRUE;

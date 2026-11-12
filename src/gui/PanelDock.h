@@ -34,6 +34,10 @@ struct State {
     std::function<void(HWND)> toggleDock;     // dock or undock this panel
     std::function<void(HWND)> undockForDrag;  // Shift-drag out: keep where the mouse is
     std::function<void()> dockFullscreen;     // F11 on a docked panel
+    // 134.4b: a panel dragged alone over the dock shows a drop zone;
+    // released there, it docks into it.
+    std::function<void(HWND, POINT)> dropHover;
+    std::function<void(HWND)> dropCommit;
 };
 inline State& S() { static State s; return s; }
 
@@ -156,7 +160,11 @@ inline void BeginDrag(HWND self) {
     D() = std::move(d);
 }
 
-inline void EndDrag() { D() = Drag{}; }
+inline void EndDrag(HWND self) {
+    const bool mine = D().self == self && D().solo;
+    D() = Drag{};
+    if (mine && S().dropCommit) S().dropCommit(self);   // 134.4b: dock it if it was over a zone
+}
 
 // Every member but self to where `rects` says, in one batch.
 inline void PlaceMembers(const std::vector<dock::Rect>& rects) {
@@ -190,7 +198,17 @@ inline void DragMove(HWND self, RECT* proposed) {
         }
         return;
     }
-    if (d.self != self || d.solo) { SnapProposed(self, proposed, false, 0); return; }
+    if (d.self != self || d.solo) {
+        SnapProposed(self, proposed, false, 0);
+        // 134.4b: alone, it can be dropped onto the dock. The cursor, not
+        // the panel's rectangle, says where.
+        if (d.self == self && S().dropHover) {
+            POINT pt;
+            GetCursorPos(&pt);
+            S().dropHover(self, pt);
+        }
+        return;
+    }
     const auto moved = dock::MoveGroupSnapped(d.start, d.ids, d.selfIndex, ToDock(*proposed),
                                               WorkAreaFor(*proposed), Scaled(self, dock::kSnapPx));
     *proposed = FromDock(moved[d.selfIndex]);

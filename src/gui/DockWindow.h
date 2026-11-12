@@ -61,6 +61,9 @@ public:
         s.toggleDock = [this](HWND h) { if (Has(h)) Undock(h, true); else Dock(h); };
         s.undockForDrag = [this](HWND h) { Undock(h, false); };
         s.dockFullscreen = [this]() { ToggleFullscreen(); };
+        s.dropHover = [this](HWND h, POINT pt) { Hover(h, pt); };
+        s.dropCommit = [this](HWND h) { Commit(h); };
+        CreateZoneWindow(inst);
         return true;
     }
 
@@ -68,7 +71,7 @@ public:
     bool Has(HWND h) const { return Find(h) >= 0; }
     int Count() const { return (int)m_entries.size(); }
 
-    void Dock(HWND h) {
+    void Dock(HWND h, dock::Zone zone = dock::Zone::Center) {
         if (!m_hwnd || !h || Has(h)) return;
         panel_dock::ExitGroupFull();
         if (IsZoomed(h)) ShowWindow(h, SW_RESTORE);
@@ -85,8 +88,41 @@ public:
             ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
         }
         const std::string role = Adopt(h);
-        m_tree = dock::Append(m_tree, role, Content());
+        m_tree = dock::Insert(m_tree, role, zone, Content());
         Relayout();
+    }
+
+    // ── Phase 134.4b: drag a panel onto the dock ─────────────
+    //
+    // While a panel is dragged alone over the open dock, the zone under
+    // the cursor is shown: a band along each edge puts it on that side of
+    // everything docked, the middle adds it as Dock does. Released there,
+    // it docks. A translucent, click-through window owned by the dock
+    // shows the zone, in the accent colour, which is red in night vision.
+    void Hover(HWND h, POINT pt) {
+        dock::Zone z = dock::Zone::None;
+        if (m_hwnd && h != m_hwnd && IsWindowVisible(m_hwnd) && !m_full && !Has(h)) {
+            ScreenToClient(m_hwnd, &pt);
+            z = dock::ZoneAt(Content(), pt.x, pt.y);
+        }
+        m_zone = z;
+        m_zoneFor = z == dock::Zone::None ? nullptr : h;
+        if (!m_zoneWnd) return;
+        if (z == dock::Zone::None) { ShowWindow(m_zoneWnd, SW_HIDE); return; }
+        const dock::Rect r = dock::ZoneRect(Content(), z);
+        POINT o{ 0, 0 };
+        ClientToScreen(m_hwnd, &o);
+        SetWindowPos(m_zoneWnd, HWND_TOP, o.x + r.l, o.y + r.t, r.w(), r.h(),
+                     SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+
+    void Commit(HWND h) {
+        const dock::Zone z = m_zone;
+        const bool mine = m_zoneFor == h;
+        m_zone = dock::Zone::None;
+        m_zoneFor = nullptr;
+        if (m_zoneWnd) ShowWindow(m_zoneWnd, SW_HIDE);
+        if (mine && z != dock::Zone::None) Dock(h, z);
     }
 
     // ── Phase 134.5: remembered across runs ──────────────────
@@ -238,6 +274,36 @@ private:
         return e.role;
     }
 
+    void CreateZoneWindow(HINSTANCE inst) {
+        static bool registered = false;
+        if (!registered) {
+            WNDCLASSEXW wc{ sizeof(wc) };
+            wc.lpfnWndProc = ZoneProc;
+            wc.hInstance = inst;
+            wc.lpszClassName = L"RadukDockZone";
+            if (!RegisterClassExW(&wc)) return;
+            registered = true;
+        }
+        m_zoneWnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+                                    L"RadukDockZone", L"", WS_POPUP, 0, 0, 10, 10, m_hwnd, nullptr, inst,
+                                    nullptr);
+        if (m_zoneWnd) SetLayeredWindowAttributes(m_zoneWnd, 0, 90, LWA_ALPHA);
+    }
+
+    static LRESULT CALLBACK ZoneProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
+        if (msg == WM_PAINT) {
+            PAINTSTRUCT ps;
+            HDC dc = BeginPaint(h, &ps);
+            RECT r;
+            GetClientRect(h, &r);
+            FillRect(dc, &r, Theme::Brush(Theme::Rgb::ACCENT));
+            EndPaint(h, &ps);
+            return 0;
+        }
+        if (msg == WM_NCHITTEST) return HTTRANSPARENT;
+        return DefWindowProcW(h, msg, wp, lp);
+    }
+
     int Find(HWND h) const {
         for (size_t i = 0; i < m_entries.size(); ++i) if (m_entries[i].h == h) return (int)i;
         return -1;
@@ -344,6 +410,9 @@ private:
     }
 
     HWND m_hwnd = nullptr;
+    HWND m_zoneWnd = nullptr;                      // 134.4b: the drop-zone highlight
+    dock::Zone m_zone = dock::Zone::None;
+    HWND m_zoneFor = nullptr;
     std::optional<dock::Node> m_tree;
     std::vector<Entry> m_entries;
     std::vector<dock::SplitBar> m_bars;

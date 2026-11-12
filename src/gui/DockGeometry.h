@@ -456,6 +456,55 @@ inline std::optional<Node> ParseText(const std::string& s) {
     return n;
 }
 
+// ── Phase 134.4b: dropping a dragged panel onto the dock ─────
+
+enum class Zone { None, Left, Right, Top, Bottom, Center };
+
+// Which drop zone the cursor is in over the dock's content area: a band
+// a quarter of the width (or height) deep along each edge, and the
+// middle. Outside the area, none. Where two bands meet in a corner the
+// nearer edge wins.
+inline Zone ZoneAt(const Rect& area, int x, int y) {
+    if (area.w() <= 0 || area.h() <= 0) return Zone::None;
+    if (x < area.l || x >= area.r || y < area.t || y >= area.b) return Zone::None;
+    const double fx = double(x - area.l) / area.w(), fy = double(y - area.t) / area.h();
+    const double dl = fx, dr = 1.0 - fx, dt = fy, db = 1.0 - fy;
+    const double m = (std::min)((std::min)(dl, dr), (std::min)(dt, db));
+    if (m >= 0.25) return Zone::Center;
+    if (m == dl) return Zone::Left;
+    if (m == dr) return Zone::Right;
+    if (m == dt) return Zone::Top;
+    return Zone::Bottom;
+}
+
+// Where a dropped panel will go, for the highlight: an edge zone is half
+// the area on that side; the middle is the area itself (the panel is
+// added the way Append adds one).
+inline Rect ZoneRect(const Rect& area, Zone z) {
+    const int hw = area.w() / 2, hh = area.h() / 2;
+    switch (z) {
+    case Zone::Left:   return { area.l, area.t, area.l + hw, area.b };
+    case Zone::Right:  return { area.r - hw, area.t, area.r, area.b };
+    case Zone::Top:    return { area.l, area.t, area.r, area.t + hh };
+    case Zone::Bottom: return { area.l, area.b - hh, area.r, area.b };
+    case Zone::Center: return area;
+    default:           return {};
+    }
+}
+
+// The tree with the panel dropped in `z`: an edge zone puts it beside or
+// above or below everything already docked, half and half; the middle
+// is Append. Into an empty dock it is the whole tree, whatever the zone.
+inline Node Insert(std::optional<Node> root, const std::string& role, Zone z, const Rect& area) {
+    if (!root || z == Zone::Center || z == Zone::None) return Append(std::move(root), role, area);
+    switch (z) {
+    case Zone::Left:   return Split('H', 0.5, Leaf(role), std::move(*root));
+    case Zone::Right:  return Split('H', 0.5, std::move(*root), Leaf(role));
+    case Zone::Top:    return Split('V', 0.5, Leaf(role), std::move(*root));
+    default:           return Split('V', 0.5, std::move(*root), Leaf(role));
+    }
+}
+
 // ── Phase 134.5: what the dock remembers ─────────────────────
 //
 // dock.ini, beside workspace.ini rather than in it: WorkspaceLayout::Save

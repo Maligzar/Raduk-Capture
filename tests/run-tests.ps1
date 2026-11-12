@@ -54,6 +54,9 @@ $Tests = @(
     @{ Name = "exposure_band";     Sources = @() }
     @{ Name = "display_stretch";   Sources = @() }
     @{ Name = "af_direction_fit";  Sources = @() }
+    @{ Name = "af_readiness";      Sources = @() }
+    @{ Name = "jupiter_events";    Sources = @() }
+    @{ Name = "omm_elements";      Sources = @() }
     @{ Name = "ser_timestamp_midpoint"; Sources = @() }
     @{ Name = "paths_resolution"; Sources = @() }
     @{ Name = "ascom_driver_choice"; Sources = @() }

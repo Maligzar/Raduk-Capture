@@ -24,6 +24,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include "../sky/Omm.h"   // phase 136
 #include <windows.h>
 #include <winhttp.h>
 
@@ -136,9 +137,25 @@ public:
         Say(b);
     }
 
-    static std::string ElementsPath() {
-        return Paths::Root() + "\\satellites.tle";
+    // Phase 136: OMM JSON from CelesTrak (Omm.h), which carries six-digit
+    // catalog numbers. The old two-line file is still read if it is all
+    // there is, so an offline machine keeps what it had.
+    static std::string ElementsPath()       { return Paths::Root() + "\\satellites_omm.json"; }
+    static std::string LegacyElementsPath() { return Paths::Root() + "\\satellites.tle"; }
+    // The file elements are read from now: the OMM file if there is one.
+    static std::string CurrentElementsPath() {
+        return FileAgeHours(ElementsPath()) < 1.0e8 ? ElementsPath() : LegacyElementsPath();
     }
+    static std::vector<raduk::sky::Tle> ReadElements() {
+        const std::string p = CurrentElementsPath();
+        std::ifstream f(p, std::ios::binary);
+        std::stringstream ss; ss << f.rdbuf();
+        return p == ElementsPath() ? raduk::sky::ParseOmmJson(ss.str()) : raduk::sky::ParseTleText(ss.str());
+    }
+    // CelesTrak groups fetched, in one file: what can be seen, the crewed
+    // stations, and the last 30 days of launches, where the newest rocket
+    // bodies are.
+    static constexpr const wchar_t* kGroups[] = { L"visual", L"stations", L"last-30-days" };
 
     static double FileAgeHours(const std::string& path) {
         WIN32_FILE_ATTRIBUTE_DATA a{};
@@ -352,13 +369,19 @@ private:
             return;
         }
         std::string body;
-        if (!HttpGet(L"celestrak.org",
-                     L"/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle", body)) {
+        int groups = 0;
+        for (const wchar_t* g : kGroups) {
+            std::string part;
+            const std::wstring q = std::wstring(L"/NORAD/elements/gp.php?GROUP=") + g + L"&FORMAT=json";
+            if (!HttpGet(L"celestrak.org", q.c_str(), part)) continue;
+            body += part; body += "\n"; ++groups;
+        }
+        if (groups == 0) {
             Say("Could not reach CelesTrak; using the elements on disk.");
             return;
         }
         int dropped = 0;
-        const auto parsed = raduk::sky::ParseTleText(body, &dropped);
+        const auto parsed = raduk::sky::ParseOmmJson(body, &dropped);
         // Only ever replace a good file with a good file. An error page
         // or a truncated body must not cost the set already here.
         if (parsed.size() < 20) {
@@ -374,18 +397,18 @@ private:
         MoveFileExA(tmp.c_str(), path.c_str(),
                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
         char b[120];
-        snprintf(b, sizeof(b), "Elements updated: %d satellites%s.",
-                 (int)parsed.size(), dropped ? ", some damaged and dropped" : "");
+        int sixDigit = 0;
+        for (const auto& t : parsed) if (t.catalog > 99999) ++sixDigit;
+        snprintf(b, sizeof(b), "Elements updated (OMM, %d of %d groups): %d satellites, %d with six-digit "
+                 "catalog numbers TLE could not carry%s.", groups, (int)(sizeof(kGroups) / sizeof(kGroups[0])),
+                 (int)parsed.size(), sixDigit, dropped ? ", some damaged and dropped" : "");
         Say(b);
     }
 
 
     void Predict(const raduk::sky::LunarObserver& site,
                  const raduk::sky::SatPassLimits& lim) {
-        std::ifstream f(ElementsPath(), std::ios::binary);
-        std::stringstream ss;
-        ss << f.rdbuf();
-        const auto tles = raduk::sky::ParseTleText(ss.str());
+        const auto tles = ReadElements();
 
         std::vector<SatPassRow> rows;
         const double now = raduk::sky::PreciseJdNow();

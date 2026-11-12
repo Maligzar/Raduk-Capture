@@ -6,6 +6,7 @@
 #include "CaptureManager.h"
 #include "DerotationLimit.h"
 #include "DiskGuard.h"
+#include "../sky/JupiterEvents.h"   // phase 143: central meridians
 
 #include <cmath>
 
@@ -212,6 +213,20 @@ void CaptureManager::StopRecording(bool normal) {
         }
     }
 
+    // Phase 143: Jupiter's central meridians at the middle of the run,
+    // for whoever measures the images (WinJUPOS, PVOL, the BAA and ALPO).
+    {
+        auto has = [](const std::string& s) {
+            std::string l = s; for (auto& c : l) c = (char)tolower((unsigned char)c);
+            return l.find("jupiter") != std::string::npos;
+        };
+        if ((has(m_obs.target) || has(m_obs.profile)) && m_obs.startUnix > 0) {
+            const double midUnix = m_obs.startUnix + (std::isnan(m_obs.durationSec) ? 0.0 : m_obs.durationSec / 2.0);
+            const auto cm = raduk::sky::jupiter::CentralMeridians(midUnix / 86400.0 + 2440587.5);
+            m_obs.cmSysIDeg = cm.sysI; m_obs.cmSysIIDeg = cm.sysII; m_obs.cmSysIIIDeg = cm.sysIII;
+        }
+    }
+
     // Close the writer (finalizes the file, writes the quality sidecar)
     m_writer->NoteObservation(m_obs);
     m_writer->Close();
@@ -237,7 +252,57 @@ void CaptureManager::StopRecording(bool normal) {
         }
     }
 
+    // Phase 142: Jupiter runs go on the night's DeTeCt list.
+    std::string detectList;
+    if (IsJupiterRun(m_obs) && !m_lastPath.empty() && m_status.framesRecorded.load() > 0) {
+        m_obs.detect = "queued";
+        const time_t st = (time_t)m_obs.startUnix;
+        struct tm lt {}; localtime_s(&lt, &st);
+        char name[64];
+        snprintf(name, sizeof(name), "\\detect_jupiter_%04d%02d%02d.txt", lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday);
+        detectList = m_config.outputDir + name;
+    }
+
     WriteObservationRecord();
+
+    if (!detectList.empty()) {
+        FILE* f = nullptr;
+        const bool fresh = (fopen_s(&f, detectList.c_str(), "rb") != 0 || !f);
+        if (f) fclose(f);
+        if (fopen_s(&f, detectList.c_str(), "ab") == 0 && f) {
+            if (fresh) fputs(DetectListHeader().c_str(), f);
+            fputs(DetectListLine(m_obs, m_lastPath).c_str(), f);
+            fclose(f);
+            std::string all;
+            if (fopen_s(&f, detectList.c_str(), "rb") == 0 && f) {
+                char buf[4096]; size_t n;
+                while ((n = fread(buf, 1, sizeof(buf), f)) > 0) all.append(buf, n);
+                fclose(f);
+            }
+            char b[200];
+            snprintf(b, sizeof(b), "On tonight's DeTeCt list (%.1f min of Jupiter so far): %s",
+                     DetectListMinutes(all), detectList.c_str());
+            Say(b);
+        }
+    }
+
+    // Phase 143.1: one line on the night's submission sheet.
+    if (m_config.frameType == "Light" && !m_lastPath.empty()) {
+        m_obs.frames = (int)m_status.framesRecorded.load();
+        const time_t st = (time_t)m_obs.startUnix;
+        struct tm lt {}; localtime_s(&lt, &st);
+        char name[64];
+        snprintf(name, sizeof(name), "\\submission_%04d%02d%02d.txt", lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday);
+        const std::string sheet = m_config.outputDir + name;
+        FILE* f = nullptr;
+        const bool fresh = (fopen_s(&f, sheet.c_str(), "rb") != 0 || !f);
+        if (f) fclose(f);
+        if (fopen_s(&f, sheet.c_str(), "ab") == 0 && f) {
+            if (fresh) fputs(SubmissionSheetHeader().c_str(), f);
+            fputs(SubmissionSheetLine(m_obs, kCaptureTelescope, kCaptureInstrument).c_str(), f);
+            fclose(f);
+        }
+    }
 
     uint32_t frames = m_status.framesRecorded.load();
     uint32_t drops  = m_status.framesDropped.load();

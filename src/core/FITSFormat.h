@@ -310,6 +310,14 @@ inline std::string BuildHeader(const ObservationRecord& r,
     addReal("SITELONG", r.siteLonDeg, 8, "deg, +E");
     if (r.focuserPos >= 0) add(CardInt("FOCUSPOS", r.focuserPos, "steps"));
     addReal("FOCUSTEM", r.focuserTempC, 2, "C");
+    // Phase 143.
+    if (!r.filter.empty()) add(CardString("FILTER", r.filter));
+    addReal("CMSYS1", r.cmSysIDeg,   2, "deg, Jupiter CM System I, mid-run");
+    addReal("CMSYS2", r.cmSysIIDeg,  2, "deg, Jupiter CM System II, mid-run");
+    addReal("CMSYS3", r.cmSysIIIDeg, 2, "deg, Jupiter CM System III, mid-run");
+    if (r.clockConfirmed >= 0)
+        add(CardInt("CLOCKOK", r.clockConfirmed, "1: PC clock checked against NTP"));
+    addReal("CLOCKOFF", r.clockOffsetMs, 1, "ms, UTC minus PC clock");
 
     add(CardComment("Per-frame times are in the FRAMES table, column MJD_MID:"));
     add(CardComment("UTC midpoint of integration, not arrival at the host."));

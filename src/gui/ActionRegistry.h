@@ -101,7 +101,7 @@ inline const std::vector<Action>& All() {
         {"pause",       "Pause or resume recording", "hold continue",                       "P",            'P', false, false, 0, false},
         {"stack",       "Stack the last recording", "autostakkert process",                 "K",            'K', false, false, 0, false},
         {"openlast",    "Open the last recording",  "file explorer show",                   "Shift+K",      'K', true,  false, 0, false},
-        {"phemu",       "Jupiter's moons: mutual events", "phemu imcce eclipse occultation io europa ganymede callisto", "J", 'J', false, false, 0, false},
+        {"phemu",       "Jupiter: Red Spot, moon and shadow transits, mutual events", "phemu imcce eclipse occultation io europa ganymede callisto red spot grs shadow transit meridian", "J", 'J', false, false, 0, false},
 
         // Things that move hardware, or start a sequence: guarded.
         {"autofocus",   "Autofocus: start or stop", "focus sweep hfd",                      "A",            'A', false, false, 0, true},

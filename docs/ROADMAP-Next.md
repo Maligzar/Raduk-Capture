@@ -1379,12 +1379,15 @@ at `2fb9c5e` on 2026-11-11, and again at `aa44131` the same evening.
 
 ### Next, in order
 
-**Updated 2026-11-11 (second pass), after the data-source and pull
-request review.** The bench order, top first:
+**Updated 2026-11-12.** #134 to #137 are merged (exposure, focus
+backlash, tracking, 135.1). The tracking fixes of 2026-11-12 (#136):
+the emulator now runs the measured 8SE mount model, every LOCK
+calibrates afresh, and every GoTo, the tracking toggle, align, a remote
+stop and a profile load hand the mount back from the guider first. The
+bench order, top first:
 
-1. **The open pull requests**, as resolved above: merge #130 (this
-   review). #129 and #131 are merged; #91 and #95 are closed, #95's
-   remaining behaviour going into 132.10b.
+1. **No open pull requests.** #91 and #95 are closed, #95's remaining
+   behaviour going into 132.10b.
 2. **141.0 and 141.1, Galilean mutual events (row 41), size S-M.**
    **141.0 written 2026-11-11 (predictions from IMCCE's Opale service,
    `J` and reminders). 141.1 written 2026-11-11: `Shift+J` records the
@@ -1417,15 +1420,18 @@ request review.** The bench order, top first:
    found exposures far too short, not too long.
 5. **139.0 to 139.2 (row 39), size S-M.** Autofocus redesigned now,
    **approved by the owner 2026-11-11** without waiting for a night's
-   measurement: fit one sweep direction, measure and apply the backlash
-   once, and manual moves that approach from one side. **Written
-   2026-11-12**; owes the first clear night's backlash figure (item 47)
-   and the owner's return-to-the-number test.
+   measurement: measure and apply the backlash once, and manual moves
+   that approach from one side. **Merged 2026-11-12.** Autofocus fits the
+   out-and-back average (which cancels a fade) and adds half the backlash
+   for the outward approach; fitting one direction alone was tried first
+   and failed CI with a fading target. Owes the first clear night's
+   backlash figure (item 47) and the owner's return-to-the-number test.
 6. **135.1 and 135.2 (row 35), size S.** Category 1: a failed disk write
    leaves the run "recording" into RAM, and a crash leaves a SER whose
    header says it holds no frames. Both silent, both on `master` today.
-   **135.1 written 2026-11-12** (the run stops and says why, and a disk
-   running low stops it while every captured frame still fits).
+   **135.1 merged 2026-11-12** (the run stops and says why, and a disk
+   running low stops it while every captured frame still fits). 135.2
+   is next.
    Phases 140, 139 and 135 all go ahead of the owner's 2026-11-07
    placing of Phase 132 first: 140 and 139 at the owner's word of
    2026-11-11, 135 by the ranking rule at the top of this file, which
@@ -1433,20 +1439,21 @@ request review.** The bench order, top first:
 7. **140.3 and 139.3 (rows 40, 39), size S-M each.** **140.3 written
    2026-11-11** (Shift+L, on by default): a live view stretched for the
    eye on the target, display only and labelled, so short exposures are
-   easy to see. 139.3 still to build: the autofocus readiness indicator.
+   easy to see. **139.3 written 2026-11-12**: the AUTO FOCUS button says
+   NOT NOW and why, and asks for a second press.
 8. **132.10b to 132.10d (row 32)**, the dashboard restyle and its live
    night mode, with #95's behaviour ported into 132.10b.
-9. **Phase 136, satellite elements as OMM (row 36), size S.** Category 3:
-   the sky map and pass list advertise rocket bodies, and every object
-   catalogued since 2026-07-11 cannot reach them.
-10. **Phase 137, Jupiter events (row 37), size M.** Category 4, and
-   season-bound: opposition is about 2027-02-10, so it pays only if it
-   ships this winter. Ahead of the rest of Phase 134 for that reason
-   alone; docking is category 5 and keeps.
-11. **141.2, 142 and 143 (rows 41 to 43), S to M.** The mutual-event
-   light curves from the season's SERs, every Jupiter recording handed
-   to DeTeCt for impact flashes, and records complete enough to submit
-   to PVOL. After 137, which supplies the longitudes.
+9. **Phases 136, 137, 142 and 143 (rows 36, 37, 42, 43): written
+   2026-11-12, built together at the owner's word.** Satellite elements
+   as OMM (six-digit catalog numbers); Jupiter's central meridians, Red
+   Spot transits and moon and shadow events on `J`; a nightly DeTeCt
+   list with the Jupiter minutes covered; central meridians, filter and
+   clock in the records and FITS, and a nightly submission sheet. 141.2
+   was already written. Not done, for want of a reachable source: the
+   supplemental ISS elements (CelesTrak), launching DeTeCt directly
+   (its command line), and PVOL's own field list. Owes: one live
+   CelesTrak fetch, DeTeCt run over the capture folder (142.0), and the
+   Red Spot longitude set from a recent measurement.
 12. **134.4b and 134.5 (row 34)**, drop zones on the dock and saving
     the layout. 134.4a, the dock window itself, is merged.
 13. **135.3 to 135.5 (row 35).** Wedge recovery in seconds rather than

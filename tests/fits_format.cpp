@@ -274,6 +274,14 @@ int main() {
         bool none = true;
         for (const char* k : absent) if (Has(m, k)) none = false;
         Check(none, "an unknown value produces no card, not a zero");
+        Check(!Has(m, "CMSYS2") && !Has(m, "CLOCKOK") && !Has(m, "FILTER"),
+              "phase 143: no meridians, clock or filter card when unknown");
+        ObservationRecord j = r;
+        j.cmSysIIDeg = 210.5; j.clockConfirmed = 1; j.filter = "UV/IR cut";
+        const std::string mj = BuildHeader(j, HeaderExtras{}, RunTimes{}, 0);
+        Check(Has(mj, "CMSYS2") && std::fabs(Number(mj, "CMSYS2") - 210.5) < 1e-9 &&
+              Number(mj, "CLOCKOK") == 1 && Text(mj, "FILTER") == "UV/IR cut",
+              "phase 143: CMSYS2, CLOCKOK and FILTER when known");
         Check(Number(m, "NAXIS3") == 0 && EndBlock(m) == (int)kHeaderBlocks - 1,
               "the zero-frame header written at open is valid");
     }

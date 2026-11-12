@@ -70,17 +70,17 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 /* ========== DASHBOARD LAYOUT ========== */
 .dash-main { position:relative; z-index:5; display:grid; grid-template-columns:320px 1fr 290px; grid-template-rows:auto; gap:1px; background:var(--d-border); }
 .col-left,.col-center,.col-right { display:flex; flex-direction:column; gap:1px; overflow:visible; }
-.condition-row { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid rgba(14,34,53,.7); }
+.condition-row { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid color-mix(in srgb, var(--line) 70%, transparent); }
 .condition-row:last-child { border-bottom:none; }
 .cond-label { font-size:13px; letter-spacing:1px; color:var(--d-text-dim); width:105px; text-transform:uppercase; }
-.cond-bar-wrap { flex:1; height:5px; background:rgba(10,21,32,.8); border-radius:3px; margin:0 10px; overflow:hidden; }
+.cond-bar-wrap { flex:1; height:5px; background:color-mix(in srgb, var(--panel) 80%, transparent); border-radius:3px; margin:0 10px; overflow:hidden; }
 .cond-bar { height:100%; border-radius:3px; transition:width 1s ease; }
 .cond-val { font-family:'Space Mono',monospace; font-size:11px; width:52px; text-align:right; }
-.bar-good { background:linear-gradient(90deg,rgba(77,255,145,.3),var(--d-green)); }
-.bar-warn { background:linear-gradient(90deg,rgba(255,170,0,.3),var(--d-amber)); }
-.bar-bad  { background:linear-gradient(90deg,rgba(255,59,92,.3),var(--d-red)); }
+.bar-good { background:linear-gradient(90deg,color-mix(in srgb, var(--live) 30%, transparent),var(--d-green)); }
+.bar-warn { background:linear-gradient(90deg,color-mix(in srgb, var(--warn) 30%, transparent),var(--d-amber)); }
+.bar-bad  { background:linear-gradient(90deg,color-mix(in srgb, var(--fault) 30%, transparent),var(--d-red)); }
 .weather-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:12px; }
-.weather-cell { background:rgba(6,13,20,.8); border:1px solid var(--d-border); padding:9px; border-radius:2px; }
+.weather-cell { background:color-mix(in srgb, var(--deep) 80%, transparent); border:1px solid var(--d-border); padding:9px; border-radius:2px; }
 .weather-cell .wc-label { font-size:11px; letter-spacing:1.5px; color:var(--d-text-dim); text-transform:uppercase; }
 .weather-cell .wc-val { font-family:'Space Mono',monospace; font-size:13px; color:var(--d-text-bright); margin-top:2px; line-height:1.2; }
 .weather-cell .wc-sub { font-size:10px; color:var(--d-text-dim); }
@@ -89,9 +89,9 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 .sky-compass { position:absolute; font-family:'Space Mono',monospace; font-size:10px; color:var(--d-text-dim); letter-spacing:1px; }
 .sky-compass.n{top:-18px;left:50%;transform:translateX(-50%);color:var(--d-accent)}.sky-compass.s{bottom:-18px;left:50%;transform:translateX(-50%)}.sky-compass.e{right:-16px;top:50%;transform:translateY(-50%)}.sky-compass.w{left:-16px;top:50%;transform:translateY(-50%)}
 .target-list { display:flex; flex-direction:column; gap:5px; }
-.target-item { display:flex; align-items:center; gap:9px; padding:9px 11px; background:rgba(6,13,20,.8); border:1px solid var(--d-border); border-left:3px solid transparent; cursor:pointer; transition:all .2s; }
-.target-item:hover { border-color:var(--d-dim); background:rgba(0,229,255,.04); }
-.target-item.prime{border-left-color:var(--d-accent3)}.target-item.good{border-left-color:var(--d-accent)}.target-item.fair{border-left-color:var(--d-amber)}.target-item.planet{border-left-color:var(--d-accent2);background:rgba(255,107,53,.04)}
+.target-item { display:flex; align-items:center; gap:9px; padding:9px 11px; background:color-mix(in srgb, var(--deep) 80%, transparent); border:1px solid var(--d-border); border-left:3px solid transparent; cursor:pointer; transition:all .2s; }
+.target-item:hover { border-color:var(--d-dim); background:color-mix(in srgb, var(--accent) 4%, transparent); }
+.target-item.prime{border-left-color:var(--d-accent3)}.target-item.good{border-left-color:var(--d-accent)}.target-item.fair{border-left-color:var(--d-amber)}.target-item.planet{border-left-color:var(--d-accent2);background:color-mix(in srgb, var(--warn) 4%, transparent)}
 .target-rank { font-family:'Space Mono',monospace; font-size:10px; color:var(--d-text-dim); width:18px; text-align:center; }
 .target-info { flex:1; }
 .target-name { font-size:12px; font-weight:600; color:var(--d-text-bright); letter-spacing:1px; }
@@ -99,7 +99,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 .target-stats { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
 .target-alt { font-family:'Space Mono',monospace; font-size:11px; color:var(--d-accent); }
 .visibility-pill { padding:2px 7px; border-radius:2px; font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
-.pill-prime{background:rgba(77,255,145,.15);color:var(--d-green);border:1px solid rgba(77,255,145,.3)}.pill-good{background:rgba(0,229,255,.15);color:var(--d-accent);border:1px solid rgba(0,229,255,.3)}.pill-fair{background:rgba(255,170,0,.15);color:var(--d-amber);border:1px solid rgba(255,170,0,.3)}.pill-planet{background:rgba(255,107,53,.15);color:var(--d-accent2);border:1px solid rgba(255,107,53,.4)}.pill-below{background:rgba(74,112,144,.1);color:var(--d-text-dim);border:1px solid var(--d-border)}
+.pill-prime{background:color-mix(in srgb, var(--live) 15%, transparent);color:var(--d-green);border:1px solid color-mix(in srgb, var(--live) 30%, transparent)}.pill-good{background:color-mix(in srgb, var(--accent) 15%, transparent);color:var(--d-accent);border:1px solid color-mix(in srgb, var(--accent) 30%, transparent)}.pill-fair{background:color-mix(in srgb, var(--warn) 15%, transparent);color:var(--d-amber);border:1px solid color-mix(in srgb, var(--warn) 30%, transparent)}.pill-planet{background:color-mix(in srgb, var(--warn) 15%, transparent);color:var(--d-accent2);border:1px solid color-mix(in srgb, var(--warn) 40%, transparent)}.pill-below{background:rgba(74,112,144,.1);color:var(--d-text-dim);border:1px solid var(--d-border)}
 .planet-symbol { font-size:14px; width:26px; text-align:center; flex-shrink:0; }
 .planet-cam-rec { font-size:9px; color:var(--d-text-dim); margin-top:2px; font-family:'Space Mono',monospace; }
 .planet-cam-rec span { color:var(--d-accent2); }
@@ -109,29 +109,29 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 .bortle-desc .b-title{font-size:13px;font-weight:600;color:var(--d-text-bright)}.bortle-desc .b-sub{font-size:11px;color:var(--d-text-dim);margin-top:3px}.bortle-desc .b-sqm{font-family:'Space Mono',monospace;font-size:22px;color:var(--d-amber);margin-top:3px}
 .bortle-scale { display:flex; gap:3px; margin-top:8px; }
 .bortle-pip { flex:1; height:7px; border-radius:2px; background:var(--d-border); }
-.bortle-pip.active-1{background:#4dff91}.bortle-pip.active-2{background:#a0ff6e}.bortle-pip.active-3{background:#c8ff50}.bortle-pip.active-4{background:#ffee00}.bortle-pip.active-5{background:#ffcc00}.bortle-pip.active-6{background:#ffaa00}.bortle-pip.active-7{background:#ff8833}.bortle-pip.active-8{background:#ff5533}.bortle-pip.active-9{background:#ff2200}
-.moon-display { display:flex; align-items:center; gap:18px; padding:12px; background:rgba(6,13,20,.8); border:1px solid var(--d-border); border-radius:2px; margin-bottom:10px; }
+.bortle-pip.active-1{background:var(--live)}.bortle-pip.active-2{background:#a0ff6e}.bortle-pip.active-3{background:#c8ff50}.bortle-pip.active-4{background:#ffee00}.bortle-pip.active-5{background:#ffcc00}.bortle-pip.active-6{background:var(--warn)}.bortle-pip.active-7{background:#ff8833}.bortle-pip.active-8{background:#ff5533}.bortle-pip.active-9{background:#ff2200}
+.moon-display { display:flex; align-items:center; gap:18px; padding:12px; background:color-mix(in srgb, var(--deep) 80%, transparent); border:1px solid var(--d-border); border-radius:2px; margin-bottom:10px; }
 .moon-phase-icon { width:56px; height:56px; border-radius:50%; background:radial-gradient(circle at 35% 35%,#c8d8e8,#4a6070); position:relative; flex-shrink:0; }
 .moon-phase-icon .shadow { position:absolute; inset:0; border-radius:50%; }
 .moon-info .mi-phase{font-size:13px;font-weight:600;color:var(--d-text-bright)}.moon-info .mi-illum{font-family:'Space Mono',monospace;font-size:11px;color:var(--d-text-dim);margin-top:2px}.moon-info .mi-rise{font-size:20px;color:var(--d-text-dim);margin-top:3px}
-.nasa-event { padding:9px 11px; background:rgba(6,13,20,.8); border:1px solid var(--d-border); border-left:3px solid var(--d-purple); margin-bottom:5px; }
+.nasa-event { padding:9px 11px; background:color-mix(in srgb, var(--deep) 80%, transparent); border:1px solid var(--d-border); border-left:3px solid var(--d-purple); margin-bottom:5px; }
 .nasa-event .ne-title{font-size:12px;font-weight:600;color:var(--d-text-bright)}.nasa-event .ne-date{font-family:'Space Mono',monospace;font-size:10px;color:var(--d-purple);margin-top:2px}.nasa-event .ne-desc{font-size:10px;color:var(--d-text-dim);margin-top:3px;line-height:1.5}
-.notice { padding:7px 11px; border-left:3px solid; background:rgba(6,13,20,.6); margin-bottom:5px; font-size:10px; line-height:1.5; }
+.notice { padding:7px 11px; border-left:3px solid; background:color-mix(in srgb, var(--deep) 60%, transparent); margin-bottom:5px; font-size:10px; line-height:1.5; }
 .notice-clear{border-color:var(--d-green)}.notice-warn{border-color:var(--d-amber)}.notice-danger{border-color:var(--d-red)}
 .notice .n-header{font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:10px;margin-bottom:2px}
 .notice-clear .n-header{color:var(--d-green)}.notice-warn .n-header{color:var(--d-amber)}.notice-danger .n-header{color:var(--d-red)}
 .wind-compass-wrap { display:flex; align-items:center; gap:18px; margin-bottom:12px; }
 .ws-speed{font-family:'Space Mono',monospace;font-size:16px;color:var(--d-text-bright)}.ws-unit{font-size:13px;color:var(--d-text-dim)}.ws-dir{font-size:25px;color:var(--d-accent);margin-top:3px;letter-spacing:1px}.ws-gust{font-size:21px;color:var(--d-amber);margin-top:3px}
 .hourly-row { display:flex; gap:2px; overflow-x:hidden; width:100%; }
-.hour-cell { flex-shrink:0; width:48px; background:rgba(6,13,20,.8); border:1px solid var(--d-border); padding:7px 3px; text-align:center; border-radius:2px; }
-.hour-cell.now { border-color:var(--d-accent); background:rgba(0,229,255,.05); }
+.hour-cell { flex-shrink:0; width:48px; background:color-mix(in srgb, var(--deep) 80%, transparent); border:1px solid var(--d-border); padding:7px 3px; text-align:center; border-radius:2px; }
+.hour-cell.now { border-color:var(--d-accent); background:color-mix(in srgb, var(--accent) 5%, transparent); }
 .hour-cell .hc-time{font-size:15px;color:var(--d-text-dim)}.hour-cell .hc-cloud{font-size:15px;margin:3px 0}.hour-cell .hc-pct{font-family:'Space Mono',monospace;font-size:15px}
 .hc-good{color:var(--d-green)}.hc-warn{color:var(--d-amber)}.hc-bad{color:var(--d-red)}
 .hour-cell.night-hr { border-color:rgba(0,0,80,.4); }
 .hourly-banner-panel .panel-title { font-size:18px; }
 .twilight-bar { height:26px; border-radius:2px; overflow:hidden; display:flex; margin-bottom:7px; }
 .tw-seg { height:100%; display:flex; align-items:center; justify-content:center; font-size:9px; letter-spacing:.5px; text-transform:uppercase; font-weight:600; overflow:hidden; white-space:nowrap; }
-.tw-day{background:linear-gradient(90deg,#1a3a6a,#2a5a8a);color:rgba(255,255,255,.5)}.tw-civil{background:linear-gradient(90deg,#0e2235,#152d42);color:rgba(184,212,232,.5)}.tw-naut{background:linear-gradient(90deg,#080f1a,#0e1f30);color:rgba(184,212,232,.4)}.tw-astro{background:linear-gradient(90deg,#040810,#060d14);color:rgba(0,229,255,.5)}.tw-dark{background:var(--d-void);color:rgba(0,229,255,.7);border:1px solid rgba(0,229,255,.1)}
+.tw-day{background:linear-gradient(90deg,#1a3a6a,#2a5a8a);color:color-mix(in srgb, var(--text) 50%, transparent)}.tw-civil{background:linear-gradient(90deg,var(--line),#152d42);color:rgba(184,212,232,.5)}.tw-naut{background:linear-gradient(90deg,#080f1a,#0e1f30);color:rgba(184,212,232,.4)}.tw-astro{background:linear-gradient(90deg,#040810,var(--deep));color:color-mix(in srgb, var(--accent) 50%, transparent)}.tw-dark{background:var(--d-void);color:color-mix(in srgb, var(--accent) 70%, transparent);border:1px solid color-mix(in srgb, var(--accent) 10%, transparent)}
 .tw-cloud-cell { flex:1; display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:28px;border-radius:1px;position:relative;overflow:hidden; }
 .tw-cloud-bar { width:100%;border-radius:1px 1px 0 0; }
 .tw-cloud-icon { font-size:8px;line-height:1;margin-bottom:1px;position:relative;z-index:1; }
@@ -140,7 +140,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 .sb-bar { width:100%; border-radius:2px 2px 0 0; }
 .status-dot { width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:4px; }
 .status-dot.ok{background:var(--d-green);}.status-dot.warn{background:var(--d-amber);}.status-dot.err{background:var(--d-red);}
-.data-sources { background:rgba(6,13,20,.95); border-top:1px solid var(--d-border); padding:7px 18px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; position:relative; z-index:5; }
+.data-sources { background:color-mix(in srgb, var(--deep) 95%, transparent); border-top:1px solid var(--d-border); padding:7px 18px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; position:relative; z-index:5; }
 .ds-item { font-family:'Space Mono',monospace; font-size:9px; color:var(--d-text-dim); letter-spacing:1px; display:flex; align-items:center; gap:4px; }
 .refresh-btn { background:none; border:1px solid var(--d-dim); color:var(--d-text-dim); padding:5px 12px; font-family:'Space Mono',monospace; font-size:19px; letter-spacing:2px; cursor:pointer; transition:all .2s; text-transform:uppercase; }
 .refresh-btn:hover { border-color:var(--d-accent); color:var(--d-accent); }
@@ -148,8 +148,8 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 /* ========== RADUKCAPTURE TAB LAYOUT ========== */
 .rc-main { position:relative; z-index:5; display:grid; grid-template-columns:260px 1fr 260px; gap:1px; background:#010308; min-height:calc(100vh - 105px); }
 .rc-col { display:flex; flex-direction:column; gap:1px; }
-.rc-panel { background:#060e18; border:1px solid #0d2035; }
-.rc-title { font-family:'Space Mono',monospace; font-size:11px; letter-spacing:2px; color:var(--d-text-dim); text-transform:uppercase; padding:7px 10px; border-bottom:1px solid #0d2035; display:flex; align-items:center; gap:6px; background:rgba(0,0,0,.3); }
+.rc-panel { background:#060e18; border:1px solid var(--panel); }
+.rc-title { font-family:'Space Mono',monospace; font-size:11px; letter-spacing:2px; color:var(--d-text-dim); text-transform:uppercase; padding:7px 10px; border-bottom:1px solid var(--panel); display:flex; align-items:center; gap:6px; background:rgba(0,0,0,.3); }
 .rc-title .rc-dot { width:5px; height:5px; border-radius:50%; background:var(--d-accent); animation:pulse 2s infinite; }
 .rc-title .rc-dot-rec { background:var(--d-red); }
 .rc-title .rc-dot-idle { background:var(--d-text-dim); }
@@ -165,10 +165,10 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 .rc-slider-val { font-family:'Space Mono',monospace; font-size:10px; color:var(--d-accent); width:46px; text-align:right; flex-shrink:0; }
 .rc-btn-row { display:flex; gap:4px; flex-wrap:wrap; padding:4px 10px 6px; }
 .rc-ctrl-btn { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:1px; padding:4px 8px; border-radius:2px; cursor:pointer; border:1px solid; transition:all .2s; white-space:nowrap; flex:1; text-align:center; }
-.rc-ctrl-btn.cyan  { border-color:var(--d-accent); color:var(--d-accent);  background:rgba(0,229,255,.07); }
+.rc-ctrl-btn.cyan  { border-color:var(--d-accent); color:var(--d-accent);  background:color-mix(in srgb, var(--accent) 7%, transparent); }
 .rc-ctrl-btn.amber { border-color:var(--d-amber);  color:var(--d-amber);   background:rgba(255,185,0,.07); }
-.rc-ctrl-btn.green { border-color:var(--d-green);  color:var(--d-green);   background:rgba(77,255,145,.07); }
-.rc-ctrl-btn.red   { border-color:var(--d-red);    color:var(--d-red);     background:rgba(255,59,92,.07); }
+.rc-ctrl-btn.green { border-color:var(--d-green);  color:var(--d-green);   background:color-mix(in srgb, var(--live) 7%, transparent); }
+.rc-ctrl-btn.red   { border-color:var(--d-red);    color:var(--d-red);     background:color-mix(in srgb, var(--fault) 7%, transparent); }
 .rc-ctrl-btn:hover { filter:brightness(1.3); }
 .rc-ctrl-btn.active { filter:brightness(1.5); }
 
@@ -195,53 +195,53 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 .rc-no-signal .ns-sub { font-size:11px; color:var(--d-text-dim); opacity:.6; }
 
 /* RC frame bar — matches C++ DrawFrameBar */
-.rc-frame-bar { display:flex; align-items:center; justify-content:space-between; height:22px; background:rgba(4,8,15,.96); border-top:1px solid rgba(0,229,255,.35); padding:0 4px; font-family:'Space Mono',monospace; font-size:10px; }
+.rc-frame-bar { display:flex; align-items:center; justify-content:space-between; height:22px; background:rgba(4,8,15,.96); border-top:1px solid color-mix(in srgb, var(--accent) 35%, transparent); padding:0 4px; font-family:'Space Mono',monospace; font-size:10px; }
 .rc-frame-bar .fb-left, .rc-frame-bar .fb-right { display:flex; align-items:center; gap:4px; }
 .rc-fb-btn { padding:2px 8px; border:1px solid var(--d-text-dim); background:transparent; color:var(--d-text-dim); cursor:pointer; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.5px; transition:all .15s; white-space:nowrap; line-height:16px; }
-.rc-fb-btn:hover { border-color:var(--d-accent); color:var(--d-accent); background:rgba(0,229,255,.06); }
-.rc-fb-btn.active { border-color:var(--d-accent); color:var(--d-accent); background:rgba(0,229,255,.12); }
-.rc-fb-btn.acq-active { border-color:var(--d-green); color:var(--d-green); background:rgba(77,255,145,.1); }
+.rc-fb-btn:hover { border-color:var(--d-accent); color:var(--d-accent); background:color-mix(in srgb, var(--accent) 6%, transparent); }
+.rc-fb-btn.active { border-color:var(--d-accent); color:var(--d-accent); background:color-mix(in srgb, var(--accent) 12%, transparent); }
+.rc-fb-btn.acq-active { border-color:var(--d-green); color:var(--d-green); background:color-mix(in srgb, var(--live) 10%, transparent); }
 .rc-fb-stage { font-size:10px; letter-spacing:.5px; margin-left:6px; }
 .rc-fb-stage.searching { color:var(--d-text-dim); }
 .rc-fb-stage.centering { color:var(--d-amber); }
 .rc-fb-stage.locked    { color:var(--d-green); }
 
 /* RC capture progress bar */
-.rc-capture-progress { height:4px; background:#0d2035; position:relative; overflow:hidden; }
+.rc-capture-progress { height:4px; background:var(--panel); position:relative; overflow:hidden; }
 .rc-capture-bar { height:100%; background:linear-gradient(90deg,var(--d-red),var(--d-accent2)); width:0%; transition:width .2s; }
 
 /* RC status bar */
-.rc-statusbar { background:rgba(0,0,0,.7); border-top:1px solid #0d2035; padding:5px 12px; display:flex; align-items:center; gap:18px; font-family:'Space Mono',monospace; font-size:11px; color:var(--d-text-dim); flex-wrap:wrap; }
+.rc-statusbar { background:rgba(0,0,0,.7); border-top:1px solid var(--panel); padding:5px 12px; display:flex; align-items:center; gap:18px; font-family:'Space Mono',monospace; font-size:11px; color:var(--d-text-dim); flex-wrap:wrap; }
 .rc-statusbar .sv { color:var(--d-accent); margin-left:3px; }
 .rc-statusbar .sv-red { color:var(--d-red); animation:blink 1s infinite; }
 
 /* RC histogram */
-.rc-histogram-wrap { position:relative; background:#000; height:72px; border-top:1px solid #0d2035; }
+.rc-histogram-wrap { position:relative; background:#000; height:72px; border-top:1px solid var(--panel); }
 .rc-histogram-wrap canvas { width:100%; height:100%; }
 .rc-hist-labels { position:absolute; bottom:3px; left:0; right:0; display:flex; justify-content:space-between; padding:0 4px; font-family:'Space Mono',monospace; font-size:9px; color:var(--d-text-dim); pointer-events:none; }
 
 /* RC REC button */
-.rc-rec-btn { font-family:'Space Mono',monospace; font-size:13px; letter-spacing:3px; padding:10px 0; width:calc(100% - 20px); margin:8px 10px; border:1px solid var(--d-red); background:rgba(255,59,92,.1); color:var(--d-red); cursor:pointer; border-radius:2px; transition:all .2s; text-transform:uppercase; }
+.rc-rec-btn { font-family:'Space Mono',monospace; font-size:13px; letter-spacing:3px; padding:10px 0; width:calc(100% - 20px); margin:8px 10px; border:1px solid var(--d-red); background:color-mix(in srgb, var(--fault) 10%, transparent); color:var(--d-red); cursor:pointer; border-radius:2px; transition:all .2s; text-transform:uppercase; }
 .rc-rec-btn:hover, .rc-rec-btn.recording { background:var(--d-red); color:#fff; }
 .rc-rec-btn.recording { animation:captureGlow .5s ease-in-out infinite alternate; }
 @keyframes captureGlow { from{} to{} }
 
 /* RC RAM buffer bar */
-.rc-ram-bar-outer { height:12px; background:#0d2035; border-radius:2px; overflow:hidden; margin:4px 10px; position:relative; }
+.rc-ram-bar-outer { height:12px; background:var(--panel); border-radius:2px; overflow:hidden; margin:4px 10px; position:relative; }
 .rc-ram-bar-inner { height:100%; background:linear-gradient(90deg,var(--d-accent3),var(--d-amber)); transition:width .3s; }
-.rc-ram-bar-outer::after { content:attr(data-label); position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-size:9px; color:rgba(255,255,255,.7); }
+.rc-ram-bar-outer::after { content:attr(data-label); position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-size:9px; color:color-mix(in srgb, var(--text) 70%, transparent); }
 
 /* RC seeing monitor */
 .rc-seeing-wrap { padding:8px 10px; }
 .rc-seeing-score { font-family:'Space Mono',monospace; font-size:36px; font-weight:700; line-height:1; }
-.rc-seeing-bar-outer { height:6px; background:#0d2035; border-radius:3px; overflow:hidden; margin:6px 0 4px; }
+.rc-seeing-bar-outer { height:6px; background:var(--panel); border-radius:3px; overflow:hidden; margin:6px 0 4px; }
 .rc-seeing-bar-inner { height:100%; border-radius:3px; transition:width .5s ease; }
 .rc-seeing-history { display:flex; align-items:flex-end; gap:2px; height:36px; margin-top:6px; }
 .rc-seeing-history .sh-bar { flex:1; border-radius:1px 1px 0 0; transition:height .3s; opacity:.7; }
 
 /* RC connection panel */
-.rc-connect-panel { background:rgba(0,0,0,.4); border:1px solid #0d2035; border-radius:2px; margin:8px 10px; overflow:hidden; }
-.rc-connect-header { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:rgba(0,0,0,.3); border-bottom:1px solid #0d2035; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--d-text-dim); }
+.rc-connect-panel { background:rgba(0,0,0,.4); border:1px solid var(--panel); border-radius:2px; margin:8px 10px; overflow:hidden; }
+.rc-connect-header { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:rgba(0,0,0,.3); border-bottom:1px solid var(--panel); font-family:'Space Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--d-text-dim); }
 .rc-connect-row { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid rgba(13,32,53,.5); font-family:'Space Mono',monospace; font-size:10px; }
 .rc-connect-row label { color:var(--d-text-dim); flex:1; }
 .rc-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
@@ -249,13 +249,13 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 .rc-dot-off { background:var(--d-text-dim); }
 .rc-dot-rec { background:var(--d-red); animation:pulse .7s infinite; }
 .rc-url-row { display:flex; gap:6px; padding:6px 10px; }
-.rc-url-input { font-family:'Space Mono',monospace; font-size:10px; background:rgba(0,0,0,.4); border:1px solid #0d2035; color:var(--d-text); padding:4px 8px; flex:1; border-radius:2px; }
+.rc-url-input { font-family:'Space Mono',monospace; font-size:10px; background:rgba(0,0,0,.4); border:1px solid var(--panel); color:var(--d-text); padding:4px 8px; flex:1; border-radius:2px; }
 .rc-url-input:focus { outline:none; border-color:var(--d-accent); }
 .rc-connect-btn { font-family:'Space Mono',monospace; font-size:10px; letter-spacing:1px; padding:4px 10px; border-radius:2px; cursor:pointer; border:1px solid; transition:all .2s; white-space:nowrap; }
-.rc-connect-btn.connect    { border-color:var(--d-green); color:var(--d-green); background:rgba(77,255,145,.08); }
-.rc-connect-btn.connect:hover    { background:rgba(77,255,145,.2); }
-.rc-connect-btn.disconnect { border-color:var(--d-red); color:var(--d-red); background:rgba(255,59,92,.08); }
-.rc-connect-btn.disconnect:hover { background:rgba(255,59,92,.2); }
+.rc-connect-btn.connect    { border-color:var(--d-green); color:var(--d-green); background:color-mix(in srgb, var(--live) 8%, transparent); }
+.rc-connect-btn.connect:hover    { background:color-mix(in srgb, var(--live) 20%, transparent); }
+.rc-connect-btn.disconnect { border-color:var(--d-red); color:var(--d-red); background:color-mix(in srgb, var(--fault) 8%, transparent); }
+.rc-connect-btn.disconnect:hover { background:color-mix(in srgb, var(--fault) 20%, transparent); }
 .rc-sync-msg { font-family:'Space Mono',monospace; font-size:10px; color:var(--d-text-dim); padding:0 10px 6px; min-height:16px; }
 .rc-sync-msg.ok   { color:var(--d-green); }
 .rc-sync-msg.err  { color:var(--d-red); }
@@ -270,21 +270,21 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 .rc-session-log .log-line.err  { color:var(--d-red); }
 
 /* RC profile select */
-.rc-select { font-family:'Space Mono',monospace; font-size:11px; background:rgba(0,0,0,.4); border:1px solid #0d2035; color:var(--d-text); padding:4px 8px; width:100%; border-radius:2px; cursor:pointer; margin:4px 0; }
+.rc-select { font-family:'Space Mono',monospace; font-size:11px; background:rgba(0,0,0,.4); border:1px solid var(--panel); color:var(--d-text); padding:4px 8px; width:100%; border-radius:2px; cursor:pointer; margin:4px 0; }
 .rc-select:focus { outline:none; border-color:var(--d-accent); }
 
 /* RC tab accent */
-.tab-btn.rc-tab.active { color:var(--d-accent); border-bottom-color:var(--d-accent); background:rgba(0,229,255,.06); }
+.tab-btn.rc-tab.active { color:var(--d-accent); border-bottom-color:var(--d-accent); background:color-mix(in srgb, var(--accent) 6%, transparent); }
 .tab-btn.rc-tab:hover  { color:var(--d-accent); }
 
 
 /* ============================================================
    HISTORY TAB STYLES
    ============================================================ */
-.tab-btn.hist-tab.active { color:#bf7fff; border-bottom-color:#bf7fff; background:rgba(191,127,255,.08); }
-.tab-btn.hist-tab:hover { color:#bf7fff; }
-.tab-btn.sky-tab.active { color:#00e5ff; border-bottom-color:#00e5ff; background:rgba(0,229,255,.08); }
-.tab-btn.sky-tab:hover { color:#00e5ff; }
+.tab-btn.hist-tab.active { color:var(--accent); border-bottom-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
+.tab-btn.hist-tab:hover { color:var(--accent); }
+.tab-btn.sky-tab.active { color:var(--accent); border-bottom-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
+.tab-btn.sky-tab:hover { color:var(--accent); }
 #content-hist { padding:20px 0; }
 
 .hist-header {
@@ -296,10 +296,10 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 .hist-actions { display:flex; gap:8px; align-items:center; }
 .hist-btn {
   font-family:'Space Mono',monospace; font-size:19px; letter-spacing:1.5px;
-  padding:6px 12px; border:1px solid rgba(191,127,255,.3); background:rgba(191,127,255,.05);
-  color:#bf7fff; cursor:pointer; transition:all .2s;
+  padding:6px 12px; border:1px solid color-mix(in srgb, var(--accent) 30%, transparent); background:color-mix(in srgb, var(--accent) 5%, transparent);
+  color:var(--accent); cursor:pointer; transition:all .2s;
 }
-.hist-btn:hover { background:rgba(191,127,255,.15); border-color:#bf7fff; }
+.hist-btn:hover { background:color-mix(in srgb, var(--accent) 15%, transparent); border-color:var(--accent); }
 .hist-btn.danger { border-color:rgba(255,80,80,.3); color:#ff5050; background:rgba(255,80,80,.05); }
 .hist-btn.danger:hover { background:rgba(255,80,80,.15); }
 
@@ -308,7 +308,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
   display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-bottom:20px;
 }
 .hstat {
-  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06);
+  background:color-mix(in srgb, var(--text) 3%, transparent); border:1px solid color-mix(in srgb, var(--text) 6%, transparent);
   padding:12px; text-align:center; position:relative; overflow:hidden;
 }
 .hstat::before {
@@ -321,7 +321,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 /* Chart area */
 .hist-charts { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
 .hist-chart-card {
-  background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06);
+  background:color-mix(in srgb, var(--text) 2%, transparent); border:1px solid color-mix(in srgb, var(--text) 6%, transparent);
   padding:14px;
 }
 .hist-chart-title { font-family:'Space Mono',monospace; font-size:19px; letter-spacing:2px; color:var(--d-text-dim); margin-bottom:10px; }
@@ -329,7 +329,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 
 /* Full-width chart */
 .hist-chart-full {
-  background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06);
+  background:color-mix(in srgb, var(--text) 2%, transparent); border:1px solid color-mix(in srgb, var(--text) 6%, transparent);
   padding:14px; margin-bottom:16px;
 }
 
@@ -340,16 +340,16 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 .hist-filter-label { font-family:'Space Mono',monospace; font-size:19px; color:var(--d-text-dim); letter-spacing:1px; }
 .hist-filter-btn {
   font-family:'Space Mono',monospace; font-size:19px; padding:4px 10px;
-  border:1px solid rgba(255,255,255,.1); background:transparent; color:var(--d-text-dim); cursor:pointer; transition:all .2s;
+  border:1px solid color-mix(in srgb, var(--text) 10%, transparent); background:transparent; color:var(--d-text-dim); cursor:pointer; transition:all .2s;
 }
-.hist-filter-btn.active { border-color:#bf7fff; color:#bf7fff; background:rgba(191,127,255,.1); }
-.hist-filter-btn:hover { border-color:rgba(191,127,255,.5); color:#bf7fff; }
+.hist-filter-btn.active { border-color:var(--accent); color:var(--accent); background:color-mix(in srgb, var(--accent) 10%, transparent); }
+.hist-filter-btn:hover { border-color:color-mix(in srgb, var(--accent) 50%, transparent); color:var(--accent); }
 .hist-search {
   margin-left:auto; font-family:'Space Mono',monospace; font-size:19px;
-  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+  background:color-mix(in srgb, var(--text) 4%, transparent); border:1px solid color-mix(in srgb, var(--text) 10%, transparent);
   color:var(--d-text); padding:4px 10px; width:180px; outline:none;
 }
-.hist-search:focus { border-color:rgba(191,127,255,.5); }
+.hist-search:focus { border-color:color-mix(in srgb, var(--accent) 50%, transparent); }
 
 /* Session log table */
 .hist-table-wrap { overflow-x:auto; }
@@ -359,16 +359,16 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 }
 .hist-table th {
   text-align:left; padding:8px 10px; font-size:18px; letter-spacing:2px;
-  color:var(--d-text-dim); border-bottom:1px solid rgba(191,127,255,.2);
+  color:var(--d-text-dim); border-bottom:1px solid color-mix(in srgb, var(--accent) 20%, transparent);
   cursor:pointer; user-select:none; white-space:nowrap;
 }
-.hist-table th:hover { color:#bf7fff; }
+.hist-table th:hover { color:var(--accent); }
 .hist-table th .sort-arrow { margin-left:4px; opacity:.5; }
 .hist-table td {
-  padding:7px 10px; border-bottom:1px solid rgba(255,255,255,.04);
+  padding:7px 10px; border-bottom:1px solid color-mix(in srgb, var(--text) 4%, transparent);
   color:var(--d-text-dim); white-space:nowrap;
 }
-.hist-table tr:hover td { background:rgba(191,127,255,.04); color:var(--d-text); }
+.hist-table tr:hover td { background:color-mix(in srgb, var(--accent) 4%, transparent); color:var(--d-text); }
 .hist-table td.score-cell { font-weight:bold; }
 .score-exc { color:var(--d-green); }
 .score-good { color:var(--d-accent); }
@@ -378,10 +378,10 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
   display:inline-block; padding:2px 7px; font-size:18px;
   border-radius:2px; letter-spacing:1px;
 }
-.pill-clear { background:rgba(77,255,145,.12); color:var(--d-green); border:1px solid rgba(77,255,145,.3); }
-.pill-partly { background:rgba(255,170,0,.12); color:var(--d-amber); border:1px solid rgba(255,170,0,.3); }
+.pill-clear { background:color-mix(in srgb, var(--live) 12%, transparent); color:var(--d-green); border:1px solid color-mix(in srgb, var(--live) 30%, transparent); }
+.pill-partly { background:color-mix(in srgb, var(--warn) 12%, transparent); color:var(--d-amber); border:1px solid color-mix(in srgb, var(--warn) 30%, transparent); }
 .pill-cloudy { background:rgba(255,80,80,.12); color:var(--d-red); border:1px solid rgba(255,80,80,.3); }
-.pill-logged { background:rgba(191,127,255,.12); color:#bf7fff; border:1px solid rgba(191,127,255,.3); }
+.pill-logged { background:color-mix(in srgb, var(--accent) 12%, transparent); color:var(--accent); border:1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
 
 .hist-empty {
   text-align:center; padding:60px 20px; font-family:'Space Mono',monospace;
@@ -395,20 +395,20 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
   margin-top:14px; font-family:'Space Mono',monospace; font-size:19px; color:var(--d-text-dim);
 }
 .hist-page-btn {
-  padding:4px 10px; border:1px solid rgba(255,255,255,.1);
+  padding:4px 10px; border:1px solid color-mix(in srgb, var(--text) 10%, transparent);
   background:transparent; color:var(--d-text-dim); cursor:pointer; transition:all .2s;
 }
-.hist-page-btn:hover:not(:disabled) { border-color:#bf7fff; color:#bf7fff; }
+.hist-page-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
 .hist-page-btn:disabled { opacity:.3; cursor:not-allowed; }
 
 /* Log-a-night button */
 .log-night-btn {
   display:flex; align-items:center; gap:8px;
   font-family:'Space Mono',monospace; font-size:20px; letter-spacing:2px;
-  padding:10px 18px; border:1px solid rgba(191,127,255,.4);
-  background:rgba(191,127,255,.08); color:#bf7fff; cursor:pointer; transition:all .2s;
+  padding:10px 18px; border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background:color-mix(in srgb, var(--accent) 8%, transparent); color:var(--accent); cursor:pointer; transition:all .2s;
 }
-.log-night-btn:hover { background:rgba(191,127,255,.18); border-color:#bf7fff; }
+.log-night-btn:hover { background:color-mix(in srgb, var(--accent) 18%, transparent); border-color:var(--accent); }
 
 /* Modal overlay */
 .hist-modal-overlay {
@@ -417,44 +417,44 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 }
 .hist-modal-overlay.show { display:flex; }
 .hist-modal {
-  background:#0a0d12; border:1px solid rgba(191,127,255,.3); padding:24px;
+  background:#0a0d12; border:1px solid color-mix(in srgb, var(--accent) 30%, transparent); padding:24px;
   min-width:400px; max-width:520px; width:90%;
  
 }
-.hist-modal-title { font-family:'Space Mono',monospace; font-size:22px; letter-spacing:3px; color:#bf7fff; margin-bottom:20px; }
+.hist-modal-title { font-family:'Space Mono',monospace; font-size:22px; letter-spacing:3px; color:var(--accent); margin-bottom:20px; }
 .hist-modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
 .hist-field { display:flex; flex-direction:column; gap:4px; }
 .hist-field label { font-family:'Space Mono',monospace; font-size:18px; letter-spacing:1.5px; color:var(--d-text-dim); }
 .hist-field input, .hist-field select, .hist-field textarea {
   font-family:'Space Mono',monospace; font-size:20px;
-  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+  background:color-mix(in srgb, var(--text) 5%, transparent); border:1px solid color-mix(in srgb, var(--text) 10%, transparent);
   color:var(--d-text); padding:7px 10px; outline:none; width:100%;
 }
 .hist-field input:focus, .hist-field select:focus, .hist-field textarea:focus {
-  border-color:rgba(191,127,255,.6);
+  border-color:color-mix(in srgb, var(--accent) 60%, transparent);
 }
 .hist-field textarea { resize:vertical; min-height:60px; grid-column:1/-1; }
 .hist-modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
 .hist-modal-save {
   font-family:'Space Mono',monospace; font-size:20px; letter-spacing:2px;
-  padding:8px 20px; background:rgba(191,127,255,.15); border:1px solid #bf7fff;
-  color:#bf7fff; cursor:pointer; transition:all .2s;
+  padding:8px 20px; background:color-mix(in srgb, var(--accent) 15%, transparent); border:1px solid var(--accent);
+  color:var(--accent); cursor:pointer; transition:all .2s;
 }
-.hist-modal-save:hover { background:rgba(191,127,255,.3); }
+.hist-modal-save:hover { background:color-mix(in srgb, var(--accent) 30%, transparent); }
 .hist-modal-cancel {
   font-family:'Space Mono',monospace; font-size:20px; letter-spacing:1px;
-  padding:8px 16px; background:transparent; border:1px solid rgba(255,255,255,.1);
+  padding:8px 16px; background:transparent; border:1px solid color-mix(in srgb, var(--text) 10%, transparent);
   color:var(--d-text-dim); cursor:pointer;
 }
-.hist-modal-cancel:hover { border-color:rgba(255,255,255,.3); color:var(--d-text); }
+.hist-modal-cancel:hover { border-color:color-mix(in srgb, var(--text) 30%, transparent); color:var(--d-text); }
 
 /* Storage bar */
 .hist-storage-bar {
   display:flex; align-items:center; gap:10px; font-family:'Space Mono',monospace;
   font-size:18px; color:var(--d-text-dim); margin-bottom:16px;
 }
-.storage-track { flex:1; height:3px; background:rgba(255,255,255,.08); }
-.storage-fill { height:100%; background:#bf7fff; transition:width .5s; }
+.storage-track { flex:1; height:3px; background:color-mix(in srgb, var(--text) 8%, transparent); }
+.storage-fill { height:100%; background:var(--accent); transition:width .5s; }
 
 
 /* ============================================================
@@ -466,7 +466,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 }
 .loc-modal-overlay.show { display:flex; }
 .loc-modal {
-  background:#080b10; border:1px solid rgba(0,229,255,.25);
+  background:#080b10; border:1px solid color-mix(in srgb, var(--accent) 25%, transparent);
   padding:26px; min-width:420px; max-width:540px; width:92%;
   max-height:92vh; overflow-y:auto; box-sizing:border-box;
  
@@ -480,11 +480,11 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
   letter-spacing:1.5px; margin-bottom:22px;
 }
 .loc-option {
-  border:1px solid rgba(255,255,255,.08); padding:14px 16px; margin-bottom:10px;
+  border:1px solid color-mix(in srgb, var(--text) 8%, transparent); padding:14px 16px; margin-bottom:10px;
   cursor:pointer; transition:all .2s; position:relative;
 }
-.loc-option:hover { border-color:rgba(0,229,255,.35); background:rgba(0,229,255,.03); }
-.loc-option.active { border-color:var(--d-accent); background:rgba(0,229,255,.05); }
+.loc-option:hover { border-color:color-mix(in srgb, var(--accent) 35%, transparent); background:color-mix(in srgb, var(--accent) 3%, transparent); }
+.loc-option.active { border-color:var(--d-accent); background:color-mix(in srgb, var(--accent) 5%, transparent); }
 .loc-option-title {
   font-family:'Space Mono',monospace; font-size:20px; letter-spacing:2px;
   color:var(--d-text); margin-bottom:4px; display:flex; align-items:center; gap:8px;
@@ -506,40 +506,40 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 }
 .loc-field input {
   width:100%; font-family:'Space Mono',monospace; font-size:20px;
-  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+  background:color-mix(in srgb, var(--text) 5%, transparent); border:1px solid color-mix(in srgb, var(--text) 12%, transparent);
   color:var(--d-text); padding:8px 10px; outline:none; box-sizing:border-box;
 }
-.loc-field input:focus { border-color:rgba(0,229,255,.5); }
+.loc-field input:focus { border-color:color-mix(in srgb, var(--accent) 50%, transparent); }
 .loc-field select, .loc-field textarea {
   width:100%; font-family:'Space Mono',monospace; font-size:20px;
-  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+  background:color-mix(in srgb, var(--text) 5%, transparent); border:1px solid color-mix(in srgb, var(--text) 12%, transparent);
   color:var(--d-text); padding:8px 10px; outline:none; box-sizing:border-box;
 }
 .loc-field select option { background:#0a1420; color:var(--d-text); }
 .loc-field textarea { resize:vertical; font-size:17px; }
-.loc-field select:focus, .loc-field textarea:focus { border-color:rgba(0,229,255,.5); }
+.loc-field select:focus, .loc-field textarea:focus { border-color:color-mix(in srgb, var(--accent) 50%, transparent); }
 .loc-field-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .loc-status {
   font-family:'Space Mono',monospace; font-size:19px; letter-spacing:1.5px;
   padding:8px; margin-top:6px; display:none;
 }
 .loc-status.show { display:block; }
-.loc-status.ok { color:var(--d-green); background:rgba(77,255,145,.05); border:1px solid rgba(77,255,145,.2); }
+.loc-status.ok { color:var(--d-green); background:color-mix(in srgb, var(--live) 5%, transparent); border:1px solid color-mix(in srgb, var(--live) 20%, transparent); }
 .loc-status.err { color:var(--d-red); background:rgba(255,80,80,.05); border:1px solid rgba(255,80,80,.2); }
-.loc-status.info { color:var(--d-accent); background:rgba(0,229,255,.05); border:1px solid rgba(0,229,255,.2); }
+.loc-status.info { color:var(--d-accent); background:color-mix(in srgb, var(--accent) 5%, transparent); border:1px solid color-mix(in srgb, var(--accent) 20%, transparent); }
 .loc-modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:18px; }
 .loc-save-btn {
   font-family:'Space Mono',monospace; font-size:20px; letter-spacing:2px;
-  padding:9px 22px; background:rgba(0,229,255,.1); border:1px solid var(--d-accent);
+  padding:9px 22px; background:color-mix(in srgb, var(--accent) 10%, transparent); border:1px solid var(--d-accent);
   color:var(--d-accent); cursor:pointer; transition:all .2s;
 }
-.loc-save-btn:hover { background:rgba(0,229,255,.22); }
+.loc-save-btn:hover { background:color-mix(in srgb, var(--accent) 22%, transparent); }
 .loc-cancel-btn {
   font-family:'Space Mono',monospace; font-size:20px; letter-spacing:1px;
-  padding:9px 16px; background:transparent; border:1px solid rgba(255,255,255,.1);
+  padding:9px 16px; background:transparent; border:1px solid color-mix(in srgb, var(--text) 10%, transparent);
   color:var(--d-text-dim); cursor:pointer;
 }
-.loc-cancel-btn:hover { border-color:rgba(255,255,255,.3); color:var(--d-text); }
+.loc-cancel-btn:hover { border-color:color-mix(in srgb, var(--text) 30%, transparent); color:var(--d-text); }
 .loc-coords-preview {
   font-family:'Space Mono',monospace; font-size:19px; color:var(--d-text-dim);
   text-align:center; margin-top:4px; min-height:14px; letter-spacing:1px;
@@ -549,8 +549,8 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 /* ============================================================
    10-DAY FORECAST TAB
    ============================================================ */
-.tab-btn.fcast-tab.active { color:#00e5ff; border-bottom-color:#00e5ff; background:rgba(0,229,255,.07); }
-.tab-btn.fcast-tab:hover  { color:#00e5ff; }
+.tab-btn.fcast-tab.active { color:var(--accent); border-bottom-color:var(--accent); background:color-mix(in srgb, var(--accent) 7%, transparent); }
+.tab-btn.fcast-tab:hover  { color:var(--accent); }
 #content-fcast { padding:20px 0; }
 
 .fcast-header {
@@ -565,15 +565,15 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
   display:grid; grid-template-columns:repeat(10,1fr); gap:6px; margin-bottom:18px;
 }
 .fcast-day-card {
-  background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.07);
+  background:color-mix(in srgb, var(--text) 2.5%, transparent); border:1px solid color-mix(in srgb, var(--text) 7%, transparent);
   padding:10px 6px; cursor:pointer; transition:all .18s; position:relative; overflow:hidden;
 }
 .fcast-day-card::before {
   content:''; position:absolute; top:0; left:0; right:0; height:2px;
-  background:var(--fdc, rgba(255,255,255,.1)); transition:background .18s;
+  background:var(--fdc, color-mix(in srgb, var(--text) 10%, transparent)); transition:background .18s;
 }
-.fcast-day-card:hover  { border-color:rgba(0,229,255,.3); background:rgba(0,229,255,.04); }
-.fcast-day-card.active { border-color:var(--d-accent); background:rgba(0,229,255,.07); }
+.fcast-day-card:hover  { border-color:color-mix(in srgb, var(--accent) 30%, transparent); background:color-mix(in srgb, var(--accent) 4%, transparent); }
+.fcast-day-card.active { border-color:var(--d-accent); background:color-mix(in srgb, var(--accent) 7%, transparent); }
 .fcast-day-card.active::before { background:var(--d-accent); }
 
 .fday-dow  { font-family:'Space Mono',monospace; font-size:18px; letter-spacing:2px; color:var(--d-text-dim); margin-bottom:2px; }
@@ -592,7 +592,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 
 /* ── Detail panel ── */
 .fcast-detail {
-  background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07);
+  background:color-mix(in srgb, var(--text) 2%, transparent); border:1px solid color-mix(in srgb, var(--text) 7%, transparent);
   padding:18px; margin-bottom:16px;
 }
 .fcast-detail-title {
@@ -611,7 +611,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 
 /* Chart canvases */
 .fcast-charts { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px; }
-.fcast-chart-card { background:rgba(255,255,255,.015); border:1px solid rgba(255,255,255,.06); padding:12px; }
+.fcast-chart-card { background:color-mix(in srgb, var(--text) 1.5%, transparent); border:1px solid color-mix(in srgb, var(--text) 6%, transparent); padding:12px; }
 .fcast-chart-lbl  { font-family:'Space Mono',monospace; font-size:18px; letter-spacing:2px; color:var(--d-text-dim); margin-bottom:8px; }
 
 /* Planet windows */
@@ -622,7 +622,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
   font-family:'Space Mono',monospace; font-size:18px;
 }
 .fcast-planet-name { width:70px; color:var(--d-text); letter-spacing:1px; }
-.fcast-planet-track { flex:1; height:10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); position:relative; overflow:hidden; }
+.fcast-planet-track { flex:1; height:10px; background:color-mix(in srgb, var(--text) 4%, transparent); border:1px solid color-mix(in srgb, var(--text) 6%, transparent); position:relative; overflow:hidden; }
 .fcast-planet-bar   { height:100%; position:absolute; border-radius:1px; }
 .fcast-planet-stats { width:160px; color:var(--d-text-dim); font-size:17px; text-align:right; }
 
@@ -631,7 +631,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
   display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px;
 }
 .fcast-ov-card {
-  background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06);
+  background:color-mix(in srgb, var(--text) 2.5%, transparent); border:1px solid color-mix(in srgb, var(--text) 6%, transparent);
   padding:12px; position:relative; overflow:hidden;
 }
 .fcast-ov-card::before {
@@ -742,7 +742,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
       <span style="color:var(--d-accent)">■ GOOD (55+)</span>
       <span style="color:var(--d-amber)">■ FAIR (35+)</span>
       <span style="color:var(--d-red)">■ POOR</span>
-      <span style="color:rgba(0,229,255,.5)">◆ astro dark</span>
+      <span style="color:color-mix(in srgb, var(--accent) 50%, transparent)">◆ astro dark</span>
       <span id="hourlyBannerTime" style="margin-left:8px;color:var(--d-text-dim)"></span>
     </div>
   </div>
@@ -1224,27 +1224,27 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 
   <!-- Lifetime stats bar -->
   <div class="hist-stats-bar">
-    <div class="hstat" style="--hstat-color:#4dff91">
+    <div class="hstat" style="--hstat-color:var(--live)">
       <div class="hstat-val" id="hs-total">0</div>
       <div class="hstat-label">Sessions Logged</div>
     </div>
-    <div class="hstat" style="--hstat-color:#00e5ff">
+    <div class="hstat" style="--hstat-color:var(--accent)">
       <div class="hstat-val" id="hs-clear">0</div>
       <div class="hstat-label">Clear Nights</div>
     </div>
-    <div class="hstat" style="--hstat-color:#ffaa00">
+    <div class="hstat" style="--hstat-color:var(--warn)">
       <div class="hstat-val" id="hs-avg-score">—</div>
       <div class="hstat-label">Avg Imaging Score</div>
     </div>
-    <div class="hstat" style="--hstat-color:#ff6b35">
+    <div class="hstat" style="--hstat-color:var(--warn)">
       <div class="hstat-val" id="hs-best-score">—</div>
       <div class="hstat-label">Best Score</div>
     </div>
-    <div class="hstat" style="--hstat-color:#bf7fff">
+    <div class="hstat" style="--hstat-color:var(--accent)">
       <div class="hstat-val" id="hs-targets">—</div>
       <div class="hstat-label">Top Target</div>
     </div>
-    <div class="hstat" style="--hstat-color:#4dff91">
+    <div class="hstat" style="--hstat-color:var(--live)">
       <div class="hstat-val" id="hs-streak">0</div>
       <div class="hstat-label">Clear Streak</div>
     </div>
@@ -1283,7 +1283,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
     <button class="hist-filter-btn" onclick="histFilter('cloudy',this)">CLOUDY</button>
     <button class="hist-filter-btn" onclick="histFilter('manual',this)">MANUAL LOGS</button>
     <span class="hist-filter-label" style="margin-left:8px">YEAR:</span>
-    <select id="histYearFilter" onchange="renderHistoryTable()" style="font-family:'Space Mono',monospace;font-size:19px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:var(--d-text);padding:4px 8px;outline:none;">
+    <select id="histYearFilter" onchange="renderHistoryTable()" style="font-family:'Space Mono',monospace;font-size:19px;background:color-mix(in srgb, var(--text) 4%, transparent);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);color:var(--d-text);padding:4px 8px;outline:none;">
       <option value="all">ALL YEARS</option>
     </select>
     <input class="hist-search" id="histSearch" type="text" placeholder="SEARCH TARGET, NOTES..." oninput="renderHistoryTable()">
@@ -1338,35 +1338,35 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 
   <!-- Stats bar -->
   <div class="hist-stats-bar">
-    <div class="hstat" style="--hstat-color:#00e5ff">
+    <div class="hstat" style="--hstat-color:var(--accent)">
       <div class="hstat-val" id="sky-total">0</div>
       <div class="hstat-label">Nights Captured</div>
     </div>
-    <div class="hstat" style="--hstat-color:#4dff91">
+    <div class="hstat" style="--hstat-color:var(--live)">
       <div class="hstat-val" id="sky-clear">0</div>
       <div class="hstat-label">Clear Nights</div>
     </div>
-    <div class="hstat" style="--hstat-color:#ffaa00">
+    <div class="hstat" style="--hstat-color:var(--warn)">
       <div class="hstat-val" id="sky-partly">0</div>
       <div class="hstat-label">Partly Cloudy</div>
     </div>
-    <div class="hstat" style="--hstat-color:#ff6b35">
+    <div class="hstat" style="--hstat-color:var(--warn)">
       <div class="hstat-val" id="sky-cloudy">0</div>
       <div class="hstat-label">Cloudy Nights</div>
     </div>
-    <div class="hstat" style="--hstat-color:#ffaa00">
+    <div class="hstat" style="--hstat-color:var(--warn)">
       <div class="hstat-val" id="sky-avg-cloud">—</div>
       <div class="hstat-label">Avg Cloud %</div>
     </div>
-    <div class="hstat" style="--hstat-color:#bf7fff">
+    <div class="hstat" style="--hstat-color:var(--accent)">
       <div class="hstat-val" id="sky-avg-score">—</div>
       <div class="hstat-label">Avg Imaging Score</div>
     </div>
-    <div class="hstat" style="--hstat-color:#4dff91">
+    <div class="hstat" style="--hstat-color:var(--live)">
       <div class="hstat-val" id="sky-clear-streak">0</div>
       <div class="hstat-label">Clear Streak</div>
     </div>
-    <div class="hstat" style="--hstat-color:#00e5ff">
+    <div class="hstat" style="--hstat-color:var(--accent)">
       <div class="hstat-val" id="sky-years">—</div>
       <div class="hstat-label">Archive Span</div>
     </div>
@@ -1550,7 +1550,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
           <div class="fcast-chart-lbl">◈ CLEAR OUTSIDE REFERENCE</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:var(--d-text-dim);margin-bottom:8px;letter-spacing:1px">Direct link — browser CORS prevents inline embedding</div>
           <a id="coLink" href="https://clearoutside.com/forecast/0.00/0.00" target="_blank"
-             style="display:inline-block;font-family:'Space Mono',monospace;font-size:19px;padding:7px 14px;border:1px solid rgba(0,229,255,.3);color:var(--d-accent);text-decoration:none">
+             style="display:inline-block;font-family:'Space Mono',monospace;font-size:19px;padding:7px 14px;border:1px solid color-mix(in srgb, var(--accent) 30%, transparent);color:var(--d-accent);text-decoration:none">
             ↗ OPEN CLEAR OUTSIDE
           </a>
         </div>
@@ -1558,7 +1558,7 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
           <div class="fcast-chart-lbl">◈ CLEAR DARK SKY REFERENCE</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:var(--d-text-dim);margin-bottom:8px;letter-spacing:1px">Direct link — browser CORS prevents inline embedding</div>
           <a id="cdsLink" href="https://www.cleardarksky.com/csk/" target="_blank"
-             style="display:inline-block;font-family:'Space Mono',monospace;font-size:19px;padding:7px 14px;border:1px solid rgba(191,127,255,.3);color:#bf7fff;text-decoration:none">
+             style="display:inline-block;font-family:'Space Mono',monospace;font-size:19px;padding:7px 14px;border:1px solid color-mix(in srgb, var(--accent) 30%, transparent);color:var(--accent);text-decoration:none">
             ↗ OPEN CLEAR DARK SKY
           </a>
         </div>
@@ -1643,6 +1643,130 @@ body { background:var(--d-void); color:var(--d-text); font-family:'Barlow Conden
 <!-- Hidden file input for import -->
 <input type="file" id="histImportFile" accept=".csv,.json" style="display:none" onchange="doImportHistory(event)">
 
+<script>
+// ── 132.10c: canvas colours follow the roles and night vision ───────
+// CSS variables work in styles but not on a canvas. Every colour handed
+// to a 2D context passes through here: var(--role) and color-mix() are
+// resolved against the page, and at night any colour becomes red at the
+// brightness of its strongest channel, so a cyan planet stays bright
+// instead of vanishing. Canvases are redrawn when night vision flips.
+(function () {
+  const probe = document.createElement('span');
+  probe.style.display = 'none';
+  const cache = new Map();
+  const night = () => document.documentElement.getAttribute('data-mode') === 'night';
+  function css(v) {
+    if (v.indexOf('var(') < 0 && v.indexOf('color-mix(') < 0) return v;
+    if (!probe.isConnected) document.documentElement.appendChild(probe);
+    probe.style.color = ''; probe.style.color = v;
+    return getComputedStyle(probe).color || v;
+  }
+  function rgba(v) {   // any CSS colour to [r,g,b,a], through the browser
+    if (!probe.isConnected) document.documentElement.appendChild(probe);
+    probe.style.color = ''; probe.style.color = v;
+    const c = getComputedStyle(probe).color;
+    const m = c.match(/[\d.]+/g) || [];
+    if (c.startsWith('color(srgb')) return [m[0]*255, m[1]*255, m[2]*255, m.length > 3 ? +m[3] : 1];
+    return [+m[0] || 0, +m[1] || 0, +m[2] || 0, m.length > 3 ? +m[3] : 1];
+  }
+  function resolve(v) {
+    if (typeof v !== 'string') return v;
+    const key = (night() ? 'n|' : 'd|') + v;
+    let r = cache.get(key);
+    if (r !== undefined) return r;
+    r = css(v);
+    if (night()) {
+      const [R, G, B, A] = rgba(r);
+      r = 'rgba(' + Math.round(Math.max(R, G, B)) + ',0,0,' + A + ')';
+    }
+    cache.set(key, r);
+    return r;
+  }
+  window.rcResolveColour = resolve;
+  const P = CanvasRenderingContext2D.prototype;
+  for (const k of ['fillStyle', 'strokeStyle', 'shadowColor']) {
+    const d = Object.getOwnPropertyDescriptor(P, k);
+    if (d && d.set) Object.defineProperty(P, k, {
+      get() { return d.get.call(this); },
+      set(v) { d.set.call(this, resolve(v)); },
+      configurable: true });
+  }
+  const stop = CanvasGradient.prototype.addColorStop;
+  CanvasGradient.prototype.addColorStop = function (o, c) { return stop.call(this, o, resolve(c)); };
+
+  // Redraw: remember each drawing function's last call, and repeat it.
+  const last = new Map();
+  window.rcRegisterRedraw = function (names) {
+    for (const n of names) {
+      const f = window[n];
+      if (typeof f !== 'function' || f.__rcWrapped) continue;
+      const w = function (...a) { last.set(n, a); return f.apply(this, a); };
+      w.__rcWrapped = true;
+      window[n] = w;
+    }
+  };
+  window.rcRedrawAll = function () {
+    cache.clear();
+    for (const [n, a] of last) { try { window[n](...a); } catch (e) { console.warn('[night] redraw', n, e); } }
+  };
+
+  // Inline styles: the script writes target hues and scores straight into
+  // style="" all over the page. At night each colour property is turned
+  // red the same way, its day value kept beside it; a watcher does the
+  // same for whatever the page writes while it is night; day puts them
+  // back. Role colours (var(--...)) are left to the palette.
+  const PROPS = ['color', 'background-color', 'background-image', 'border-top-color',
+                 'border-right-color', 'border-bottom-color', 'border-left-color',
+                 'outline-color', 'fill', 'stroke'];
+  const TOKEN = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g;
+  const toNight = v => v.replace(TOKEN, t => resolve(t));
+  let busy = false;
+  function nightEl(el) {
+    if (!el.style || !el.getAttribute || !el.getAttribute('style')) return;
+    const saved = el.__rcDay || (el.__rcDay = {});
+    for (const k of PROPS) {
+      const v = el.style.getPropertyValue(k);
+      if (!v || v.indexOf('var(') >= 0) continue;
+      if (el.__rcNight && el.__rcNight[k] === v) continue;   // ours already
+      const nv = toNight(v);
+      if (nv === v) continue;
+      saved[k] = v;
+      el.style.setProperty(k, nv, el.style.getPropertyPriority(k));
+      // As the browser stores it (it normalises), so it can be recognised.
+      (el.__rcNight || (el.__rcNight = {}))[k] = el.style.getPropertyValue(k);
+    }
+  }
+  function dayEl(el) {
+    if (!el.__rcDay) return;
+    for (const k in el.__rcDay) {
+      if (el.__rcNight && el.style.getPropertyValue(k) === el.__rcNight[k])
+        el.style.setProperty(k, el.__rcDay[k]);
+    }
+    el.__rcDay = null; el.__rcNight = null;
+  }
+  function sweep(root, f) {
+    if (root.nodeType !== 1) return;
+    f(root);
+    root.querySelectorAll('[style]').forEach(f);
+  }
+  const watcher = new MutationObserver(list => {
+    if (busy || !night()) return;
+    busy = true;
+    try {
+      for (const m of list) {
+        if (m.type === 'attributes') nightEl(m.target);
+        else m.addedNodes.forEach(nd => sweep(nd, nightEl));
+      }
+    } finally { busy = false; }
+  });
+  window.rcNightDom = function (on) {
+    busy = true;
+    try { sweep(document.body, on ? nightEl : dayEl); } finally { busy = false; }
+    if (on) watcher.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
+    else watcher.disconnect();
+  };
+})();
+</script>
 <script>
 
 // ============================================================
@@ -2352,8 +2476,11 @@ function rcClearPreview() {
 // an older RadukCapture sends no field and the page is left as it is.
 function rcApplyNight(on) {
   const root = document.documentElement;
+  const was = root.getAttribute('data-mode') === 'night';
   if (on) root.setAttribute('data-mode', 'night');
   else root.removeAttribute('data-mode');
+  if (was !== !!on && window.rcRedrawAll) window.rcRedrawAll();   // 132.10c: canvases too
+  if (was !== !!on && window.rcNightDom) window.rcNightDom(!!on);  // and inline colours
 }
 
 function rcHandleData(data) {
@@ -2920,7 +3047,7 @@ function renderHourly(weatherData){
               + ' — Score: '+score+(cloud!=null?' · Cloud: '+cloud+'%':'');
 
     const dateLabel = isDayBoundary
-      ? '<div style="font-size:9px;color:rgba(0,229,255,.7);line-height:1.2">'+h.toLocaleDateString('en-US',{timeZone:tz,month:'short',day:'numeric'})+'</div>'
+      ? '<div style="font-size:9px;color:color-mix(in srgb, var(--accent) 70%, transparent);line-height:1.2">'+h.toLocaleDateString('en-US',{timeZone:tz,month:'short',day:'numeric'})+'</div>'
       : '';
     div.innerHTML = dateLabel
       + '<div class="hc-time">'+hrLabel+'</div>'
@@ -3710,6 +3837,10 @@ setInterval(() => {
 // INIT
 // ============================================================
 async function init(){
+  // 132.10c: the canvases, so night vision can redraw them.
+  rcRegisterRedraw(['rcDrawHistogram', 'drawHistogram', 'drawSkyMap', 'drawWindCompass',
+                    'renderFcastCloudChart', 'renderFcastSeeingChart', 'renderFcastChartDual',
+                    'drawHistCharts', 'drawSkyCharts', 'drawSkyHeatmap']);
   // [DASH]: RadukCapture opened this page on its own PC, token and all.
   // Connect now, before the weather downloads below, which can take a
   // long time to give up at a dark site with no internet.
@@ -3964,10 +4095,10 @@ function updateSourceStatusBar() {
     const retryBtn = isFailed
       ? `<div style="margin-top:4px"><button onclick="retrySource('${k}')"
            style="font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;
-                  background:rgba(255,170,0,.15);border:1px solid var(--d-amber);
+                  background:color-mix(in srgb, var(--warn) 15%, transparent);border:1px solid var(--d-amber);
                   color:var(--d-amber);cursor:pointer;border-radius:2px">↻ RETRY</button></div>`
       : '';
-    return `<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);padding:8px 12px;font-family:'Space Mono',monospace;flex:1;min-width:160px">
+    return `<div style="background:color-mix(in srgb, var(--text) 3%, transparent);border:1px solid color-mix(in srgb, var(--text) 8%, transparent);padding:8px 12px;font-family:'Space Mono',monospace;flex:1;min-width:160px">
       <div style="font-size:8px;letter-spacing:1.5px;color:${src.color};margin-bottom:3px">${src.name.toUpperCase()}</div>
       <div style="font-size:9px;color:${statusCol};margin-bottom:2px">${status}</div>
       <div style="font-size:8px;color:var(--d-text-dim)">WEIGHT: ${wPct}% &nbsp;·&nbsp; ${rel.comparisons ? rel.comparisons+' comparisons' : 'NO HISTORY YET'}</div>
@@ -4325,7 +4456,7 @@ function renderWindStabilitySummary(d) {
   if (wss.gustGapDeduct)  penaltyHtml += `<span style="color:var(--d-red)">−${wss.gustGapDeduct}pts</span> gust gap (${wss.gustGap}mph) &nbsp;`;
   if (!penaltyHtml)       penaltyHtml = '<span style="color:var(--d-green)">No penalties</span>';
   el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:14px;padding:10px 12px;background:rgba(6,13,20,.8);border:1px solid var(--d-border);border-left:3px solid ${col}">
+    <div style="display:flex;align-items:center;gap:14px;padding:10px 12px;background:color-mix(in srgb, var(--deep) 80%, transparent);border:1px solid var(--d-border);border-left:3px solid ${col}">
       <div style="text-align:center;flex-shrink:0">
         <div style="font-family:'Space Mono',monospace;font-size:28px;font-weight:700;color:${col};line-height:1">${wss.score}</div>
         <div style="font-family:'Space Mono',monospace;font-size:7px;color:var(--d-text-dim);letter-spacing:1px">WSS</div>
@@ -4356,7 +4487,7 @@ function renderSourceCompare(d) {
     const r    = rel[k]||{comparisons:0,sumError:0};
     const acc  = r.comparisons>=3 ? Math.round((1-r.sumError/r.comparisons/100)*100)+'%' : 'NO DATA';
     const col  = pred && pred.score!==null ? scoreColor(pred.score) : 'var(--d-text-dim)';
-    return `<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);padding:12px;border-top:2px solid ${src.color}">
+    return `<div style="background:color-mix(in srgb, var(--text) 2.5%, transparent);border:1px solid color-mix(in srgb, var(--text) 7%, transparent);padding:12px;border-top:2px solid ${src.color}">
       <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:${src.color};margin-bottom:6px">${src.name.toUpperCase()}</div>
       <div style="font-family:'Space Mono',monospace;font-size:22px;color:${col};line-height:1">${pred&&pred.score!==null?pred.score:'—'}</div>
       <div style="font-family:'Space Mono',monospace;font-size:7px;color:${col};margin-bottom:8px">${pred&&pred.score!==null?scoreLabel(pred.score):'NO DATA'}</div>
@@ -4524,7 +4655,7 @@ function renderReliabilityPanel() {
     const acc = r.comparisons>0 ? Math.round((1-r.sumError/r.comparisons/100)*100) : null;
     const wPct = Math.round(weights[k]*100);
     const col = acc===null?'var(--d-text-dim)':acc>=75?'var(--d-green)':acc>=55?'var(--d-amber)':'var(--d-red)';
-    html+=`<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);padding:14px;border-top:2px solid ${src.color}">
+    html+=`<div style="background:color-mix(in srgb, var(--text) 2.5%, transparent);border:1px solid color-mix(in srgb, var(--text) 7%, transparent);padding:14px;border-top:2px solid ${src.color}">
       <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:${src.color};margin-bottom:8px">${src.name.toUpperCase()}</div>
       <div style="font-family:'Space Mono',monospace;font-size:28px;color:${col};line-height:1">${acc!==null?acc+'%':'—'}</div>
       <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--d-text-dim);margin:4px 0">ACCURACY SCORE</div>

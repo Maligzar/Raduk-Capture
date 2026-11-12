@@ -255,6 +255,33 @@ int main() {
         Check(!SetRatio(d, { 0, 0, 0 }, 0.5), "a path into a leaf is refused");
     }
 
+    printf("\n6c. Dropping onto the dock (134.4b)\n");
+    {
+        const Rect a{ 100, 100, 900, 500 };   // 800 x 400
+        Check(ZoneAt(a, 120, 300) == Zone::Left && ZoneAt(a, 880, 300) == Zone::Right,
+              "near the left and right edges: those zones");
+        Check(ZoneAt(a, 500, 110) == Zone::Top && ZoneAt(a, 500, 490) == Zone::Bottom,
+              "near the top and bottom: those zones");
+        Check(ZoneAt(a, 500, 300) == Zone::Center, "the middle: the centre zone");
+        Check(ZoneAt(a, 99, 300) == Zone::None && ZoneAt(a, 900, 300) == Zone::None,
+              "outside the area, by a pixel either side: none");
+        Check(ZoneAt(a, 110, 120) == Zone::Left, "a corner goes to the nearer edge (left, 1.25% vs 5%)");
+        Check(ZoneAt({ 0, 0, 0, 0 }, 0, 0) == Zone::None, "an empty area has no zones");
+        Check(ZoneRect(a, Zone::Left) == Rect{ 100, 100, 500, 500 } &&
+                  ZoneRect(a, Zone::Bottom) == Rect{ 100, 300, 900, 500 } && ZoneRect(a, Zone::Center) == a,
+              "the highlight is half the area on that side, or all of it");
+
+        const Node two = *ParseText("H(0.5,histogram,status)");
+        Check(ToText(Insert(two, "temp", Zone::Left, a)) == "H(0.5,temp,H(0.5,histogram,status))",
+              "left puts the panel beside everything, on the left");
+        Check(ToText(Insert(two, "temp", Zone::Bottom, a)) == "V(0.5,H(0.5,histogram,status),temp)",
+              "bottom puts it below everything");
+        Check(ToText(Insert(two, "temp", Zone::Center, a)) == ToText(Append(two, "temp", a)),
+              "the middle is Append");
+        Check(ToText(Insert(std::nullopt, "temp", Zone::Top, a)) == "temp",
+              "into an empty dock it is the whole tree");
+    }
+
     printf("\n7. What the dock remembers (134.5)\n");
     {
         DockState s;

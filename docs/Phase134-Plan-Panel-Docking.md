@@ -494,3 +494,49 @@ A saved group fullscreen is then re-entered through its member's role. One
 - the same with a group in fullscreen;
 - close a docked panel and restart: it stays closed;
 - delete `dock.ini`: no dock appears.
+
+### 134.4b, 2026-11-12: drag a panel onto the dock
+
+**Zones.** `dock::ZoneAt` gives the zone under the cursor over the dock's
+content area: a band a quarter deep along each edge, and the middle. In a
+corner the nearer edge wins, and outside the area there is no zone.
+`dock::ZoneRect` gives the area to highlight: half the area on the edge's
+side, or the whole area for the middle. `dock::Insert` builds the tree after
+a drop. An edge zone puts the panel on that side of everything already
+docked, half and half. The middle is `Append`. Into an empty dock, the panel
+is the whole tree.
+
+**Hover and drop.** While a registered panel is dragged on its own,
+`panel_dock::DragMove` passes the cursor position to the dock window, which
+works out the zone. The highlight is a layered window owned by the dock. It
+is click-through (`WS_EX_TRANSPARENT`, `HTTRANSPARENT`), never activates,
+and is filled with `ACCENT` through `Theme::Brush`, so it is red in night
+vision at alpha 90. On `WM_EXITSIZEMOVE`, `EndDrag(hwnd)` commits: if the
+panel was over a zone, `Dock(h, zone)` runs; otherwise the highlight simply
+goes.
+
+**Limits:**
+- **Panels in a group.** A panel being dragged as part of a group never
+  shows zones. Shift-drag it out first, so a group is never half-docked by
+  accident.
+- **The dock itself.** Dragging the dock, a docked panel, or anything over a
+  fullscreen dock shows nothing.
+- **The first panel.** It still goes in through Dock on its title menu,
+  because an empty dock is closed.
+
+**Gated.** `tests/dock_geometry.cpp` section 6c checks:
+- each edge, the middle and the outside, to the pixel;
+- the corner rule and an empty area;
+- the highlight rectangles;
+- `Insert` for left, bottom, the middle and an empty dock.
+
+**Phase 134 is complete at the bench.** Every stage is written and gated.
+None has been seen on the rig yet. The owner checks for each stage are in
+its own section above.
+
+**Not seen.** Owner check on the rig:
+- with the dock open, drag Histogram over each edge and the middle, and the
+  highlight follows;
+- release, and it docks there;
+- drag away before releasing, and nothing docks;
+- the highlight is red in night vision.

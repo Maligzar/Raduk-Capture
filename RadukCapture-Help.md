@@ -786,7 +786,15 @@ to share the space differently. F11 on the dock, or on any panel in it,
 fills the monitor; press F11 again to return. To take a panel out, choose
 **Undock** from its title menu or **Shift-drag** it away. Closing the dock
 returns every panel to where it was. The dock snaps to other panels like a
-panel. Dragging a panel onto the dock is a later stage (134.4b).
+panel.
+
+**Dragging onto the dock** (phase 134.4b). With the dock open, drag a panel
+by its title over the dock. A highlight shows where it will go. Near an edge,
+the panel goes on that side of everything already docked, taking half the
+space. In the middle, it is added as **Dock** adds one. Let go to dock it, or
+drag away again to cancel. This works for a panel dragged on its own, so
+Shift-drag one out of a group first. The first panel still goes in through
+**Dock** on its title menu, because the dock is closed while it is empty.
 
 **Ctrl+Shift+End remembers the dock too** (phase 134.5): which panels are
 in it, how the space is split, its size and place, and whether it was

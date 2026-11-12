@@ -52,6 +52,8 @@ bool FITSWriter::Open(const std::string& path, int width, int height,
     m_record        = r;
     m_frameBytes    = (size_t)width * height * (bitDepth / 8);
     m_framesWritten = 0;
+    m_lastPatchUs   = 0;
+    m_patchedOnce   = false;
     m_timestamps.clear();
     m_sharpnessScores.clear();
     m_clock.Start();
@@ -79,7 +81,31 @@ bool FITSWriter::WriteFrame(const uint8_t* data, size_t sizeBytes,
     m_framesWritten++;
     m_timestamps.push_back(m_clock.TicksFor(timestampUs));
     m_sharpnessScores.push_back(sharpness);
+
+    // Phase 135.2: NAXIS3 right on disk while the run goes on. The header
+    // is a fixed size, so it is rebuilt and rewritten in place. A crash
+    // leaves the frames without their padding and FRAMES table, which a
+    // reader that trusts NAXIS3 still reads.
+    if (HeaderPatchDue(m_lastPatchUs, timestampUs, !m_patchedOnce)) {
+        m_lastPatchUs = timestampUs;
+        m_patchedOnce = true;
+        PatchHeader();
+    }
     return true;
+}
+
+void FITSWriter::PatchHeader() {
+    fits::RunTimes t;
+    if (!m_timestamps.empty()) {
+        t.hasFrames     = true;
+        t.firstMidTicks = m_timestamps.front();
+        t.lastMidTicks  = m_timestamps.back();
+    }
+    const std::string header = fits::BuildHeader(m_record, ExtrasFor(m_record), t, m_framesWritten);
+    if (header.empty() || fflush(m_file) != 0) return;
+    if (_fseeki64(m_file, 0, SEEK_SET) != 0) return;
+    fwrite(header.data(), 1, header.size(), m_file);
+    _fseeki64(m_file, 0, SEEK_END);
 }
 
 bool FITSWriter::Close() {
@@ -117,7 +143,7 @@ bool FITSWriter::Close() {
     }
     const std::string header = fits::BuildHeader(
         m_record, ExtrasFor(m_record), t, m_framesWritten);
-    fseek(m_file, 0, SEEK_SET);
+    _fseeki64(m_file, 0, SEEK_SET);
     ok = !header.empty() &&
          fwrite(header.data(), 1, header.size(), m_file) == header.size() && ok;
 

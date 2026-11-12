@@ -13,6 +13,8 @@ bool SERWriter::Open(const std::string& path,
                      bool bayerRGGB) {
 
     if (m_file) Close();
+    m_lastPatchUs = 0;
+    m_patchedOnce = false;
 
     m_file = fopen(path.c_str(), "wb");
     if (!m_file) {
@@ -79,7 +81,26 @@ bool SERWriter::WriteFrame(const uint8_t* data, size_t sizeBytes,
     m_timestamps.push_back(m_clock.TicksFor(timestampUs));
     m_sharpnessScores.push_back(sharpness);  // Phase 11
 
+    // Phase 135.2: FrameCount right on disk while the run goes on. The
+    // trailer is still written only at Close: a crash loses timestamps,
+    // not frames.
+    if (HeaderPatchDue(m_lastPatchUs, timestampUs, !m_patchedOnce)) {
+        m_lastPatchUs = timestampUs;
+        m_patchedOnce = true;
+        PatchFrameCount();
+    }
     return true;
+}
+
+// Offset 38 of the 178-byte SER header is FrameCount. 64-bit seeks:
+// a run passes 4 GB. Seeking flushes, so the four bytes reach the OS.
+void SERWriter::PatchFrameCount() {
+    static constexpr long long FRAME_COUNT_OFFSET = 38;
+    if (fflush(m_file) != 0) return;
+    if (_fseeki64(m_file, FRAME_COUNT_OFFSET, SEEK_SET) != 0) return;
+    const int32_t fc = (int32_t)m_framesWritten;
+    fwrite(&fc, sizeof(fc), 1, m_file);
+    _fseeki64(m_file, 0, SEEK_END);
 }
 
 bool SERWriter::Close() {
@@ -92,8 +113,8 @@ bool SERWriter::Close() {
     }
 
     // Patch frame count in header (offset 38 into the struct)
-    static constexpr long FRAME_COUNT_OFFSET = 38;
-    fseek(m_file, FRAME_COUNT_OFFSET, SEEK_SET);
+    static constexpr long long FRAME_COUNT_OFFSET = 38;
+    _fseeki64(m_file, FRAME_COUNT_OFFSET, SEEK_SET);
     int32_t fc = (int32_t)m_framesWritten;
     fwrite(&fc, sizeof(fc), 1, m_file);
 

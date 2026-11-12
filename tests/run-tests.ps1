@@ -28,6 +28,7 @@ $Tests = @(
     @{ Name = "write_buffer_sizing"; Sources = @() }
     @{ Name = "sky_conditions";     Sources = @() }
     @{ Name = "capture_thread_submit"; Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
+    @{ Name = "capture_write_fail"; Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "ai_context_facts";   Sources = @() }
     @{ Name = "object_knowledge";   Sources = @() }
     @{ Name = "object_panel_text"; Sources = @() }

@@ -213,6 +213,26 @@ public:
     // Phase 108: and it was the derotation window that did it.
     bool DerotationStopped() const { return m_derotationStopped.load(std::memory_order_relaxed); }
 
+    // ── Phase 135.1: the disk stopped the run ─────────────────
+    // A failed write used to end the writer thread and leave the run
+    // "recording" into a RAM buffer nobody drained: the panel showed a
+    // live capture and every later frame was lost. Now the writer
+    // raises this, the capture thread stops submitting, and the render
+    // loop stops the run through the same path as a limit, and says why.
+    // DiskFull: free space fell below DiskFloorBytes; the writer keeps
+    // draining, so every captured frame reaches the file. WriteFailed:
+    // a write itself failed; frames still in RAM are lost.
+    enum class DiskStop { None = 0, DiskFull = 1, WriteFailed = 2 };
+    DiskStop DiskStopped() const { return (DiskStop)m_diskStop.load(std::memory_order_acquire); }
+    static const char* DiskStopReason(DiskStop d) {
+        return d == DiskStop::WriteFailed ? "disk write failed"
+             : d == DiskStop::DiskFull    ? "disk nearly full" : "";
+    }
+    // Tests: a writer to use instead of SER/FITS, and the free-space probe
+    // (bytes free on the volume holding the path). Null restores the real one.
+    void SetWriterOverride(ICaptureWriter* w) { m_writerOverride = w; }
+    void SetFreeSpaceProbe(std::function<uint64_t(const std::string&)> f) { m_freeSpace = std::move(f); }
+
     bool SubmitFrame(const FrameSlot* slot, float sharpness = 0.0f,
                      uint32_t cropCX = 0, uint32_t cropCY = 0);
 
@@ -335,6 +355,10 @@ private:
     std::atomic<bool>     m_gateOpen{true};
     std::atomic<bool>     m_limitReached{false};
     std::atomic<bool>     m_derotationStopped{false};
+    std::atomic<int>      m_diskStop{0};          // DiskStop, phase 135.1
+    ICaptureWriter*       m_writerOverride = nullptr;
+    std::function<uint64_t(const std::string&)> m_freeSpace;
+    uint64_t  FreeBytesAt(const std::string& path) const;
     std::atomic<uint32_t> m_hintCX{0}, m_hintCY{0};
     std::atomic<float>    m_hintSharp{0.0f};
     int       m_frameWidth  = 0;

@@ -177,6 +177,14 @@ public:
              - m_readPos.load(std::memory_order_relaxed);
     }
 
+    // Phase 135.1: drop everything pending. Only when nothing produces or
+    // consumes: after a failed write the writer has exited, and the next
+    // run must not start by writing this run's frames into a new file.
+    void Discard() {
+        while (Peek()) Pop();
+        m_readPos.store(m_writePos.load(std::memory_order_acquire), std::memory_order_release);
+    }
+
     uint64_t Overruns() const { return m_overruns.load(std::memory_order_relaxed); }
     int NumSlots() const { return m_numSlots; }
 

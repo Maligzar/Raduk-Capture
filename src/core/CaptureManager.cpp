@@ -5,6 +5,7 @@
 
 #include "CaptureManager.h"
 #include "DerotationLimit.h"
+#include "DiskGuard.h"
 
 #include <cmath>
 
@@ -103,7 +104,8 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     m_obs.colour    = "RGGB";   // the source corrects it from the camera
     if (m_obsSource) m_obsSource(m_obs);
 
-    m_writer = (m_config.format == CaptureFormat::FITS)
+    m_writer = m_writerOverride ? m_writerOverride
+             : (m_config.format == CaptureFormat::FITS)
              ? static_cast<ICaptureWriter*>(&m_fits) : &m_ser;
     if (!m_writer->Open(path, width, height, bitDepth, m_obs.colour != "MONO")) {
         { char b[512]; snprintf(b, sizeof(b), "Failed to open capture file: %s", path.c_str()); Say(b); }
@@ -133,6 +135,8 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
     m_framesSubmitted.store(0);
     m_limitReached.store(false);
     m_derotationStopped.store(false);
+    m_diskStop.store(0);
+    m_writeBuffer.Discard();   // nothing from an earlier run, ever
 
     // Start writer thread
     m_writerRunning.store(true);
@@ -174,6 +178,23 @@ void CaptureManager::StopRecording(bool normal) {
     // Signal writer thread to finish draining and exit
     m_writerRunning.store(false);
     if (m_writerThread.joinable()) m_writerThread.join();
+
+    // Phase 135.1: a failed write left frames in RAM that will never
+    // reach this file. Counted as dropped, said, and discarded.
+    if (DiskStopped() == DiskStop::WriteFailed) {
+        const uint64_t lost = m_writeBuffer.Pending();
+        m_status.framesDropped.fetch_add((uint32_t)lost);
+        m_writeBuffer.Discard();
+        char b[160];
+        snprintf(b, sizeof(b), "Disk write failed: %llu captured frames could not be written",
+                 (unsigned long long)lost);
+        Say(b);
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_status.lastError = b;
+    } else if (DiskStopped() == DiskStop::DiskFull) {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_status.lastError = "Stopped: the disk is nearly full";
+    }
 
     // Remember the finished file before closing, so the caller can
     // hand it straight to AutoStakkert without reconstructing a path.
@@ -291,6 +312,8 @@ void CaptureManager::ReportPushFailure(size_t frameBytes) {
 // Called ON THE CAPTURE THREAD. See the header for why this exists.
 bool CaptureManager::SubmitFromCaptureThread(const FrameSlot* slot) {
     if (!m_status.recording.load()) return false;
+    // Phase 135.1: the disk has stopped the run; nothing more goes in.
+    if (m_diskStop.load(std::memory_order_relaxed) != 0) return false;
     if (!slot || !slot->data) return false;
     if (m_paused.load()) return false;
 
@@ -351,6 +374,7 @@ bool CaptureManager::SubmitFromCaptureThread(const FrameSlot* slot) {
 bool CaptureManager::SubmitFrame(const FrameSlot* slot, float sharpness,
                                  uint32_t cropCX, uint32_t cropCY) {
     if (!m_status.recording.load()) return false;
+    if (m_diskStop.load(std::memory_order_relaxed) != 0) return false;   // phase 135.1
     if (!slot || !slot->data) return false;
 
     // Phase 41 — Pause: skip frames without closing the SER file
@@ -391,11 +415,49 @@ std::string CaptureManager::CurrentFile() {
     return m_status.currentFile;
 }
 
+uint64_t CaptureManager::FreeBytesAt(const std::string& path) const {
+    if (m_freeSpace) return m_freeSpace(path);
+    ULARGE_INTEGER avail{};
+    // The folder, not the file: it is the volume that matters.
+    std::string dir = path;
+    const size_t slash = dir.find_last_of("\\/");
+    if (slash != std::string::npos) dir.resize(slash + 1);
+    if (!GetDiskFreeSpaceExA(dir.c_str(), &avail, nullptr, nullptr))
+        return UINT64_MAX;   // cannot tell: do not stop a run on a guess
+    return avail.QuadPart;
+}
+
 void CaptureManager::WriterLoop() {
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
     Say("Writer thread started");
+    const std::string path = m_writer->Path();
+    auto lastDiskCheck = std::chrono::steady_clock::now() - std::chrono::seconds(2);
 
     while (m_writerRunning.load() || m_writeBuffer.Pending() > 0) {
+        // Phase 135.1: the volume's free space, once a second (by time,
+        // not by frame count: frames vary 24x in size across formats).
+        // Below the floor the run is stopped while every frame already
+        // captured still fits; the writer goes on draining them.
+        const auto nowD = std::chrono::steady_clock::now();
+        if (m_diskStop.load(std::memory_order_relaxed) == 0 &&
+            nowD - lastDiskCheck >= std::chrono::seconds(1)) {
+            lastDiskCheck = nowD;
+            const uint64_t pending = m_writeBuffer.Pending();
+            const uint64_t frameBytes = m_writeBuffer.SlotCapacity();
+            const uint64_t floor = DiskFloorBytes(pending, frameBytes,
+                                                  m_status.framesRecorded.load() + pending);
+            const uint64_t freeB = FreeBytesAt(path);
+            if (freeB < floor) {
+                m_diskStop.store((int)DiskStop::DiskFull, std::memory_order_release);
+                char b[200];
+                snprintf(b, sizeof(b), "Disk nearly full: %.0f MB free, %.0f MB needed for the "
+                         "frames still in RAM - stopping the run",
+                         freeB / 1048576.0, floor / 1048576.0);
+                Say(b);
+            }
+        }
+
+
         const WriteSlot* slot = m_writeBuffer.Peek();
         if (!slot) {
             Sleep(1);
@@ -421,7 +483,10 @@ void CaptureManager::WriterLoop() {
             m_status.framesRecorded.fetch_add(1);
             m_status.bytesWritten.fetch_add(slot->dataSize);
         } else {
-            Say("Disk write error — stopping");
+            // Phase 135.1: raise the flag before leaving, so the capture
+            // thread stops submitting and the render loop ends the run.
+            m_diskStop.store((int)DiskStop::WriteFailed, std::memory_order_release);
+            Say("Disk write error - stopping the run");
             break;
         }
     }

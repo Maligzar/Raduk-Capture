@@ -1424,6 +1424,8 @@ request review.** The bench order, top first:
 6. **135.1 and 135.2 (row 35), size S.** Category 1: a failed disk write
    leaves the run "recording" into RAM, and a crash leaves a SER whose
    header says it holds no frames. Both silent, both on `master` today.
+   **135.1 written 2026-11-12** (the run stops and says why, and a disk
+   running low stops it while every captured frame still fits).
    Phases 140, 139 and 135 all go ahead of the owner's 2026-11-07
    placing of Phase 132 first: 140 and 139 at the owner's word of
    2026-11-11, 135 by the ranking rule at the top of this file, which

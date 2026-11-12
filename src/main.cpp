@@ -6816,7 +6816,16 @@ static int RunApp(bool useEmulator) {
             // Phase 98: through endRecording, so the limit path restores
             // USB polling like every other stop. It did not, and the EAF
             // and mount stayed throttled afterwards.
-            if (capturer.LimitReached()) {
+            // Phase 135.1: the disk stopped the run. Same path as a
+            // limit, so USB polling and the record are handled alike, and
+            // said on screen, not only in the log.
+            if (capturer.DiskStopped() != raduk::core::CaptureManager::DiskStop::None) {
+                const auto ds = capturer.DiskStopped();
+                endRecording(false, raduk::core::CaptureManager::DiskStopReason(ds));
+                notifBar.NotifyError(ds == raduk::core::CaptureManager::DiskStop::WriteFailed
+                    ? L"Recording stopped: a disk write failed. Frames still in memory were lost - check the drive"
+                    : L"Recording stopped: the disk is nearly full. Every captured frame was saved");
+            } else if (capturer.LimitReached()) {
                 const bool derot = capturer.DerotationStopped();
                 endRecording(true, derot ? "derotation window"
                                          : "frame/time limit reached");

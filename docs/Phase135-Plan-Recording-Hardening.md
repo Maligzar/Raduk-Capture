@@ -10,6 +10,10 @@ by the PR that carried this file. **Re-checked against `master`
 leaves the run recording; `SERWriter` still writes `FrameCount = 0` and
 patches it only in `Close()`; `CaptureThread` still counts 20 timeouts.
 
+**135.1 written 2026-11-12** (PHASE-STATUS row 135). The test is
+`tests/capture_write_fail.cpp`, not `capture_writer.cpp`, which already
+pins the SER and FITS layouts.
+
 **Ranked 2026-11-11: 135.1 first on the bench** (category 1, it loses a
 night's frames silently). 135.2 to 135.5 follow the roadmap's live list.
 

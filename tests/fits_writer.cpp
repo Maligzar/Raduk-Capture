@@ -353,8 +353,11 @@ int main() {
             _flushall();
             const std::vector<uint8_t> b = ReadAll(p);
             const Hdu h = ReadHeader(b, 0);
-            Check(h.ended && Int(h, "NAXIS3") == 0 && Int(h, "NAXIS1") == W,
-                  "the header already identifies the file");
+            // Phase 135.2: the header counts the frame already. It said 0
+            // until close, so a crash left frames under a header that
+            // claimed none.
+            Check(h.ended && Int(h, "NAXIS3") == 1 && Int(h, "NAXIS1") == W,
+                  "the header already identifies the file, and counts its frame");
             Check(b.size() == 3 * 2880 + (size_t)W * H,
                   "and the frame is there to be found");
         }

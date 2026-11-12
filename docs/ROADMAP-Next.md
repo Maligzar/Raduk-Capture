@@ -1444,7 +1444,9 @@ bench order, top first:
    easy to see. **139.3 written 2026-11-12**: the AUTO FOCUS button says
    NOT NOW and why, and asks for a second press.
 8. **132.10b to 132.10d (row 32)**, the dashboard restyle and its live
-   night mode, with #95's behaviour ported into 132.10b.
+   night mode, with #95's behaviour ported into 132.10b. **132.10b and
+   132.10d written 2026-11-12**; 132.10c, the panels in batches, is next
+   for this row.
 9. **Phases 136, 137, 142 and 143 (rows 36, 37, 42, 43): written
    2026-11-12, built together at the owner's word.** Satellite elements
    as OMM (six-digit catalog numbers); Jupiter's central meridians, Red

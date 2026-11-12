@@ -5831,8 +5831,13 @@ static int RunApp(bool useEmulator) {
             const char* bytes = g ? static_cast<const char*>(LockResource(g)) : nullptr;
             const DWORD n = r ? SizeofResource(mod, r) : 0;
             if (bytes && n) {
+                // 132.10b: the app's palette too, day and night. The page's
+                // colours are the palette's roles now, so night vision
+                // reaches it (132.10d flips the flag live).
                 const std::string out = dl::PrepareDashboardHtml(
-                    std::string(bytes, n), raduk::gui::EmbeddedFontFacesCss(),
+                    std::string(bytes, n),
+                    raduk::gui::EmbeddedFontFacesCss() +
+                        raduk::core::web::PaletteCss(raduk::gui::CurrentWebPalette()),
                     raduk::gui::Theme::NightVisionOn());
                 const std::string path = Paths::EnsureSub("data") + "\\" + dl::kDashboardWrittenName;
                 std::ofstream f(path, std::ios::binary | std::ios::trunc);
@@ -8463,6 +8468,7 @@ static int RunApp(bool useEmulator) {
                 // Planet lock / centroid tracking state
                 {
                     auto stage = tracker.Stage();
+                    telemetry.night_vision = raduk::gui::Theme::NightVisionOn();   // 132.10d
                     telemetry.planet_lock  = (stage == raduk::core::AcquisitionStage::Centering ||
                                               stage == raduk::core::AcquisitionStage::Locked);
                     telemetry.drift_ra_as  = tracker.DriftRA();

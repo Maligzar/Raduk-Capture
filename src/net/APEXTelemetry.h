@@ -101,6 +101,10 @@ struct APEXTelemetry {
     float       drift_ra_as     = 0.0f;   // arcseconds, + = East
     float       drift_dec_as    = 0.0f;   // arcseconds, + = South
 
+    // ── Phase 132.10d: the app's night vision, so the dashboard follows
+    // the toggle live. Additive: an older dashboard ignores it.
+    bool        night_vision    = false;
+
     // ── Session events (cleared after each broadcast) ─────────
     std::vector<SessionEvent> session_events;
 

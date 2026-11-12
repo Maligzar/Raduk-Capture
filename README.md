@@ -14,7 +14,7 @@ deliver. No frameworks, no .NET, no Qt. The whole application runs with no
 hardware attached, through device emulators that follow the real ZWO SDK and
 NexStar semantics.
 
-Version 3.0.0, source release. Developed through phase 133, and first used
+Version 3.1, source release (the title bar shows the exact build; the number moves with every merge, see `src/Version.h`). Developed through phase 133, and first used
 under the sky on 2026-11-07.
 
 ## Who this is for

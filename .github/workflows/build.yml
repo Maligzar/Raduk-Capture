@@ -20,6 +20,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Every pull request bumps src/Version.h (the owner's rule,
+      # 2026-11-12; see that file). It said so for months and the number
+      # did not move through about seventy merges, so it is checked here.
+      - name: Version bumped
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          git fetch --depth=1 origin "${{ github.base_ref }}"
+          function Ver([string]$t) {
+            if ($t -match 'RADUK_VERSION_A\s+"(\d+)\.(\d+)\.(\d+)"') {
+              return [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])"
+            }
+            throw "RADUK_VERSION_A not found in src/Version.h"
+          }
+          $base = Ver ((git show "origin/${{ github.base_ref }}:src/Version.h") -join "`n")
+          $head = Ver (Get-Content src/Version.h -Raw)
+          if ($head -le $base) {
+            Write-Host "::error file=src/Version.h::Version $head is not above $base on ${{ github.base_ref }}. Every PR bumps PATCH (a completed phase bumps MINOR): see src/Version.h."
+            exit 1
+          }
+          Write-Host "Version $base -> $head"
+
       - name: Emulator build
         run: |
           cmake -S . -B build_emu -DRADUK_EMULATOR=ON

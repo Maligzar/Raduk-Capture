@@ -2822,10 +2822,15 @@ A capture recorded before v2.1 has no record, and recall says so.
 
 ## Phase History
 
-**The current version is v3.0**; the title bar reads `3.0.0`. v2.0 and v3.0
-match their tags, and v2.1 to v2.4 have no tag of their own. Rows marked
-`pre-2.1` shipped before v2.1 under no number of their own, and rows
-marked `3.0+` shipped after 3.0.0 without changing the number. This
+**The current version is v3.1**; the title bar reads the exact build, such as
+`3.1.0`. v2.0 and v3.0 match their tags, and v2.1 to v2.4 have no tag of
+their own. Rows marked `pre-2.1` shipped before v2.1 under no number of their
+own, and rows marked `3.0+` shipped after 3.0.0 without changing the number.
+**From 3.1.0 the number moves with every pull request** (the owner's rule,
+2026-11-12, written out in `src/Version.h` and checked by CI): each one bumps
+the last part and adds its row here with that version, and the one that
+completes a phase bumps the middle part. 3.1.0 is the catch-up for everything
+merged after 3.0.0 that had not been given a number. This
 table says what shipped, not what has been proven;
 [`docs/PHASE-STATUS.md`](docs/PHASE-STATUS.md) says that. Elsewhere in this file, labels from v1.2.4 to v1.2.7 date
 when a behaviour changed. They were never declared in `src/Version.h`,
@@ -2977,7 +2982,17 @@ order.
 | 3.0+ | 129 | Snapshots save their true colours (red and blue were swapped); Escape in a camera box shows the camera's value again |
 | 3.0+ | 130 | The sky map shows the bright satellites and rocket bodies (squares) live, with a line to where each will be in 30 s; the ones you can see are bright. Every NEO and satellite is named, and the site panel shows the date and the time to the second (local and UT). The line under the map counts them and says how many NEOs `NeoMagLimit` let through |
 | 3.0+ | 131 | Click a satellite on the sky map and press FOLLOW to fly its next pass, as TRACK SELECTED PASS does. A pass already under way is met where the satellite will be when the mount arrives |
+| 3.1.0 | 132 | The instrument look: one palette shared with the browser pages, night vision that emits red and nothing else, custom-drawn buttons, lists and tabs, dark scrollbars, the Ctrl+K command palette, optional audio cues, the session stats page in the app's look, and the dashboard carried in the exe and opened as its own window, restyled and following night vision live |
+| 3.1.0 | 133 | Fixes from the 2026-11-07 night: the target found by area rather than one hot pixel, NexStar commands sent one at a time, tracking kept across stops, a warning when the target fades, and files named for the panel's target |
+| 3.1.0 | — | `[PLAY]` looks through a SER with a quality trace; `[TO SER]` and `fits2ser` convert FITS cubes and rescue an unclosed one |
+| 3.1.0 | 134 | Panels dock together: they snap, form groups that move and resize together, fill a monitor with F11, go into a dock window by menu or by dragging, and are remembered by Ctrl+Shift+End |
+| 3.1.0 | 135 | Recording that survives the disk and the process: a failed write ends the run, the disk is watched, the header counts frames during the run, a stalled camera recovers in about 1.5 s, an empty run leaves no file, and the threads are named |
+| 3.1.0 | 136, 137 | Satellite elements as OMM (six-digit catalogue numbers); the Galilean moons' events and the Red Spot's transits |
+| 3.1.0 | 139 | Autofocus that takes up the focuser's backlash, and says NOT NOW when focus cannot work |
+| 3.1.0 | 140 | Auto-exposure meters the planet within a per-planet band, and the live view can be stretched for the eye |
+| 3.1.0 | 141 | Galilean mutual events: predictions, a recording mode with the clock checked, and the light curve for IMCCE |
+| 3.1.0 | 142, 143 | Jupiter runs listed for DeTeCt impact searches, and records with central meridians and a submission sheet |
 
 ---
 
-*RadukCapture Help v3.0 — Updated after each release*
+*RadukCapture Help v3.1 — the Phase History gains a row with every pull request*

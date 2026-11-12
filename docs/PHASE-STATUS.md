@@ -8,6 +8,11 @@ Written 2026-10-18, after a pass found phase 77 carrying four different
 statuses at once across six files. Each correction had been a hand edit to
 one copy, and nothing ever checked the rest.
 
+**Versions.** This file says what state a phase is in, not which version it
+shipped in. That is the Phase History in `RadukCapture-Help.md`, which gains
+a row, with its version, from every pull request (`src/Version.h` has the
+rule, 2026-11-12).
+
 ## How to read a row
 
 `STATE (venue) date — evidence · owes: what is still missing`

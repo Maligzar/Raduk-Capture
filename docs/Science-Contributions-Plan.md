@@ -102,3 +102,17 @@ follow Phase 137, which supplies the longitudes and the event geometry.
 - Europlanet, the 2019 impact flash: https://www.europlanet-society.org/?p=7011
 - PVOL2 (arXiv 1701.01977): https://arxiv.org/pdf/1701.01977v1
 - NASA, Saturn's moons: https://science.nasa.gov/saturn/moons/
+
+## Versioning
+
+Every pull request for this plan bumps PATCH in `src/Version.h` (3.1.0 to 3.1.1)
+and adds its row, with that version, to the Phase History in
+`RadukCapture-Help.md`. The pull request that completes the phase bumps MINOR
+instead and resets PATCH (3.1.4 to 3.2.0). MAJOR and a git tag are the
+owner's call at a release. CI fails any pull request that does not raise the
+version above the base branch's. When two pull requests in flight both bump,
+the second to merge resolves `Version.h` to the higher of the two plus one
+PATCH. The rule is the owner's, 2026-11-12, and is written out in
+`src/Version.h`.
+
+Phases 136, 137 and 141 to 143 merged so far shipped in 3.1.0, the catch-up. Each pull request from here bumps PATCH; each one that completes one of these phases bumps MINOR.

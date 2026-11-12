@@ -310,7 +310,8 @@ Condensed from the help file's phase history. The full table is in
 | v2.2 | B3: the browser dashboard shows the telescope's view, a small JPEG about twice a second; every dashboard socket gets a 500 ms send timeout |
 | v2.3 | `[DASH]` on the toolbar opens the browser dashboard with the access token already in it, and it connects by itself |
 | v2.4 | The dashboard from any device on the home network (`WsLan`, `WsLanOpen`), and it stays connected; weather and sky from Leoben into the ADC, the status window, the observation record and the assistant. No tag yet |
-| v3.0 | **The current version.** Matches the `v3.0` tag, a source release through phase 114: FITS output, ROI following, surface lock, the derotation limit, lunar and solar mosaics, push-to, the pixel readout, Autorun with seeing-aware runs, the camera controls review, the visual system and the two-row toolbar |
+| v3.0 | Matches the `v3.0` tag, a source release through phase 114: FITS output, ROI following, surface lock, the derotation limit, lunar and solar mosaics, push-to, the pixel readout, Autorun with seeing-aware runs, the camera controls review, the visual system and the two-row toolbar |
+| v3.1 | **The current version.** The catch-up for phases 115 to 143 merged after 3.0.0 without a number (the instrument look, field fixes, panel docking, recording hardening, the science phases). From 3.1.0 every pull request bumps the last part and the one completing a phase bumps the middle, checked by CI; the exact build is in the title bar and the help's Phase History |
 
 ### Two version boundaries that invalidate old numbers
 

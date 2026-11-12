@@ -1,7 +1,7 @@
 # RadukCapture: Architecture and Roadmap
 
 Planetary capture software for the ZWO ASI678MC, ZWO EAF and Celestron 8SE.
-Version 3.0.0 (`src/Version.h`). Rewritten 2026-11-01, through phase 131;
+Version 3.1 (`src/Version.h`, which also says how the number moves). Rewritten 2026-11-01, through phase 131;
 updated 2026-11-11 through phase 133, with 132.10a written and 134 planned.
 
 This file describes how the application is built, what exists, and what is
@@ -631,4 +631,4 @@ scenario is the way to retire a row below.
 
 ---
 
-*RadukCapture 3.0.0*
+*RadukCapture 3.1*

@@ -264,3 +264,17 @@ monitors.
 
 **Owed:** the owner rebuilds (`build_all.bat`) and launches. If it still
 crashes, the log now names the function.
+
+## Versioning
+
+Every pull request for this plan bumps PATCH in `src/Version.h` (3.1.0 to 3.1.1)
+and adds its row, with that version, to the Phase History in
+`RadukCapture-Help.md`. The pull request that completes the phase bumps MINOR
+instead and resets PATCH (3.1.4 to 3.2.0). MAJOR and a git tag are the
+owner's call at a release. CI fails any pull request that does not raise the
+version above the base branch's. When two pull requests in flight both bump,
+the second to merge resolves `Version.h` to the higher of the two plus one
+PATCH. The rule is the owner's, 2026-11-12, and is written out in
+`src/Version.h`.
+
+133.0 to 133.2b shipped in 3.1.0, the catch-up. 133.3 and 133.4 are under this rule. The one that closes the phase bumps MINOR.

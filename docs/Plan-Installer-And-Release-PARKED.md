@@ -196,3 +196,17 @@ Neither blocks 107.1 to 107.4. Both block publishing in 107.5.
 - A NOTICE review past the bundled files: SQLite, the VC++ runtime, ZWO's
   DLLs and the sources behind `object_knowledge.db`, whose attribution
   terms are checked in 107.2.
+
+## Versioning
+
+Every pull request for this plan bumps PATCH in `src/Version.h` (3.1.0 to 3.1.1)
+and adds its row, with that version, to the Phase History in
+`RadukCapture-Help.md`. The pull request that completes the phase bumps MINOR
+instead and resets PATCH (3.1.4 to 3.2.0). MAJOR and a git tag are the
+owner's call at a release. CI fails any pull request that does not raise the
+version above the base branch's. When two pull requests in flight both bump,
+the second to merge resolves `Version.h` to the higher of the two plus one
+PATCH. The rule is the owner's, 2026-11-12, and is written out in
+`src/Version.h`.
+
+A release is where MAJOR and the git tag (`vMAJOR.MINOR`) move, at the owner's call. The tag is made on the merged commit whose `src/Version.h` it names, so the tag, the title bar and the help agree.

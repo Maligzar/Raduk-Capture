@@ -68,23 +68,16 @@ void CentroidTracker::StartSearching() {
 void CentroidTracker::StartCalibration() {
     if (m_stage.load() != AcquisitionStage::Searching) return;
     if (!IsStable()) return;
-    {
-        std::lock_guard<std::mutex> lk(m_mutex);
-        if (m_cal.valid) {
-            auto ageMin = std::chrono::duration_cast<std::chrono::minutes>(
-                std::chrono::steady_clock::now() - m_cal.when).count();
-            if (ageMin < CAL_STALE_MIN) {
-                m_dwellCount = 0;
-                m_stage.store(AcquisitionStage::Centering);
-                CoreLog("[CentroidTracker] Reusing calibration (%lld min old) -> CENTERING\n",
-                       (long long)ageMin);
-                return;
-            }
-            CoreLog("[CentroidTracker] Calibration stale (%lld min) — recalibrating\n",
-                   (long long)ageMin);
-            m_cal.valid = false;
-        }
-    }
+    // Always a fresh calibration, never a reused one (2026-11-12). Since
+    // 2026-11-07 this app guides by taking the axes from the hand
+    // control, and only a calibration takes them: it measures the
+    // tracking rates here and now, which change with every GoTo. A
+    // reused calibration went straight to CENTERING with the hand
+    // control still driving, where the loop sends nothing, so after a
+    // GoTo from the map the planet sat off centre and nothing moved it
+    // (tests/tracking_emulator.cpp, step 4). The stored calibration is
+    // kept for click-to-recentre and the jog arrows, which use it under
+    // the hand control's tracking.
     m_dwellCount = 0;
     m_stage.store(AcquisitionStage::Calibrating);
     CoreLog("[CentroidTracker] Stage -> CALIBRATING\n");
@@ -93,6 +86,12 @@ void CentroidTracker::StartCalibration() {
 void CentroidTracker::StartCentering() {
     if (m_stage.load() != AcquisitionStage::Searching) return;
     if (!IsStable()) return;
+    // Same reason as StartCalibration: centring needs the axes, and
+    // only a calibration takes them.
+    if (!m_appDriving.load()) {
+        CoreLog("[CentroidTracker] StartCentering refused - the app does not hold the axes; calibrate\n");
+        return;
+    }
     if (!HasCalibration()) {
         CoreLog("[CentroidTracker] StartCentering refused — no calibration\n");
         return;
@@ -392,6 +391,10 @@ void CentroidTracker::_DriveAxes(IMount* mount, float azRate, float altRate) {
     // re-asserts the hand control's tracking (NexStarMount's sender).
     auto noZero = [](float v) { return std::fabs(v) < 0.3f ? (v < 0.0f ? -0.3f : 0.3f) : v; };
     const float c0 = noZero(azRate * sAz), c1 = noZero(altRate * sAlt);
+    // Never after a hand-back: a GoTo or a stop may have taken the mount
+    // a moment ago (YieldMount), and one late rate command would fight it.
+    std::lock_guard<std::mutex> dk(m_driveMx);
+    if (!m_appDriving.load()) return;
     mount->SlewVariable(0, c0 >= 0.0f ? 0 : 1, std::fabs(c0));
     mount->SlewVariable(1, c1 >= 0.0f ? 0 : 1, std::fabs(c1));
 }
@@ -410,6 +413,7 @@ void CentroidTracker::_HoldRates(IMount* mount) {
 
 // Give tracking back to the hand control, if this app had taken it.
 void CentroidTracker::_HandBack(IMount* mount, const char* why) {
+    std::lock_guard<std::mutex> dk(m_driveMx);
     if (!m_appDriving.exchange(false)) return;
     if (!mount) return;
     const IMount::TrackingMode mode =
@@ -706,6 +710,17 @@ void CentroidTracker::_RunCalibration(IMount* mount) {
              nMag * cal.arcsecPerPx / secOff, GUIDE_OFFSET_AS, rAz, rAlt,
              m_axisSign[0], m_axisSign[1]);
     finish(true, buf);
+}
+
+void CentroidTracker::YieldMount(const char* why) {
+    if (m_stage.load() == AcquisitionStage::Off) return;
+    m_suspended.store(true);        // no corrections; a calibration aborts
+    IMount* mnt = nullptr;
+    { std::lock_guard<std::mutex> lk(m_mutex); mnt = m_mount; }
+    _HandBack(mnt, why);
+    m_autoAdvance.store(false);
+    m_lostPending.store(true);      // the main thread resets on its next Tick
+    CoreLog("[CentroidTracker] Mount yielded: %s\n", why);
 }
 
 void CentroidTracker::_AbortGuiding(IMount* mount, const std::string& why) {

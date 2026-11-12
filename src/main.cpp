@@ -1676,6 +1676,9 @@ static int RunApp(bool useEmulator) {
     // focusable, which looks exactly like a broken feature.
     raduk::gui::WorkspaceLayout workspace;
     const std::string kWorkspacePath = "workspace.ini";
+    // 134.5: the dock and a group left in fullscreen. Its own file, beside
+    // workspace.ini: WorkspaceLayout::Save rewrites that one whole.
+    static const std::string kDockPath = "dock.ini";
     bool workspaceHadConfig = false;
     workspace.SetLogCallback([](const std::string& m) { Log("%s\n", m.c_str()); });
     workspace.Detect();
@@ -2281,10 +2284,27 @@ static int RunApp(bool useEmulator) {
     // an arrangement somebody built by hand.
     window.SetSaveLayoutHandler([&]() {
         // 134.3: a group in fullscreen would save its stretched rectangles
-        // as the panels' normal places. Put it back first.
+        // as the panels' normal places. Put it back first -- and 134.5,
+        // remember it, so it is restored at the next start and put straight
+        // back now.
+        const std::string groupFullRole = raduk::gui::panel_dock::GroupFullRole();
         raduk::gui::panel_dock::ExitGroupFull();
         workspace.CaptureCurrent(kPlacedWindows);
         const bool wrote = workspace.Save(kWorkspacePath);
+
+        // 134.5: the dock and the group that was fullscreen, then that group
+        // straight back to fullscreen, so saving never disturbs the view.
+        raduk::gui::dock::DockState dockState = dockWindow.State();
+        dockState.groupFull = groupFullRole;
+        bool dockWrote = false;
+        if (FILE* df = nullptr; fopen_s(&df, kDockPath.c_str(), "wb") == 0 && df) {
+            const std::string t = raduk::gui::dock::DockStateText(dockState);
+            dockWrote = fwrite(t.data(), 1, t.size(), df) == t.size();
+            dockWrote = (fclose(df) == 0) && dockWrote;
+        }
+        if (!dockWrote) Log("[DOCK] Could not write %s\n", kDockPath.c_str());
+        if (HWND g = raduk::gui::panel_dock::HwndOf(groupFullRole); g)
+            raduk::gui::panel_dock::EnterGroupFull(g);
 
         // Confirm against the FILE, not against Save() returning true.
         // fprintf not complaining is not the same as the arrangement
@@ -2337,6 +2357,12 @@ static int RunApp(bool useEmulator) {
             lines.push_back(b);
             for (const std::wstring& rl : roleLines) lines.push_back(rl);
             lines.push_back(L"This is what the app will open with.");
+            if (!dockWrote)
+                lines.push_back(L"The dock could NOT be saved (dock.ini) - see raduk_log.txt.");
+            else if (!dockState.tree.empty())
+                lines.push_back(L"The dock and its panels are saved too.");
+            if (!groupFullRole.empty())
+                lines.push_back(L"A group in fullscreen is saved and is back on screen.");
         } else {
             lines.push_back(L"The file could not be verified after writing.");
             lines.push_back(L"The arrangement has NOT been saved.");
@@ -5635,6 +5661,27 @@ static int RunApp(bool useEmulator) {
     static raduk::gui::PlayerWindow player;
     player.Create(window.Handle());
     raduk::gui::panel_dock::Register(player.Handle(), "player");   // 134.1
+
+    // 134.5: the dock and any group in fullscreen, as Ctrl+Shift+End left
+    // them. Here because the player is the last panel registered.
+    {
+        std::string text;
+        if (FILE* f = nullptr; fopen_s(&f, kDockPath.c_str(), "rb") == 0 && f) {
+            char buf[4096];
+            size_t n;
+            while ((n = fread(buf, 1, sizeof(buf), f)) > 0) text.append(buf, n);
+            fclose(f);
+        }
+        if (!text.empty()) {
+            const auto st = raduk::gui::dock::ParseDockState(text);
+            const int docked = dockWindow.Restore(st);
+            bool group = false;
+            if (HWND g = raduk::gui::panel_dock::HwndOf(st.groupFull); g && IsWindowVisible(g))
+                group = raduk::gui::panel_dock::EnterGroupFull(g);
+            Log("[DOCK] Restored from %s: %d panel(s) in the dock%s%s\n", kDockPath.c_str(), docked,
+                st.fullscreen && docked ? ", fullscreen" : "", group ? "; a group in fullscreen" : "");
+        }
+    }
     Log("[DOCK] %d panels snap to each other%s\n", raduk::gui::panel_dock::Count(),
         raduk::gui::panel_dock::Enabled() ? "" : " - OFF (PanelSnap=0 in rig.ini)");
     player.SetLog([](const std::string& s) { Log("%s\n", s.c_str()); });

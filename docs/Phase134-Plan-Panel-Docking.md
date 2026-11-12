@@ -440,3 +440,57 @@ Ctrl+Shift+Home gathers the dock but leaves docked panels in their slots.
 - Undock, and Shift-drag out;
 - close the dock: everything returns;
 - in night vision, the dock is red only.
+
+### 134.5, 2026-11-12: the dock and a fullscreen group are remembered
+
+**Order.** This stage was done before 134.4b. A dock forgotten on every
+start costs more in the field than having to dock by menu, and this stage
+is smaller and lower in risk. 134.4b is still to come.
+
+**Its own file, not `workspace.ini`.** The plan put a `docked=` token and a
+`[dock.N]` line in `workspace.ini`. That would not survive:
+`WorkspaceLayout::Save` reopens the file with `"w"` and rewrites it whole,
+and its loader keeps only `[monitors.N]` sections. Any line of ours would be
+erased by the next Ctrl+Shift+End. So the state goes in `dock.ini`, beside
+`workspace.ini`, resolved the same way and ignored by git the same way.
+
+**The format** (`dock::DockState`, `DockStateText`, `ParseDockState`) is
+key=value lines: `tree=` in the split-tree text form, `visible=`,
+`fullscreen=`, `rect=x,y,w,h` for the dock's normal rectangle, and
+`groupfull=` with one member's role. Comments, unknown keys, CRLF and a
+damaged value each cost only that one setting.
+
+**Saving.** Ctrl+Shift+End records the role of any group in fullscreen,
+restores it as 134.3 does, and saves `workspace.ini`. It then writes
+`dock.ini` and puts the group straight back into fullscreen, so saving never
+disturbs the view. The confirmation toast says whether the dock and the
+group were saved, and says so loudly if `dock.ini` could not be written.
+
+**Restoring at start.** This happens after the player, the last panel, is
+registered. `DockWindow::Restore`:
+1. parses the tree;
+2. prunes it, with `dock::PruneRoles`, to panels that are registered and
+   open, so a panel the operator closed stays closed;
+3. places the dock at its saved rectangle;
+4. adopts each panel and relays out;
+5. goes fullscreen if it was.
+
+A saved group fullscreen is then re-entered through its member's role. One
+`[DOCK]` log line says what came back. `Dock()` now shares `Adopt()` with
+`Restore()`, so a restored panel is set up exactly as a docked one.
+
+**Gated.** `tests/dock_geometry.cpp` section 7 checks that:
+- the text round-trips, including a rectangle at negative coordinates;
+- an empty file means no dock;
+- CRLF, comments, unknown keys and a damaged rectangle are handled;
+- a zero size or a fifth number is refused;
+- pruning collapses splits, pruning everything leaves no dock, and keeping
+  everything changes nothing.
+
+**Not seen.** Owner check on the rig:
+- dock three panels, drag a bar, press Ctrl+Shift+End and restart: the dock
+  comes back as it was;
+- the same with the dock fullscreen;
+- the same with a group in fullscreen;
+- close a docked panel and restart: it stays closed;
+- delete `dock.ini`: no dock appears.

@@ -782,8 +782,14 @@ to share the space differently. F11 on the dock, or on any panel in it,
 fills the monitor; press F11 again to return. To take a panel out, choose
 **Undock** from its title menu or **Shift-drag** it away. Closing the dock
 returns every panel to where it was. The dock snaps to other panels like a
-panel. For now the dock is not remembered between runs (phase 134.5), and
-dragging a panel onto the dock is a later stage (134.4b).
+panel. Dragging a panel onto the dock is a later stage (134.4b).
+
+**Ctrl+Shift+End remembers the dock too** (phase 134.5): which panels are
+in it, how the space is split, its size and place, and whether it was
+fullscreen. A group left in group fullscreen is remembered the same way.
+Both come back at the next start. A panel you closed before starting stays
+closed, and the dock lays out without it. This is kept in `dock.ini`, beside
+`workspace.ini`. Delete it to forget the dock.
 
 ### Why a window can be stuck
 

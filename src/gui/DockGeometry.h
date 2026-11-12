@@ -456,4 +456,87 @@ inline std::optional<Node> ParseText(const std::string& s) {
     return n;
 }
 
+// ── Phase 134.5: what the dock remembers ─────────────────────
+//
+// dock.ini, beside workspace.ini rather than in it: WorkspaceLayout::Save
+// rewrites that file whole and its loader keeps only [monitors.N], so a
+// section of ours would be erased by every Ctrl+Shift+End.
+
+struct DockState {
+    std::string tree;          // ToText form; empty for no dock
+    bool visible = false;
+    bool fullscreen = false;
+    bool hasRect = false;
+    Rect rect;                 // the dock's normal (not fullscreen) rectangle
+    std::string groupFull;     // a member of a group left in fullscreen, or ""
+};
+
+inline std::string DockStateText(const DockState& s) {
+    std::string o = "# RadukCapture dock window and group fullscreen (phase 134.5).\n"
+                    "# Written by Ctrl+Shift+End. Delete this file to forget the dock.\n";
+    o += "tree=" + s.tree + "\n";
+    o += std::string("visible=") + (s.visible ? "1" : "0") + "\n";
+    o += std::string("fullscreen=") + (s.fullscreen ? "1" : "0") + "\n";
+    if (s.hasRect)
+        o += "rect=" + std::to_string(s.rect.l) + "," + std::to_string(s.rect.t) + "," +
+             std::to_string(s.rect.w()) + "," + std::to_string(s.rect.h()) + "\n";
+    o += "groupfull=" + s.groupFull + "\n";
+    return o;
+}
+
+// Comments, unknown keys and malformed values are skipped; a damaged line
+// costs that one setting, never the rest.
+inline DockState ParseDockState(const std::string& text) {
+    DockState s;
+    size_t at = 0;
+    while (at < text.size()) {
+        size_t nl = text.find('\n', at);
+        if (nl == std::string::npos) nl = text.size();
+        std::string line = text.substr(at, nl - at);
+        at = nl + 1;
+        while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
+        if (line.empty() || line[0] == '#' || line[0] == ';') continue;
+        const size_t eq = line.find('=');
+        if (eq == std::string::npos) continue;
+        const std::string k = line.substr(0, eq), v = line.substr(eq + 1);
+        if (k == "tree") s.tree = v;
+        else if (k == "visible") s.visible = v == "1";
+        else if (k == "fullscreen") s.fullscreen = v == "1";
+        else if (k == "groupfull") s.groupFull = v;
+        else if (k == "rect") {
+            int n[4];
+            int got = 0;
+            const char* p = v.c_str();
+            while (got < 4) {
+                char* end = nullptr;
+                const long x = strtol(p, &end, 10);
+                if (end == p) break;
+                n[got++] = (int)x;
+                p = end;
+                if (*p == ',') ++p;
+                else break;
+            }
+            if (got == 4 && *p == '\0' && n[2] > 0 && n[3] > 0) {
+                s.rect = { n[0], n[1], n[0] + n[2], n[1] + n[3] };
+                s.hasRect = true;
+            }
+        }
+    }
+    return s;
+}
+
+// The tree without any panel not in `keep`: one renamed, missing, or
+// closed when the app started. Nothing left gives nullopt.
+inline std::optional<Node> PruneRoles(const Node& n, const std::vector<std::string>& keep) {
+    std::vector<std::string> roles;
+    Roles(n, roles);
+    std::optional<Node> t = n;
+    for (const std::string& r : roles) {
+        bool kept = false;
+        for (const std::string& k : keep) kept = kept || k == r;
+        if (!kept && t) t = Remove(*t, r);
+    }
+    return t;
+}
+
 } // namespace raduk::gui::dock

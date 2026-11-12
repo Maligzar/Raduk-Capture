@@ -359,6 +359,43 @@ struct RigConfig {
     std::string leobenUrl;
     std::string leobenToken;
 
+    // Phase 141.1, the PHEMU event recording. The time server the PC
+    // clock is checked against before and after an event (UDP 123), and
+    // the name IMCCE's observation sheet gives this site and telescope:
+    // no spaces, and a different name for a different telescope.
+    //   TimeServer=pool.ntp.org
+    //   PhemuSite=Home_8SE
+    std::string timeServer = "pool.ntp.org";
+    std::string phemuSite  = "RadukCapture_8SE";
+
+    // Phase 139. The focuser's backlash in steps: the knob's slack plus
+    // the mirror's shift, which autofocus's final approach and every
+    // one-sided move go past by. -1 (the default) uses the EAF's own
+    // setting, or 200 if that is 0; autofocus logs what each sweep
+    // measures ("Backlash measured on this sweep"), and once several
+    // agree, that figure belongs here. The EAF's own compensation is set
+    // to 0 while the app runs, so it is not applied twice, and put back
+    // on disconnect.
+    //   FocuserBacklashSteps=-1
+    // Phase 139.2: every focuser move ends travelling outward, so a step
+    // number is one focus position however it was reached. 0 turns it off.
+    //   FocuserOneSidedMoves=1
+    int  focuserBacklashSteps = -1;
+    bool focuserOneSidedMoves = true;
+
+    // Phase 137. The Great Red Spot's System II longitude, measured on a
+    // date, and its drift. Published figures disagree (Sky & Telescope
+    // assumed 91 on 2026-06-01, drifting +1.75 deg a month; Project Pluto
+    // about 16 deg a year), and each degree moves a transit 1.65 min, so
+    // set it from a recent ALPO, BAA or JUPOS measurement. The app warns
+    // when the date is more than 60 days old.
+    //   GrsLonSys2=91
+    //   GrsEpoch=2026-06-01
+    //   GrsDriftDegPerMonth=1.75
+    double      grsLonSys2 = 91.0;
+    std::string grsEpoch   = "2026-06-01";
+    double      grsDriftDegPerMonth = 1.75;
+
     // Singleton — loads rig.ini on first access
     static RigConfig& Get() {
         static RigConfig cfg = LoadFromDisk();
@@ -395,6 +432,11 @@ struct RigConfig {
         wf("AutorunMinAltDeg", autorunMinAltDeg);
         wf("AutorunSeeingPct", autorunSeeingPct);
         wf("AutorunSeeingHoldSec", autorunSeeingHoldSec);
+        wf("FocuserBacklashSteps", focuserBacklashSteps);
+        ws("FocuserOneSidedMoves", focuserOneSidedMoves ? "1" : "0");
+        wf("GrsLonSys2", grsLonSys2);
+        ws("GrsEpoch", grsEpoch);
+        wf("GrsDriftDegPerMonth", grsDriftDegPerMonth);
         wf("NeoMagLimit", neoMagLimit);
         wf("ApertureMm", apertureMm);
         ws("AutoStackOnStop", autoStackOnStop ? "1" : "0");
@@ -565,6 +607,12 @@ private:
         cfg.autorunMinAltDeg      = (float)rf("AutorunMinAltDeg", cfg.autorunMinAltDeg);
         cfg.autorunSeeingPct      = (int)rf("AutorunSeeingPct", cfg.autorunSeeingPct);
         cfg.autorunSeeingHoldSec  = (float)rf("AutorunSeeingHoldSec", cfg.autorunSeeingHoldSec);
+        cfg.focuserBacklashSteps  = (int)rf("FocuserBacklashSteps", cfg.focuserBacklashSteps);
+        if (cfg.focuserBacklashSteps < -1 || cfg.focuserBacklashSteps > 20000) cfg.focuserBacklashSteps = -1;
+        cfg.focuserOneSidedMoves  = rs("FocuserOneSidedMoves", cfg.focuserOneSidedMoves ? "1" : "0") == "1";
+        cfg.grsLonSys2            = rf("GrsLonSys2", cfg.grsLonSys2);
+        cfg.grsEpoch              = rs("GrsEpoch", cfg.grsEpoch);
+        cfg.grsDriftDegPerMonth   = rf("GrsDriftDegPerMonth", cfg.grsDriftDegPerMonth);
         cfg.neoMagLimit           = (float)rf("NeoMagLimit", cfg.neoMagLimit);
         cfg.apertureMm            = (float)rf("ApertureMm", cfg.apertureMm);
         cfg.autoStackOnStop       = rs("AutoStackOnStop", cfg.autoStackOnStop ? "1" : "0") == "1";
@@ -584,6 +632,10 @@ private:
         cfg.wsLanOpen   = rs("WsLanOpen", "0") == "1";
         cfg.leobenUrl   = rs("LeobenUrl", "");
         cfg.leobenToken = rs("LeobenToken", "");
+        cfg.timeServer  = rs("TimeServer", cfg.timeServer);
+        if (cfg.timeServer.empty()) cfg.timeServer = "pool.ntp.org";
+        cfg.phemuSite   = rs("PhemuSite", cfg.phemuSite);
+        if (cfg.phemuSite.empty()) cfg.phemuSite = "RadukCapture_8SE";
 
         // Sanity clamps — a corrupted INI must not produce absurd pulse
         // sizing or site math

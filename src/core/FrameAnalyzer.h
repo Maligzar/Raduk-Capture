@@ -11,6 +11,7 @@
 #endif
 
 #include "FrameSlot.h"
+#include "TargetMeter.h"   // phase 140.1
 #include <cstdint>
 #include <cstring>
 #include <cmath>
@@ -127,6 +128,18 @@ struct AnalysisResult {
     // is to blow the planet out entirely.
     static constexpr float HIGHLIGHT_PCTILE = 0.999f;
     float highlightDN = 0.0f;
+
+    // Phase 140.1: the TARGET's own highlight and clipping, which is what
+    // auto-exposure steers by. highlightDN above is the whole frame's,
+    // and on a planet smaller than 0.1% of the frame it is the sky's
+    // (TargetMeter.h has the evidence). targetFound is false when nothing
+    // stands clear of the sky; AE then holds and says so.
+    bool  targetFound       = false;
+    float targetHighlightDN = 0.0f;
+    float targetClipPct     = 0.0f;
+    float targetFramePct    = 0.0f;
+    float targetSkyDN       = 0.0f;   // the sky's median, 140.3's black point
+    std::string targetWhy;   // why no target, when not found
 
     // ── Sharpness / seeing ─────────────────────────────────────
     float sharpnessPct = 0.0f;   // Laplacian variance 0-100%

@@ -112,6 +112,9 @@ private:
     int                   m_height       = 0;
     int                   m_bitDepth     = 8;
     uint32_t              m_framesWritten = 0;
+    uint64_t              m_lastPatchUs   = 0;       // phase 135.2
+    bool                  m_patchedOnce   = false;
+    void                  PatchFrameCount();
     uint64_t              m_bytesWritten  = 0;
     FrameClock            m_clock;
     std::vector<int64_t>  m_timestamps;

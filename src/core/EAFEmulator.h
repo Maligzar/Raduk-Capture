@@ -19,6 +19,7 @@
 #include <mutex>
 #include <chrono>
 #include "IFocuser.h"
+#include "FocusDirection.h"
 
 namespace raduk::core {
 
@@ -46,6 +47,7 @@ public:
         // real night's log.
         m_position = 166500;
         m_target   = 166500;
+        m_optic    = 166500.0;
         m_isOpen   = true;
         m_moving   = false;
         // Start the motor simulation thread
@@ -69,12 +71,36 @@ public:
     bool MoveTo(int position) override {
         if (!m_isOpen) return false;
         position = std::clamp(position, 0, 600000);
+        return Leg(m_approach.Begin(m_position.load(), position));
+    }
+
+    bool MoveToDirect(int position) override {
+        if (!m_isOpen) return false;
+        position = std::clamp(position, 0, 600000);
+        m_approach.Direct(m_position.load(), position);
+        return Leg(position);
+    }
+
+    void SetApproachBacklash(int steps) override { m_approach.SetBacklash(steps); }
+    int  ApproachBacklash() const override       { return m_approach.Backlash(); }
+
+    // Phase 139: the knob's slack, simulated. The mirror (what the
+    // camera emulator focuses on) trails the step count by up to half of
+    // it either way, so the same step number reached from opposite
+    // directions is two focus positions, as the owner saw on the rig.
+    // 0 (the default) is a perfect focuser.
+    void SetSimulatedSlack(int steps) { m_slackHalf = (std::max)(0, steps) / 2; }
+    int  GetOpticalPosition() const   { return (int)std::lround(m_optic.load()); }
+
+private:
+    bool Leg(int position) {
         std::lock_guard<std::mutex> lk(m_mutex);
         m_target = position;
         m_moving = (m_target != m_position.load());
         printf("[EAFEmulator] MoveTo %d (from %d)\n", position, m_position.load());
         return true;
     }
+public:
 
     bool MoveRelative(int steps) override {
         if (!m_isOpen) return false;
@@ -84,6 +110,7 @@ public:
 
     bool Stop() override {
         if (!m_isOpen) return false;
+        m_approach.Cancel();
         std::lock_guard<std::mutex> lk(m_mutex);
         m_target = m_position.load();  // Cancel move — target = current
         m_moving = false;
@@ -92,7 +119,12 @@ public:
     }
 
     bool IsMoving() const override {
-        return m_moving.load();
+        if (m_moving.load()) return true;
+        // Phase 139.2: the first leg is done; command the second.
+        const int next = m_approach.NextLeg(m_position.load());
+        if (next < 0) return false;
+        const_cast<EAFFocuser*>(this)->Leg(next);
+        return true;
     }
 
     int GetPosition() const override {
@@ -112,6 +144,7 @@ public:
         m_backlash = steps;
         printf("[EAFEmulator] Backlash: %d steps\n", steps);
     }
+    int GetBacklash() const override { return m_backlash; }
 
     // ── Temperature ────────────────────────────────────────────
 
@@ -138,6 +171,9 @@ private:
                     int step = std::min(std::abs(delta), STEPS_PER_TICK);
                     if (delta < 0) step = -step;
                     m_position.store(pos + step);
+                    const double p = pos + step, o = m_optic.load();
+                    if (p > o + m_slackHalf) m_optic.store(p - m_slackHalf);
+                    if (p < o - m_slackHalf) m_optic.store(p + m_slackHalf);
                     m_moving = (m_position.load() != m_target);
                 } else {
                     m_moving = false;
@@ -154,6 +190,9 @@ private:
     std::atomic<bool>   m_moving{false};
     bool                m_reversed = false;
     int                 m_backlash = 0;
+    mutable ApproachSequencer m_approach;
+    std::atomic<double> m_optic{166500.0};
+    int                 m_slackHalf = 0;
     std::mutex          m_mutex;
     std::thread         m_motorThread;
     std::atomic<int>    m_tempTick{0};

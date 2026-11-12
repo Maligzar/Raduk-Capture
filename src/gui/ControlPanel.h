@@ -340,6 +340,19 @@ public:
             InvalidateRect(m_btnAutofocus, nullptr, TRUE);
         }
     }
+    // Phase 139.3: whether autofocus can work on what is in the frame. The
+    // button says NOT NOW and the status line says why, while autofocus
+    // is idle; a running sweep's own messages are left alone.
+    void SetAutofocusReady(bool ready, const std::wstring& why) {
+        if (m_afRunning) return;
+        if (ready == m_afReady && why == m_afReadyWhy) return;
+        m_afReady = ready; m_afReadyWhy = why;
+        if (m_btnAutofocus) {
+            SetWindowTextW(m_btnAutofocus, ready ? L"\u2605  AUTO FOCUS" : L"AUTO FOCUS: NOT NOW");
+            InvalidateRect(m_btnAutofocus, nullptr, TRUE);
+        }
+        SetAutofocusStatus(ready ? L"Ready to focus" : (L"Not now: " + why).c_str());
+    }
     void SetAutofocusStatus(const wchar_t* msg) {
         m_afStatusMsg = msg ? msg : L"";
         raduk::core::ProbeW("[STATUS]", m_afStatusMsg);
@@ -579,6 +592,8 @@ private:
     int  m_jogRate      = 9;
     std::function<void(int)> m_onJogRateChange;
     bool m_afRunning    = false;
+    bool m_afReady      = true;           // phase 139.3
+    std::wstring m_afReadyWhy;
     bool m_gateActive   = false;       // true = gate is holding (waiting for good seeing)
     std::wstring m_afStatusMsg;
     std::wstring m_lastGoToStatus;

@@ -28,6 +28,7 @@ $Tests = @(
     @{ Name = "write_buffer_sizing"; Sources = @() }
     @{ Name = "sky_conditions";     Sources = @() }
     @{ Name = "capture_thread_submit"; Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
+    @{ Name = "capture_write_fail"; Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "ai_context_facts";   Sources = @() }
     @{ Name = "object_knowledge";   Sources = @() }
     @{ Name = "object_panel_text"; Sources = @() }
@@ -45,6 +46,17 @@ $Tests = @(
     @{ Name = "dashboard_launch";  Sources = @() }
     @{ Name = "dock_geometry";     Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
+    @{ Name = "mutual_events";     Sources = @() }
+    @{ Name = "sntp_offset";       Sources = @() }
+    @{ Name = "phemu_sheet";       Sources = @() }
+    @{ Name = "moon_photometry";   Sources = @() }
+    @{ Name = "target_meter";      Sources = @() }
+    @{ Name = "exposure_band";     Sources = @() }
+    @{ Name = "display_stretch";   Sources = @() }
+    @{ Name = "af_direction_fit";  Sources = @() }
+    @{ Name = "af_readiness";      Sources = @() }
+    @{ Name = "jupiter_events";    Sources = @() }
+    @{ Name = "omm_elements";      Sources = @() }
     @{ Name = "ser_timestamp_midpoint"; Sources = @() }
     @{ Name = "paths_resolution"; Sources = @() }
     @{ Name = "ascom_driver_choice"; Sources = @() }
@@ -74,6 +86,7 @@ $Tests = @(
     @{ Name = "full_frame_lock";  Sources = @("src\core\FrameAnalyzer.cpp") }
     @{ Name = "target_finder";    Sources = @() }
     @{ Name = "rate_guide";       Sources = @() }
+    @{ Name = "tracking_emulator"; Sources = @() }
     @{ Name = "autofocus_saturn"; Sources = @() }
     @{ Name = "focus_metric";     Sources = @() }
     @{ Name = "neo_list";         Sources = @() }
@@ -95,6 +108,7 @@ $Tests = @(
     @{ Name = "seeing_monitor";  Sources = @() }
     @{ Name = "fits_writer";     Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "capture_writer";  Sources = @("src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
+    @{ Name = "capture_header_live"; Sources = @("src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "shot_diff";       Sources = @() }
     @{ Name = "web_theme";       Sources = @() }
     @{ Name = "night_coverage";  Sources = @() }

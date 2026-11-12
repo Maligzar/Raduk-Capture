@@ -17,9 +17,9 @@
 //     arcsec/px) from the measured response instead of assuming the
 //     camera orientation, plate scale, or guide rate.  On success
 //     auto-advances to CENTERING; on failure returns to SEARCHING.
-//     A previous calibration younger than CAL_STALE_MIN is reused
-//     (alt-az field rotation slowly invalidates the transform, so
-//     calibration deliberately does NOT persist across sessions).
+//     Every LOCK calibrates afresh (2026-11-12): the calibration is
+//     what takes the axes from the hand control and measures the
+//     tracking rates, which change with every GoTo.
 //
 //   Stage 2 — CENTERING
 //     Slow corrections pull planet toward centre using the measured
@@ -205,7 +205,6 @@ public:
     // weaker axis must be at least this fraction of the stronger: refused
     // above about altitude 78.
     static constexpr float CAL_MIN_AXIS_RATIO  = 0.20f;
-    static constexpr int   CAL_STALE_MIN       = 15;    // alt-az field rotation ages it out
     // Nominal on-sky guide rate behind PulseGuide (NexStar rate 1 ≈ 0.5x
     // sidereal). Only feeds the cosmetic arcsec/px estimate. Overridden by
     // RigConfig (Phase 55) at calibration time.
@@ -268,10 +267,14 @@ public:
 
     void StartSearching();
 
-    // LOCK: only callable once IsStable() is true. Runs calibration first
-    // (Phase 51) unless a fresh calibration already exists, in which case
-    // it advances straight to Centering.
+    // LOCK: only callable once IsStable() is true. Always calibrates;
+    // calibration takes the axes and advances to Centering itself.
     void StartCalibration();
+    // Something else is about to command the mount (a GoTo, from any
+    // thread): stop correcting, hand tracking back to the hand control
+    // before the command is sent, and let the main thread reset on its
+    // next Tick. Thread-safe; does not join the correction thread.
+    void YieldMount(const char* why);
 
     // Direct entry to Centering — only valid with a measured calibration.
     // (The Calibrating stage transitions here itself on success.)
@@ -450,6 +453,9 @@ private:
     float  m_integAs[2]     = { 0.0f, 0.0f };   // integral correction, "/s
     // True while this app has taken the axes from the hand control.
     std::atomic<bool> m_appDriving{false};
+    // Held while a rate command is sent or tracking is handed back, so no
+    // rate command can follow a hand-back.
+    std::mutex        m_driveMx;
     int    m_prevTrackMode = 0;
     std::string      m_calMessage;
 

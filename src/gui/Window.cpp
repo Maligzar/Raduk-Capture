@@ -505,6 +505,12 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (shift) { if (firstPress && m_onOpenLast) m_onOpenLast(); }
             else if (firstPress && m_onStackLast) m_onStackLast();
             return true;
+        case 'J':   // Jupiter's moons: the coming mutual events (phase 141.0)
+            // Shift+J records the next one (phase 141.1): it starts a
+            // recording, so the palette guards it.
+            if (shift) { if (firstPress && m_onMutualRecord) m_onMutualRecord(); }
+            else if (firstPress && m_onMutualEvents) m_onMutualEvents();
+            return true;
         case 'N':
             if (firstPress && m_onNightVision) m_onNightVision();
             return true;
@@ -512,7 +518,9 @@ bool Window::HandleKeyDown(WPARAM wParam, LPARAM lParam) {
             if (firstPress && m_onAdvisoryToggle) m_onAdvisoryToggle();
             return true;
         case 'L':   // Levels -- Phase 37 display stretch on/off
-            if (firstPress && m_onStretchToggle) m_onStretchToggle();
+            // Shift+L: the stretch chosen from the target (phase 140.3).
+            if (shift) { if (firstPress && m_onAutoStretchToggle) m_onAutoStretchToggle(); }
+            else if (firstPress && m_onStretchToggle) m_onStretchToggle();
             return true;
         case 'H':
             // Shift+H opens the histogram window. On the channel key

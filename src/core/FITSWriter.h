@@ -64,6 +64,9 @@ private:
     std::string           m_path;
     size_t                m_frameBytes    = 0;
     uint32_t              m_framesWritten = 0;
+    uint64_t              m_lastPatchUs   = 0;       // phase 135.2
+    bool                  m_patchedOnce   = false;
+    void                  PatchHeader();
     ObservationRecord     m_record;
     FrameClock            m_clock;
     std::vector<int64_t>  m_timestamps;

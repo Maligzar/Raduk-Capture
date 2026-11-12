@@ -27,6 +27,15 @@ namespace raduk::core {
 constexpr const char* kCaptureInstrument = "ZWO ASI678MC";
 constexpr const char* kCaptureTelescope  = "Celestron 8SE";
 
+// Phase 135.2: the header's frame count is brought up to date on disk
+// once a second during a run, by the frames' own timestamps (no extra
+// clock reads), so a crash or a power cut leaves a file whose header
+// counts its frames, not 0. Microseconds.
+inline constexpr uint64_t kHeaderPatchIntervalUs = 1000000;
+inline bool HeaderPatchDue(uint64_t lastUs, uint64_t nowUs, bool never) {
+    return never || nowUs < lastUs || nowUs - lastUs >= kHeaderPatchIntervalUs;
+}
+
 // The sky figures for the observation record (phase 48).
 // valid=false when nothing was noted -- no mount, or a run too short
 // for a readout tick.

@@ -77,7 +77,10 @@ public:
         float targetHi  = 215.0f;  // 84% of 255
 
         // Clip threshold — emergency cut if any channel clips this %
-        float clipEmergency = 1.5f;  // > 1.5% clipping = cut exposure
+        // Phase 140.1: a share of the TARGET's pixels (main.cpp feeds
+        // AnalysisResult::targetClipPct). It was a share of the whole frame,
+        // which no planet at this scale can reach, so it never fired.
+        float clipEmergency = 1.5f;  // > 1.5% of the target clipping = cut exposure
 
         // Exposure limits (milliseconds)
         double expMinMs = 0.5;

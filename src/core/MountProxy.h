@@ -40,6 +40,7 @@
 // ============================================================
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -114,8 +115,17 @@ public:
         return b ? b->GetAltAz(altDegrees, azDegrees) : false;
     }
 
+    // Called before every GoTo is sent, from whichever thread sends it.
+    // The centroid tracker hangs off this (2026-11-12): while it guides
+    // it holds the axes with the hand control's tracking off, and a GoTo
+    // sent under it raced its rate commands. One place, so the GoTo
+    // panel, the sky maps, the mosaic and the survey are all covered.
+    // Set once at startup, before any GoTo.
+    void SetBeforeGoTo(std::function<void()> f) { m_beforeGoTo = std::move(f); }
+
     bool GoToRADec(double raHours, double decDegrees) override {
         IMount* b = Backend();
+        if (b && m_beforeGoTo) m_beforeGoTo();
         return b ? b->GoToRADec(raHours, decDegrees) : false;
     }
     bool IsSlewing() override {
@@ -219,6 +229,7 @@ private:
     // elements do not move their pointees when the vector grows.
     mutable std::mutex   m_swapMutex;
     std::vector<std::unique_ptr<IMount>> m_owned;
+    std::function<void()> m_beforeGoTo;
     const std::string    m_noId;
 };
 

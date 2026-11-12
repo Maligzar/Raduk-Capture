@@ -1031,6 +1031,16 @@ void PreviewRenderer::RenderFrame(const raduk::core::FrameSlot* frame,
                                      m_hudFont, rgbRect, m_amberBrush);
         }
 
+        // Phase 140.3: any stretch changes what the eye sees and nothing
+        // that is recorded, and the view must say so, or a brightened dim
+        // planet reads as a well exposed one.
+        if (StretchActive() && m_amberBrush) {
+            const wchar_t* st = m_stretchAuto ? L"DISPLAY STRETCHED (AUTO)" : L"DISPLAY STRETCHED";
+            D2D1_RECT_F stRect = D2D1::RectF(px+pw-220, 106, px+pw-8, 120);
+            m_hudFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+            m_renderTarget->DrawText(st, (UINT32)wcslen(st), m_hudFont, stRect, m_amberBrush);
+        }
+
         // FX mode HUD — shown when not Normal
         if (m_displayFX != DisplayFX::Normal && m_amberBrush) {
             const wchar_t* fxLbl = DisplayFXLabel();

@@ -936,6 +936,11 @@ private:
         }
         std::vector<int> pos;
         std::vector<float> sc;
+        std::vector<double> tAt;   // seconds into the pass, for 145.5
+        const auto t0 = std::chrono::steady_clock::now();
+        auto since = [&] {
+            return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        };
         for (size_t k = 0; k < pts.size(); ++k) {
             if (m_abortFlag.load()) return -1;
             char st[64];
@@ -943,23 +948,43 @@ private:
             SetStatus(st);
             m_focuser->MoveToDirect(pts[k]);
             if (!WaitForMove()) return -1;
-            Sleep(m_params.settleMs);
-            { std::lock_guard<std::mutex> lk(m_fastMutex); m_fastScores.clear(); }
-            m_fastNeeded.store(m_params.fineFrames);
-            WaitForFast(m_params.fineFrames, (std::max)(6000, m_params.fineFrames * 250));
-            m_fastNeeded.store(0);
-            std::vector<float> got;
-            { std::lock_guard<std::mutex> lk(m_fastMutex); got = m_fastScores; }
-            const float p = ScorePercentile(got, m_params.finePercentile);
+            int got = 0;
+            const float p = ScoreHere(&got);
             Emit("[AF] Fine %d/%d  pos=%d  edge=%.4f  (%d frames)\n", (int)k + 1, (int)pts.size(),
-                 pts[k], p, (int)got.size());
-            if ((int)got.size() < (std::max)(3, m_params.fineFrames / 2)) {
+                 pts[k], p, got);
+            if (got < (std::max)(3, m_params.fineFrames / 2)) {
                 Emit("[AF] Fine pass: too few frames scored at pos=%d (is the target in the frame?)\n",
                      pts[k]);
                 return -1;
             }
             pos.push_back(pts[k]);
             sc.push_back(p);
+            tAt.push_back(since());
+        }
+
+        // Phase 145.5: the centre again, approached the final way, to see
+        // whether the light moved while the pass went one way across.
+        {
+            const size_t c = pts.size() / 2;
+            if (!DriveFinal(pts[c]) || m_abortFlag.load()) return -1;
+            int got = 0;
+            const float again = ScoreHere(&got);
+            const double tEnd = since();
+            const float ratio = (got >= (std::max)(3, m_params.fineFrames / 2)) ? FadeRatio(sc[c], again) : 1.0f;
+            switch (FadeVerdict(ratio)) {
+            case FadeAction::None:
+                Emit("[AF] Fine pass fade check: centre %.4f then %.4f (x%.2f), steady\n", sc[c], again, ratio);
+                break;
+            case FadeAction::Correct:
+                Emit("[AF] Fine pass fade: centre %.4f then %.4f (x%.2f) over %.0f s; scores corrected "
+                     "for a linear change\n", sc[c], again, ratio, tEnd - tAt[c]);
+                sc = FadeCorrect(sc, tAt, ratio, tAt[c], tEnd);
+                break;
+            case FadeAction::GiveUp:
+                Emit("[AF] Fine pass fade: centre %.4f then %.4f (x%.2f); too much changed to fit, "
+                     "giving the fine pass up\n", sc[c], again, ratio);
+                return -1;
+            }
         }
         if (dir < 0) { std::reverse(pos.begin(), pos.end()); std::reverse(sc.begin(), sc.end()); }
         const CurvePeak c = PeakWindow3(pos, sc);
@@ -980,6 +1005,10 @@ private:
     void RunFineOnly() {
         Emit("[AF] The target fills the frame: edge metric only, %d steps round %d\n",
              m_params.fineOnlySpan, m_startPosition);
+        // Phase 145.5: the start's score, for the check at the end.
+        int nStart = 0;
+        const float startScore = ScoreHere(&nStart);
+        Emit("[AF] Start pos=%d  edge=%.4f  (%d frames)\n", m_startPosition, startScore, nStart);
         float best = 0.0f;
         int endBest = -1;
         int fine = FineSweep(m_startPosition, m_params.fineOnlySpan, &best, &endBest);
@@ -1001,18 +1030,67 @@ private:
         }
         m_state.store(AFState::Moving);
         SetStatus("Moving to best focus...");
+        DriveFinal(fine);
+        int nFinal = 0;
+        const float finalScore = ScoreHere(&nFinal);
+        Emit("[AF] Fit pos=%d  edge=%.4f  (start %.4f)\n", fine, finalScore, startScore);
+
+        // Phase 145.5: the planet path's rule. Worse than 0.8x the start:
+        // measure the start again under the same sky; only if it is really
+        // better is the fit wrong, otherwise the sky changed.
+        if (startScore > 0.0f && nFinal > 0 && finalScore < 0.8f * startScore) {
+            DriveFinal(m_startPosition);
+            int nNow = 0;
+            const float startNow = ScoreHere(&nNow);
+            Emit("[AF] Re-measured start pos=%d now: %.4f (was %.4f); fit pos=%d: %.4f\n",
+                 m_startPosition, startNow, startScore, fine, finalScore);
+            if (nNow > 0 && finalScore < startNow * 0.95f) {
+                char msg[160];
+                sprintf_s(msg, "focus got worse on the surface (%.3f -> %.3f) - returned to the start",
+                          startNow, finalScore);
+                m_bestPosition.store(m_startPosition);
+                m_bestSharpness.store(startNow);
+                Finish(false, m_startPosition, startNow, startNow, msg);
+                return;
+            }
+            Emit("[AF] The sky changed, not the focus: keeping pos=%d\n", fine);
+            DriveFinal(fine);
+            m_bestPosition.store(fine);
+            m_bestSharpness.store(finalScore);
+            Finish(true, fine, finalScore, startNow,
+                   "edge metric only (the target fills the frame); the sky changed during it");
+            return;
+        }
+        m_bestPosition.store(fine);
+        m_bestSharpness.store(finalScore > 0.0f ? finalScore : best);
+        Finish(true, fine, finalScore > 0.0f ? finalScore : best, startScore,
+               "edge metric only (the target fills the frame)");
+    }
+
+    // Phase 145.5: settle, then the edge metric's percentile here.
+    float ScoreHere(int* n) {
+        Sleep(m_params.settleMs);
+        { std::lock_guard<std::mutex> lk(m_fastMutex); m_fastScores.clear(); }
+        m_fastNeeded.store(m_params.fineFrames);
+        WaitForFast(m_params.fineFrames, (std::max)(6000, m_params.fineFrames * 250));
+        m_fastNeeded.store(0);
+        std::vector<float> got;
+        { std::lock_guard<std::mutex> lk(m_fastMutex); got = m_fastScores; }
+        if (n) *n = (int)got.size();
+        return ScorePercentile(got, m_params.finePercentile);
+    }
+
+    // To `to`, the last travel the final way with the slack taken up.
+    bool DriveFinal(int to) {
         const int dir = m_params.finalDir < 0 ? -1 : 1;
         if (m_params.backlash > 0) {
-            int from = fine - dir * m_params.backlash;
+            int from = to - dir * m_params.backlash;
             from = (std::max)(m_params.minStepBound, (std::min)(m_params.maxStepBound, from));
             m_focuser->MoveToDirect(from);
-            WaitForMove();
+            if (!WaitForMove()) return false;
         }
-        m_focuser->MoveToDirect(fine);
-        WaitForMove();
-        m_bestPosition.store(fine);
-        m_bestSharpness.store(best);
-        Finish(true, fine, best, 0.0f, "edge metric only (the target fills the frame)");
+        m_focuser->MoveToDirect(to);
+        return WaitForMove();
     }
 
     bool WaitForFast(int count, int timeoutMs) {

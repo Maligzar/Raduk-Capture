@@ -1532,7 +1532,11 @@ percentile, which is the focus as it looks in the steadier moments, and each
 point is approached the final way. If the best point lands at an end, it
 sweeps once more centred there. If anything goes wrong, the coarse result
 stands. **On the Moon**, or anything else that fills the frame, there is no
-disc, so the fine pass runs on its own round where the focuser is.
+disc, so the fine pass runs on its own round where the focuser is. The fine pass reads its centre point again at the
+end (phase 145.5): if the light changed by 10% to 40% while it swept (dew,
+haze), the scores are corrected for it, and beyond 40% the coarse result
+stands. On the Moon it scores the start first and returns there if the
+result is really worse.
 `AutofocusFineStage=0` in rig.ini turns the fine pass off.
 
 **Every focuser move ends travelling one way**, by at least the backlash
@@ -3031,6 +3035,7 @@ order.
 | 3.2.1 | 144.1 | A Jupiter run's observation record (`jupiter_disc`) and FITS header (`JUPDISC`) say what was on the disc as it started: the Red Spot near the meridian, moons and shadows crossing |
 | 3.2.1 | B1 | The object panel (Shift+I) on a star no longer paints its description across the field diagram: the text goes beside the diagram or below it, whichever fits larger, and a long line under the figures keeps its second row |
 | 3.3.0 | 145 | Autofocus in two stages: the coarse sweep on the half-flux diameter, then a fine pass on edge contrast (20 frames a point, the 75th percentile) that sharpens a big disc's focus and can focus on the Moon; `FocuserFinalDirection` sets which way every move ends, so the last travel can push the mirror against gravity |
+| 3.3.0 | 145.5 | The fine pass reads its centre point again at the end: a target that dimmed or brightened while it swept is corrected for, and one that changed by more than 40% keeps the coarse result. On the Moon, autofocus compares the result with where it started and goes back if the start was really better |
 
 ---
 

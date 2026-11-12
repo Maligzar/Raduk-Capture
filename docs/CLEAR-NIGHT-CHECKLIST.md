@@ -1319,4 +1319,6 @@ the bench already showed, so the night only has to confirm it. The plan is
     fall once. On the Moon (the frame filled), autofocus should run the fine
     pass alone and land visibly sharp on crater rims. Note how far the
     focus drifts over 30 minutes with the final travel set each way; a
-    drift that is smaller one way confirms the setting.
+    drift that is smaller one way confirms the setting. Note the
+    `[AF] Fine pass fade check` line: a ratio far from 1 on a clear, steady
+    night means the target was not steady in the frame, not a fade.

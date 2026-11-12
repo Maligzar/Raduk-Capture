@@ -18,6 +18,7 @@
 #include "core/AutofocusRoutine.h"
 
 #include <atomic>
+#include <cstring>
 #include <cmath>
 #include <cstdio>
 #include <random>
@@ -67,7 +68,10 @@ struct RunOpts {
     bool flat = false;       // the Jupiter-like flat-topped coarse score
     bool fineOnly = false;   // the Moon: no coarse sweep
     int  dir = 1;            // FocuserFinalDirection
+    double edgeFadePerSec = 0.0;   // a fade the edge scores alone see (the fine pass)
 };
+
+static std::atomic<int> g_fadeCorrected{0};
 
 // slack > 0: the knob's slack (phase 139). The score follows the MIRROR,
 // and the result is where the mirror ends up, which is what the image
@@ -88,7 +92,10 @@ static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0
     p.fineStage = o.fine;
     p.finalDir = o.dir;
     af.SetParams(p);
-    af.SetLogger([](const char* s) { if (getenv("AFLOG")) std::printf("%s", s); });
+    af.SetLogger([](const char* s) {
+        if (std::strstr(s, "scores corrected")) g_fadeCorrected.fetch_add(1);
+        if (getenv("AFLOG")) std::printf("%s", s);
+    });
     std::atomic<bool> done{false};
     AFResult res;
     af.SetOnComplete([&](AFResult r) { res = r; done.store(true); });
@@ -108,7 +115,8 @@ static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0
             af.SubmitSharpness((o.flat ? FlatScore(opt, rng) : Score(opt, rng, capped)) * fade, true, 120);
             for (int k = 0; k < 3; ++k) {   // the edge metric arrives faster
                 if (o.feedEdge && af.WantsFastScores())
-                    af.SubmitFastScore(EdgeScore(f.GetOpticalPosition(), rngE) * fade);
+                    af.SubmitFastScore(EdgeScore(f.GetOpticalPosition(), rngE) * fade *
+                                       (float)std::exp(-o.edgeFadePerSec * el));
                 std::this_thread::sleep_for(std::chrono::milliseconds(5));
             }
         }
@@ -221,6 +229,48 @@ int main() {
         const int end = Run(c.start, false, m, 0.0, 400, nullptr, o);
         std::printf("   %-15s from %d: mirror ended %+d from focus %s\n", c.name, c.start, end - kFocus, m.c_str());
         CHECK(std::abs(end - kFocus) <= 200, "%s inward: mirror ended %+d from focus", c.name, end - kFocus);
+    }
+
+    // ── Phase 145.5 ──────────────────────────────────────────
+    std::printf("9. the target fades through both stages (2%% a second)\n");
+    {
+        RunOpts o; o.flat = true;
+        std::string m;
+        int worst = 0;
+        for (int st : { kFocus + 900, kFocus - 2500 }) {
+            const int end = Run(st, false, m, 0.02, 0, nullptr, o);
+            std::printf("   from %d ended %+d from focus %s\n", st, end - kFocus, m.c_str());
+            worst = (std::max)(worst, std::abs(end - kFocus));
+        }
+        CHECK(worst <= 150, "fading through the fine pass: worst %d steps from focus", worst);
+    }
+    std::printf("9b. a fade the fine pass itself sees: 6%% a second on the edge scores\n");
+    {
+        RunOpts o; o.flat = true; o.edgeFadePerSec = 0.06;
+        std::string m;
+        int worst = 0;
+        g_fadeCorrected.store(0);
+        for (int st : { kFocus + 900, kFocus - 2500 }) {
+            const int end = Run(st, false, m, 0.0, 0, nullptr, o);
+            std::printf("   from %d ended %+d from focus %s\n", st, end - kFocus, m.c_str());
+            worst = (std::max)(worst, std::abs(end - kFocus));
+        }
+        std::printf("   fine passes corrected for a fade: %d\n", g_fadeCorrected.load());
+        CHECK(g_fadeCorrected.load() >= 1, "the fade was never seen and corrected");
+        CHECK(worst <= 150, "a fade inside the fine pass: worst %d steps from focus", worst);
+    }
+
+    std::printf("10. the Moon from 3000 steps off, beyond the fine span\n");
+    {
+        RunOpts o; o.fineOnly = true;
+        std::string m;
+        const int st = kFocus + 3000;
+        const int end = Run(st, false, m, 0.0, 0, nullptr, o);
+        std::printf("   from %d ended %+d from focus %s\n", st, end - kFocus, m.c_str());
+        CHECK(std::abs(end - kFocus) <= std::abs(st - kFocus),
+              "it never ends further from focus than it began (%+d)", end - kFocus);
+        CHECK(std::abs(end - kFocus) <= 150 || !m.empty(),
+              "either it focused, or it said why not (%+d, '%s')", end - kFocus, m.c_str());
     }
 
     if (g_fail) { std::printf("autofocus_saturn: %d FAILED\n", g_fail); return 1; }

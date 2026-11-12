@@ -232,6 +232,44 @@ inline std::vector<int> FineSweepPositions(int center, int span, int points, int
     return out;
 }
 
+// ── Phase 145.5: a fade during the fine pass ────────────────────
+//
+// The fine pass visits its points one way only, so a target dimming as
+// it goes (dew, haze: 2026-11-08) lowers the later points and pulls the
+// fit toward the first. The coarse sweep cancels that by averaging out
+// and back; the fine pass instead scores its centre point again at the
+// end, and the ratio of the two readings says how much the light moved.
+
+// Second centre reading over the first; 1 when either is missing.
+inline float FadeRatio(float firstCentre, float againCentre) {
+    if (!(firstCentre > 0.0f) || !(againCentre > 0.0f)) return 1.0f;
+    return againCentre / firstCentre;
+}
+
+enum class FadeAction { None, Correct, GiveUp };
+
+// Within 10%: seeing alone does that. Under 60%: too much changed to fit.
+inline FadeAction FadeVerdict(float ratio) {
+    if (ratio >= 0.9f && ratio <= 1.0f / 0.9f) return FadeAction::None;
+    if (ratio >= 0.6f && ratio <= 1.0f / 0.6f) return FadeAction::Correct;
+    return FadeAction::GiveUp;
+}
+
+// Undo a fade taken as linear in time. The centre was read at tFirst and
+// again at tEnd, `ratio` apart, so the light at time t relative to tFirst
+// is 1 + (ratio - 1) * (t - tFirst) / (tEnd - tFirst); every score is
+// brought to the light at tFirst.
+inline std::vector<float> FadeCorrect(const std::vector<float>& score, const std::vector<double>& t,
+                                      float ratio, double tFirst, double tEnd) {
+    std::vector<float> out(score);
+    if (!(tEnd > tFirst)) return out;
+    for (size_t i = 0; i < out.size() && i < t.size(); ++i) {
+        const double f = 1.0 + ((double)ratio - 1.0) * (t[i] - tFirst) / (tEnd - tFirst);
+        if (f > 0.05) out[i] = (float)(out[i] / f);
+    }
+    return out;
+}
+
 // Which backlash figure to use until the sky measures one. rigSteps < 0
 // means rig.ini does not set it.
 inline int ResolveBacklash(int rigSteps, int firmwareSteps, const char** source) {

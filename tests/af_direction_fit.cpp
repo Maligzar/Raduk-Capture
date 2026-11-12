@@ -153,6 +153,38 @@ int main() {
               "switching back to outward forgets the slack: two legs");
     }
 
+    printf("\n3c. Phase 145.5: a fade during the fine pass\n");
+    {
+        // Seven points visited in rising order at t = 0..6, the centre read
+        // again at t = 7; the light falls 20% linearly over that time.
+        std::vector<int> pos;
+        std::vector<float> faded;
+        std::vector<double> t;
+        auto curve = [](int p) { const double d = (p - 300) / 180.0; return 10.0 + 60.0 / (1.0 + d * d); };
+        auto light = [](double tt) { return 1.0 - 0.2 * tt / 7.0; };
+        for (int k = 0; k < 7; ++k) {
+            pos.push_back(k * 100);
+            t.push_back(k);
+            faded.push_back((float)(curve(k * 100) * light(k)));
+        }
+        // The centre is first read at t = 3, again at t = 7.
+        const float ratio = FadeRatio(faded[3], (float)(curve(300) * light(7)));
+        Check(std::fabs(ratio - (float)(light(7) / light(3))) < 1e-4f,
+              "the centre read again gives the fade since its first reading", F(ratio * 1000.0) + " per mille");
+        const CurvePeak raw = PeakWindow3(pos, faded);
+        const CurvePeak fixd = PeakWindow3(pos, FadeCorrect(faded, t, ratio, 3.0, 7.0));
+        Check(raw.ok && raw.pos < 300 - 4, "uncorrected, the peak is pulled toward the first points", F(raw.pos));
+        Check(fixd.ok && std::fabs(fixd.pos - 300) <= 0.5 && std::fabs(fixd.pos - 300) < std::fabs(raw.pos - 300) / 3,
+              "corrected, it is back on the peak", F(fixd.pos));
+        Check(FadeVerdict(0.95f) == FadeAction::None && FadeVerdict(1.05f) == FadeAction::None,
+              "within 10%: left alone");
+        Check(FadeVerdict(0.8f) == FadeAction::Correct && FadeVerdict(1.3f) == FadeAction::Correct,
+              "10% to 40%: corrected");
+        Check(FadeVerdict(0.5f) == FadeAction::GiveUp && FadeVerdict(2.0f) == FadeAction::GiveUp,
+              "beyond 40%: the fine pass is given up");
+        Check(FadeRatio(0.0f, 5.0f) == 1.0f, "a missing reading is no fade");
+    }
+
     printf("\n4. Which figure\n");
     const char* s1 = ""; const char* s2 = ""; const char* s3 = "";
     const int r1 = ResolveBacklash(350, 80, &s1);

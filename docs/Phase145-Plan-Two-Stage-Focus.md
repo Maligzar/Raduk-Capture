@@ -40,8 +40,19 @@ The owner asked for this on 2026-11-12, after sharing advice on planetary focus 
 - **The "typical" backlash of 80 to 180 steps.** Not verified. Clear-night item 47 measures it.
 - **SML.** A thresholded second derivative is the family that failed on 2026-11-07 (inferred). The bench comparison used Tenengrad only.
 
+## 145.5 (3.3.0, in the same PR): fades, and the Moon's final check
+- The fine pass reads its centre point again at the end, approached the final way. The ratio of the two readings (`FadeRatio`) decides (`FadeVerdict`):
+  - within 10%: nothing;
+  - 10% to 40%: the scores are brought to the light at the first centre reading, taking the change as linear in time (`FadeCorrect`);
+  - beyond 40%: the fine pass is given up and the coarse result stands.
+- The Moon path scores its start first. If the result is under 0.8× that, it measures the start again and returns there only if the start is really better, the planet path's rule.
+- Gated by `tests/af_direction_fit.cpp` 3c (a 20% fade pulls the uncorrected peak 6 steps toward the first points, and the correction puts it back on the peak) and by `tests/autofocus_saturn.cpp`:
+  - case 9: a fade of 2% a second through both stages;
+  - case 9b: a fade of 6% a second seen by the fine pass itself, which must be corrected;
+  - case 10: the Moon from 3,000 steps off, which goes back to the start and says why.
+- **A known weakness.** Far from focus the edge scores sit near the noise floor, so the two centre readings can differ by 10% or more from seeing alone, and a fade is "corrected" that was not there. This was seen in case 10 (×0.87 with no fade). It is harmless there, because a pass that far out does not bracket and is refused anyway. Near focus the scores are well above the floor.
+
 ## Not done
-- A fade during the fine pass is not detected inside it. The final check against the start position still runs for planets, but not on the fine-only Moon path.
 - The edge metric has never seen a real frame. The noise gate's k = 3 and the tests' 15% exposure tolerance were set on synthetic noise.
 - Clear-night item 58.
 

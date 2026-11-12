@@ -613,6 +613,12 @@ struct ProfileApplyHooks {
     // differ by four orders of magnitude and an assistant capped at a
     // planetary ceiling cannot expose a deep-sky sub at all.
     std::function<void(const TargetProfile&)>   setAERails;
+    // 2026-11-12. True while the centroid tracker holds the mount's axes
+    // (hand control tracking off, the app driving the rates): the
+    // profile's tracking mode and rate are then left alone, because
+    // writing them would switch the hand control's tracking back on
+    // underneath the guider. Null means never busy.
+    std::function<bool()>                       mountBusy;
 };
 
 // ── Phase 95: is this target a star? ─────────────────────────
@@ -760,7 +766,9 @@ static void ApplyProfile(const TargetProfile& p,
         focuser->MoveTo(p.focusPosition);
         slog.Focuser("GoTo %d", p.focusPosition);
     }
-    if (mount && mount->IsConnected()) {
+    if (mount && mount->IsConnected() && hooks.mountBusy && hooks.mountBusy()) {
+        Log("[PROFILE] Tracking mode and rate left alone: guiding holds the mount\n");
+    } else if (mount && mount->IsConnected()) {
         IMount::TrackingMode mode = IMount::ALT_AZ;
         if (p.trackingMode == "off")      mode = IMount::OFF;
         if (p.trackingMode == "eq_north") mode = IMount::EQ_NORTH;
@@ -1067,6 +1075,13 @@ static int RunApp(bool useEmulator) {
 
 #ifdef RADUK_EMULATOR
     {
+        // 2026-11-12: the emulated mount behaves like the measured 8SE
+        // unless RADUK_EMU_NEXSTAR=0. Guiding has driven the azimuth and
+        // altitude motors itself since 2026-11-07, and the older model
+        // moves RA and Dec, so its first calibration always failed ("an
+        // axis did not follow its rate command") while the same code
+        // held Saturn at 1-2" on the rig (tests/tracking_emulator.cpp).
+        if (!getenv("RADUK_EMU_NEXSTAR")) _putenv("RADUK_EMU_NEXSTAR=1");
         auto* em = new raduk::core::MountEmulator();
         em->Connect("EMU");
         mountPtr.reset(em);
@@ -1371,6 +1386,10 @@ static int RunApp(bool useEmulator) {
     tracker.SetLostCallback([&]() {
         Log("[TRACK] Centroid lost — planet may have drifted out of frame\n");
     });
+    // 2026-11-12: every GoTo, from any panel or thread, first takes the
+    // mount back from the guider, so the slew never races its rate
+    // commands. The GoTo-complete callback starts a new search after.
+    mountProxy.SetBeforeGoTo([&]() { tracker.YieldMount("a GoTo started"); });
     Log("[INIT] Centroid tracker ready\n");
 
     // ── WebSocket telemetry server (M12) ───────────────────────
@@ -2717,6 +2736,9 @@ static int RunApp(bool useEmulator) {
             name.c_str(), ra_h, dec_deg);
         bool synced = false, tracking = false;
         if (mount && mount->IsConnected()) {
+            // A sync changes where the mount thinks it is; guiding holds
+            // the axes with tracking off. End guiding first (2026-11-12).
+            if (tracker.Stage() != raduk::core::AcquisitionStage::Off) tracker.Reset();
             synced = mount->SyncRADec(ra_h, dec_deg);
             if (synced) tracking = mount->SetTrackingMode(IMount::ALT_AZ);
             Log("[ALIGN] sync=%s tracking=%s\n",
@@ -3679,6 +3701,7 @@ static int RunApp(bool useEmulator) {
     };
     // Phase 95: the analyser only answers the star question when told.
     profileHooks.setStarMode = [&](bool on) { analyzer.SetStarMode(on); };
+    profileHooks.mountBusy = [&]() { return tracker.IsRunning(); };
 
     profileHooks.syncUi = [&](const TargetProfile& p) {
         // The slider is in microseconds; the profile stores milliseconds.
@@ -6129,6 +6152,18 @@ static int RunApp(bool useEmulator) {
     window.SetFocusCoarseHandler([&](int steps) { profileStep(steps, true);  });
     window.SetTrackingToggleHandler([&]() {
         if (mount && mount->IsConnected()) {
+            // While guiding, the hand control's tracking reads OFF because
+            // the app is driving the axes. Toggling then would fight the
+            // guider, so the toggle ends guiding instead, which hands
+            // tracking back on (2026-11-12).
+            if (tracker.IsRunning()) {
+                tracker.Reset();
+                controls.SetSkyMapLocked(false);
+                controls.SetPlanetLockState(false);
+                Log("[MOUNT] Tracking toggle while guiding: guiding ended, hand control tracking on\n");
+                notifBar.NotifyInfo(L"Guiding ended - the hand control is tracking again");
+                return;
+            }
             auto mode = mount->GetTrackingMode();
             mount->SetTrackingMode(mode == IMount::OFF
                 ? IMount::ALT_AZ : IMount::OFF);
@@ -6326,6 +6361,9 @@ static int RunApp(bool useEmulator) {
                 Log("[WS] Remote centroid_reset\n");
             } else if (rc.cmd == "mount_stop") {
                 if (mount && mount->IsConnected()) {
+                    // A stop ends guiding too: otherwise the guider's next
+                    // rate command restarts the axes half a second later.
+                    if (tracker.Stage() != raduk::core::AcquisitionStage::Off) tracker.Reset();
                     mount->StopSlew(0); mount->StopSlew(1);
                     Log("[WS] Remote mount_stop\n");
                 }
@@ -6335,10 +6373,15 @@ static int RunApp(bool useEmulator) {
                     int axis = (rc.arg == "N" || rc.arg == "S") ? 1 : 0;
                     int dir  = (rc.arg == "S" || rc.arg == "E") ? 1 : 0;
                     IMount* mnt = mount;
-                    std::thread([mnt, axis, dir]() {
+                    // Like a hand jog: the guider pauses and takes the new
+                    // position as its reference (it never did here).
+                    const bool guiding = tracker.IsRunning();
+                    if (guiding) tracker.SuspendCorrections();
+                    std::thread([mnt, axis, dir, guiding, &tracker]() {
                         mnt->SlewFixed(axis, dir, 5);
                         Sleep(250);
                         mnt->StopSlew(axis);
+                        if (guiding) { Sleep(500); tracker.ResumeCorrections(); }
                     }).detach();
                     Log("[WS] Remote jog %s\n", rc.arg.c_str());
                 }

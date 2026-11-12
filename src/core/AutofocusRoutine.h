@@ -292,18 +292,19 @@ private:
         if (pass > 0) {
             Emit("[AF] Sweep %d: %d -> %d\n", pass + 1, startPos, endPos);
         }
-        // Each position is visited twice, out (rising numbers) and back.
-        // 2026-11-08 (F9) averaged the two, to cancel a target fading
-        // through the sweep. Phase 139.1 stops that: the knob's slack
-        // puts the two visits to one step number a backlash apart in
-        // focus, so their average is two V-curves shifted against each
-        // other, flatter, and peaked half a backlash from where the
-        // outward final approach must land (tests/af_direction_fit.cpp).
-        // The position now comes from the OUTWARD curve, the direction of
-        // the final approach; the inward one measures the backlash. The
-        // fade F9 answered matters less than it did: the score has since
-        // become 1000 / the half-flux diameter, which a dimmer target
-        // does not lower, and 133.2 warns of a fade during a sweep.
+        // Each position is visited twice, out (rising numbers) and back,
+        // and the two are averaged (2026-11-08, F9): a target fading
+        // through the sweep lowers the early-out and late-back visits
+        // alike and cancels. The knob's slack puts the two visits to one
+        // step number a backlash apart in focus, so the average peaks at
+        // the MIRROR's focus, half a backlash below the step an outward
+        // final approach must land on (tests/af_direction_fit.cpp). So
+        // the fitted position is shifted up by half the backlash in use
+        // (phase 139.1). 139.1 first fitted the outward curve alone; that
+        // gave up F9's cancellation, and on CI's slower runner a fading
+        // target took it 563 steps off focus (autofocus_saturn case 3).
+        // The outward and inward fits are still logged, and their
+        // difference is the backlash measured on the sky.
         std::vector<float> outScore((size_t)n, 0.0f), backScore((size_t)n, 0.0f);
         std::vector<int>   posAt((size_t)n, 0);
         for (int v = 0; v < 2 * n; v++) {
@@ -421,9 +422,13 @@ private:
                  v + 1, 2 * n, v < n ? "out" : "back", pos, meanSharp, nSamples, nDistinct,
                  nCentOk, nSamples, peakMax < 0 ? -1 : peakMin, peakMax);
         }
-        for (int i = 0; i < n; i++) m_samples.push_back({posAt[(size_t)i], outScore[(size_t)i]});
+        for (int i = 0; i < n; i++) {
+            const float a = outScore[(size_t)i], b = backScore[(size_t)i];
+            const int k = (a > 0.0f) + (b > 0.0f);
+            m_samples.push_back({posAt[(size_t)i], k ? ((a > 0 ? a : 0) + (b > 0 ? b : 0)) / k : 0.0f});
+        }
         {
-            std::string line = "[AF] Outward curve:";
+            std::string line = "[AF] Out-and-back means:";
             char b[48];
             for (const auto& smp : m_samples) {
                 sprintf_s(b, " %d=%.2f", smp.position, smp.sharpness);
@@ -485,6 +490,14 @@ private:
             for (auto& s : m_samples) {
                 if (s.sharpness > bestS) { bestS = s.sharpness; bestPos = s.position; }
             }
+        }
+        // Phase 139.1: from the mirror's focus to the step an outward
+        // approach lands it there (see the sweep above).
+        if (m_params.backlash > 0) {
+            const int shifted = (std::min)(m_params.maxStepBound, bestPos + m_params.backlash / 2);
+            Emit("[AF] Averaged peak %d is the mirror's focus; +%d (half the backlash in use) "
+                 "for the outward approach -> %d\n", bestPos, shifted - bestPos, shifted);
+            bestPos = shifted;
         }
 
         // Validate — best must exceed minimum sharpness threshold

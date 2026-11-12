@@ -4,6 +4,7 @@
 // ============================================================
 
 #include "FrameAnalyzer.h"
+#include "ThreadName.h"
 
 namespace raduk::core {
 
@@ -47,6 +48,7 @@ AnalysisResult FrameAnalyzer::GetResult() {
 }
 
 void FrameAnalyzer::Run() {
+    NameThisThread(L"Raduk analyser");   // 135.5
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 
     while (m_running.load()) {

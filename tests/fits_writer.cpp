@@ -286,10 +286,21 @@ int main() {
     printf("\n3. One frame, and none\n");
     {
         CheckCube(Record(dir, "fw1", 16, CaptureFormat::FITS, "RGGB", 1), 16, 1);
+        // Phase 135.4: through CaptureManager a run with no frames leaves no
+        // file behind. The writer itself must still close an empty cube as
+        // a valid file, which is checked on FITSWriter directly.
         const Run r = Record(dir, "fw0", 8, CaptureFormat::FITS, "RGGB", 0);
-        const std::vector<uint8_t> b = ReadAll(r.path);
+        Check(!r.path.empty() && GetFileAttributesA(r.path.c_str()) == INVALID_FILE_ATTRIBUTES,
+              "a run with no frames leaves no file behind (135.4)", r.path);
+        const std::string p0 = dir + "\\empty.fits";
+        {
+            FITSWriter w;
+            Check(w.Open(p0, W, H, 8, true), "the writer opens an empty cube");
+            w.Close();
+        }
+        const std::vector<uint8_t> b = ReadAll(p0);
         const Hdu h = ReadHeader(b, 0);
-        Check(Int(h, "NAXIS3") == 0, "a run with no frames says so");
+        Check(Int(h, "NAXIS3") == 0, "a cube with no frames says so");
         const Hdu t = ReadHeader(b, h.dataStart);
         Check(t.ended && Int(t, "NAXIS2") == 0 && b.size() % 2880 == 0,
               "and is still a valid file, with an empty table");

@@ -1290,3 +1290,11 @@ the bench already showed, so the night only has to confirm it. The plan is
     Before starting, look at the corrector plate with a torch: dew there
     dims and softens everything, and the 2026-11-07 fade (F13) was never
     explained.
+
+56. **A stalled camera recovers in about 1.5 s** (135.3, added 2026-11-12).
+    The capture loop now restarts the camera when no frame has arrived for
+    max(1.5 s, 10 frame intervals); it used to take at least 10 s. Whether
+    1.5 s is long enough to ride out a normal USB hiccup without a needless
+    restart can only be learned on the real camera. During a planetary run,
+    count `Pipeline wedge` lines in raduk_log.txt: any at all, with frames
+    otherwise flowing, means the floor is too tight.

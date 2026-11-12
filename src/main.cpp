@@ -4259,6 +4259,7 @@ static int RunApp(bool useEmulator) {
         if (!normal) autorun.Abort("a recording was stopped from outside");
         autorunLastPath = path;
         if (!normal) return;
+        if (path.empty()) return;   // 135.4: no frames, nothing was kept to stack
         if (!raduk::core::RigConfig::Get().autoStackOnStop) return;
         // Stacking takes minutes of CPU, and the next run is seconds away.
         if (autorun.Running()) {

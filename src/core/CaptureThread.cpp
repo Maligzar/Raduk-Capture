@@ -4,6 +4,8 @@
 // ============================================================
 
 #include "CaptureThread.h"
+#include "ThreadName.h"
+#include "WedgeBudget.h"
 #include <cstdio>
 #include <thread>
 #include <chrono>
@@ -105,20 +107,26 @@ void CaptureThread::Run() {
            (roiType == ImageType::Raw16) ? "RAW16" : "RAW8",
            frameSizeBytes);
 
-    // Phase 58 (review C4 / Architecture §6.3): pipeline-wedge detection.
-    // 20 consecutive timeouts (~500ms of no frames at planetary exposures)
-    // triggers RestartCapture (stop → 100ms USB settle → start). A removed
+    // Phase 58 (review C4 / Architecture §6.3): pipeline-wedge detection,
+    // measured in time since phase 135.3 (WedgeBudget.h). Nothing arriving
+    // for max(1.5 s, 10 frame intervals) triggers RestartCapture (stop →
+    // 100ms USB settle → start). It was 20 consecutive timeouts, said to be
+    // ~500 ms and really at least 10 s, each timeout being 2 x exposure +
+    // 500 ms. A removed
     // camera (immediate SDK error) backs off instead of busy-spinning this
     // TIME_CRITICAL thread, retries the restart each second, and flags
     // cameraFault for the UI until frames flow again.
-    constexpr int WEDGE_TIMEOUT_COUNT = 20;
-    int  consecTimeouts = 0;
+    NameThisThread(L"Raduk capture");   // 135.5
+    WedgeClock wedge;
+    wedge.Reset(Timestamp::Now());
     bool faultLogged = false;
 
     while (m_running.load(std::memory_order_relaxed)) {
-        // Calculate timeout: 2x exposure + 500ms safety margin
+        // ZWO's per-call timeout, 2x exposure + 500ms, capped at the wedge
+        // budget so one call cannot outlast it (135.3).
         double expMs = m_exposureMs.load(std::memory_order_relaxed);
-        int timeoutMs = static_cast<int>(expMs * 2.0) + 500;
+        const double budgetMs = WedgeBudgetMs(expMs, m_stats.fps.load(std::memory_order_relaxed));
+        int timeoutMs = CallTimeoutMs(expMs, budgetMs);
 
         // Acquire a slot from the ring buffer
         FrameSlot* slot = m_ringBuffer->AcquireWriteSlot();
@@ -137,7 +145,7 @@ void CaptureThread::Run() {
                                            timeoutMs, frameErr);
 
         if (gotFrame) {
-            consecTimeouts = 0;
+            wedge.OnFrame(Timestamp::Now());
             if (m_stats.cameraFault.exchange(false))
                 printf("[CaptureThread] Camera recovered — frames flowing again\n");
             faultLogged = false;
@@ -209,13 +217,13 @@ void CaptureThread::Run() {
                     printf("[CaptureThread] RestartCapture succeeded after fault\n");
                     m_stats.restarts.fetch_add(1, std::memory_order_relaxed);
                 }
+                wedge.Reset(Timestamp::Now());   // a fault is not also a wedge
             } else {
-                // Timeout — count toward §6.3 pipeline-wedge detection
+                // Timeout — §6.3 pipeline-wedge detection, in time
                 m_stats.timeouts.fetch_add(1, std::memory_order_relaxed);
-                if (++consecTimeouts >= WEDGE_TIMEOUT_COUNT) {
-                    consecTimeouts = 0;
-                    printf("[CaptureThread] Pipeline wedge (%d consecutive "
-                           "timeouts) — RestartCapture\n", WEDGE_TIMEOUT_COUNT);
+                if (wedge.OnTimeout(Timestamp::Now(), budgetMs)) {
+                    printf("[CaptureThread] Pipeline wedge (no frame for %.0f ms) "
+                           "— RestartCapture\n", budgetMs);
                     m_stats.restarts.fetch_add(1, std::memory_order_relaxed);
                     if (!m_camera->RestartCapture())
                         m_stats.cameraFault.store(true, std::memory_order_relaxed);

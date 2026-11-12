@@ -4,6 +4,7 @@
 // the header does not get its own copy.)
 // ============================================================
 #include "WebSocketServer.h"
+#include "../core/ThreadName.h"
 
 #include <bcrypt.h>
 #pragma comment(lib, "bcrypt.lib")
@@ -264,6 +265,7 @@ int WebSocketServer::BroadcastPreview(const std::vector<uint8_t>& jpeg) {
 }
 
 void WebSocketServer::Run() {
+    raduk::core::NameThisThread(L"Raduk WebSocket");   // 135.5
     while (m_running.load()) {
         // Build fd_set from listen socket + all client sockets
         fd_set readSet;

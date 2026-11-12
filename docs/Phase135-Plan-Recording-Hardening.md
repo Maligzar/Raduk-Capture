@@ -125,3 +125,47 @@ emulator threads. No test; check once in the Visual Studio threads window.
 
 The raw libusb transport and the SDK patch shim from the zwo repository.
 Reasons are in the comparison note.
+
+## As built: 135.3 to 135.5, 2026-11-12
+
+**135.3.** `src/core/WedgeBudget.h` holds three pieces:
+- `WedgeBudgetMs`: the larger of 1.5 s and 10 expected intervals, where the
+  interval is the exposure or 1/fps, whichever is longer;
+- `CallTimeoutMs`: ZWO's 2 x exposure + 500 ms, capped at the budget;
+- `WedgeClock`: the time of the last good frame. It fires once the budget
+  passes and then restarts itself. A clock that runs backwards re-bases
+  rather than firing.
+
+`CaptureThread::Run` uses all three. The 20-timeout rule and its wrong
+comment are gone, and architecture section 6.3 gives the real figures.
+
+The test is `tests/capture_wedge.cpp`. It drives the same `WedgeClock` with
+a fake clock, one SDK call at a time. A threaded test through an `ICamera`
+stub, as planned, would test the scheduler rather than the rule. A stalled
+planetary camera restarts at 1548 ms where the old rule took 10 320 ms, and
+a 2 s exposure is not called a wedge inside 20 s. The clear-night question
+is item 56 on the checklist.
+
+**135.4.** In `CaptureManager::StopRecording`, a run with no frames is
+removed after `Close()`: the file and any quality sidecar. It is then
+skipped for the WinJUPOS rename, the observation record, and the DeTeCt and
+submission lines. Completion reports an empty path, and the auto-stack
+returns on one.
+
+`tests/fits_writer.cpp` section 3 had asserted that a zero-frame FITS
+written through `CaptureManager` stays a valid file. It now asserts the
+file is removed, which is the new requirement. The writer's own handling of
+an empty cube is still checked, by opening and closing `FITSWriter`
+directly.
+
+**135.5.** `src/core/ThreadName.h` provides `NameThisThread`, which calls
+`SetThreadDescription`, looked up at run time so an older Windows only loses
+the name. These threads are named:
+- capture;
+- writer;
+- analyser;
+- WebSocket;
+- the camera emulator;
+- the mount emulator.
+
+They have not yet been looked at in Visual Studio's Threads window.

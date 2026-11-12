@@ -17,6 +17,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX  // keep windows.h min/max macros away from std::min/max
 #endif
+#include "ThreadName.h"
 #include <windows.h>
 #include <timeapi.h>
 #pragma comment(lib, "winmm.lib")   // timeBeginPeriod, for frame pacing
@@ -1016,6 +1017,7 @@ private:
     }
 
     void GenerateFrames() {
+        NameThisThread(L"Raduk camera emulator");   // 135.5
         const int   W  = m_roiW, H = m_roiH;
         const float CX = W*0.5f, CY = H*0.5f;
         int appliedX = m_reqOriginX.load(), appliedY = m_reqOriginY.load();

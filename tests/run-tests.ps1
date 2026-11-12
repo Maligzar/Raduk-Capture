@@ -46,6 +46,7 @@ $Tests = @(
     @{ Name = "dashboard_launch";  Sources = @() }
     @{ Name = "telemetry_night";   Sources = @("src\net\APEXTelemetry.cpp") }
     @{ Name = "dock_geometry";     Sources = @() }
+    @{ Name = "capture_wedge";     Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
     @{ Name = "mutual_events";     Sources = @() }
     @{ Name = "sntp_offset";       Sources = @() }

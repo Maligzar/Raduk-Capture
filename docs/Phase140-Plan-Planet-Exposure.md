@@ -119,3 +119,17 @@ overexposed", and it does confirm the metering fault on small targets.**
 Audit caveats: 16-bit samples are read by their high byte, which the
 sensible peaks across sessions support; "target" is pixels above half
 the frame's peak, so a faint limb is not counted; five frames per file.
+
+## Versioning
+
+Every pull request for this plan bumps PATCH in `src/Version.h` (3.1.0 to 3.1.1)
+and adds its row, with that version, to the Phase History in
+`RadukCapture-Help.md`. The pull request that completes the phase bumps MINOR
+instead and resets PATCH (3.1.4 to 3.2.0). MAJOR and a git tag are the
+owner's call at a release. CI fails any pull request that does not raise the
+version above the base branch's. When two pull requests in flight both bump,
+the second to merge resolves `Version.h` to the higher of the two plus one
+PATCH. The rule is the owner's, 2026-11-12, and is written out in
+`src/Version.h`.
+
+The stages merged so far shipped in 3.1.0, the catch-up. Every stage from here follows this rule. The one that closes the phase bumps MINOR.

@@ -38,6 +38,7 @@
 #define NOMINMAX
 #endif
 
+#include "ThreadName.h"
 #include <windows.h>
 #include <string>
 #include <cstdio>
@@ -324,6 +325,7 @@ private:
 
     // Handles: sidereal drift, GoTo slewing, manual jog
     void SimLoop() {
+        NameThisThread(L"Raduk mount emulator");   // 135.5
         // Degrees per arcsecond per tick (10Hz)
         // Sidereal rate: 15 arcsec/sec = 15/3600 deg/sec = 0.0015 deg/tick at 10Hz
         const double SIDEREAL_DEG_PER_TICK = 15.0 / 3600.0 / 10.0;

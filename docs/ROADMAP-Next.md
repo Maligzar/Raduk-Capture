@@ -1379,6 +1379,28 @@ at `2fb9c5e` on 2026-11-11, and again at `aa44131` the same evening.
 
 ### Next, in order
 
+**Versioning, from 2026-11-12 (the owner's rule).** Every pull request on
+this list does three things with the version:
+
+- **Every pull request** bumps PATCH in `src/Version.h` and adds its row,
+  with that version, to the Phase History in `RadukCapture-Help.md`.
+- **The pull request that completes a phase** bumps MINOR instead.
+- **MAJOR and a git tag** are the owner's call, at a release.
+
+**Checked by CI.** A pull request that does not raise the version above
+`master`'s fails the `windows` check, the one that gates merging.
+
+**Why it is enforced.** The header of `Version.h` had said "bumped on every
+push" since October, yet the number stayed at 3.0.0 through about seventy
+merges, #73 to #144. 3.1.0 is the catch-up.
+
+**Two pull requests at once.** When two in flight both bump, the second to
+merge resolves to the higher number plus one PATCH.
+
+**Older plans.** The plans for phases before 130 are finished history and
+are not edited. Every plan with open stages now carries a Versioning
+section.
+
 **Updated 2026-11-12.** #134 to #137 are merged (exposure, focus
 backlash, tracking, 135.1). The tracking fixes of 2026-11-12 (#136):
 the emulator now runs the measured 8SE mount model, every LOCK

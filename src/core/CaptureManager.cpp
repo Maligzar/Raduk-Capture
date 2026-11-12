@@ -4,6 +4,8 @@
 // ============================================================
 
 #include "CaptureManager.h"
+#include "ThreadName.h"
+#include <cstdio>
 #include "DerotationLimit.h"
 #include "DiskGuard.h"
 #include "../sky/JupiterEvents.h"   // phase 143: central meridians
@@ -230,6 +232,31 @@ void CaptureManager::StopRecording(bool normal) {
     // Close the writer (finalizes the file, writes the quality sidecar)
     m_writer->NoteObservation(m_obs);
     m_writer->Close();
+
+    // Phase 135.4: a run that recorded nothing (a closed gate, an abort
+    // before the first frame) leaves no file behind: no header-only SER
+    // or FITS, no sidecar, no WinJUPOS name, no observation record, no
+    // DeTeCt or submission line pointing at it. Those files looked like
+    // runs in the morning and in AutoStakkert's file list.
+    if (m_status.framesRecorded.load() == 0 && !m_lastPath.empty()) {
+        const std::string gone = m_lastPath;
+        std::string qual = gone;
+        const size_t dot = qual.rfind('.');   // CaptureWriter names it this way
+        if (dot != std::string::npos) qual.resize(dot);
+        qual += "_quality.txt";
+        const bool removed = std::remove(gone.c_str()) == 0;
+        std::remove(qual.c_str());   // usually absent: no frames, no scores
+        Say(std::string(removed ? "No frames recorded - removed the empty file " : "No frames recorded - could not remove ") + gone);
+        m_lastPath.clear();
+        {
+            std::lock_guard<std::mutex> lk(m_mutex);
+            m_status.currentFile.clear();
+        }
+        printf("[CaptureManager] Recording stopped: 0 frames, nothing kept\n");
+        if (m_log) m_log->Capture("Recording stopped: 0 frames, nothing kept");
+        if (m_onComplete) m_onComplete(std::string(), normal);
+        return;
+    }
 
     // Phase 108: here, because the middle of the run is known only now,
     // and ahead of the observation record, which names the file.
@@ -493,6 +520,7 @@ uint64_t CaptureManager::FreeBytesAt(const std::string& path) const {
 }
 
 void CaptureManager::WriterLoop() {
+    NameThisThread(L"Raduk writer");   // 135.5
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
     Say("Writer thread started");
     const std::string path = m_writer->Path();

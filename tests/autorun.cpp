@@ -42,6 +42,7 @@ struct Rig {
     double   altDeg     = 45.0;
     bool     disk       = true;
     bool     seeing     = true;
+    bool     prime      = false;
 
     bool     recording = false;
     bool     focusing  = false;
@@ -75,6 +76,7 @@ struct Rig {
             in.altDeg      = altDeg;
             in.diskHasRoom = disk;
             in.seeingOpen  = seeing;
+            in.prime       = prime;
         }
         switch (ar.Tick(now, in)) {
         case AR::Action::StartRun:
@@ -440,6 +442,61 @@ static void TestFocus() {
     }
 }
 
+// Phase 144: a due sweep waits out a prime spell (the Red Spot near the
+// meridian, a moon or shadow on the disc), for a while at most.
+static void TestPrimeDefersFocus() {
+    printf("a prime spell puts the sweep off\n");
+    {
+        Rig r;
+        auto c = r.Config(); c.deferFocusInPrime = true;
+        r.ar.Start(c, r.now);
+        r.RunOut();
+        Check(r.Order() == "FRRFRR", "off-spell, the cadence is unchanged");
+        Check(r.ar.FocusDeferred() == 0, "and nothing is counted as put off");
+    }
+    {
+        Rig r;
+        r.prime = true;
+        auto c = r.Config(); c.deferFocusInPrime = false;
+        r.ar.Start(c, r.now);
+        r.RunOut();
+        Check(r.Order() == "FRRFRR", "with the setting off, a spell changes nothing");
+    }
+    {
+        Rig r;
+        r.prime = true;
+        auto c = r.Config(); c.deferFocusInPrime = true; c.primeDeferMaxSec = 100000.0;
+        r.ar.Start(c, r.now);
+        r.RunOut();
+        Check(r.Order() == "RRRR", "through a long spell, runs and no sweep");
+        Check(r.ar.FocusDeferred() == 4, "each run counted as recorded with a sweep due");
+        Check(r.ar.State() == AR::Phase::Complete, "and the sequence still completes");
+    }
+    {
+        // The spell ends after the second run: the owed sweep comes next.
+        Rig r;
+        r.prime = true;
+        auto c = r.Config(); c.deferFocusInPrime = true; c.primeDeferMaxSec = 100000.0;
+        r.ar.Start(c, r.now);
+        while (r.runsStarted < 2 && r.ar.Running()) r.Advance();
+        r.prime = false;
+        r.RunOut();
+        Check(r.Order() == "RRFRR", "the sweep follows the spell's end");
+        Check(!r.ar.DeferringFocus(), "and the deferral is over");
+    }
+    {
+        // 180 s runs and a 15 s gap: the second check is inside 300 s,
+        // the third is past it, so the sweep goes ahead mid-spell.
+        Rig r;
+        r.prime = true;
+        auto c = r.Config(); c.deferFocusInPrime = true; c.primeDeferMaxSec = 300.0;
+        r.ar.Start(c, r.now);
+        r.RunOut();
+        Check(r.Order() == "RRFRR", "a spell longer than the limit gets its sweep");
+        Check(r.ar.FocusDeferred() == 2, "after two runs put it off");
+    }
+}
+
 static void TestEmptyRuns() {
     printf("empty runs\n");
     {
@@ -621,6 +678,7 @@ int main() {
     TestRefusedRun();
     TestCameraDied();
     TestFocus();
+    TestPrimeDefersFocus();
     TestEmptyRuns();
     TestStops();
     TestRestart();

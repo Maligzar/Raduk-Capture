@@ -54,6 +54,13 @@ public:
         // this long at most: a run in poor seeing beats no run at all.
         bool   holdForSeeing = false;
         double seeingHoldSec = 180.0;
+
+        // Phase 144. A due focus sweep waits while the target is in a
+        // prime spell (on Jupiter: the Red Spot near the meridian, or a
+        // moon or shadow on the disc), and the runs go on, for this long
+        // at most. Focus drifts slowly; the spell does not come back.
+        bool   deferFocusInPrime = false;
+        double primeDeferMaxSec  = 1800.0;
     };
 
     enum class Action { None, StartFocus, StartRun, StopRun, AbortFocus };
@@ -68,6 +75,7 @@ public:
         double   altDeg      = -1.0;    // 0 or below is unknown
         bool     diskHasRoom = false;
         bool     seeingOpen  = false;
+        bool     prime       = false;   // phase 144
     };
 
     // Why a sequence may not start. nullptr means it may.
@@ -98,6 +106,8 @@ public:
         m_seeingHeld   = false;
         m_seeingWaived = false;
         m_seeingGaveUp = 0;
+        m_deferring    = false;
+        m_focusDeferred = 0;
         m_stopPending = false;
         m_focusStopPending = false;
         m_reason.clear();
@@ -192,6 +202,9 @@ public:
     int   Empty() const { return m_empty; }
     int   FocusFailures() const { return m_focusBad; }
     int   SeeingGaveUp() const { return m_seeingGaveUp; }
+    // Runs recorded with a sweep due and put off for a prime spell.
+    int   FocusDeferred() const { return m_focusDeferred; }
+    bool  DeferringFocus() const { return m_deferring; }
     // Waiting on the sky, for anything a person reads.
     bool  HoldingForSeeing() const {
         return m_phase == Phase::Waiting && m_seeingHeld;
@@ -240,8 +253,19 @@ private:
         }
 
         if (m_focusDue) {
-            Enter(Phase::Focusing, nowSec);
-            return Action::StartFocus;
+            bool defer = false;
+            if (m_cfg.deferFocusInPrime && in.prime) {
+                if (!m_deferring) { m_deferring = true; m_deferSince = nowSec; }
+                defer = nowSec - m_deferSince <= m_cfg.primeDeferMaxSec;
+            }
+            if (!defer) {
+                m_deferring = false;
+                Enter(Phase::Focusing, nowSec);
+                return Action::StartFocus;
+            }
+            ++m_focusDeferred;
+        } else {
+            m_deferring = false;
         }
         m_seeingWaived = false;
         Enter(Phase::Recording, nowSec);
@@ -288,6 +312,9 @@ private:
     bool   m_seeingWaived = false;
     double m_seeingSince  = 0.0;
     int    m_seeingGaveUp = 0;
+    bool   m_deferring    = false;
+    double m_deferSince   = 0.0;
+    int    m_focusDeferred = 0;
     bool   m_stopPending = false;
     bool   m_focusStopPending = false;
     std::string m_reason;

@@ -59,6 +59,7 @@ $Tests = @(
     @{ Name = "af_direction_fit";  Sources = @() }
     @{ Name = "af_readiness";      Sources = @() }
     @{ Name = "jupiter_events";    Sources = @() }
+    @{ Name = "jupiter_plan";      Sources = @() }
     @{ Name = "omm_elements";      Sources = @() }
     @{ Name = "ser_timestamp_midpoint"; Sources = @() }
     @{ Name = "paths_resolution"; Sources = @() }

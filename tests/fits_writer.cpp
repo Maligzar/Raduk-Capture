@@ -291,7 +291,7 @@ int main() {
         // a valid file, which is checked on FITSWriter directly.
         const Run r = Record(dir, "fw0", 8, CaptureFormat::FITS, "RGGB", 0);
         Check(!r.path.empty() && GetFileAttributesA(r.path.c_str()) == INVALID_FILE_ATTRIBUTES,
-              "a run with no frames leaves no file behind (135.4)", r.path);
+              "a run with no frames leaves no file behind (135.4)");
         const std::string p0 = dir + "\\empty.fits";
         {
             FITSWriter w;

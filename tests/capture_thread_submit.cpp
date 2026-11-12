@@ -136,6 +136,11 @@ int main() {
         cfg.winJuposNames = true;
         cm.SetConfig(cfg);
         cm.StartRecording(W, H, 8);
+        // One frame: since 135.4 a run that records nothing leaves no file,
+        // and this check is about a dark's name, not about empty runs.
+        fx.slot.timestamp = 7;
+        cm.SubmitFromCaptureThread(&fx.slot);
+        for (int i = 0; i < 2000 && cm.FramesRecorded() < 1; ++i) Sleep(1);
         cm.StopRecording();
         const std::string last = cm.LastFilePath();
         Check(last.substr(last.find_last_of('\\') + 1).rfind("submit_dark", 0) == 0,

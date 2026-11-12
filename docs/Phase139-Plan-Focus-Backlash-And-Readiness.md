@@ -1,6 +1,14 @@
 # Phase 139 plan: focus that respects backlash, and says when it can work
 
-Planned 2026-11-11, from the owner's report at the rig. Not built.
+Planned 2026-11-11, from the owner's report at the rig. **139.0 to 139.2
+written 2026-11-12** (see PHASE-STATUS row 139); 139.3 not built.
+
+One change from this plan as written: 139.1's brightness normalisation
+was not built. Autofocus has been fed 1000 / the planet's half-flux
+diameter since 2026-11-07, a figure a fading target does not lower, so
+there was nothing to divide out; dew blurring the image is a real change
+in focus quality that no normalisation could remove, and 133.2's fade
+warning covers it.
 
 ## What the owner sees
 

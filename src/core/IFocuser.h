@@ -55,6 +55,15 @@ public:
     virtual bool MoveRelative(int steps) = 0;
     virtual bool Stop() = 0;
     virtual bool IsMoving() const = 0;
+    // Phase 139.2: MoveTo and MoveRelative end every move travelling
+    // outward (rising numbers) by at least the approach backlash, so a
+    // step number is one focus position however it was reached; a move
+    // that would end inward goes past and comes back, and IsMoving()
+    // stays true until the second leg is done. MoveToDirect is one leg,
+    // for autofocus's sweep, which measures both directions on purpose.
+    virtual bool MoveToDirect(int position) = 0;
+    virtual void SetApproachBacklash(int steps) = 0;   // 0: off
+    virtual int  ApproachBacklash() const = 0;
 
     // ── Readout ────────────────────────────────────────────────
     virtual int   GetPosition() const = 0;
@@ -63,7 +72,8 @@ public:
 
     // ── Configuration ──────────────────────────────────────────
     virtual void SetReverse(bool reversed) = 0;
-    virtual void SetBacklash(int steps) = 0;
+    virtual void SetBacklash(int steps) = 0;   // the EAF firmware's own
+    virtual int  GetBacklash() const = 0;       // compensation, 0-255
 
     // ── Identity ───────────────────────────────────────────────
     virtual int FocuserId() const = 0;

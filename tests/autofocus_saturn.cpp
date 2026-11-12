@@ -40,9 +40,14 @@ static float Score(int pos, std::mt19937& rng, bool capped) {
     return (float)s;
 }
 
-static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0) {
+// slack > 0: the knob's slack (phase 139). The score follows the MIRROR,
+// and the result is where the mirror ends up, which is what the image
+// shows; autofocus is given the same figure as its backlash.
+static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0,
+               int slack = 0, int* measured = nullptr) {
     EAFFocuser f;
     f.Open(0);
+    f.SetSimulatedSlack(slack);
     f.MoveTo(start);
     while (f.IsMoving()) std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
@@ -50,8 +55,9 @@ static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0
     af.SetFocuser(&f);
     AutofocusParams p;
     p.settleMs = 50;
+    if (slack > 0) p.backlash = slack;
     af.SetParams(p);
-    af.SetLogger([](const char*) {});
+    af.SetLogger([](const char* s) { if (getenv("AFLOG")) std::printf("%s", s); });
     std::atomic<bool> done{false};
     AFResult res;
     af.SetOnComplete([&](AFResult r) { res = r; done.store(true); });
@@ -66,7 +72,7 @@ static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0
             const double el = std::chrono::duration<double>(
                 std::chrono::steady_clock::now() - t0).count();
             const float fade = (float)std::exp(-fadePerSec * el);
-            af.SubmitSharpness(Score(f.GetPosition(), rng, capped) * fade, true, 120);
+            af.SubmitSharpness(Score(f.GetOpticalPosition(), rng, capped) * fade, true, 120);
             std::this_thread::sleep_for(std::chrono::milliseconds(15));
         }
     });
@@ -76,7 +82,8 @@ static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0
     feed.store(false);
     feeder.join();
     msg = res.message;
-    return f.GetPosition();
+    if (measured) *measured = af.MeasuredBacklash();
+    return f.GetOpticalPosition();
 }
 
 int main() {
@@ -113,6 +120,18 @@ int main() {
                     kFocus - 1500, end, end - kFocus, m.c_str());
         CHECK(std::abs(end - kFocus) <= 500, "fading: ended %+d steps from focus",
               end - kFocus);
+    }
+
+    std::printf("4. the knob's slack (phase 139): 400 steps\n");
+    for (const auto& c : cases) {
+        std::string m;
+        int meas = -1;
+        const int end = Run(c.start, false, m, 0.0, 400, &meas);
+        std::printf("   %-15s from %d: mirror ended at %d (%+d from focus), backlash measured %d %s\n",
+                    c.name, c.start, end, end - kFocus, meas, m.c_str());
+        CHECK(std::abs(end - kFocus) <= 400, "%s with slack: mirror ended %+d from focus",
+              c.name, end - kFocus);
+        CHECK(meas > 200 && meas < 600, "%s: the sweep measured the slack (%d)", c.name, meas);
     }
 
     if (g_fail) { std::printf("autofocus_saturn: %d FAILED\n", g_fail); return 1; }

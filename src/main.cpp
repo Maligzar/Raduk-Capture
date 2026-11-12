@@ -984,9 +984,37 @@ static int RunApp(bool useEmulator) {
     // Phase 112: autofocus has been asked for and AE is settling first.
     bool afWaitingForAE = false;
     auto afWaitStart = std::chrono::steady_clock::now();
+    // Phase 139: after every connect. Which backlash figure, and where it
+    // came from; the EAF's own compensation set to 0 so it is not applied
+    // on top of ours (EAFFocuser::Close puts it back); one-sided moves.
+    auto configureFocuser = [&]() {
+        if (!focuser.IsOpen()) return;
+        const auto& rig = raduk::core::RigConfig::Get();
+        const int fw = focuser.GetBacklash();
+        const char* src = "";
+        const int b = raduk::core::ResolveBacklash(rig.focuserBacklashSteps, fw, &src);
+        if (fw > 0) focuser.SetBacklash(0);
+        focuser.SetApproachBacklash(rig.focuserOneSidedMoves ? b : 0);
+        raduk::core::AutofocusParams ap;
+        ap.backlash = b;
+        autofocus.SetParams(ap);
+        Log("[FOCUS] backlash %d steps, from %s; EAF firmware had %d%s; one-sided moves %s\n",
+            b, src, fw, fw > 0 ? " (set to 0 while connected)" : "",
+            rig.focuserOneSidedMoves ? "ON" : "OFF");
+    };
 #ifdef RADUK_EMULATOR
     focuser.Open(0);
     Log("[INIT] EAF emulated — pos=%d\n", focuser.GetPosition());
+    {
+        // RADUK_EMU_FOCUS_SLACK=N: N steps of knob slack, so the same step
+        // number reached from opposite sides is two focus positions, as
+        // the owner saw on the rig (phase 139). 0 by default.
+        char fs[32];
+        if (GetEnvironmentVariableA("RADUK_EMU_FOCUS_SLACK", fs, 32)) {
+            focuser.SetSimulatedSlack(atoi(fs));
+            Log("[INIT] EAF emulated slack: %d steps\n", atoi(fs));
+        }
+    }
 #else
     if (useEmulator) {
         // Runtime emulator mode in hardware build — EAFEmulator not available,
@@ -1000,6 +1028,7 @@ static int RunApp(bool useEmulator) {
 
     // Phase 9: wire autofocus routine to focuser
     autofocus.SetFocuser(&focuser);
+    configureFocuser();
     // Send the V-curve to raduk_log.txt as well as the console, so a focus
     // run can be judged after the fact instead of only while watching it.
     autofocus.SetLogger([](const char* s) { Log("%s", s); });
@@ -1299,7 +1328,11 @@ static int RunApp(bool useEmulator) {
         cam.SetTrueFocusPosition(trueFocus);
         cam.SetBlurPxPerStep(blurPerStep);
         cam.SetFocusPositionProvider([&focuser](int& pos) {
+#ifdef RADUK_EMULATOR
+            pos = focuser.GetOpticalPosition();   // the mirror, slack included
+#else
             pos = focuser.GetPosition();
+#endif
             return true;
         });
         Log("[INIT] Defocus emulation: true focus=%d  %.4f px/step  "
@@ -3750,6 +3783,7 @@ static int RunApp(bool useEmulator) {
 #else
             if (!useEmulator && EAFFocuser::GetCount() > 0) focuser.Open(0);
 #endif
+            configureFocuser();
             if (focuser.IsOpen())
                 Log("[HW] EAF: pos=%d\n", focuser.GetPosition());
             else

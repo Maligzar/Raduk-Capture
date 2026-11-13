@@ -1510,20 +1510,29 @@ needs the internet** (airplane mode, rule 7, [Phase 151](Phase151-Plan-Airplane-
 The owner's direction: deep sky and stars too, in the ZWO family, and
 the app works with no connection at all.
 
-17. **Phase 146, the real camera's throughput (row 46), size S.** It
-   needs no sky and moves the heaviest comparison score. 146.0 and
-   146.1 on the bench, then the owner's indoor runs.
-18. **149.0, one description of the imaging train (row 49), size S.**
-   Before 147 and 148, so AVI and TIFF are written against the camera's
-   own description, not more ASI678MC assumptions.
-19. **Phase 151.0 and 151.1, airplane mode proven (row 51), size S.**
-   Prove no flow needs the internet, then the prefetch for a trip.
-20. **Phase 147, uncompressed AVI (row 47), size M.**
-21. **Phase 148, TIFF (row 48), size M**, in three PRs.
-22. **The rest of Phase 149 (row 49)**, then **Phase 150 (row 50)**,
-   planned properly once 149.3's single exposures exist.
-23. **Phase 152, the AI assistant (row 52), last, by the owner's word.**
+**Re-ordered 2026-11-13 after the owner's review, by leverage.**
+
+17. **Phase 146 (row 46), size S**, with **155.1, 155.2 and 155.5's clip
+   tool**: the real camera's throughput indoors, and the first real clips
+   cut from the 2026-11-07 recordings.
+18. **149.0 and 149.0b (row 49), size S-M**: one description of the imaging
+   train, and the app's own `PixelFormat` with versioned profiles, while
+   there is one backend.
+19. **153.0 (row 53), size M**: `AppCore` and the headless harness. From
+   here, new wiring goes into controllers.
+20. **Phase 151.0 and 151.1 (row 51)**: airplane mode proven.
+21. **155.3 to 155.5 (row 55)**: the plate scale from solves, the validation
+   mode, the replay camera with real clips in CI.
+22. **153.1 and 153.2 (row 53)**: the autofocus and recording controllers,
+   ahead of AVI and TIFF, which add recording wiring.
+23. **Phases 147 and 148 (rows 47, 48)**: AVI, then TIFF.
+24. **The rest of 153, 149 and 150 (rows 53, 49, 50)**, and **Phase 154
+   (row 54)**.
+25. **Phase 152 (row 52), last, by the owner's word.**
    Lowest priority on the roadmap: nothing above waits for it.
+
+155's hygiene list (printf, dead entry points) is small and can land
+alongside any of these.
 
 A clear night still goes first, to 133.3 and 133.4, and the plate scale
 needs D80 installed before that night (see [Blocked on
@@ -1639,6 +1648,9 @@ consolidated](#live-sky-debt-consolidated).
 | 50 | **Phase 150: deep sky and stars** - outlined 2026-11-13 | Bench, then the sky | L | Sequences, calibration, star focus, star guiding, dithering. The alt-az mount limits subs; planned after 149.3. [`Phase150-Plan-Deep-Sky-Outline.md`](Phase150-Plan-Deep-Sky-Outline.md) |
 | 51 | **Phase 151: airplane mode** - the owner's requirement 2026-11-13 | Bench | S | An internet connection is never required. Four services are used today (JPL Horizons, CelesTrak, IMCCE, pool.ntp.org), all as enrichments with caches; this proves offline start-up and every flow, shows each cache's age, and adds a prefetch before a trip. Rule 7 for every phase. [`Phase151-Plan-Airplane-Mode.md`](Phase151-Plan-Airplane-Mode.md) |
 | 52 | **Phase 152: the AI assistant, solved rather than benched** - the owner 2026-11-13, **lowest priority** | Bench, then the owner's two machines | M | The model never changed since it was boxed in, and the check that would widen the box was never written. Preferred model where the hardware allows (benchmarked on the RTX 4090 PC), StarMachine's model as the fallback, both tested. Supersedes P3.6 option A. [`Phase152-Plan-AI-Assistant-Revisited.md`](Phase152-Plan-AI-Assistant-Revisited.md) |
+| 53 | **Phase 153: taking the wiring out of main.cpp** - the owner's review 2026-11-13 | Bench | L, about 6 PRs | The largest untested surface becomes the most tested: an `AppCore` driven headless, then a controller per subsystem. [`Phase153-Plan-Main-Decomposition.md`](Phase153-Plan-Main-Decomposition.md) |
+| 54 | **Phase 154: the hand-written network code** - the owner's review 2026-11-13 | Bench | M | Coverage-guided fuzzing first, then a decision with evidence. [`Phase154-Plan-Network-Surface.md`](Phase154-Plan-Network-Surface.md) |
+| 55 | **Phase 155: turning "unproven" into a number, and hygiene** - the owner's review 2026-11-13 | Bench, then real nights | M | A register of unverified constants, a validation mode, real recordings replayed in CI; printf, dead code. [`Phase155-Plan-Constants-And-Hygiene.md`](Phase155-Plan-Constants-And-Hygiene.md) |
 | 34 | **Phase 134: panels that dock together** - PLANNED 2026-11-11, defaults approved by the owner 2026-11-11 | Bench, then eyes on a screen | L, in 6 stages | Asked for by the owner: the operator panels (Histogram, Status, Sharpness, Temperature, ADC, both sky maps, GoTo, the player) snap together like Lego. Groups are derived from geometry, move as one and resize along shared edges, and F11 fills a monitor with the group. **134.0 to 134.4a merged (#126 to #129, #131). 134.4b (drag onto the dock, drop zones) and 134.5 (persistence) wait at row 34's place in the order (2026-11-11).** A dock window holds panels in a split tree and can go fullscreen. Panels are positioned, not reparented. Shift+drag pulls one out; the snap distance is 12 px. 134.0 is pure geometry and tests, with no pixel changes. [`Phase134-Plan-Panel-Docking.md`](Phase134-Plan-Panel-Docking.md) |
 | 33 | **Phase 133: field proof for the 2026-11-07 night** - PLANNED 2026-11-08, **ahead of 132.3e at the owner's word** | Bench, then one clear night | M | The night's fixes are merged (#105), but only guiding and the target finder are proven on the sky. Autofocus has not run a sweep on the sky, four guiding fixes are bench-only, and the ~8° pointing error is open. Category 1 and 3 by the ranking above. The emulated mount learns the NexStar behaviours measured that night, and the scenarios gate the guiding fixes indoors. [`Phase133-Plan-Field-Proof.md`](Phase133-Plan-Field-Proof.md) |
 | 32 | **Phase 132: the instrument UI** - PLANNED 2026-11-07, **PRIORITIZED by the owner 2026-11-07: first on the bench** | Bench, then eyes on a screen | L, in 11 stages | Asked for by the owner: away from the generic neon-cyan look toward a precision instrument (warm graphite, one muted accent, engraved hairlines, small-caps labels, tabular readouts). It also covers the HTML pages, which the app will write itself from its own tokens and embedded fonts. By the categories above it is category 5, but the owner has put it ahead of every other bench item, including row 7. It still ranks below the clear-night items, which need sky rather than bench time. Next stage: 132.10b, the dashboard restyle (132.0 to 132.9 and 132.10a are written). **132.10b also takes in PR #95's behaviour that `master` lacks** (listed under [Open pull requests](#open-pull-requests)), and comes after 135.1 and 135.2. It is built to be paused: one PR per stage, `master` field-ready between them, and a visual baseline diff (132.0) ahead of any pixel change. 132.1 drops the 10% green from night vision, which sits near the rods' peak and is the one stage that changes what the eye receives. It finishes 96.4b and 119.5 rather than restarting them. [`Phase132-Plan-Instrument-UI.md`](Phase132-Plan-Instrument-UI.md) |

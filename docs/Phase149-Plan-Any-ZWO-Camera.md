@@ -23,6 +23,12 @@ The owner set this direction on 2026-11-13. The app is a planetary imager today,
   - The field of view derived from the plate scale and the sensor.
   - Every site in the table reads from this instead of a literal. When no camera is connected, the last one seen is remembered in rig.ini, so start-up and the emulator still have figures.
   - Gated by a test computing the 678's 0.203" and 0.13° from its own description, and a 26 MP APS-C description producing its own.
+- **149.0b A pixel format the app owns** (the owner's review, 2026-11-13: close the vendor gap before a second backend forces it).
+  - `ICamera` is brand-neutral, but `FrameSlot::imgType` and `TargetProfile::imgType` still carry ZWO's `ASI_IMG_TYPE`. The profile's copy is saved to disk as ZWO's integer (`ProfileManager.h:94,168`), so every saved profile carries the vendor's numbering.
+  - Replace both with a RadukCapture `PixelFormat` (raw Bayer 8 and 16, mono 8 and 16, RGB24), growing from the neutral `ImageType` `ICamera` already has, with the Bayer pattern kept apart in `CameraInfo`.
+  - The one translation to and from `ASI_IMG_TYPE` lives at the `ASICamera` boundary.
+  - **Profiles gain a format version.** New files say `format_version=2` and `pixel_format=raw8`. A file with no version is read through the old ZWO integer table and rewritten at version 2 on its next save. The longer the vendor number sits on disk, the dearer this is.
+  - Gated by a test loading every built-in profile and a version-1 file of each pixel format, round-tripping them, and checking that no `ASI_` name remains outside `src/core/ASI*`.
 - **149.1 Capabilities, not models.**
   - `CameraInfo` gains `hasCooler`, `isUSB3`, `maxExposureUs`, `supportedBins`, `supportedBitDepths`, and `hasSnapMode` (true for ZWO).
   - Read from `ASI_CAMERA_INFO` and the control caps, never from the model name.

@@ -122,11 +122,14 @@ plan in [`docs/`](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/):
 | Phase | What | Why now |
 |---|---|---|
 | 146 | The real camera's throughput, measured over real USB | The 293 MB/s run was the emulator; needs no sky |
-| 149 | Ready for any ZWO camera: one description of the imaging train, capabilities not models, cooling, single long exposures, a second camera, the ZWO filter wheel | About 15 sites still assume the ASI678MC |
+| 149 | Ready for any ZWO camera: one description of the imaging train, the app's own pixel format with versioned profiles, capabilities not models, cooling, single long exposures, a second camera, the ZWO filter wheel | About 15 sites still assume the ASI678MC |
 | 151 | Airplane mode proven, with cache ages and a prefetch for a trip | The owner's rule: no internet, ever |
 | 147 | Uncompressed AVI recording (8-bit; OpenDML past 1 GB) | Asked for by the owner |
 | 148 | TIFF: a 16-bit snapshot of the data, sequence recording, SER to TIFF | Asked for by the owner |
 | 150 | Deep sky and stars (outline): sequences in FITS, calibration, star focus and guiding, dithering | After 149's single exposures |
+| 153 | The wiring taken out of main.cpp: an `AppCore` driven headless, then a tested controller per subsystem | main.cpp is 9,000 lines no test compiles |
+| 154 | The hand-written network code: coverage-guided fuzzing, then a decision with evidence | The only network-facing C++ moves a telescope |
+| 155 | Unverified constants measured by the app, real recordings replayed in CI, and hygiene | Most constants were never checked against the sky |
 | 152 | The AI assistant revisited: the best model the hardware allows, StarMachine's as the fallback, a written check | Lowest priority, by the owner's word |
 
 **Rules for every phase from 146 on** (from the

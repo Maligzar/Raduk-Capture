@@ -4373,6 +4373,9 @@ static int RunApp(bool useEmulator) {
     // Phase 144.1: what is on Jupiter's disc now, as words. Set once the
     // Red Spot model and the Horizons cache exist, further down.
     std::function<std::string()> jupiterDiscNow;
+    // Phase 146.0: the SDK's cumulative dropped-frame count, so each run
+    // is charged its own share in the drop ledger.
+    capturer.SetSdkDropSource([&]() { return capture.Stats().droppedFrames.load(); });
     capturer.SetObservationSource([&](raduk::core::ObservationRecord& r) {
         r.appVersion = RADUK_VERSION_A;
         r.filter = RigConfig::Get().filterName;
@@ -4381,6 +4384,9 @@ static int RunApp(bool useEmulator) {
         nextRecClock.confirmed = -1;
         r.target = outputTarget();
         if (const TargetProfile* ap = profiles.Active()) r.profile = ap->name;
+        // Phase 146.0: the camera's own name, so each camera keeps its own
+        // drop figures (phase 149, rule 1: never a model name in code).
+        if (cam.IsOpen()) r.camera = cam.Describe().name;
         {
             std::string t = r.target;
             for (auto& ch : t) ch = (char)tolower((unsigned char)ch);

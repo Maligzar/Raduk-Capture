@@ -348,6 +348,19 @@ int main() {
               "phase 144.1: what was on Jupiter's disc round-trips", jb.jupiterDisc);
         Check(SerializeObservation(r).find("jupiter_disc =") == std::string::npos,
               "and is absent when nothing was there");
+        // Phase 146.0: the drop ledger's figures.
+        ObservationRecord d = r;
+        d.camera = "ZWO ASI678MC"; d.droppedSdk = 3; d.skippedByChoice = 120; d.timestampGaps = 2;
+        d.framesUnexplained = 1; d.medianIntervalMs = 21.276; d.effectiveFps = 46.9; d.rateLimit = "transfer";
+        ObservationRecord db;
+        const bool okd = ParseObservation(SerializeObservation(d), db, &why);
+        Check(okd && db.camera == d.camera && db.droppedSdk == 3 && db.skippedByChoice == 120 &&
+              db.timestampGaps == 2 && db.framesUnexplained == 1 && Near(db.medianIntervalMs, 21.276, 1e-6) &&
+              Near(db.effectiveFps, 46.9, 1e-6) && db.rateLimit == "transfer",
+              "phase 146.0: the drop ledger round-trips");
+        Check(SerializeObservation(r).find("dropped_sdk") == std::string::npos &&
+              SerializeObservation(r).find("timestamp_gaps") == std::string::npos,
+              "and nothing is written when the ledger did not run");
         ObservationRecord u;
         const std::string su = SerializeObservation(u);
         Check(su.find("\ncm_sys") == std::string::npos && su.find("\nclock_") == std::string::npos,

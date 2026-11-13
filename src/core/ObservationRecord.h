@@ -152,6 +152,17 @@ struct ObservationRecord {
     // Spot 12 min past the meridian; Io shadow transit"), from the Red
     // Spot model and Horizons' moon events. Empty: not Jupiter, or nothing.
     std::string jupiterDisc;
+    // Phase 146.0: every frame the run did not keep, accounted
+    // (DropLedger.h). camera: the camera's own name (CameraInfo.name),
+    // so each camera keeps its own figures. -1 / unknown when not known.
+    std::string camera;
+    int         droppedSdk      = -1;   // this run's share of the SDK's count
+    int         skippedByChoice = -1;   // gate shut or paused
+    int         timestampGaps   = -1;
+    int         framesUnexplained = -1; // implied by gaps, reported by nobody
+    double      medianIntervalMs = kObsUnknown;
+    double      effectiveFps     = kObsUnknown;
+    std::string rateLimit;              // "transfer" or "exposure"
 
     bool HasMountPosition() const {
         return ObsKnown(raHours) && ObsKnown(decDeg);
@@ -368,6 +379,14 @@ inline std::string SerializeObservation(const ObservationRecord& r) {
     Num(o, "clock_offset_ms", r.clockOffsetMs, 1);
     Str(o, "detect",          r.detect);
     Str(o, "jupiter_disc",    r.jupiterDisc);
+    Str(o, "camera",             r.camera);
+    Int(o, "dropped_sdk",        r.droppedSdk,        r.droppedSdk >= 0);
+    Int(o, "skipped_by_choice",  r.skippedByChoice,   r.skippedByChoice >= 0);
+    Int(o, "timestamp_gaps",     r.timestampGaps,     r.timestampGaps >= 0);
+    Int(o, "frames_unexplained", r.framesUnexplained, r.framesUnexplained >= 0);
+    Num(o, "median_interval_ms", r.medianIntervalMs, 3);
+    Num(o, "effective_fps",      r.effectiveFps, 2);
+    Str(o, "rate_limit",         r.rateLimit);
     return o;
 }
 
@@ -575,6 +594,14 @@ inline bool ParseObservation(const std::string& text, ObservationRecord& r,
         else if (k == "clock_offset_ms") ToDouble(v, r.clockOffsetMs);
         else if (k == "detect")          r.detect = v;
         else if (k == "jupiter_disc")    r.jupiterDisc = v;
+        else if (k == "camera")              r.camera = v;
+        else if (k == "dropped_sdk")         ToInt(v, r.droppedSdk);
+        else if (k == "skipped_by_choice")   ToInt(v, r.skippedByChoice);
+        else if (k == "timestamp_gaps")      ToInt(v, r.timestampGaps);
+        else if (k == "frames_unexplained")  ToInt(v, r.framesUnexplained);
+        else if (k == "median_interval_ms")  ToDouble(v, r.medianIntervalMs);
+        else if (k == "effective_fps")       ToDouble(v, r.effectiveFps);
+        else if (k == "rate_limit")          r.rateLimit = v;
         // anything else: a later version's field, ignored
     }
 

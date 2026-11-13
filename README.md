@@ -233,6 +233,7 @@ fixes, need a clear night.
 3. Phase 151: airplane mode proven, with a prefetch for nights away from a connection.
 4. Phases 147 and 148: uncompressed AVI, and TIFF.
 5. Phase 150: deep-sky imaging.
+6. Phase 152, last: the AI assistant revisited, with the best model the hardware allows and StarMachine's as the fallback.
 
 Not built: AVI and TIFF output, deep-sky sequences, multi-star FWHM, a Bahtinov
 focus aid, deep-sky annotation and stellar photometry. Polar alignment is

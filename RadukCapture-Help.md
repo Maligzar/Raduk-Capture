@@ -340,6 +340,7 @@ emergency stop.
 | `N` | Night vision — red preview and HUD. Remembered between sessions |
 | `W` | **W**atch — occasional advice from the local AI. Off by default |
 | `L` | **L**evels — display stretch on/off, for comparing the two |
+| `Shift+L` | Automatic display stretch on/off: the view stretched for the eye on the target (on by default). See [Display stretch](#display-stretch) |
 | `P` | Pause / Resume recording |
 | `Q` | Toggle Quality Bar Graph |
 | `R` | Reticle: off → crosshair → circle → rings → box → off |
@@ -350,7 +351,7 @@ emergency stop.
 | `Z` | Cycle Zoom (FIT → 50% → 100% → 200%) |
 | `K` | Stac**K** the last finished recording. A SER stacks hidden; a FITS file opens in AutoStakkert's window |
 | `Shift+K` | Open the last finished recording in the program Windows has for that file type |
-| `J` | **J**upiter's moons: the mutual events (one moon eclipsing or passing in front of another) coming up at this site, for IMCCE's PHEMU campaign. See *Mutual events* below |
+| `J` | **J**upiter: the central meridians now, the Red Spot's transits and the moons' transits, shadows, occultations and eclipses for the next two days, then the mutual events coming up for IMCCE's PHEMU campaign, all judged for this site. See *Jupiter's Red Spot, moons and shadows* and *Mutual events* below |
 | `Shift+J` | Record the next mutual event, with the clock checked and the settings locked; again to cancel. Asks twice |
 | `↑↓←→` | Jog mount (hold to slew) |
 | `+` / `-` | Fine focus step |
@@ -1614,6 +1615,25 @@ When a Light finishes, the middle of the run in UT goes on the front so WinJUPOS
 
 A `_quality.txt` file is written alongside each SER with per-frame sharpness scores, mean, and peak.
 
+### What protects a recording (phase 135)
+
+- **A disk that fails or fills stops the run, and says so.**
+  - A failed write ends the run with an error on screen: the frames still in memory are lost, so check the drive.
+  - The free space is checked once a second. Below the floor (the larger of 256 MB and what is still waiting in memory), nothing more is accepted, and every frame already captured is still written.
+- **A crash does not leave a file that says it is empty.** The frame count in the SER or FITS header is updated on disk once a second during the run. A crash loses the last second and the timestamps, not the frames.
+- **A stalled camera recovers in about 1.5 s.** If no frame arrives for 1.5 s, or for 10 frame intervals on a long exposure, the camera is restarted. It used to take at least 10 s. Each restart writes a `Pipeline wedge` line in the log.
+- **A run that records nothing leaves nothing behind.** No empty file, sidecar or record, and no line in the night's DeTeCt or submission lists.
+
+### What goes beside each Jupiter run (phases 142 to 144)
+
+- **The observation record** (`_observation.txt`) and **the FITS header** also carry:
+  - the filter (`filter`, `FILTER`, from `FilterName`);
+  - Jupiter's central meridians at mid-run (`cm_sys1_deg` to `cm_sys3_deg`, `CMSYS1` to `CMSYS3`);
+  - whether the PC clock was checked (`clock_confirmed`, `clock_offset_ms`, `CLOCKOK`, `CLOCKOFF`), which only a mutual-event recording does;
+  - what was on the disc as the run started (`jupiter_disc`, `JUPDISC`).
+- **`detect_jupiter_<date>.txt`** in the capture folder lists each Jupiter Light run, with its start and length, for DeTeCt's impact-flash search. Run DeTeCt over the folder yourself. The log keeps the night's Jupiter minutes: empty hours count toward the impact statistics too.
+- **`submission_<date>.txt`** gets one line per Light run with what a measurer or an archive asks for: the file, target, mid-run UTC, length, frames, meridians, telescope, camera, filter, site and clock.
+
 ---
 
 ## Night vision (`N`)
@@ -1783,6 +1803,38 @@ port forwarded by mistake -- still needs it too. Never forward port 8765.
 It does not trouble a game on the same network: telemetry is a few hundred
 bytes twice a second, and the preview picture about 11 KB a second, only
 while a dashboard is open.
+
+---
+
+## Jupiter's Red Spot, moons and shadows (`J`, phases 137 and 144)
+
+Which hour of a Jupiter night is worth the derotation window depends on what
+faces you. `J` lists, for your site (Jupiter at least 15 degrees up, the Sun
+below -6), the next two days of:
+- the central meridians now (Systems I, II and III);
+- the Red Spot's transits;
+- each moon's transits, its shadow's transits, and its occultations and eclipses.
+
+**The Red Spot** transits when System II reaches its longitude, and that
+longitude drifts. Published figures disagree, and each degree moves the
+transit by about 1.65 minutes. So it comes from rig.ini:
+- `GrsLonSys2`: the longitude, degrees, System II;
+- `GrsEpoch`: the date it was measured, `YYYY-MM-DD`;
+- `GrsDriftDegPerMonth`: the drift.
+
+The defaults are 91, 2026-06-01 and 1.75. Over 60 days old, the log asks for
+a recent ALPO, BAA or JUPOS figure.
+
+**Moon events** are fetched from JPL Horizons, three days ahead, and cached.
+Shadow transits are worked out from the moons', the Sun's and the Earth's
+positions. Without a connection, the central meridians and the Red Spot still
+work; the moon events come from the cache. See [Without an internet
+connection](#without-an-internet-connection).
+
+**Using it.**
+- **`[RUNS]` on Jupiter** puts a due focus sweep off while the Red Spot is within 50 minutes of the meridian or a moon or shadow is on the disc (up to `AutorunPrimeDeferMin`, default 30). The run list notes what was on the disc for each run.
+- **The assistant** knows the next 8 hours.
+- **The records** say what was on the disc (see [What goes beside each Jupiter run](#what-goes-beside-each-jupiter-run-phases-142-to-144)).
 
 ---
 
@@ -2069,6 +2121,19 @@ Use the **histogram** below it to choose the points. The three rows are the
 real red, green and blue channels, so a single channel about to clip is
 visible on its own — before v1.2.3 all three rows drew the same luminance
 figure, which looked like a colour histogram but could not show that.
+
+**The automatic stretch** (`Shift+L`, phase 140.3, on by default). Short
+planetary exposures look dark even when they are right. The automatic stretch
+sets the two points from the target itself, twice a second:
+- **black** just above the sky;
+- **white** so the target's brightest part shows at about 90% of the screen.
+
+It never darkens a bright target and never amplifies more than 8 times.
+Touching either slider, or turning the stretch off with `L`, hands control
+back to you. Whenever any stretch is on, the view carries an amber tag:
+`DISPLAY STRETCHED (AUTO)`, or `DISPLAY STRETCHED` for your own. The
+histogram, the analyser, auto-exposure and the recording still see the raw
+data.
 
 The status line reads `Stretch: 20-180` when it is doing something,
 `Stretch: on, 0-255 (no effect)` when the window is open wide enough to
@@ -2433,6 +2498,29 @@ correct answer, which is what turns it into a real check.
 
 ---
 
+## Without an internet connection
+
+**Nothing here needs the internet.** Capture, focus, guiding, plate solving
+(ASTAP's local catalogues), the planets, Sun and Moon (computed here), the sky
+map, the assistant (Ollama on this PC) and the dashboard (this PC or your home
+network) all work in airplane mode. A few extras fetch data when they can, and
+keep it:
+
+| Extra | From | With no connection |
+|---|---|---|
+| Jupiter's moon events | JPL Horizons | the cache, three days ahead |
+| Near-Earth objects on the map | JPL | none shown |
+| Horizons targets (`FOLLOW`) | JPL Horizons | not available |
+| Satellite elements | CelesTrak | the cache; positions grow less exact as it ages |
+| Mutual events | IMCCE | the cached season, which is complete once fetched |
+| The clock check before a mutual event | `TimeServer` (NTP) | the record says the clock was not confirmed |
+
+Phase 151 (planned) will make sure none of these ever delays start-up or a
+capture, show how old each cache is, and add one action that fetches everything
+for a trip before you lose the connection.
+
+---
+
 ## Troubleshooting
 
 ### No signal / black preview
@@ -2693,8 +2781,18 @@ exist and are applied to what you see, but the recorded SER stays raw — see
 [Dark and flat frames](#dark-and-flat-frames). For the final image, take
 darks and flats in your stacker.
 
-**Output formats.** No AVI. Recordings are SER or a FITS cube, and snapshots
-are PNG.
+**Output formats.** No AVI and no TIFF yet. Recordings are SER or a FITS cube,
+and snapshots are PNG. Planned: uncompressed AVI recording (phase 147); TIFF
+as a 16-bit snapshot, as a recording of one file per frame, and as a SER to
+TIFF conversion (phase 148).
+
+**Deep sky, and other cameras.** Planned, not built. The app is a planetary
+imager today, tuned to the ASI678MC. Phase 149 will make it read every figure
+from the camera itself, for whatever ZWO camera comes next: cooling, long
+single exposures, a second camera for guiding, and the ZWO filter wheel. Phase
+150 is the outline for deep-sky imaging: sequences of subs in FITS,
+calibration frames, focus and guiding on stars, and dithering. With the alt-az
+8SE, deep-sky subs stay short.
 
 **Focus aids beyond autofocus.** No multi-star FWHM score and no Bahtinov
 mask assistant. **Single-star HFD and FWHM do exist**, on the sharpness
@@ -2805,6 +2903,15 @@ real site is stored. Most of it is written for you.
 | `TimeServer` | The time server the PC clock is checked against before and after a mutual event recording (UDP 123). Default `pool.ntp.org`. |
 | `PhemuSite` | The site and telescope name on IMCCE's observation sheet, no spaces, different for each telescope. Default `RadukCapture_8SE`. |
 | `LeobenToken` | Leoben's API token (its `LEOBEN_API_TOKEN`). Never logged. |
+| `CaptureFormat` | `ser` or `fits`, as the toolbar's selector leaves it. |
+| `FocuserBacklashSteps` | The focuser's backlash in steps. `-1` (the default) uses the EAF's own figure, else 200. Set it once several autofocus runs' `Backlash measured` lines agree. |
+| `FocuserOneSidedMoves` | `1` (default): every focuser move ends travelling one way by at least the backlash. `0` off. |
+| `FocuserFinalDirection` | `out` (default, rising step numbers) or `in`: which way every move ends. Set it so the last travel pushes the primary toward the corrector. See [Autofocus Routine](#autofocus-routine). |
+| `AutofocusFineStage` | `1` (default): autofocus's fine pass on edge contrast after the coarse sweep, and on its own on the Moon. `0` off. |
+| `GrsLonSys2` / `GrsEpoch` / `GrsDriftDegPerMonth` | The Red Spot's System II longitude, the date it was measured, and its drift a month. See [Jupiter's Red Spot](#jupiters-red-spot-moons-and-shadows-j-phases-137-and-144). |
+| `AutorunPrimeDeferMin` | On Jupiter, how long `[RUNS]` puts a due focus sweep off for the Red Spot or a moon. Default 30; `0` never. |
+| `PanelSnap` | `1` (default): panels snap together and to the screen edges. `0` off; Shift does it for one drag. |
+| `DashboardAppWindow` | `1` (default): the dashboard opens as an app window. `0` uses your default browser. |
 | `FilterLowNm` / `FilterHighNm` | Band edges in nanometres; these are what the ADC model actually uses. Edit them for a filter that is not a preset — the SETUP picker will then show blank rather than overwrite them. Both are reset to the UV/IR cut default if either falls outside 300–1200nm, or the band is narrower than 10nm, because a nonsense band would push the Edlen model outside its domain and return an authoritative-looking meaningless figure. |
 
 ---
@@ -3036,6 +3143,7 @@ order.
 | 3.2.1 | B1 | The object panel (Shift+I) on a star no longer paints its description across the field diagram: the text goes beside the diagram or below it, whichever fits larger, and a long line under the figures keeps its second row |
 | 3.3.0 | 145 | Autofocus in two stages: the coarse sweep on the half-flux diameter, then a fine pass on edge contrast (20 frames a point, the 75th percentile) that sharpens a big disc's focus and can focus on the Moon; `FocuserFinalDirection` sets which way every move ends, so the last travel can push the mirror against gravity |
 | 3.3.0 | 145.5 | The fine pass reads its centre point again at the end: a target that dimmed or brightened while it swept is corrected for, and one that changed by more than 40% keeps the coarse result. On the Moon, autofocus compares the result with where it started and goes back if the start was really better |
+| 3.3.1 | 146-152 | Planned: the real camera's throughput measured indoors, uncompressed AVI recording, TIFF (a 16-bit snapshot, sequence recording, SER to TIFF), readiness for any ZWO camera (cooling, long exposures, a second camera, the filter wheel), an outline for deep sky and stars, airplane mode (no internet ever required), and the AI assistant revisited with a preferred and a fallback model |
 
 ---
 

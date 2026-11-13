@@ -1,11 +1,16 @@
 # RadukCapture
 
 High-speed planetary capture suite for Windows. Pure Win32 + Direct2D, no
-frameworks, ~48,900 lines of C++ across 114 source files. Built for a
-Celestron NexStar 8SE + ZWO ASI678MC + ZWO EAF, talking to each device
-directly: the ASI SDK for the camera, the EAF SDK for the focuser, and the
-raw NexStar serial command set for the mount. No ASCOM, no CPWI, no
-intermediary.
+frameworks, about 81,500 lines of C++ across 202 source files (counted
+2026-11-13). Built for a Celestron NexStar 8SE + ZWO ASI678MC + ZWO EAF,
+talking to each device directly: the ASI SDK for the camera, the EAF SDK for
+the focuser, and for the mount, ASCOM through CPWI when it is installed, else
+the raw NexStar serial command set. It never needs an internet connection.
+
+**Version 3.3** (source release; the title bar shows the exact build).
+Planetary imaging comes first. Deep sky and stars, with the ASI678MC and the
+ZWO cameras that follow it, are planned. See
+[Roadmap and Phase History](Roadmap-and-Phase-History#planned-from-2026-11-13).
 
 This wiki is the deep reference: what each subsystem does, why it is built
 the way it is, and where in the source to look. It is derived from the

@@ -6,6 +6,22 @@ which it is talking to.
 
 ---
 
+## Since v3.0, and where it is going
+
+- **`ICamera` and `IFocuser`** (P5.2, 2026-10-30) sit under every call site. No vendor type remains in the capture hot path.
+- **The mount** tries ASCOM through CPWI first, then the NexStar serial path. `AscomProgId` names any ASCOM driver past the default refusal list (P5.3).
+- **A configurable final focuser direction** (145) is set through `IFocuser::SetApproachDirection`.
+
+**Phase 149 (planned) makes the layer ready for any ZWO camera.** `ICamera::Describe()` already reports the name, sensor size, colour or mono, Bayer pattern, pixel size and bit depth. Yet about 15 sites still assume the ASI678MC (its name, 3840×2160, 0.203"/px, video only, no cooler). The plan:
+- one description of the imaging train, with the plate scale derived;
+- capabilities, not model names;
+- cooling;
+- single long exposures through ZWO's snap mode;
+- more than one camera (a guide camera);
+- an `IFilterWheel` for the ZWO EFW.
+
+Its rules bind every later phase. Plan: [`Phase149-Plan-Any-ZWO-Camera.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/Phase149-Plan-Any-ZWO-Camera.md).
+
 ## Compile-time device selection
 
 [`src/core/DeviceFactory.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/DeviceFactory.h)

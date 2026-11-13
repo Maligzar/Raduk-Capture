@@ -8,6 +8,32 @@ afterwards that reverts the move if it made focus worse.
 
 ---
 
+## Since v3.0: backlash, and two stages
+
+> The sections below describe the coarse sweep as built in v1.2.0. Two
+> phases have built on it since.
+
+**Phase 139, backlash.**
+- The EAF counts motor steps, not mirror position. On the 8SE the knob's slack puts a step number reached outward and the same number reached inward a backlash apart.
+- So every move now ends travelling one way by at least the backlash (`FocusDirection.h`), and the EAF's own backlash compensation is set to 0 while connected.
+- The sweep visits each point out and back. The average cancels a fading target, and the difference between the outward and inward fits is the backlash measured on the sky, logged every run.
+- `AfReadiness.h` turns the button into AUTO FOCUS: NOT NOW, with the reason, when focus cannot work.
+
+**Phase 145, two stages.** HFD (1000/HFD) is the coarse metric: wide capture range, and noise and exposure cancel out of it. But near focus on a large disc it barely moves, and on a frame-filling Moon there is no disc. On synthetic scenes:
+- near focus, HFD separated blur 0 from blur 3 px by 0.1 to 0.2 frame-to-frame scatters, against edge contrast's 2.2 to 2.3;
+- far out, HFD separated blur 48 from blur 72 px by 44 scatters, against edge contrast's 12.
+
+So after the coarse sweep, a fine pass:
+- 7 points across the coarse curve's width, each approached the final way;
+- each scored on the edge metric, `MeasureEdgeFocus` in `FocusMetric.h` (Tenengrad on luminance superpixels, Gaussian-smoothed, gated at 3× the measured noise in the gradient's own units, normalised by the mean squared);
+- 20 frames a point, about 30 a second, keeping the 75th percentile;
+- the centre is re-read at the end, and a 10% to 40% fade is corrected for;
+- if anything fails, the coarse result stands.
+
+On a flat-topped, Jupiter-like curve in `tests/autofocus_saturn.cpp`, the coarse stage alone ended 187 to 547 steps from focus, and with the fine pass 2 to 34. A frame-filling Moon runs the fine pass alone. `FocuserFinalDirection` sets which way every move ends, so the last travel can push the mirror against gravity.
+
+Plan: [`Phase145-Plan-Two-Stage-Focus.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/Phase145-Plan-Two-Stage-Focus.md). None of it has run on the sky yet: clear-night items 47 and 58.
+
 ## The algorithm
 
 ```

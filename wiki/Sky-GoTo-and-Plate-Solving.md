@@ -6,6 +6,14 @@ corrects — for two reasons that are worth reading before you wire it up.
 
 ---
 
+## Since v3.0
+
+- **Fast targets:** lunar features with libration and parallax (115); satellite passes with image lock and a night plan (116 to 118); JPL Horizons targets (121); image-only tracking (122); NEOs, satellites and rocket bodies on the map, each clickable to FOLLOW (128, 130, 131).
+- **Satellite elements as OMM** (136): CelesTrak's five-digit catalogue numbers ran out in 2026, and TLE cannot carry six.
+- **The pointing map measured** (123): each solve grades the map before it is kept, and applying it is a setting.
+- **Jupiter** (`J`, 137 and 141): the central meridians, the Red Spot's transits, the moons' transits, shadow transits, occultations and eclipses, and the season's mutual events for IMCCE, all judged for the site.
+- **Without the internet:** the planets, Sun and Moon are computed here, and ASTAP solves from local catalogues. Only the Horizons, CelesTrak and IMCCE extras fetch data, and each keeps a cache (phase 151 is planned to prove and extend this).
+
 ## Object catalog
 
 [`src/sky/SkyObject.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/sky/SkyObject.h)

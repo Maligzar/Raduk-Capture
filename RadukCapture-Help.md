@@ -2560,9 +2560,26 @@ keep it:
 | Mutual events | IMCCE | the cached season, which is complete once fetched |
 | The clock check before a mutual event | `TimeServer` (NTP) | the record says the clock was not confirmed |
 
-Phase 151 (planned) will make sure none of these ever delays start-up or a
-capture, show how old each cache is, and add one action that fetches everything
-for a trip before you lose the connection.
+**Going offline on purpose (phase 151.0).** Put `Offline=1` in rig.ini and the
+app never tries the internet: each extra above keeps what it has and says
+"offline (rig.ini Offline=1)" instead of reporting a failure. Without the
+setting, the app notices by itself: the first time an internet name will not
+resolve, it stops trying every internet fetch for ten
+minutes, then tries once more, so a dark-site night does not stall on repeated
+lookups and a connection that comes back is used again. A server's own trouble
+(refusing, busy or broken) is not taken for a lost connection.
+
+Machines on your own network are never treated as internet: Leoben, the
+dashboard, Ollama, and a time server given as a LAN name (`elminster`,
+`nas.local`) or a private address (`192.168.x.x`, `10.x.x.x`) are always tried.
+So a GPS time server on the LAN still confirms the clock at a dark site.
+
+The log says what happened, once per server per spell:
+`[NET] skipped celestrak.org: offline (rig.ini Offline=1)`, or
+`[NET] ssd.jpl.nasa.gov could not be found (WinHTTP 12007): no network ...`.
+
+Still to come in phase 151: how old each cache is, shown where it is used, and
+one action that fetches everything for a trip before you lose the connection.
 
 ---
 
@@ -2949,7 +2966,8 @@ real site is stored. Most of it is written for you.
 | `WsLan` | `1` = the dashboard server listens on the home network too, not only this PC. Off by default. See **From another device on your home network**. |
 | `WsLanOpen` | `1` = a device on the home network (a private address) needs no token. Only with `WsLan=1`. This PC and outside addresses still need it. |
 | `LeobenUrl` | Where Leoben is, as `http://name:port` -- for example `http://elminster:5000`. Empty = no weather from Leoben. See **Weather from Leoben**. |
-| `TimeServer` | The time server the PC clock is checked against before and after a mutual event recording (UDP 123). Default `pool.ntp.org`. |
+| `TimeServer` | The time server the PC clock is checked against before and after a mutual event recording (UDP 123). Default `pool.ntp.org`. A LAN name or private address is tried even when offline. |
+| `Offline` | Phase 151.0. `1`: never try the internet (JPL, CelesTrak, IMCCE, an internet time server); each keeps its cache and says it is offline. `0` (default): try, and stop for ten minutes after a lookup fails. LAN machines are never affected. |
 | `PhemuSite` | The site and telescope name on IMCCE's observation sheet, no spaces, different for each telescope. Default `RadukCapture_8SE`. |
 | `LeobenToken` | Leoben's API token (its `LEOBEN_API_TOKEN`). Never logged. |
 | `CaptureFormat` | `ser` or `fits`, as the toolbar's selector leaves it. |
@@ -3199,6 +3217,7 @@ order.
 | 3.3.5 | 149.0 | The camera describes itself: the plate scale is derived from its pixel size and the focal length (or the measured figure), and the full-sensor size, file and record names, the audience screen, the sky map's field circle and the assistant all follow whatever camera is connected. New settings `FocalLengthMm`, `FocalReducer`, `PlateScaleMeasuredArcsecPx` and `TelescopeName` |
 | 3.3.6 | 155.1, 155.2 | Every number never checked against the sky carries an `UNVERIFIED(item N)` tag naming the clear-night item that would check it (20 so far), and `docs/UNVERIFIED.md` lists them. `tools/unverified_report.py` writes the list, and the build fails if a tag names an item the checklist lacks or the list is stale |
 | 3.3.7 | 155 hygiene | Every message from the capture, mount, focuser, writer and solver code now reaches `raduk_log.txt`, time-stamped, instead of a console window nobody sees: 170 `printf` calls in 27 files go through `CoreLog`, and the build refuses a new one. Autofocus's own lines are written once, not twice. Three tracker functions nothing called were removed. When a target fades during autofocus, the final check after a fine pass now compares the start and the result on the edge metric, measured back to back under the same sky: the coarse score is too flat near focus to tell them apart, and could undo a good result |
+| 3.3.8 | 151.0 | Airplane mode, proven rather than assumed: rig.ini `Offline=1` stops every internet fetch, and without it the first failed lookup stops them for ten minutes at a time. The satellite, NEO, Jupiter and mutual-event data say "offline" and keep their caches instead of reporting an error; LAN machines are never affected; the log names each skipped server once |
 
 ---
 

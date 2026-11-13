@@ -163,7 +163,7 @@ private:
             if (nbd <= 0) break;
             std::string body, why;
             if (!Get("opale.imcce.fr", OpalePath(y, m, d, nbd), body)) {
-                Say("could not reach IMCCE's prediction service; keeping what is cached.");
+                Say(SatDesk::FailWhy("could not reach IMCCE's prediction service") + "; keeping what is cached.");
                 return;
             }
             std::vector<Event> part;

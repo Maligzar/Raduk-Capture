@@ -102,7 +102,7 @@ private:
         using namespace raduk::sky;
         std::string body;
         if (!Get("ssd-api.jpl.nasa.gov", CadPath(now, kDaysBack, kDaysAhead, kMaxDistAu), body)) {
-            Say("could not reach JPL's close-approach list; keeping what the map has.");
+            Say(SatDesk::FailWhy("could not reach JPL's close-approach list") + "; keeping what the map has.");
             return;
         }
         std::vector<NeoCandidate> list = ParseCad(body);
@@ -122,7 +122,7 @@ private:
         body.clear();
         if (!Get("ssd.jpl.nasa.gov", HorizonsVectorsPath("10", now - 0.1, now + 1.1, "1 h"), body) ||
             !(*sun = ParseHorizonsVectors(body)).ok) {
-            Say("could not get the Sun's position from Horizons; keeping what the map has.");
+            Say(SatDesk::FailWhy("could not get the Sun's position from Horizons") + "; keeping what the map has.");
             return;
         }
 

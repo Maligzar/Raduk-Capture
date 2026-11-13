@@ -50,6 +50,9 @@
 #include "SatTracker.h"
 #include "../sky/Ephemeris.h"
 #include "../sky/SatPass.h"
+#include "CoreLog.h"
+#include "NetPolicy.h"   // phase 151.0
+#include "RigConfig.h"
 
 #pragma comment(lib, "winhttp.lib")
 
@@ -58,7 +61,29 @@ namespace raduk::core {
 class SatDesk {
 public:
     // Phase 128: public, so the NEO list (NeoDesk) uses the same client.
+    //
+    // Phase 151.0: every internet fetch in the app comes through here, so
+    // here is where the offline rule is kept. With rig.ini Offline=1, or
+    // within NetPolicy's back-off after a host would not resolve, an
+    // internet host is not tried: false at once, LastSkippedOffline()
+    // true so the caller can say "offline" rather than "could not reach",
+    // and one [NET] line in the log per host per spell. LAN hosts are
+    // never gated.
     static bool HttpGet(const wchar_t* host, const wchar_t* path, std::string& out) {
+        auto& net = NetPolicy::Get();
+        net.SetConfigured(RigConfig::Get().offline != 0);
+        std::string h;
+        for (const wchar_t* p = host; p && *p; ++p) h.push_back((char)*p);
+        const bool local = NetPolicy::IsLocalHost(h);
+        const int64_t now = (int64_t)GetTickCount64();
+        LastSkippedOffline() = false;
+        if (!local && !net.AllowInternet(now)) {
+            LastSkippedOffline() = true;
+            if (net.FirstSkipOf(h))
+                raduk::core::CoreLog("[NET] skipped %s: %s\n", h.c_str(), net.Why(now).c_str());
+            return false;
+        }
+
         HINTERNET s = WinHttpOpen(L"RadukCapture", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                   WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         if (!s) return false;
@@ -70,6 +95,20 @@ public:
         bool ok = r && WinHttpSendRequest(r, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
                                           WINHTTP_NO_REQUEST_DATA, 0, 0, 0)
                     && WinHttpReceiveResponse(r, nullptr);
+        if (!ok) {
+            // The name would not resolve: with no network that is the
+            // first thing to fail, and it fails fast. A refused connect,
+            // a timeout or a server's error is that server's trouble and
+            // must not mute the others, so it is left alone.
+            const DWORD err = GetLastError();
+            if (!local && err == ERROR_WINHTTP_NAME_NOT_RESOLVED) {
+                net.NoteNetworkDown(now, h);
+                raduk::core::CoreLog("[NET] %s could not be found (WinHTTP %lu): %s\n",
+                                     h.c_str(), (unsigned long)err, net.Why(now).c_str());
+            }
+        } else if (!local) {
+            net.NoteSuccess();   // any reply, even an error page, means the network is up
+        }
         if (ok) {
             DWORD status = 0, sz = sizeof(status);
             WinHttpQueryHeaders(r, WINHTTP_QUERY_STATUS_CODE |
@@ -92,6 +131,17 @@ public:
         if (c) WinHttpCloseHandle(c);
         WinHttpCloseHandle(s);
         return ok;
+    }
+
+    // Phase 151.0: true when this thread's last HttpGet was not tried
+    // because the app is offline. Callers word their message from it.
+    static bool& LastSkippedOffline() { thread_local bool v = false; return v; }
+
+    // The reason for a failed fetch, as a fetcher should say it: the
+    // offline reason when the fetch was not tried, else `unreached`.
+    static std::string FailWhy(const char* unreached) {
+        if (!LastSkippedOffline()) return unreached;
+        return NetPolicy::Get().Why((int64_t)GetTickCount64());
     }
 
     static constexpr int kTickMs = 200;
@@ -273,7 +323,7 @@ public:
             const std::wstring wpath(path.begin(), path.end());
             auto e = std::make_shared<raduk::sky::Ephemeris>();
             if (!HttpGet(L"ssd.jpl.nasa.gov", wpath.c_str(), body)) {
-                e->why = "could not reach JPL Horizons";
+                e->why = FailWhy("could not reach JPL Horizons");
             } else {
                 *e = raduk::sky::ParseHorizonsVectors(body);
             }
@@ -370,14 +420,20 @@ private:
         }
         std::string body;
         int groups = 0;
+        bool skipped = false;
         for (const wchar_t* g : kGroups) {
             std::string part;
             const std::wstring q = std::wstring(L"/NORAD/elements/gp.php?GROUP=") + g + L"&FORMAT=json";
-            if (!HttpGet(L"celestrak.org", q.c_str(), part)) continue;
+            if (!HttpGet(L"celestrak.org", q.c_str(), part)) {
+                if (LastSkippedOffline()) { skipped = true; break; }   // offline: the rest would be skipped too
+                continue;
+            }
             body += part; body += "\n"; ++groups;
         }
         if (groups == 0) {
-            Say("Could not reach CelesTrak; using the elements on disk.");
+            Say(skipped ? "Offline: using the elements on disk (" +
+                              NetPolicy::Get().Why((int64_t)GetTickCount64()) + ")."
+                        : std::string("Could not reach CelesTrak; using the elements on disk."));
             return;
         }
         int dropped = 0;

@@ -24,6 +24,10 @@
 #include <thread>
 #include <vector>
 
+#include "../core/CoreLog.h"
+#include "../core/NetPolicy.h"   // phase 151.0
+#include "../core/RigConfig.h"
+
 #pragma comment(lib, "ws2_32.lib")
 
 namespace raduk::net {
@@ -69,6 +73,19 @@ public:
 private:
     static sntp::Sample Query(const std::string& server) {
         sntp::Sample fail;
+        // Phase 151.0: an internet time server is not tried while offline
+        // (rig.ini Offline=1, or no network a moment ago). The record then
+        // says the clock was not confirmed, and why. A LAN server is.
+        auto& net = raduk::core::NetPolicy::Get();
+        net.SetConfigured(raduk::core::RigConfig::Get().offline != 0);
+        const bool local = raduk::core::NetPolicy::IsLocalHost(server);
+        const int64_t now = (int64_t)GetTickCount64();
+        if (!local && !net.AllowInternet(now)) {
+            fail.why = net.Why(now);
+            if (net.FirstSkipOf(server))
+                raduk::core::CoreLog("[NET] skipped %s: %s\n", server.c_str(), fail.why.c_str());
+            return fail;
+        }
         WSADATA wsa;
         if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) { fail.why = "Winsock did not start"; return fail; }
         addrinfo hints{};
@@ -79,6 +96,10 @@ private:
         if (getaddrinfo(server.c_str(), "123", &hints, &res) != 0 || !res) {
             WSACleanup();
             fail.why = "could not find " + server;
+            if (!local) {
+                net.NoteNetworkDown(now, server);
+                raduk::core::CoreLog("[NET] %s could not be found: %s\n", server.c_str(), net.Why(now).c_str());
+            }
             return fail;
         }
         std::vector<sntp::Sample> samples;
@@ -105,7 +126,9 @@ private:
         }
         freeaddrinfo(res);
         WSACleanup();
-        return sntp::Best(samples);
+        const sntp::Sample best = sntp::Best(samples);
+        if (best.ok && !local) net.NoteSuccess();
+        return best;
     }
 
     mutable std::mutex m_mutex;

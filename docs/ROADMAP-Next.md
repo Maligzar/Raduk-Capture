@@ -1527,7 +1527,9 @@ the app works with no connection at all.
    2026-11-13 (3.3.5).**
 19. **153.0 (row 53), size M**: `AppCore` and the headless harness. From
    here, new wiring goes into controllers.
-20. **Phase 151.0 and 151.1 (row 51)**: airplane mode proven.
+20. **Phase 151.0 and 151.1 (row 51)**: airplane mode proven. **151.0 written
+   2026-11-13 (3.3.8)**: `Offline=1`, the automatic back-off, and "offline"
+   in place of fetch errors. Next: 151.1, each cache's age.
 21. **155.3 to 155.5 (row 55)**: the plate scale from solves, the validation
    mode, the replay camera with real clips in CI.
 22. **153.1 and 153.2 (row 53)**: the autofocus and recording controllers,

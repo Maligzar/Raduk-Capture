@@ -109,16 +109,16 @@ private:
         const double from = now - 2.0 / 24.0, to = now + kAheadDays;
         std::vector<Event> all;
         std::string body;
-        if (!Get(JovicentricVectorsPath("10", from, to), body)) { Say("could not reach JPL Horizons; keeping what is cached."); return; }
+        if (!Get(JovicentricVectorsPath("10", from, to), body)) { Say(SatDesk::FailWhy("could not reach JPL Horizons") + "; keeping what is cached."); return; }
         const auto sun = raduk::sky::ParseHorizonsVectors(body);
-        if (!Get(JovicentricVectorsPath("399", from, to), body)) { Say("could not reach JPL Horizons; keeping what is cached."); return; }
+        if (!Get(JovicentricVectorsPath("399", from, to), body)) { Say(SatDesk::FailWhy("could not reach JPL Horizons") + "; keeping what is cached."); return; }
         const auto earth = raduk::sky::ParseHorizonsVectors(body);
         if (sun.pts.size() < 2 || earth.pts.size() < 2) { Say("Horizons sent no usable vectors (" + sun.why + earth.why + ")."); return; }
         for (int moon = 1; moon <= 4; ++moon) {
-            if (!Get(VisibilityPath(moon, from, to), body)) { Say("could not reach JPL Horizons; keeping what is cached."); return; }
+            if (!Get(VisibilityPath(moon, from, to), body)) { Say(SatDesk::FailWhy("could not reach JPL Horizons") + "; keeping what is cached."); return; }
             const auto ev = EventsFromVisibility(moon, ParseVisibility(body));
             all.insert(all.end(), ev.begin(), ev.end());
-            if (!Get(JovicentricVectorsPath("50" + std::to_string(moon), from, to), body)) { Say("could not reach JPL Horizons; keeping what is cached."); return; }
+            if (!Get(JovicentricVectorsPath("50" + std::to_string(moon), from, to), body)) { Say(SatDesk::FailWhy("could not reach JPL Horizons") + "; keeping what is cached."); return; }
             const auto mv = raduk::sky::ParseHorizonsVectors(body);
             const auto sh = EventsFromVectors(moon, mv, sun, earth, true, false);
             all.insert(all.end(), sh.begin(), sh.end());

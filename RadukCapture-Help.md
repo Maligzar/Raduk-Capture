@@ -2039,6 +2039,11 @@ A profile is everything the rig should be for one target: gain, exposure,
 gamma, white balance, USB bandwidth, resolution, bit depth, focus position,
 focus step sizes, tracking mode, file prefix and capture limit.
 
+Profile files name their pixel format in words (`pixel_format=raw8`) under
+`format_version=2` (phase 149.0b). A profile saved by an older version, with
+the camera maker's number in `img_type`, still loads, and is rewritten in the
+new form the next time it is saved.
+
 ### Loading one
 
 **Automatically.** Picking an object on the sky map, in the GoTo panel or in
@@ -3168,6 +3173,7 @@ order.
 | 3.3.1 | 146-152 | Planned: the real camera's throughput measured indoors, uncompressed AVI recording, TIFF (a 16-bit snapshot, sequence recording, SER to TIFF), readiness for any ZWO camera (cooling, long exposures, a second camera, the filter wheel), an outline for deep sky and stars, airplane mode (no internet ever required), and the AI assistant revisited with a preferred and a fallback model |
 | 3.3.2 | 153-155 | Planned, from a review of the design: the wiring taken out of main.cpp into a tested application core, the hand-written network code fuzzed and decided on, and the unverified constants measured by the app itself and tested against real recordings |
 | 3.3.3 | 146.0, 146.1 | Every run says where each frame it did not keep went: the camera or USB, skipped by the gate or a pause, our buffer, or a gap in the frame times nobody reported; exposure- or transfer-limited; and `ser_drop_audit` gives the same for any SER |
+| 3.3.4 | 149.0b | Frames and profiles use the app's own pixel format instead of the camera maker's; profile files carry a format version and older ones still load; CI keeps the maker's names inside its own code |
 
 ---
 

@@ -4,11 +4,7 @@
 // Section 3.2 of Architecture Doc
 // ============================================================
 
-#ifdef RADUK_EMULATOR
-#  include "ASICamera2Stub.h"
-#else
-#  include "ASICamera2.h"
-#endif
+#include "PixelFormat.h"   // phase 149.0b: the app's format, not ZWO's enum
 #include <cstdint>
 #include <atomic>
 
@@ -40,7 +36,7 @@ struct FrameSlot {
     uint32_t                width = 0;
     uint32_t                height = 0;
     uint8_t                 bitDepth = 0;       // 8 or 16
-    ASI_IMG_TYPE            imgType = ASI_IMG_RAW8;
+    ImageType               imgType = ImageType::Raw8;   // phase 149.0b
     std::atomic<FrameState> state{FrameState::FREE};
 };
 

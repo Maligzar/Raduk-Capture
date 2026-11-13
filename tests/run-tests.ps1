@@ -50,6 +50,7 @@ $Tests = @(
     @{ Name = "seeing_tally";      Sources = @() }
     @{ Name = "drop_ledger";       Sources = @() }
     @{ Name = "ser_drop_audit";    Sources = @() }
+    @{ Name = "pixel_format";      Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
     @{ Name = "mutual_events";     Sources = @() }
     @{ Name = "sntp_offset";       Sources = @() }

@@ -39,6 +39,7 @@ struct ImagingTrain {
 
     double EffectiveFocalMm() const { return focalMm * (reducer > 0 ? reducer : 1.0); }
 
+    // UNVERIFIED(item 3): plate-solve one frame and compare the solved scale with this derived figure
     double NominalArcsecPx() const {
         const double f = EffectiveFocalMm();
         return (pixelUm > 0 && f > 0) ? 206.264806 * pixelUm / f : 0.0;

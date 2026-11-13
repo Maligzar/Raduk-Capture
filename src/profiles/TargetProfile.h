@@ -119,6 +119,7 @@ struct CameraRails {
             r.why = "lucky imaging: under a millisecond oversamples the "
                     "seeing, over fifty blurs the rotation";
             r.advisory = true;
+            // UNVERIFIED(item 35): where AE settles on a real planet, and the sharpness and noise there
             r.expKneeMs = 20.0; r.gainKnee = 350;
             // A planet wants HCG. The Moon and the focus profiles sit
             // below it on purpose, and a floor would snap them up.
@@ -199,7 +200,9 @@ struct TargetProfile {
     // STARTING POINTS from amateur practice for an 8-inch at f/10, not
     // measurements; clear-night item 55 (the exposure ladder) is how to
     // set them, in the profile's .ini under [exposure_band].
+    // UNVERIFIED(item 55): the exposure ladder sets each target's floor
     double      bandFloorMs  = 0.0;
+    // UNVERIFIED(item 55): the exposure ladder sets each target's ceiling
     double      bandCeilMs   = 0.0;
     bool HasBand() const { return bandFloorMs > 0.0 && bandCeilMs > bandFloorMs; }
 

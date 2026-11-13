@@ -126,6 +126,7 @@ struct AnalysisResult {
     // auto-exposure, which used to drive the mean to 50-70%, could not
     // settle: the only way to lift a mostly-black frame's mean to 152 DN
     // is to blow the planet out entirely.
+    // UNVERIFIED(item 10): AE settles on real Jupiter, Saturn and a small disc (Uranus, Mars)
     static constexpr float HIGHLIGHT_PCTILE = 0.999f;
     float highlightDN = 0.0f;
 
@@ -180,6 +181,7 @@ struct AnalysisResult {
     // Minimum frame peak (0-255) before a centroid is attempted. Below
     // this a frame is noise, and a centroid computed from it would be
     // a random walk. 20/255 is about 8%.
+    // UNVERIFIED(item 6): a faint real target should not read 'too faint' while usable
     static constexpr uint8_t CENTROID_MIN_PEAK = 20;
 
     // ── Centroid (planet lock) ─────────────────────────────────

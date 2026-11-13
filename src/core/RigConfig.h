@@ -138,6 +138,7 @@ struct RigConfig {
     // the measured figure when there is one, else derived from the camera's
     // pixel size and the focal length. It is still written to rig.ini, for
     // reading, but no longer read back as a setting.
+    // UNVERIFIED(item 3): plate-solve one frame; the derived 0.203"/px has never met a solve
     float  plateScaleArcsecPx = 0.203f;
     float  focalLengthMm = 2032.0f;          // FocalLengthMm
     float  focalReducer  = 1.0f;             // FocalReducer: 0.63 reducer, 2 Barlow
@@ -229,6 +230,7 @@ struct RigConfig {
     int         autorunRefocusEvery = 3;
     float       autorunMinAltDeg    = 20.0f;
     // Phase 114: the bar as a percentage of tonight's best. 0 never waits.
+    // UNVERIFIED(item 37): seeing figure logged beside the eye through a change in the sky
     int         autorunSeeingPct     = 80;
     float       autorunSeeingHoldSec = 180.0f;
     // Phase 144: on Jupiter, a due focus sweep waits out a prime spell

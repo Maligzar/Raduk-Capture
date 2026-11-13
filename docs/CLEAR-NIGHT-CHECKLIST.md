@@ -18,6 +18,13 @@ out that every frame of a session was mis-scaled. The app now measures all
 three and says so when they are wrong — so for those, "doing the item" means
 reading one line rather than running a procedure.
 
+**Every number these items would check is listed in
+[`UNVERIFIED.md`](UNVERIFIED.md)** (phase 155.2), generated from
+`UNVERIFIED(item N)` tags in the source. When an item is done, confirm or
+change the value, remove its tag, and run `python tools/unverified_report.py`.
+Item numbers are referenced by those tags, so renumbering an item breaks
+the build until the tags follow.
+
 ---
 
 ## 1. `SHARP_CEIL = 1000` — the one that biases everything

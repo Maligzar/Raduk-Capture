@@ -28,6 +28,7 @@
 
 namespace raduk::core {
 
+// UNVERIFIED(item 56): count 'Pipeline wedge' lines while frames flow on the real camera
 inline constexpr double kWedgeFloorMs = 1500.0;
 inline constexpr double kWedgeIntervals = 10.0;
 

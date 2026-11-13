@@ -2525,6 +2525,24 @@ correct answer, which is what turns it into a real check.
 
 ---
 
+## Numbers that have not met the sky (phase 155.2)
+
+Some of the app's numbers were tuned on the emulator, worked out on paper, or
+taken from a datasheet, and have never been checked against a real night.
+Examples are the sharpness ceiling, the derived plate scale, the
+auto-exposure target band, the 80% seeing bar and the autofocus fade bands.
+Each one is marked in the source with a comment, `UNVERIFIED(item N)`, where
+N is the item of the clear-night checklist that would confirm or replace it.
+
+The full list, with each value and what would verify it, is
+`docs/UNVERIFIED.md`. `tools/unverified_report.py` writes it from those
+tags. The build checks that every tag names a real checklist item and that
+the list is up to date, so a new untested number cannot slip in unmarked.
+When a clear-night item has been run, the value is confirmed or changed and
+its tag removed.
+
+---
+
 ## Without an internet connection
 
 **Nothing here needs the internet.** Capture, focus, guiding, plate solving
@@ -3179,6 +3197,7 @@ order.
 | 3.3.3 | 146.0, 146.1 | Every run says where each frame it did not keep went: the camera or USB, skipped by the gate or a pause, our buffer, or a gap in the frame times nobody reported; exposure- or transfer-limited; and `ser_drop_audit` gives the same for any SER |
 | 3.3.4 | 149.0b | Frames and profiles use the app's own pixel format instead of the camera maker's; profile files carry a format version and older ones still load; CI keeps the maker's names inside its own code |
 | 3.3.5 | 149.0 | The camera describes itself: the plate scale is derived from its pixel size and the focal length (or the measured figure), and the full-sensor size, file and record names, the audience screen, the sky map's field circle and the assistant all follow whatever camera is connected. New settings `FocalLengthMm`, `FocalReducer`, `PlateScaleMeasuredArcsecPx` and `TelescopeName` |
+| 3.3.6 | 155.1, 155.2 | Every number never checked against the sky carries an `UNVERIFIED(item N)` tag naming the clear-night item that would check it (20 so far), and `docs/UNVERIFIED.md` lists them. `tools/unverified_report.py` writes the list, and the build fails if a tag names an item the checklist lacks or the list is stale |
 
 ---
 

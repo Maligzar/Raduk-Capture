@@ -549,6 +549,7 @@ private:
         // The coarse sweep's HFD finds focus to within its flat bottom; the
         // edge metric, many frames a point, every point approached the
         // final way, narrows it. Any failure keeps the coarse result.
+        bool fineUsed = false;   // the final position came from the fine pass
         if (m_params.fineStage) {
             std::vector<int> cp;
             std::vector<float> cs;
@@ -570,6 +571,7 @@ private:
             if (fine >= 0) {
                 Emit("[AF] Fine pass: %d (coarse %d, %+d)\n", fine, bestPos, fine - bestPos);
                 bestPos = fine;
+                fineUsed = true;
             } else {
                 Emit("[AF] Fine pass gave no result; keeping the coarse %d\n", bestPos);
             }
@@ -662,7 +664,24 @@ private:
             }
             Emit("[AF] Re-measured start pos=%d now: %.1f (was %.1f); fit pos=%d: %.1f\n",
                  m_startPosition, startNow, startSharpness, finalPos, finalSharp);
-            if (startNow > 0.0f && finalSharp >= startNow * 0.95f) {
+            bool keep = startNow > 0.0f && finalSharp >= startNow * 0.95f;
+            // Phase 155: after a fine pass the coarse score is the wrong
+            // judge. Near focus its curve is flat (a big disc: 900 steps
+            // off scored within 3% of focus), so a 5% margin on 5 samples
+            // was decided by noise and could revert a good fit. The edge
+            // metric found the fit and separates focus from 600 steps off
+            // about fourfold, so the same-sky A/B uses it, as the Moon
+            // path does: start and fit scored back to back, under one sky.
+            if (fineUsed) {
+                int nS = 0, nF = 0;
+                const float eStart = ScoreHere(&nS);   // the focuser is at the start
+                DriveFinal(finalPos);
+                const float eFit = ScoreHere(&nF);
+                Emit("[AF] Same sky, edge metric: start pos=%d %.4f, fit pos=%d %.4f\n",
+                     m_startPosition, eStart, finalPos, eFit);
+                if (nS > 0 && nF > 0) keep = eFit >= eStart * 0.95f;
+            }
+            if (keep) {
                 Emit("[AF] The sky changed, not the focus: keeping pos=%d\n", finalPos);
                 if (m_params.backlash > 0) {
                     int approachFrom = finalPos - dir * m_params.backlash;

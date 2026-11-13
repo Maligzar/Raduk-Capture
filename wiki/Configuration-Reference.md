@@ -175,6 +175,7 @@ absent.
 ```ini
 [profile]
 name=Jupiter
+format_version=2
 [camera]
 gain=100
 exposure_ms=8.0000
@@ -187,7 +188,7 @@ high_speed=true
 width=1280
 height=960
 binning=1
-img_type=0
+pixel_format=raw8
 [focuser]
 position=150000
 step_coarse=100
@@ -204,6 +205,11 @@ file_prefix=Jupiter_
 [notes]
 text=
 ```
+
+**Profile format version 2 (phase 149.0b).** The pixel format is written by name
+(`raw8`, `raw16`, `rgb24`, `y8`) under `format_version=2`. Older files with no
+version carry ZWO's integer in `img_type` (0 RAW8, 1 RGB24, 2 RAW16, 3 Y8). They
+still load, and are rewritten at version 2 the next time the profile is saved.
 
 A profile is everything the rig should be for one target: camera settings,
 resolution, bit depth, focus position, focus step sizes, tracking mode, file

@@ -91,7 +91,10 @@ public:
         WI("roi",     "width",         profile.roiWidth);
         WI("roi",     "height",        profile.roiHeight);
         WI("roi",     "binning",       profile.binning);
-        WI("roi",     "img_type",      (int)profile.imgType);
+        // Phase 149.0b: the format by name, and the file's format version.
+        // img_type (ZWO's integer) is no longer written.
+        WI("profile", "format_version", raduk::core::kProfileFormatVersion);
+        WS("roi",     "pixel_format",  raduk::core::PixelFormatName(profile.imgType));
 
         WI("focuser", "position",      profile.focusPosition);
         WI("focuser", "step_coarse",   profile.stepCoarse);
@@ -165,7 +168,17 @@ public:
         out.roiWidth     = RI("roi",     "width",         1280);
         out.roiHeight    = RI("roi",     "height",        960);
         out.binning      = RI("roi",     "binning",       1);
-        out.imgType      = (ASI_IMG_TYPE)RI("roi", "img_type", (int)ASI_IMG_RAW8);
+        // Phase 149.0b: version 2 names the format; version 1 (no
+        // format_version key) carried ZWO's integer in img_type.
+        {
+            const int ver = RI("profile", "format_version", 1);
+            raduk::core::ImageType t = raduk::core::ImageType::Raw8;
+            if (ver >= 2 && raduk::core::PixelFormatFromName(RS("roi", "pixel_format", "raw8"), t))
+                out.imgType = t;
+            else
+                out.imgType = raduk::core::PixelFormatFromLegacyZwo(RI("roi", "img_type", 0));
+            out.formatVersionRead = ver;
+        }
 
         out.focusPosition = RI("focuser", "position",    50000);
         out.stepCoarse    = RI("focuser", "step_coarse", 100);

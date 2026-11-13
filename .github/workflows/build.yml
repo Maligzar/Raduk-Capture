@@ -42,6 +42,26 @@ jobs:
           }
           Write-Host "Version $base -> $head"
 
+      # Phase 149.0b: ZWO's names stay inside the ZWO backend (src/core/ASI*)
+      # and the emulator of it, so a second camera backend never finds the
+      # vendor's types in the app. Comments may name them.
+      - name: Vendor names stay in the backend
+        shell: pwsh
+        run: |
+          $bad = @()
+          Get-ChildItem src -Recurse -Include *.h,*.cpp | ForEach-Object {
+            $rel = ($_.FullName.Substring((Get-Location).Path.Length + 1)) -replace '\\','/'
+            if ($rel -match '^src/core/(ASI.*|CameraEmulator\.h)$') { return }
+            $n = 0
+            foreach ($line in Get-Content $_.FullName) {
+              $n++
+              $code = ($line -split '//', 2)[0]
+              if ($code -match '\bASI_[A-Z]') { $bad += "${rel}:${n}: $($line.Trim())" }
+            }
+          }
+          if ($bad.Count) { $bad | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          Write-Host "No ZWO names outside src/core/ASI* and the emulator"
+
       - name: Emulator build
         run: |
           cmake -S . -B build_emu -DRADUK_EMULATOR=ON

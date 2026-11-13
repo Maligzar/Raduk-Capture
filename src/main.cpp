@@ -827,7 +827,7 @@ static void ApplyProfile(const TargetProfile& p,
     // thread, and the gain/exposure values set above survive that.
     if (hooks.setFormat && p.roiWidth > 0 && p.roiHeight > 0) {
         hooks.setFormat(p.roiWidth, p.roiHeight,
-                        p.imgType == ASI_IMG_RAW16 ? 16 : 8);
+                        raduk::core::BitDepthOf(p.imgType));
     }
     // Last, so the panel describes the state everything above left.
     if (hooks.syncUi) hooks.syncUi(p);
@@ -2863,7 +2863,7 @@ static int RunApp(bool useEmulator) {
                 p->roiWidth  = aW;
                 p->roiHeight = aH;
                 p->binning   = aB;
-                p->imgType   = asimap::ToAsi(aT);  // TargetProfile persists the vendor enum
+                p->imgType   = aT;  // phase 149.0b: the app's own format
             }
         }
         // Focus is the setting most worth preserving: ApplyProfile drives
@@ -7076,7 +7076,7 @@ static int RunApp(bool useEmulator) {
         // whose size is fixed for the run (the score is normalised by it).
         if (!autofocus.IsRunning()) afEdgeHalf = -1;
         if (frame && frame->data && autofocus.WantsFastScores() &&
-            (frame->imgType == ASI_IMG_RAW8 || frame->imgType == ASI_IMG_RAW16)) {
+            raduk::core::IsBayerRaw(frame->imgType)) {
             const auto nowF = std::chrono::steady_clock::now();
             if (nowF - afLastFastScore >= std::chrono::milliseconds(33)) {
                 afLastFastScore = nowF;
@@ -7103,13 +7103,12 @@ static int RunApp(bool useEmulator) {
         // B3: dashboard preview. The timer is checked first so the
         // subscriber count (a lock) is asked twice a second, not per pass.
         // RGB24 frames are skipped: DecimateFrame reads one sample a pixel.
-        if (frame && frame->data && frame->imgType != ASI_IMG_RGB24 &&
+        if (frame && frame->data && frame->imgType != raduk::core::ImageType::Rgb24 &&
             std::chrono::steady_clock::now() - lastPreview >= kPreviewInterval) {
             lastPreview = std::chrono::steady_clock::now();
             if (wsServer.PreviewSubscriberCount() > 0) {
                 raduk::net::PreviewImage pimg;
-                const bool bayer = frame->imgType == ASI_IMG_RAW8 ||
-                                   frame->imgType == ASI_IMG_RAW16;
+                const bool bayer = raduk::core::IsBayerRaw(frame->imgType);
                 if (raduk::net::DecimateFrame(frame->data, (int)frame->width,
                                               (int)frame->height, frame->bitDepth,
                                               bayer, pimg))

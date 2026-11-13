@@ -29,11 +29,7 @@
 
 #include <string>
 #include <cstdio>
-#ifdef RADUK_EMULATOR
-#  include "ASICamera2Stub.h"
-#else
-#  include "ASICamera2.h"
-#endif
+#include "../core/PixelFormat.h"   // phase 149.0b: no vendor header here any more
 
 namespace raduk::profiles {
 
@@ -234,7 +230,11 @@ struct TargetProfile {
     int         roiWidth     = 1280;
     int         roiHeight    = 960;
     int         binning      = 1;
-    ASI_IMG_TYPE imgType     = ASI_IMG_RAW8;
+    raduk::core::ImageType imgType = raduk::core::ImageType::Raw8;   // phase 149.0b
+    // The file format version this profile was read from (phase 149.0b):
+    // 1 means it still carries ZWO's integer and is rewritten at
+    // version 2 on its next save. Not saved itself.
+    int         formatVersionRead = raduk::core::kProfileFormatVersion;
 
     // ── Focuser ────────────────────────────────────────────────
     int         focusPosition = CameraRails::EAF_SAFE_DEFAULT;
@@ -323,7 +323,7 @@ inline TargetProfile DefaultJupiter() {
     p.roiWidth    = 640;
     p.roiHeight   = 480;
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW8;
+    p.imgType     = raduk::core::ImageType::Raw8;
     p.limitValue  = 5000;      // ~60s at 80fps — plenty for lucky imaging
     p.limitType   = "frames";
     p.filePrefix  = "Jupiter_";
@@ -355,7 +355,7 @@ inline TargetProfile DefaultSaturn() {
     p.roiWidth    = 640;
     p.roiHeight   = 480;
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW8;
+    p.imgType     = raduk::core::ImageType::Raw8;
     p.limitValue  = 5000;
     p.limitType   = "frames";
     p.filePrefix  = "Saturn_";
@@ -386,7 +386,7 @@ inline TargetProfile DefaultMars() {
     p.roiWidth    = 640;
     p.roiHeight   = 480;
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW8;
+    p.imgType     = raduk::core::ImageType::Raw8;
     p.limitValue  = 5000;
     p.limitType   = "frames";
     p.filePrefix  = "Mars_";
@@ -417,7 +417,7 @@ inline TargetProfile DefaultVenus() {
     p.roiWidth    = 640;
     p.roiHeight   = 480;
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW8;
+    p.imgType     = raduk::core::ImageType::Raw8;
     p.limitValue  = 3000;
     p.limitType   = "frames";
     p.filePrefix  = "Venus_";
@@ -452,7 +452,7 @@ inline TargetProfile DefaultMercury() {
     p.roiWidth    = 640;
     p.roiHeight   = 480;
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW8;
+    p.imgType     = raduk::core::ImageType::Raw8;
     p.focusPosition = 168800;
     p.limitValue  = 3000;
     p.limitType   = "frames";
@@ -480,7 +480,7 @@ inline TargetProfile DefaultUranus() {
     p.roiWidth    = 640;
     p.roiHeight   = 480;
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW8;
+    p.imgType     = raduk::core::ImageType::Raw8;
     p.focusPosition = 168800;
     p.limitValue  = 2000;
     p.limitType   = "frames";
@@ -508,7 +508,7 @@ inline TargetProfile DefaultNeptune() {
     p.roiWidth    = 640;
     p.roiHeight   = 480;
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW8;
+    p.imgType     = raduk::core::ImageType::Raw8;
     p.focusPosition = 168800;
     p.limitValue  = 1500;
     p.limitType   = "frames";
@@ -538,7 +538,7 @@ inline TargetProfile DefaultMoon() {
     p.roiWidth    = 1920;
     p.roiHeight   = 1080;
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW8;
+    p.imgType     = raduk::core::ImageType::Raw8;
     p.limitValue  = 500;
     p.limitType   = "frames";
     p.filePrefix  = "Moon_";
@@ -569,7 +569,7 @@ inline TargetProfile DefaultDSO() {
     p.roiWidth    = 3840;
     p.roiHeight   = 2160;      // full sensor for maximum field
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW16;  // 16-bit for stacking headroom
+    p.imgType     = raduk::core::ImageType::Raw16;  // 16-bit for stacking headroom
     p.limitType   = "time";
     p.limitValue  = 1800;      // 30 min session = many 60s subs
     p.filePrefix  = "DSO_";
@@ -598,7 +598,7 @@ inline TargetProfile DefaultStar() {
     p.roiWidth    = 640;
     p.roiHeight   = 480;
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW8;
+    p.imgType     = raduk::core::ImageType::Raw8;
     p.limitValue  = 500;
     p.limitType   = "frames";
     p.filePrefix  = "Star_";
@@ -629,7 +629,7 @@ inline TargetProfile DefaultPlanetFocus() {
     p.roiWidth    = 1920;
     p.roiHeight   = 1080;
     p.binning     = 1;
-    p.imgType     = ASI_IMG_RAW8;
+    p.imgType     = raduk::core::ImageType::Raw8;
     p.limitValue  = 0;         // no capture limit — focus mode only
     p.limitType   = "frames";
     p.filePrefix  = "Focus_";

@@ -163,12 +163,8 @@ void CaptureThread::Run() {
             slot->width = roiWidth;
             slot->height = roiHeight;
             slot->bitDepth = bitDepth;
-            // FrameSlot still carries the vendor enum, and so does
-            // TargetProfile, which persists it to rig.ini as an int.
-            // Converting those is a persistence change, not an
-            // interface one, so the conversion stops here rather than
-            // rippling into saved profiles.
-            slot->imgType = asimap::ToAsi(roiType);
+            // Phase 149.0b: the slot carries the app's own format.
+            slot->imgType = roiType;
 
             // Hand it to the recorder BEFORE committing to the ring.
             //

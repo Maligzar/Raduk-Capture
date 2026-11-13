@@ -130,6 +130,7 @@
 #include "core/SeeingMonitor.h"
 #include "core/SeeingTally.h"     // phase 138: forecast against the measured sky
 #include "core/AutoExposureAssistant.h"
+#include "app/AppCore.h"            // phase 153.0: the core, apart from the window
 #include "core/TargetNaming.h"     // 2026-11-08: one name for the target, files included
 
 using namespace raduk::core;
@@ -919,7 +920,22 @@ static int RunApp(bool useEmulator) {
         }
     }
 
-    ASICamera cam;
+    // Phase 153.0: the devices and the frame pipeline live in AppCore, the
+    // composition root a headless test also builds. The references below
+    // keep their old names, so the rest of RunApp is unchanged.
+    raduk::app::AppCore core;
+    // What the core says goes to the log; status and toasts follow once
+    // the panel and the notification bar exist.
+    struct MainUiSink final : raduk::app::IUiSink {
+        std::function<void(const std::string&, const std::string&)> status;
+        std::function<void(raduk::app::ToastLevel, const std::string&)> toast;
+        void Status(const std::string& a, const std::string& t) override { if (status) status(a, t); }
+        void Toast(raduk::app::ToastLevel l, const std::string& t) override { if (toast) toast(l, t); }
+        void Line(const std::string& t) override { Log("%s", t.c_str()); }
+    };
+    static MainUiSink mainUi;
+    core.SetUi(&mainUi);
+    auto& cam = core.cam;
     if (!cam.Open(0)) {
         if (!useEmulator)
             MessageBoxA(nullptr, "Failed to open camera.", "RadukCapture", MB_ICONERROR);
@@ -1004,10 +1020,10 @@ static int RunApp(bool useEmulator) {
     }
 
     // ── EAF ────────────────────────────────────────────────────
-    EAFFocuser focuser;
-    raduk::core::AutofocusRoutine autofocus;
+    auto& focuser   = core.focuser;     // phase 153.0: owned by AppCore
+    auto& autofocus = core.autofocus;
     // Up here because the observation record states its mode.
-    raduk::core::AutoExposureAssistant ae;
+    auto& ae        = core.ae;
     // Phase 112: autofocus has been asked for and AE is settling first.
     bool afWaitingForAE = false;
     auto afWaitStart = std::chrono::steady_clock::now();
@@ -1079,7 +1095,7 @@ static int RunApp(bool useEmulator) {
     // So it picks again, and returns a NEW backend. The proxy below is
     // what everything else holds, so a new backend does not strand the
     // tracker, the GoTo panel, the sky maps or the mount controller.
-    raduk::core::MountProxy mountProxy;
+    auto& mountProxy = core.mountProxy;   // phase 153.0: owned by AppCore
     bool startInRCControl = false;
     // Phase P5.3: set when a simulator is standing in for a real
     // mount on the HARDWARE path, which is the case worth warning
@@ -1391,9 +1407,9 @@ static int RunApp(bool useEmulator) {
     // blaming the camera.
     int frameSizeBytes = FrameSizeBytes(
         roiWidth, roiHeight, roiBits == 16 ? ImageType::Raw16 : ImageType::Raw8);
-    RingBuffer ring;
+    auto& ring = core.ring;               // phase 153.0: owned by AppCore
     ring.Allocate(DEFAULT_RING_SIZE, frameSizeBytes);
-    CaptureThread capture;
+    auto& capture = core.capture;
     capture.Start(cam, ring, 8.0);
     Log("[INIT] Capture thread started\n");
 
@@ -1402,12 +1418,12 @@ static int RunApp(bool useEmulator) {
     Log("[INIT] USB traffic manager ready\n");
 
     // ── Frame analyzer (M9) ────────────────────────────────────
-    FrameAnalyzer analyzer;
+    auto& analyzer = core.analyzer;       // phase 153.0: owned by AppCore
     analyzer.Start();
     Log("[INIT] Frame analyzer started\n");
 
     // ── Centroid tracker (Phase 5) ─────────────────────────────
-    CentroidTracker tracker;
+    auto& tracker = core.tracker;         // phase 153.0: owned by AppCore
     tracker.SetMount(mount);
     tracker.SetLostCallback([&]() {
         Log("[TRACK] Centroid lost — planet may have drifted out of frame\n");
@@ -1488,7 +1504,7 @@ static int RunApp(bool useEmulator) {
     auto lastPreview = std::chrono::steady_clock::now();
 
     // ── Capture manager ────────────────────────────────────────
-    CaptureManager capturer;
+    auto& capturer = core.capturer;       // phase 153.0: owned by AppCore
     capturer.SetSessionLog(&slog);
     {
         CaptureConfig cfg;
@@ -4676,10 +4692,7 @@ static int RunApp(bool useEmulator) {
 
     // lastAnalysis also captured by ROILock lambda — must be declared before it
     AnalysisResult lastAnalysis{};
-    // Phase 145.2: the fine pass's edge-metric feed.
-    int afEdgeHalf = -1;
-    auto afLastFastScore = std::chrono::steady_clock::now();
-    raduk::core::EdgeScratch afEdgeScratch;
+    // Phase 145.2's fine-pass feed lives in AppCore (phase 153.0).
 
     // Phase 13: Survey frame delivery — wired here so lastFrameForSolve/lastAnalysis are in scope
     gotoPanel.SetSurveyFrameCallback([&]() {
@@ -7110,32 +7123,8 @@ static int RunApp(bool useEmulator) {
 
         // Phase 145.2: during autofocus's fine pass, score the newest raw
         // frame on the edge metric, up to 30 times a second, over a region
-        // whose size is fixed for the run (the score is normalised by it).
-        if (!autofocus.IsRunning()) afEdgeHalf = -1;
-        if (frame && frame->data && autofocus.WantsFastScores() &&
-            raduk::core::IsBayerRaw(frame->imgType)) {
-            const auto nowF = std::chrono::steady_clock::now();
-            if (nowF - afLastFastScore >= std::chrono::milliseconds(33)) {
-                afLastFastScore = nowF;
-                const bool filled = autofocus.FineOnly() || (lastAnalysis.valid && lastAnalysis.surfaceTracked);
-                if (afEdgeHalf <= 0) {
-                    // A uniform disc's half-flux diameter is sqrt(2) x its radius.
-                    const float r = lastAnalysis.focusHfdPx / 1.41421356f;
-                    afEdgeHalf = filled ? 128 : (std::max)(48, (std::min)(200, (int)(r * 1.3f) + 24));
-                    Log("[AF] fine pass region: %d px each side of the target%s\n", afEdgeHalf,
-                        filled ? " (the surface)" : "");
-                }
-                float ecx = frame->width * 0.5f, ecy = frame->height * 0.5f;
-                if (lastAnalysis.valid && lastAnalysis.centroidValid) {
-                    ecx = lastAnalysis.centroidX; ecy = lastAnalysis.centroidY;
-                }
-                const float bg = filled ? 0.0f : lastAnalysis.centroidBgDN;
-                const raduk::core::EdgeFocus ef = raduk::core::MeasureEdgeFocus(
-                    frame->data, frame->width, frame->height, frame->bitDepth,
-                    ecx, ecy, afEdgeHalf, bg, afEdgeScratch);
-                if (ef.valid) autofocus.SubmitFastScore(ef.score);
-            }
-        }
+        // whose size is fixed for the run. Phase 153.0: in AppCore.
+        core.FeedAutofocusFrame(frame, lastAnalysis);
 
         // B3: dashboard preview. The timer is checked first so the
         // subscriber count (a lock) is asked twice a second, not per pass.
@@ -7256,11 +7245,7 @@ static int RunApp(bool useEmulator) {
         // flat across the sweep and jumped with exposure. Autofocus is fed
         // the planet's half-flux diameter instead, as 1000/HFD, and only
         // from frames where it was measured.
-        if (freshAnalysis && lastAnalysis.valid && autofocus.IsRunning() &&
-            lastAnalysis.focusValid)
-            autofocus.SubmitSharpness(lastAnalysis.focusScore,
-                                      lastAnalysis.centroidValid,
-                                      (int)lastAnalysis.centroidPeak);
+        core.FeedAutofocusAnalysis(lastAnalysis, freshAnalysis);   // phase 153.0
 
         // Phase 133.2: say so when the target fades during a sweep or a
         // recording. The flux watched does not change with focus, so a

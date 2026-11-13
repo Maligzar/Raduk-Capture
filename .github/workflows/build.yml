@@ -100,3 +100,21 @@ jobs:
       - name: Bench tests
         shell: pwsh
         run: ./tests/run-tests.ps1
+
+      # Phase 153.0: the emulator build run through three scenarios, to learn
+      # whether this runner can drive the app with its window. Non-gating
+      # until it is known to work here; if it does, it becomes the
+      # before-and-after proof each 153 extraction asks for.
+      - name: Scenario smoke (non-gating)
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: pwsh
+        run: |
+          $failed = 0
+          foreach ($s in @("smoke", "recording", "autofocus")) {
+            ./tests/run-scenarios.ps1 $s
+            if ($LASTEXITCODE -ne 0) { $failed++ }
+          }
+          Write-Host "Scenario smoke: $failed of 3 did not pass"
+          exit $failed

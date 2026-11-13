@@ -52,6 +52,8 @@ $Tests = @(
     @{ Name = "ser_drop_audit";    Sources = @() }
     @{ Name = "pixel_format";      Sources = @() }
     @{ Name = "net_policy";        Sources = @() }
+    @{ Name = "app_feed";          Sources = @() }
+    @{ Name = "app_headless";      Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "imaging_train";     Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
     @{ Name = "mutual_events";     Sources = @() }

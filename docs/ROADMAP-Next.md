@@ -1514,7 +1514,9 @@ the app works with no connection at all.
 
 17. **Phase 146 (row 46), size S**, with **155.1, 155.2 and 155.5's clip
    tool**: the real camera's throughput indoors, and the first real clips
-   cut from the 2026-11-07 recordings.
+   cut from the 2026-11-07 recordings. **146.0 and 146.1 written
+   2026-11-13 (3.3.3)**: the drop ledger and `ser_drop_audit`. Next: the
+   owner's indoor runs (146.2).
 18. **149.0 and 149.0b (row 49), size S-M**: one description of the imaging
    train, and the app's own `PixelFormat` with versioned profiles, while
    there is one backend.

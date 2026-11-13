@@ -190,6 +190,7 @@ inline double BayerLaplacianVariance(const uint8_t* buf,
 // on scale. Still worth one on-sky check: if readings sit near the top
 // raise it, and if they crowd the bottom lower it. Only the SHAPE of the
 // curve matters to autofocus - the ceiling just has to not clip it.
+// UNVERIFIED(item 1): real-frame sharpness distribution on a planet; the ceiling should sit just above the best frames
 inline constexpr double SHARP_CEIL = 1000.0;
 
 inline float SharpnessPercent(double variance) {

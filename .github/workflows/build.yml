@@ -62,6 +62,11 @@ jobs:
           if ($bad.Count) { $bad | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
           Write-Host "No ZWO names outside src/core/ASI* and the emulator"
 
+      # Phase 155.2: every UNVERIFIED(item N) tag names a real clear-night
+      # item, and docs/UNVERIFIED.md matches the tags.
+      - name: Unverified register in step
+        run: python tools/unverified_report.py --check
+
       - name: Emulator build
         run: |
           cmake -S . -B build_emu -DRADUK_EMULATOR=ON

@@ -112,6 +112,7 @@ struct EdgeFocus {
     int   points  = 0;      // grid points scored
 };
 
+// UNVERIFIED(item 58): the 7 fine-pass edge scores rise and fall once on a real planet
 inline constexpr float kEdgeGateK = 3.0f;
 
 // The L2 norm of Sobel-x convolved with the 3x3 Gaussian: how much one

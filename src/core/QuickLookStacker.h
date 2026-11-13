@@ -47,10 +47,13 @@ public:
     // Admit every frame until the distribution means something. The ring
     // fills in well under a second, and those frames are already ALIGNED,
     // so even the cold-start display beats the old code.
+    // UNVERIFIED(item 6): on real seeing, is the threshold stable after this many frames?
     static constexpr int   COLD_START   = 32;
+    // UNVERIFIED(item 6): does the best-15% stack visibly beat a single real frame?
     static constexpr float PERCENTILE   = 0.85f;   // keep the top ~15%
     // Further than seeing can account for: a jog, a slew, a bumped tripod
     // or a failed centroid. 64 buffer px is ~13" at the real plate scale.
+    // UNVERIFIED(item 6): count 'planet jumped' rejections under real seeing jitter
     static constexpr int   MAX_SHIFT    = 64;
     // Consecutive agreeing outliers needed before the reference moves,
     // and how close they must be to count as agreeing (superpixels).

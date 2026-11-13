@@ -1516,7 +1516,9 @@ the app works with no connection at all.
    tool**: the real camera's throughput indoors, and the first real clips
    cut from the 2026-11-07 recordings. **146.0 and 146.1 written
    2026-11-13 (3.3.3)**: the drop ledger and `ser_drop_audit`. Next: the
-   owner's indoor runs (146.2).
+   owner's indoor runs (146.2). **155.1 and 155.2 written 2026-11-13
+   (3.3.6)**: 20 `UNVERIFIED(item N)` tags and `docs/UNVERIFIED.md`, kept
+   in step by CI. The clip tool waits for the real recordings.
 18. **149.0 and 149.0b (row 49), size S-M**: one description of the imaging
    train, and the app's own `PixelFormat` with versioned profiles, while
    there is one backend. **149.0b written 2026-11-13 (3.3.4). 149.0 written

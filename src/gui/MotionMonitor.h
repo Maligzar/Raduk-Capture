@@ -48,6 +48,7 @@ public:
     // be long enough to contain the mount feed, whose samples arrive
     // >= 2s apart, but short enough that a jog is not averaged away
     // across the whole 10s trail.
+    // UNVERIFIED(item 6): the motion plot reads steady but responsive on a real target
     static constexpr double SPEED_WINDOW_S = 2.5;
     // NOTE on scaling: the plot frames the TRAIL'S OWN BOUNDING BOX,
     // never distance from the origin. The origin is fixed at the first

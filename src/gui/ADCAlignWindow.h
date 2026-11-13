@@ -120,6 +120,7 @@ private:
 
     // Below this the residual is smaller than the seeing it was
     // measured through, and further dialling is chasing noise.
+    // UNVERIFIED(item 12): with a real corrector, does the residual reach this and the image show it?
     static constexpr float ALIGNED_ARCSEC = 0.15f;
 
     static HFONT MakeFont(int px, bool bold, const char* face) {

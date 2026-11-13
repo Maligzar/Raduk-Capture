@@ -73,7 +73,9 @@ public:
         // 185-215 DN leaves the planet bright but off the ceiling, with
         // headroom for seeing to brighten a moment of good luck without
         // clipping it. UNVERIFIED ON SKY -- see the clear-night list.
+        // UNVERIFIED(item 10): AE settles on a real planet with R, G and B short of clipping
         float targetLo  = 185.0f;  // 73% of 255
+        // UNVERIFIED(item 10): no clipping on good-seeing moments at the top of the band
         float targetHi  = 215.0f;  // 84% of 255
 
         // Clip threshold — emergency cut if any channel clips this %

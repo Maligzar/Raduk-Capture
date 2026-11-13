@@ -250,7 +250,9 @@ enum class FadeAction { None, Correct, GiveUp };
 
 // Within 10%: seeing alone does that. Under 60%: too much changed to fit.
 inline FadeAction FadeVerdict(float ratio) {
+    // UNVERIFIED(item 58): the fine-pass fade-check ratio on a clear, steady night
     if (ratio >= 0.9f && ratio <= 1.0f / 0.9f) return FadeAction::None;
+    // UNVERIFIED(item 58): a real fade (dew or cloud) during a fine pass, and whether correcting helped
     if (ratio >= 0.6f && ratio <= 1.0f / 0.6f) return FadeAction::Correct;
     return FadeAction::GiveUp;
 }

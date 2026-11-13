@@ -94,7 +94,9 @@ static int Run(int start, bool capped, std::string& msg, double fadePerSec = 0.0
     af.SetParams(p);
     af.SetLogger([](const char* s) {
         if (std::strstr(s, "scores corrected")) g_fadeCorrected.fetch_add(1);
-        if (getenv("AFLOG")) std::printf("%s", s);
+        // Every line, as before phase 155 sent Emit to the sink alone:
+        // the V-curve and the A/B are what a CI failure is read from.
+        std::printf("%s", s);
     });
     std::atomic<bool> done{false};
     AFResult res;

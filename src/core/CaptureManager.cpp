@@ -11,6 +11,7 @@
 #include "../sky/JupiterEvents.h"   // phase 143: central meridians
 
 #include <cmath>
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -79,7 +80,7 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
         m_writeBuffer.NumSlots() != slots ||
         m_writeBuffer.SlotCapacity() < frameBytes) {
         if (!m_writeBuffer.Allocate(slots, frameBytes)) {
-            printf("[CaptureManager] Write buffer allocation FAILED "
+            raduk::core::CoreLog("[CaptureManager] Write buffer allocation FAILED "
                    "(%d x %zu bytes) — recording not started\n",
                    slots, frameBytes);
             std::lock_guard<std::mutex> lk(m_mutex);
@@ -278,7 +279,7 @@ void CaptureManager::StopRecording(bool normal) {
             std::lock_guard<std::mutex> lk(m_mutex);
             m_status.currentFile.clear();
         }
-        printf("[CaptureManager] Recording stopped: 0 frames, nothing kept\n");
+        raduk::core::CoreLog("[CaptureManager] Recording stopped: 0 frames, nothing kept\n");
         if (m_log) m_log->Capture("Recording stopped: 0 frames, nothing kept");
         if (m_onComplete) m_onComplete(std::string(), normal);
         return;
@@ -362,7 +363,7 @@ void CaptureManager::StopRecording(bool normal) {
     double   mb     = m_status.bytesWritten.load() / (1024.0 * 1024.0);
     double   secs   = m_status.elapsedSec.load();
 
-    printf("[CaptureManager] Recording stopped: %u frames  %u drops  %.1f MB  %.1fs\n",
+    raduk::core::CoreLog("[CaptureManager] Recording stopped: %u frames  %u drops  %.1f MB  %.1fs\n",
            frames, drops, mb, secs);
 
     if (m_log) m_log->Capture("Recording stopped: %u frames  %u drops  %.1f MB  %.1fs",

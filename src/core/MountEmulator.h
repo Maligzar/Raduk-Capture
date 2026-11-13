@@ -52,6 +52,7 @@
 #include <ctime>
 #include <chrono>
 #include "IMount.h"
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -77,7 +78,7 @@ public:
             m_nexstar = ns && ns[0] == '1';
             m_nsValid = false;
             if (m_nexstar)
-                printf("[MountEmulator] NexStar semantics: commands replace tracking, "
+                raduk::core::CoreLog("[MountEmulator] NexStar semantics: commands replace tracking, "
                        "azimuth mirrored, tracking mis-set\n");
         }
         // Start with Jupiter's approximate RA/DEC (good test target)
@@ -86,7 +87,7 @@ public:
         m_tracking  = ALT_AZ;
         // Start the simulation thread
         m_simThread = std::thread(&MountEmulator::SimLoop, this);
-        printf("[MountEmulator] Connected on %s — simulating NexStar 8SE\n",
+        raduk::core::CoreLog("[MountEmulator] Connected on %s — simulating NexStar 8SE\n",
                comPort.c_str());
         return true;
     }
@@ -95,7 +96,7 @@ public:
         if (!m_connected) return;
         m_connected = false;
         if (m_simThread.joinable()) m_simThread.join();
-        printf("[MountEmulator] Disconnected\n");
+        raduk::core::CoreLog("[MountEmulator] Disconnected\n");
     }
 
     bool IsConnected() const override { return m_connected; }
@@ -145,7 +146,7 @@ public:
         m_gotoRA  = raHours;
         m_gotoDec = decDegrees;
         m_slewing = true;
-        printf("[MountEmulator] GoTo RA=%.4f DEC=%.4f\n", raHours, decDegrees);
+        raduk::core::CoreLog("[MountEmulator] GoTo RA=%.4f DEC=%.4f\n", raHours, decDegrees);
         return true;
     }
 
@@ -155,7 +156,7 @@ public:
 
     void CancelGoTo() override {
         m_slewing = false;
-        printf("[MountEmulator] GoTo cancelled\n");
+        raduk::core::CoreLog("[MountEmulator] GoTo cancelled\n");
     }
 
     // ── Safety — NexStarMount compatibility stubs ──────────────
@@ -202,7 +203,7 @@ public:
     bool SetTrackingMode(TrackingMode mode) override {
         std::lock_guard<std::mutex> lk(m_mutex);
         m_tracking = mode;
-        printf("[MountEmulator] Tracking: %s\n", TrackingModeName(mode));
+        raduk::core::CoreLog("[MountEmulator] Tracking: %s\n", TrackingModeName(mode));
         return true;
     }
 
@@ -220,7 +221,7 @@ public:
         const double as = (direction == 0) ? arcsecPerSec : -arcsecPerSec;
         if (axis == 0) { m_slewAsRA  = as; m_slewRateRA  = 0; }
         else           { m_slewAsDec = as; m_slewRateDec = 0; }
-        printf("[MountEmulator] SlewVariable axis=%d dir=%d %.2f arcsec/s\n",
+        raduk::core::CoreLog("[MountEmulator] SlewVariable axis=%d dir=%d %.2f arcsec/s\n",
                axis, direction, arcsecPerSec);
         return true;
     }
@@ -240,7 +241,7 @@ public:
             m_slewRateDec = (direction == 0) ? rate : -rate;
         }
         if (rate > 0) {
-            printf("[MountEmulator] Slew axis=%d dir=%d rate=%d\n",
+            raduk::core::CoreLog("[MountEmulator] Slew axis=%d dir=%d rate=%d\n",
                    axis, direction, rate);
         }
         return true;
@@ -250,7 +251,7 @@ public:
         std::lock_guard<std::mutex> lk(m_mutex);
         if (axis == 0) { m_slewRateRA  = 0; m_slewAsRA  = 0.0; }
         else           { m_slewRateDec = 0; m_slewAsDec = 0.0; }
-        printf("[MountEmulator] Stop axis=%d\n", axis);
+        raduk::core::CoreLog("[MountEmulator] Stop axis=%d\n", axis);
     }
 
     // ── Sync ───────────────────────────────────────────────────
@@ -260,7 +261,7 @@ public:
         m_raHours = raHours;
         m_decDeg  = decDegrees;
         m_nsValid = false;   // 133.1: the encoders re-seat on the next tick
-        printf("[MountEmulator] Sync to RA=%.4f DEC=%.4f\n", raHours, decDegrees);
+        raduk::core::CoreLog("[MountEmulator] Sync to RA=%.4f DEC=%.4f\n", raHours, decDegrees);
         return true;
     }
 
@@ -358,7 +359,7 @@ private:
                         m_targetRA  = m_gotoRA;
                         m_targetDec = m_gotoDec;
                         m_slewing = false;
-                        printf("[MountEmulator] GoTo complete (sim pointing error 45\"/25\")\n");
+                        raduk::core::CoreLog("[MountEmulator] GoTo complete (sim pointing error 45\"/25\")\n");
                     } else {
                         // Along the axes, as the real fork slews: both
                         // move at once, each at most GOTO_DEG_PER_TICK.
@@ -482,7 +483,7 @@ private:
             bool over = false;
             if (m_slewAsRA  != 0.0 && std::fabs(m_slewAsRA)  < kNsOverwriteBelowAs) { m_slewAsRA  = 0.0; over = true; }
             if (m_slewAsDec != 0.0 && std::fabs(m_slewAsDec) < kNsOverwriteBelowAs) { m_slewAsDec = 0.0; over = true; }
-            if (over) printf("[MountEmulator] hand control tracking overwrote a variable rate\n");
+            if (over) raduk::core::CoreLog("[MountEmulator] hand control tracking overwrote a variable rate\n");
         }
         auto commanded = [](double as, int preset) {
             if (as != 0.0) return as;
@@ -530,7 +531,7 @@ private:
             case GuideDirection::West:  az  -= nudgeDeg; break;
         }
         AltAzToRADecNow(alt, az, m_raHours, m_decDeg);
-        printf("[MountEmulator] PulseGuide dir=%d %dms\n", (int)dir, durationMs);
+        raduk::core::CoreLog("[MountEmulator] PulseGuide dir=%d %dms\n", (int)dir, durationMs);
         return true;
     }
 

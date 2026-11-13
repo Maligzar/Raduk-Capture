@@ -29,6 +29,7 @@
 #include <cstdint>   // uint32_t below; MSVC pulls this in transitively, nothing else does
 #include "ObjectKnowledgeDB.h"
 #include "RigConfig.h"
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -418,11 +419,11 @@ public:
                 m_helpText = std::string(buf.data(), read);
             }
             CloseHandle(hf);
-            printf("[AIContextBuilder] Help.md loaded (%zu bytes)\n",
+            raduk::core::CoreLog("[AIContextBuilder] Help.md loaded (%zu bytes)\n",
                    m_helpText.size());
         } else {
             m_helpText = "(Help file not found — limited app reference available)";
-            printf("[AIContextBuilder] Help.md not found — using stub\n");
+            raduk::core::CoreLog("[AIContextBuilder] Help.md not found — using stub\n");
         }
     }
 
@@ -444,7 +445,7 @@ public:
         WIN32_FIND_DATAW fd = {};
         HANDLE h = FindFirstFileW((docsDir + L"\\*.md").c_str(), &fd);
         if (h == INVALID_HANDLE_VALUE) {
-            printf("[AIContextBuilder] no documents found\n");
+            raduk::core::CoreLog("[AIContextBuilder] no documents found\n");
             return;
         }
         int files = 0;
@@ -463,7 +464,7 @@ public:
                                               KeepEnd::Head, &full);
             if (body.empty()) continue;
             if (full > body.size())
-                printf("[AIContextBuilder] %ls is %llu bytes, over the %zu-byte "
+                raduk::core::CoreLog("[AIContextBuilder] %ls is %llu bytes, over the %zu-byte "
                        "cap: kept the first %zu bytes (whole sections only)\n",
                        fd.cFileName, full, kDocumentCapBytes, body.size());
             // A heading naming the file, so a matched section can be
@@ -476,7 +477,7 @@ public:
             files++;
         } while (FindNextFileW(h, &fd));
         FindClose(h);
-        printf("[AIContextBuilder] %d document(s) loaded (%zu bytes)\n",
+        raduk::core::CoreLog("[AIContextBuilder] %d document(s) loaded (%zu bytes)\n",
                files, m_docsText.size());
     }
 
@@ -518,12 +519,12 @@ public:
             char label[200];
             snprintf(label, sizeof(label), "%ls", n.c_str());
             if (full > body.size())
-                printf("[AIContextBuilder] %s is %llu bytes, over the %zu-byte "
+                raduk::core::CoreLog("[AIContextBuilder] %s is %llu bytes, over the %zu-byte "
                        "cap: kept the last %zu bytes\n",
                        label, full, kSessionLogCapBytes, body.size());
             m_sessions.push_back({ label, body });
         }
-        printf("[AIContextBuilder] %zu session log(s) loaded\n",
+        raduk::core::CoreLog("[AIContextBuilder] %zu session log(s) loaded\n",
                m_sessions.size());
     }
 

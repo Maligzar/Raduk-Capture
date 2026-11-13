@@ -36,6 +36,7 @@
 #include <future>
 #include <chrono>
 #include <cstdio>
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -164,7 +165,7 @@ inline SiteFix QueryWindowsLocation(int timeoutMs = 8000) {
         s_abandoned = std::move(work);
     }
 
-    printf("[SiteLocator] Windows Location: %s%s\n",
+    raduk::core::CoreLog("[SiteLocator] Windows Location: %s%s\n",
            fix.status.c_str(), fix.valid ? "" : " - no fix");
     return fix;
 }
@@ -174,7 +175,7 @@ inline SiteFix QueryWindowsLocation(int timeoutMs = 8000) {
 inline SiteFix QueryWindowsLocation(int /*timeoutMs*/ = 8000) {
     SiteFix fix;
     fix.status = "unavailable - SDK lacks Windows.Devices.Geolocation";
-    printf("[SiteLocator] %s\n", fix.status.c_str());
+    raduk::core::CoreLog("[SiteLocator] %s\n", fix.status.c_str());
     return fix;
 }
 

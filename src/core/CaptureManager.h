@@ -32,6 +32,7 @@
 #include <cstdio>
 #include <ctime>
 #include <windows.h>
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -246,8 +247,8 @@ public:
     // ── Pause / Resume (Phase 41) ─────────────────────────────
     // Pause skips incoming frames without closing the SER file.
     // The writer thread keeps draining the buffer during pause.
-    void Pause()   { m_paused.store(true);  printf("[CaptureManager] PAUSED\n"); }
-    void Resume()  { m_paused.store(false); printf("[CaptureManager] RESUMED\n"); }
+    void Pause()   { m_paused.store(true);  raduk::core::CoreLog("[CaptureManager] PAUSED\n"); }
+    void Resume()  { m_paused.store(false); raduk::core::CoreLog("[CaptureManager] RESUMED\n"); }
     void TogglePause() { m_paused.load() ? Resume() : Pause(); }
     bool IsPaused() const { return m_paused.load(); }
 

@@ -36,6 +36,7 @@
 #include <functional>
 #include "ASITypeMap.h"
 #include "LunarSurface.h"
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -183,7 +184,7 @@ public:
         info.IsColorCam = ASI_TRUE;
         info.BayerPattern = ASI_BAYER_RG;
         info.PixelSize = 2.0;
-        printf("[CameraEmulator] Enumerate: 1 emulated camera\n");
+        raduk::core::CoreLog("[CameraEmulator] Enumerate: 1 emulated camera\n");
         return { info };
     }
 
@@ -203,7 +204,7 @@ public:
         // that got persisted as the last session format.
         m_roiW = EMU_MAX_ROI_W; m_roiH = EMU_MAX_ROI_H;
         m_binning = 1; m_imgType = ASI_IMG_RAW8;
-        printf("[CameraEmulator] Opened: %s (%dx%d, ROI changeable up to %dx%d)\n",
+        raduk::core::CoreLog("[CameraEmulator] Opened: %s (%dx%d, ROI changeable up to %dx%d)\n",
                m_info.Name, m_roiW, m_roiH, EMU_MAX_ROI_W, EMU_MAX_ROI_H);
         return true;
     }
@@ -212,7 +213,7 @@ public:
         if (!m_isOpen) return;
         StopVideoCapture();
         m_isOpen = false;
-        printf("[CameraEmulator] Closed\n");
+        raduk::core::CoreLog("[CameraEmulator] Closed\n");
     }
 
     bool IsOpen()      const override { return m_isOpen; }
@@ -264,7 +265,7 @@ public:
         m_reqOriginY.store((m_info.MaxHeight - h) / 2);
         m_binning = binning; m_imgType = imgType;
         if (changed || width > EMU_MAX_ROI_W || height > EMU_MAX_ROI_H)
-            printf("[CameraEmulator] SetROI %dx%d -> %dx%d %s\n",
+            raduk::core::CoreLog("[CameraEmulator] SetROI %dx%d -> %dx%d %s\n",
                    width, height, w, h,
                    imgType == ASI_IMG_RAW16 ? "RAW16" : "RAW8");
         return true;
@@ -643,7 +644,7 @@ public:
                 // radius still applied after switching to Mars is a
                 // disc three times too big and nothing says so.
                 m_radiusOverrideAs = 0.0f;
-                printf("[CameraEmulator] Target: %s\n", n);
+                raduk::core::CoreLog("[CameraEmulator] Target: %s\n", n);
                 return;
             }
         }
@@ -676,7 +677,7 @@ public:
     void SetTargetAngularRadiusArcsec(float arcsec) {
         m_radiusOverrideAs = (arcsec > 0.0f) ? arcsec : 0.0f;
         if (m_radiusOverrideAs > 0.0f)
-            printf("[CameraEmulator] %s apparent radius %.2f\" "
+            raduk::core::CoreLog("[CameraEmulator] %s apparent radius %.2f\" "
                    "(table says %.2f\")\n",
                    EMU_TARGETS[m_target].name, m_radiusOverrideAs,
                    EMU_TARGETS[m_target].radiusArcsec);
@@ -771,10 +772,10 @@ public:
             if (GetEnvironmentVariableA("RADUK_EMU_REMOVE_AFTER_S", envBuf, 32))
                 m_removeAfterS = (float)atof(envBuf);
             if (m_removeAfterS > 0)
-                printf("[CameraEmulator] USB-drop injection armed at t+%.0fs\n",
+                raduk::core::CoreLog("[CameraEmulator] USB-drop injection armed at t+%.0fs\n",
                        m_removeAfterS);
         }
-        printf("[CameraEmulator] Video capture started (%dx%d)\n", m_roiW, m_roiH);
+        raduk::core::CoreLog("[CameraEmulator] Video capture started (%dx%d)\n", m_roiW, m_roiH);
         return true;
     }
 
@@ -786,7 +787,7 @@ public:
         // costs power across the whole system, and a stopped camera has
         // no reason to hold it.
         if (m_timerRaised) { timeEndPeriod(1); m_timerRaised = false; }
-        printf("[CameraEmulator] Video capture stopped — %llu frames generated\n",
+        raduk::core::CoreLog("[CameraEmulator] Video capture stopped — %llu frames generated\n",
                m_frameCounter.load());
     }
 
@@ -1569,7 +1570,7 @@ private:
                         a[i] = (uint8_t)(((int)a[i] * (256 - fx)
                                         + (int)b[i] * fx) >> 8);
                     if ((m_frameCounter % 60) == 0)
-                        printf("[EMU] defocus: pos=%d true=%d  dia=%.1fpx "
+                        raduk::core::CoreLog("[EMU] defocus: pos=%d true=%d  dia=%.1fpx "
                                "(rf=%.2f superpx)\n",
                                focusPos, m_trueFocus, diaPx, rf);
                 }
@@ -1605,7 +1606,7 @@ private:
             // directly, once every few seconds.
             m_genRenderMs.store((double)renderMs, std::memory_order_relaxed);
             if ((m_frameCounter % 120) == 0)
-                printf("[EMU] render %dx%d: %d ms (%.1f fps ceiling)\n",
+                raduk::core::CoreLog("[EMU] render %dx%d: %d ms (%.1f fps ceiling)\n",
                        W, H, renderMs,
                        renderMs > 0 ? 1000.0 / renderMs : 999.0);
             // A real camera cannot deliver frames faster than it can

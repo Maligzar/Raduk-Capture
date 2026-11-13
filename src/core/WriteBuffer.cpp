@@ -6,6 +6,7 @@
 #include "WriteBuffer.h"
 #include <cstring>
 #include <new>
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -20,7 +21,7 @@ bool WriteBuffer::Allocate(int numSlots, size_t frameSizeBytes) {
             VirtualAlloc(nullptr, frameSizeBytes,
                          MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
         if (!m_slots[i].data) {
-            printf("[WriteBuffer] VirtualAlloc failed slot %d\n", i);
+            raduk::core::CoreLog("[WriteBuffer] VirtualAlloc failed slot %d\n", i);
             Deallocate(); return false;
         }
         m_slots[i].bufferCapacity = frameSizeBytes;
@@ -45,7 +46,7 @@ bool WriteBuffer::Allocate(int numSlots, size_t frameSizeBytes) {
     m_allocated = true;
 
     double mb = (numSlots * frameSizeBytes) / (1024.0 * 1024.0);
-    printf("[WriteBuffer] Allocated %d slots x %zu bytes = %.0f MB\n",
+    raduk::core::CoreLog("[WriteBuffer] Allocated %d slots x %zu bytes = %.0f MB\n",
            numSlots, frameSizeBytes, mb);
     return true;
 }
@@ -84,7 +85,7 @@ bool WriteBuffer::Push(const uint8_t* data, size_t sizeBytes,
     WriteSlot& slot = m_slots[idx];
 
     if (sizeBytes > slot.bufferCapacity) {
-        printf("[WriteBuffer] Frame too large: %zu > %zu\n",
+        raduk::core::CoreLog("[WriteBuffer] Frame too large: %zu > %zu\n",
                sizeBytes, slot.bufferCapacity);
         return false;
     }

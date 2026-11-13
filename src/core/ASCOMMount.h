@@ -37,6 +37,7 @@
 #include <mutex>
 #include "IMount.h"
 #include "RigConfig.h"
+#include "CoreLog.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
@@ -67,7 +68,7 @@ public:
         std::wstring wprogID(progID.begin(), progID.end());
         hr = CLSIDFromProgID(wprogID.c_str(), &clsid);
         if (FAILED(hr)) {
-            printf("[ASCOMMount] ProgID '%s' not registered (0x%lx)\n"
+            raduk::core::CoreLog("[ASCOMMount] ProgID '%s' not registered (0x%lx)\n"
                    "  → Is CPWI installed? Try: ASCOM.CPWI.Telescope\n"
                    "  → CPWI must be running AND connected to mount first\n",
                    progID.c_str(), hr);
@@ -77,7 +78,7 @@ public:
         hr = CoCreateInstance(clsid, nullptr, CLSCTX_LOCAL_SERVER,
                               IID_IDispatch, (void**)&m_dispatch);
         if (FAILED(hr)) {
-            printf("[ASCOMMount] CoCreateInstance failed (0x%lx)\n"
+            raduk::core::CoreLog("[ASCOMMount] CoCreateInstance failed (0x%lx)\n"
                    "  → Launch CPWI, connect to mount, then start RadukCapture\n",
                    hr);
             return false;
@@ -85,14 +86,14 @@ public:
 
         // Set Connected = true
         if (!SetBool(L"Connected", true)) {
-            printf("[ASCOMMount] Connected=true failed — is CPWI connected to mount?\n");
+            raduk::core::CoreLog("[ASCOMMount] Connected=true failed — is CPWI connected to mount?\n");
             m_dispatch->Release(); m_dispatch = nullptr;
             return false;
         }
 
         m_progID = progID;
         m_connected = true;
-        printf("[ASCOMMount] Connected to %s\n", progID.c_str());
+        raduk::core::CoreLog("[ASCOMMount] Connected to %s\n", progID.c_str());
 
         // Log driver description so we can catch simulator/wrong-driver issues
         {
@@ -105,7 +106,7 @@ public:
                 if (SUCCEEDED(m_dispatch->Invoke(did, IID_NULL, LOCALE_USER_DEFAULT,
                     DISPATCH_PROPERTYGET, &dp, &result, nullptr, nullptr))) {
                     if (result.vt == VT_BSTR && result.bstrVal)
-                        printf("[ASCOMMount] Driver description: %ls\n", result.bstrVal);
+                        raduk::core::CoreLog("[ASCOMMount] Driver description: %ls\n", result.bstrVal);
                     VariantClear(&result);
                 }
             }
@@ -117,7 +118,7 @@ public:
                 if (SUCCEEDED(m_dispatch->Invoke(nameId, IID_NULL, LOCALE_USER_DEFAULT,
                     DISPATCH_PROPERTYGET, &dp, &result, nullptr, nullptr))) {
                     if (result.vt == VT_BSTR && result.bstrVal) {
-                        printf("[ASCOMMount] Driver name: %ls\n", result.bstrVal);
+                        raduk::core::CoreLog("[ASCOMMount] Driver name: %ls\n", result.bstrVal);
                         std::wstring name(result.bstrVal);
                         if (name.find(L"Simulator") != std::wstring::npos ||
                             name.find(L"simulator") != std::wstring::npos) {
@@ -129,19 +130,19 @@ public:
                             // generic path; a discovered one is a
                             // misconfiguration.
                             if (ProgIdWasPinned()) {
-                                printf("[ASCOMMount] *** SIMULATED MOUNT, named in rig.ini ***\n");
-                                printf("[ASCOMMount] *** AscomProgId=%s\n",
+                                raduk::core::CoreLog("[ASCOMMount] *** SIMULATED MOUNT, named in rig.ini ***\n");
+                                raduk::core::CoreLog("[ASCOMMount] *** AscomProgId=%s\n",
                                        RigConfig::Get().ascomProgId.c_str());
-                                printf("[ASCOMMount] *** Nothing here will move a telescope.\n");
-                                printf("[ASCOMMount] *** Clear AscomProgId in rig.ini to go back\n");
-                                printf("[ASCOMMount] *** to discovering the real mount.\n");
+                                raduk::core::CoreLog("[ASCOMMount] *** Nothing here will move a telescope.\n");
+                                raduk::core::CoreLog("[ASCOMMount] *** Clear AscomProgId in rig.ini to go back\n");
+                                raduk::core::CoreLog("[ASCOMMount] *** to discovering the real mount.\n");
                             } else {
-                                printf("[ASCOMMount] *** WARNING: Connected to SIMULATOR ***\n");
-                                printf("[ASCOMMount] *** Device Hub is misconfigured.\n");
-                                printf("[ASCOMMount] *** Device Hub → Tools → Setup → Telescope\n");
-                                printf("[ASCOMMount] *** → choose ASCOM.CPWI.Telescope\n");
-                                printf("[ASCOMMount] *** If CPWI.Telescope doesn't resolve,\n");
-                                printf("[ASCOMMount] *** run CPWI installer → Repair\n");
+                                raduk::core::CoreLog("[ASCOMMount] *** WARNING: Connected to SIMULATOR ***\n");
+                                raduk::core::CoreLog("[ASCOMMount] *** Device Hub is misconfigured.\n");
+                                raduk::core::CoreLog("[ASCOMMount] *** Device Hub → Tools → Setup → Telescope\n");
+                                raduk::core::CoreLog("[ASCOMMount] *** → choose ASCOM.CPWI.Telescope\n");
+                                raduk::core::CoreLog("[ASCOMMount] *** If CPWI.Telescope doesn't resolve,\n");
+                                raduk::core::CoreLog("[ASCOMMount] *** run CPWI installer → Repair\n");
                             }
                         }
                     }
@@ -152,7 +153,7 @@ public:
 
         m_canMoveAxis[0] = true;
         m_canMoveAxis[1] = true;
-        printf("[ASCOMMount] MoveAxis enabled for both axes\n");
+        raduk::core::CoreLog("[ASCOMMount] MoveAxis enabled for both axes\n");
         return true;
     }
 
@@ -163,7 +164,7 @@ public:
         m_dispatch = nullptr;
         m_connected = false;
         if (m_coInitialised) { CoUninitialize(); m_coInitialised = false; }
-        printf("[ASCOMMount] Disconnected\n");
+        raduk::core::CoreLog("[ASCOMMount] Disconnected\n");
     }
 
     bool IsConnected() const override {
@@ -249,7 +250,7 @@ public:
             // Phase 97: the chosen rate, not the literal 0.
             SetInt(L"TrackingRate", (int)m_rate);
         }
-        printf("[ASCOMMount] Tracking: %s\n", TrackingModeName(mode));
+        raduk::core::CoreLog("[ASCOMMount] Tracking: %s\n", TrackingModeName(mode));
         return true;
     }
 
@@ -274,12 +275,12 @@ public:
         if (!m_dispatch) return false;
         std::lock_guard<std::mutex> lk(m_mutex);
         if (!SetInt(L"TrackingRate", (int)rate)) {
-            printf("[ASCOMMount] driver refused tracking rate %d; "
+            raduk::core::CoreLog("[ASCOMMount] driver refused tracking rate %d; "
                    "staying as it was\n", (int)rate);
             return false;
         }
         m_rate = rate;
-        printf("[ASCOMMount] Tracking rate: %s\n",
+        raduk::core::CoreLog("[ASCOMMount] Tracking rate: %s\n",
                rate == RATE_LUNAR ? "lunar"
              : rate == RATE_SOLAR ? "solar" : "sidereal");
         return true;
@@ -347,7 +348,7 @@ public:
 
         DISPID did = GetDispId(L"PulseGuide");
         if (did == DISPID_UNKNOWN) {
-            printf("[ASCOMMount] PulseGuide not supported by driver\n");
+            raduk::core::CoreLog("[ASCOMMount] PulseGuide not supported by driver\n");
             return false;
         }
 
@@ -360,7 +361,7 @@ public:
         HRESULT hr = m_dispatch->Invoke(did, IID_NULL, LOCALE_USER_DEFAULT,
                                          DISPATCH_METHOD, &dp, nullptr, nullptr, nullptr);
         if (FAILED(hr)) {
-            printf("[ASCOMMount] PulseGuide failed: 0x%lx\n", hr);
+            raduk::core::CoreLog("[ASCOMMount] PulseGuide failed: 0x%lx\n", hr);
             return false;
         }
         return true;
@@ -442,17 +443,17 @@ public:
         // resolving should look different from no driver at all.
         const std::string& pinned = RigConfig::Get().ascomProgId;
         if (!pinned.empty()) {
-            printf("[ASCOMMount] AscomProgId pins the driver: %s\n", pinned.c_str());
+            raduk::core::CoreLog("[ASCOMMount] AscomProgId pins the driver: %s\n", pinned.c_str());
             std::wstring wid(pinned.begin(), pinned.end());
             CLSID clsid{};
             if (SUCCEEDED(CLSIDFromProgID(wid.c_str(), &clsid))) return pinned;
-            printf("[ASCOMMount] AscomProgId does not resolve: %s\n"
+            raduk::core::CoreLog("[ASCOMMount] AscomProgId does not resolve: %s\n"
                    "  -> check the spelling, or clear it to discover again\n",
                    pinned.c_str());
             return "";
         }
 
-        printf("[ASCOMMount] Enumerating ASCOM telescope drivers from registry...\n");
+        raduk::core::CoreLog("[ASCOMMount] Enumerating ASCOM telescope drivers from registry...\n");
 
         // ── Step 1: Read ASCOM registry to find all registered telescope drivers ──
         // ASCOM registers drivers at:
@@ -469,7 +470,7 @@ public:
             DWORD idx = 0, nameLen = sizeof(name);
             while (RegEnumKeyExA(hKey, idx++, name, &nameLen,
                                   nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS) {
-                printf("[ASCOMMount]   Found driver: %s\n", name);
+                raduk::core::CoreLog("[ASCOMMount]   Found driver: %s\n", name);
                 registered.push_back(std::string(name));
                 nameLen = sizeof(name);
             }
@@ -480,7 +481,7 @@ public:
         enumKey(HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\ASCOM\\Telescope Drivers");
 
         if (registered.empty()) {
-            printf("[ASCOMMount] No ASCOM telescope drivers found in registry.\n"
+            raduk::core::CoreLog("[ASCOMMount] No ASCOM telescope drivers found in registry.\n"
                    "  → Install ASCOM Platform first, then reinstall CPWI\n");
         }
 
@@ -534,10 +535,10 @@ public:
             WideCharToMultiByte(CP_ACP, 0, wid, -1, &id[0], len, nullptr, nullptr);
             CLSID clsid{};
             if (SUCCEEDED(CLSIDFromProgID(wid, &clsid))) {
-                printf("[ASCOMMount] ProgID resolves: %s\n", id.c_str());
+                raduk::core::CoreLog("[ASCOMMount] ProgID resolves: %s\n", id.c_str());
                 return id;
             }
-            printf("[ASCOMMount] ProgID not resolved: %s\n", id.c_str());
+            raduk::core::CoreLog("[ASCOMMount] ProgID not resolved: %s\n", id.c_str());
             return "";
         };
 
@@ -549,18 +550,18 @@ public:
         // ── Step 3: Try every registered driver from registry ──────────────────
         for (const auto& progId : registered) {
             if (isRefusedByDefault(progId)) {
-                printf("[ASCOMMount] Skipping blacklisted driver: %s\n", progId.c_str());
+                raduk::core::CoreLog("[ASCOMMount] Skipping blacklisted driver: %s\n", progId.c_str());
                 continue;
             }
             std::wstring wid(progId.begin(), progId.end());
             CLSID clsid{};
             if (SUCCEEDED(CLSIDFromProgID(wid.c_str(), &clsid))) {
-                printf("[ASCOMMount] Using registry driver: %s\n", progId.c_str());
+                raduk::core::CoreLog("[ASCOMMount] Using registry driver: %s\n", progId.c_str());
                 return progId;
             }
         }
 
-        printf("[ASCOMMount] No ASCOM mount found. Required steps:\n"
+        raduk::core::CoreLog("[ASCOMMount] No ASCOM mount found. Required steps:\n"
                "  1. Install ASCOM Platform (ascom-standards.org)\n"
                "  2. Install/reinstall CPWI\n"
                "  3. Launch CPWI and connect to mount\n"
@@ -592,7 +593,7 @@ private:
                 }
                 VariantClear(&result);
             }
-            printf("[ASCOMMount] CanMoveAxis[%d] = %s\n",
+            raduk::core::CoreLog("[ASCOMMount] CanMoveAxis[%d] = %s\n",
                    axis, m_canMoveAxis[axis] ? "true" : "false");
             if (!m_canMoveAxis[axis]) continue;
 
@@ -675,7 +676,7 @@ private:
 
                 double rMax = readProp(L"Maximum");
                 double rMin = readProp(L"Minimum");
-                printf("[ASCOMMount]   AxisRates[%d]: %.4f – %.4f deg/sec\n",
+                raduk::core::CoreLog("[ASCOMMount]   AxisRates[%d]: %.4f – %.4f deg/sec\n",
                        axis, rMin, rMax);
                 if (rMax > 0.0) m_axisRates[axis].push_back(rMax);
                 if (rMin > 0.0 && rMin != rMax)
@@ -689,9 +690,9 @@ private:
         }
 
         if (m_axisRates[0].empty() && m_axisRates[1].empty())
-            printf("[ASCOMMount] WARNING: No valid AxisRates returned — using NexStar fallback rates\n");
+            raduk::core::CoreLog("[ASCOMMount] WARNING: No valid AxisRates returned — using NexStar fallback rates\n");
         else
-            printf("[ASCOMMount] AxisRates OK: axis0=%zu ranges, axis1=%zu ranges\n",
+            raduk::core::CoreLog("[ASCOMMount] AxisRates OK: axis0=%zu ranges, axis1=%zu ranges\n",
                    m_axisRates[0].size(), m_axisRates[1].size());
     }
 
@@ -724,7 +725,7 @@ private:
             4.0000   // rate 9
         };
         int idx = (rate < 1) ? 0 : (rate > 9) ? 8 : rate - 1;
-        printf("[ASCOMMount] MapRate: using fallback rate %.4f deg/sec (rate=%d)\n",
+        raduk::core::CoreLog("[ASCOMMount] MapRate: using fallback rate %.4f deg/sec (rate=%d)\n",
                nexstarRates[idx], rate);
         return nexstarRates[idx];
     }
@@ -756,12 +757,12 @@ private:
         sprintf_s(cmd, sizeof(cmd), "P\x02%c%c%c\x00\x00\x00",
                   (char)nexAxis, (char)nexDir, (char)nexRate);
 
-        printf("[ASCOMMount] CommandBlind slew: axis=%d dir=%d rate=%d\n",
+        raduk::core::CoreLog("[ASCOMMount] CommandBlind slew: axis=%d dir=%d rate=%d\n",
                nexAxis, nexDir, nexRate);
 
         DISPID did = GetDispId(L"CommandBlind");
         if (did == DISPID_UNKNOWN) {
-            printf("[ASCOMMount] CommandBlind not found — trying MoveAxis fallback\n");
+            raduk::core::CoreLog("[ASCOMMount] CommandBlind not found — trying MoveAxis fallback\n");
             return SlewAxisMoveAxis(axis, direction, rate);
         }
 
@@ -787,9 +788,9 @@ private:
         SysFreeString(args[1].bstrVal);
 
         if (FAILED(hr)) {
-            printf("[ASCOMMount] CommandBlind failed: 0x%lx — trying MoveAxis\n", hr);
+            raduk::core::CoreLog("[ASCOMMount] CommandBlind failed: 0x%lx — trying MoveAxis\n", hr);
             if (ei.bstrDescription)
-                printf("[ASCOMMount]   %ls\n", ei.bstrDescription);
+                raduk::core::CoreLog("[ASCOMMount]   %ls\n", ei.bstrDescription);
             return SlewAxisMoveAxis(axis, direction, rate);
         }
         return true;
@@ -816,16 +817,16 @@ private:
         } catch (...) { hr = E_FAIL; }
 
         if (FAILED(hr)) {
-            printf("[ASCOMMount] MoveAxis(axis=%d, rate=%.4f) FAILED 0x%lx\n",
+            raduk::core::CoreLog("[ASCOMMount] MoveAxis(axis=%d, rate=%.4f) FAILED 0x%lx\n",
                    axis, signedRate, hr);
             if (ei.bstrDescription)
-                printf("[ASCOMMount]   %ls\n", ei.bstrDescription);
+                raduk::core::CoreLog("[ASCOMMount]   %ls\n", ei.bstrDescription);
             if (hr == RPC_E_DISCONNECTED ||
                 hr == HRESULT_FROM_WIN32(RPC_S_SERVER_UNAVAILABLE))
                 m_connected = false;
             return false;
         }
-        printf("[ASCOMMount] MoveAxis axis=%d rate=%.4f\n", axis, signedRate);
+        raduk::core::CoreLog("[ASCOMMount] MoveAxis axis=%d rate=%.4f\n", axis, signedRate);
         return true;
     }
 
@@ -836,7 +837,7 @@ private:
         HRESULT hr = m_dispatch->GetIDsOfNames(IID_NULL, names, 1,
                                    LOCALE_USER_DEFAULT, &did);
         if (FAILED(hr))
-            printf("[ASCOMMount] GetIDsOfNames(%ls) failed: 0x%lx\n", name, hr);
+            raduk::core::CoreLog("[ASCOMMount] GetIDsOfNames(%ls) failed: 0x%lx\n", name, hr);
         return did;
     }
 
@@ -849,7 +850,7 @@ private:
                                          DISPATCH_PROPERTYGET, &dp,
                                          &result, nullptr, nullptr);
         if (FAILED(hr)) {
-            printf("[ASCOMMount] Get(%ls) failed: 0x%lx\n", prop, hr);
+            raduk::core::CoreLog("[ASCOMMount] Get(%ls) failed: 0x%lx\n", prop, hr);
             VariantClear(&result); return false;
         }
         VARIANT v; VariantInit(&v);

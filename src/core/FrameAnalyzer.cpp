@@ -5,6 +5,7 @@
 
 #include "FrameAnalyzer.h"
 #include "ThreadName.h"
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -12,7 +13,7 @@ void FrameAnalyzer::Start() {
     if (m_running.load()) return;
     m_running.store(true);
     m_thread = std::thread(&FrameAnalyzer::Run, this);
-    printf("[FrameAnalyzer] Started\n");
+    raduk::core::CoreLog("[FrameAnalyzer] Started\n");
 }
 
 void FrameAnalyzer::Stop() {
@@ -20,7 +21,7 @@ void FrameAnalyzer::Stop() {
     m_running.store(false);
     m_hasWork.store(true); // wake thread so it exits
     if (m_thread.joinable()) m_thread.join();
-    printf("[FrameAnalyzer] Stopped\n");
+    raduk::core::CoreLog("[FrameAnalyzer] Stopped\n");
 }
 
 void FrameAnalyzer::Submit(const FrameSlot* slot) {

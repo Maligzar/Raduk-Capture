@@ -48,6 +48,7 @@
 
 #include "DeviceFactory.h"
 #include "FocusDirection.h"   // phase 139
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -548,6 +549,7 @@ private:
         // The coarse sweep's HFD finds focus to within its flat bottom; the
         // edge metric, many frames a point, every point approached the
         // final way, narrows it. Any failure keeps the coarse result.
+        bool fineUsed = false;   // the final position came from the fine pass
         if (m_params.fineStage) {
             std::vector<int> cp;
             std::vector<float> cs;
@@ -569,6 +571,7 @@ private:
             if (fine >= 0) {
                 Emit("[AF] Fine pass: %d (coarse %d, %+d)\n", fine, bestPos, fine - bestPos);
                 bestPos = fine;
+                fineUsed = true;
             } else {
                 Emit("[AF] Fine pass gave no result; keeping the coarse %d\n", bestPos);
             }
@@ -588,13 +591,13 @@ private:
                                       (std::min)(m_params.maxStepBound, approachFrom));
             m_focuser->MoveToDirect(approachFrom);
             if (!WaitForMove())
-                printf("[AF] backlash approach to %d did not complete\n", approachFrom);
+                raduk::core::CoreLog("[AF] backlash approach to %d did not complete\n", approachFrom);
             Sleep(300);
         }
 
         m_focuser->MoveToDirect(finalPos);
         if (!WaitForMove())
-            printf("[AF] final move to %d did not complete - focus may be off\n", finalPos);
+            raduk::core::CoreLog("[AF] final move to %d did not complete - focus may be off\n", finalPos);
         Sleep(m_params.settleMs);
 
         // Verify final sharpness. 8000ms, not 4000: samples now arrive only
@@ -661,7 +664,24 @@ private:
             }
             Emit("[AF] Re-measured start pos=%d now: %.1f (was %.1f); fit pos=%d: %.1f\n",
                  m_startPosition, startNow, startSharpness, finalPos, finalSharp);
-            if (startNow > 0.0f && finalSharp >= startNow * 0.95f) {
+            bool keep = startNow > 0.0f && finalSharp >= startNow * 0.95f;
+            // Phase 155: after a fine pass the coarse score is the wrong
+            // judge. Near focus its curve is flat (a big disc: 900 steps
+            // off scored within 3% of focus), so a 5% margin on 5 samples
+            // was decided by noise and could revert a good fit. The edge
+            // metric found the fit and separates focus from 600 steps off
+            // about fourfold, so the same-sky A/B uses it, as the Moon
+            // path does: start and fit scored back to back, under one sky.
+            if (fineUsed) {
+                int nS = 0, nF = 0;
+                const float eStart = ScoreHere(&nS);   // the focuser is at the start
+                DriveFinal(finalPos);
+                const float eFit = ScoreHere(&nF);
+                Emit("[AF] Same sky, edge metric: start pos=%d %.4f, fit pos=%d %.4f\n",
+                     m_startPosition, eStart, finalPos, eFit);
+                if (nS > 0 && nF > 0) keep = eFit >= eStart * 0.95f;
+            }
+            if (keep) {
                 Emit("[AF] The sky changed, not the focus: keeping pos=%d\n", finalPos);
                 if (m_params.backlash > 0) {
                     int approachFrom = finalPos - dir * m_params.backlash;
@@ -685,7 +705,7 @@ private:
             SetStatus("Focus got worse — returning to start");
             m_focuser->MoveTo(m_startPosition);
             if (!WaitForMove())
-                printf("[AF] return to start pos=%d did not complete\n",
+                raduk::core::CoreLog("[AF] return to start pos=%d did not complete\n",
                        m_startPosition);
             m_bestPosition.store(m_startPosition);
             m_bestSharpness.store(startSharpness);
@@ -828,7 +848,7 @@ private:
         // the sharpness MINIMUM — the routine then slews to maximum
         // defocus and reports success.
         if (a > 0) {
-            printf("[AF] Parabola opens upward (a=%.4g) — data too noisy, "
+            raduk::core::CoreLog("[AF] Parabola opens upward (a=%.4g) — data too noisy, "
                    "no focus minimum found\n", a);
             return -1;
         }
@@ -838,7 +858,7 @@ private:
 
         // Check vertex is within scan range (with 10% margin)
         if (xNorm < -1.1 || xNorm > 1.1) {
-            printf("[AF] Parabola vertex outside scan range (x_norm=%.3f)\n", xNorm);
+            raduk::core::CoreLog("[AF] Parabola vertex outside scan range (x_norm=%.3f)\n", xNorm);
             return -1;
         }
 
@@ -848,7 +868,7 @@ private:
         bestPos = (bestPos < m_params.minStepBound) ? m_params.minStepBound : bestPos;
         bestPos = (bestPos > m_params.maxStepBound) ? m_params.maxStepBound : bestPos;
 
-        printf("[AF] Parabola fit: vertex at pos=%d (x_norm=%.3f, a=%.4f)\n",
+        raduk::core::CoreLog("[AF] Parabola fit: vertex at pos=%d (x_norm=%.3f, a=%.4f)\n",
                bestPos, xNorm, a);
         return bestPos;
     }
@@ -901,12 +921,12 @@ private:
             }
 
             if (msSince(lastProgress) > stallMs) {
-                printf("[AF] EAF stalled at %d (%d ms without progress)\n",
+                raduk::core::CoreLog("[AF] EAF stalled at %d (%d ms without progress)\n",
                        lastPos, stallMs);
                 return false;
             }
             if (msSince(start) > capMs) {
-                printf("[AF] EAF move exceeded %d ms cap at %d\n", capMs, lastPos);
+                raduk::core::CoreLog("[AF] EAF move exceeded %d ms cap at %d\n", capMs, lastPos);
                 return false;
             }
             Sleep(50);
@@ -1125,20 +1145,21 @@ private:
         }
     }
 
-    // printf for the console, plus the sink so it reaches the log file.
+    // The sink when main.cpp installs one, which reaches the log file;
+    // otherwise CoreLog (Phase 155), so a line is never written twice.
     void Emit(const char* fmt, ...) {
         char buf[320];
         va_list a; va_start(a, fmt);
         vsnprintf(buf, sizeof(buf), fmt, a);
         va_end(a);
-        printf("%s", buf);
         if (m_logSink) m_logSink(buf);
+        else raduk::core::CoreLog("%s", buf);
     }
 
     void SetStatus(const char* msg) {
         std::lock_guard<std::mutex> lk(m_statusMutex);
         m_statusText = msg;
-        printf("[AF] %s\n", msg);
+        raduk::core::CoreLog("[AF] %s\n", msg);
     }
 
     void Finish(bool success, int finalPos, float finalSharp,
@@ -1156,11 +1177,11 @@ private:
             sprintf_s(buf, "Focus: pos=%d  sharp=%.1f%%  +%.1f%%",
                       finalPos, finalSharp, result.improvement);
             SetStatus(buf);
-            printf("[AF] SUCCESS: pos=%d  sharp=%.1f%%  improvement=+%.1f%%\n",
+            raduk::core::CoreLog("[AF] SUCCESS: pos=%d  sharp=%.1f%%  improvement=+%.1f%%\n",
                    finalPos, finalSharp, result.improvement);
         } else {
             SetStatus(msg ? msg : "Failed");
-            printf("[AF] FAILED: %s\n", msg ? msg : "unknown");
+            raduk::core::CoreLog("[AF] FAILED: %s\n", msg ? msg : "unknown");
         }
 
         m_state.store(success ? AFState::Complete : AFState::Failed);

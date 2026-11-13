@@ -27,6 +27,7 @@
 #include <string>
 #include <cstdio>
 #include "RigConfig.h"
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -236,11 +237,11 @@ public:
     // ── Dispersion at key altitudes (for reference) ───────────
     // Useful for building a lookup table or calibration display.
     static void PrintTable() {
-        printf("[ADC] Dispersion table (default site, P=918hPa):\n");
-        printf("  Alt    R-B sep\n");
+        raduk::core::CoreLog("[ADC] Dispersion table (default site, P=918hPa):\n");
+        raduk::core::CoreLog("  Alt    R-B sep\n");
         for (int alt : {10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90}) {
             auto r = Compute(alt);
-            printf("  %3d°   %.2f\"  %s\n", alt,
+            raduk::core::CoreLog("  %3d°   %.2f\"  %s\n", alt,
                    r.separationArcsec, r.SeverityLabel());
         }
     }

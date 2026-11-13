@@ -4,6 +4,7 @@
 // ============================================================
 
 #include "FITSWriter.h"
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -33,17 +34,17 @@ bool FITSWriter::Open(const std::string& path, int width, int height,
     const std::string header =
         fits::BuildHeader(r, ExtrasFor(r), fits::RunTimes{}, 0);
     if (header.empty()) {
-        printf("[FITSWriter] Refused %d-bit: %s\n", bitDepth, path.c_str());
+        raduk::core::CoreLog("[FITSWriter] Refused %d-bit: %s\n", bitDepth, path.c_str());
         return false;
     }
 
     m_file = fopen(path.c_str(), "wb");
     if (!m_file) {
-        printf("[FITSWriter] Failed to open: %s\n", path.c_str());
+        raduk::core::CoreLog("[FITSWriter] Failed to open: %s\n", path.c_str());
         return false;
     }
     if (fwrite(header.data(), 1, header.size(), m_file) != header.size()) {
-        printf("[FITSWriter] Failed to write header\n");
+        raduk::core::CoreLog("[FITSWriter] Failed to write header\n");
         fclose(m_file); m_file = nullptr;
         return false;
     }
@@ -59,7 +60,7 @@ bool FITSWriter::Open(const std::string& path, int width, int height,
     m_clock.Start();
     if (bitDepth == 16) m_swap.resize(m_frameBytes);
 
-    printf("[FITSWriter] Opened: %s  %dx%d  %d-bit\n",
+    raduk::core::CoreLog("[FITSWriter] Opened: %s  %dx%d  %d-bit\n",
            path.c_str(), width, height, bitDepth);
     return true;
 }
@@ -74,7 +75,7 @@ bool FITSWriter::WriteFrame(const uint8_t* data, size_t sizeBytes,
         out = m_swap.data();
     }
     if (fwrite(out, 1, sizeBytes, m_file) != sizeBytes) {
-        printf("[FITSWriter] Write error on frame %u\n", m_framesWritten);
+        raduk::core::CoreLog("[FITSWriter] Write error on frame %u\n", m_framesWritten);
         return false;
     }
 
@@ -150,8 +151,8 @@ bool FITSWriter::Close() {
     ok = fclose(m_file) == 0 && ok;
     m_file = nullptr;
 
-    if (!ok) printf("[FITSWriter] Close failed: %s\n", m_path.c_str());
-    printf("[FITSWriter] Closed: %s  %u frames\n",
+    if (!ok) raduk::core::CoreLog("[FITSWriter] Close failed: %s\n", m_path.c_str());
+    raduk::core::CoreLog("[FITSWriter] Closed: %s  %u frames\n",
            m_path.c_str(), m_framesWritten);
 
     WriteQualitySidecar(m_path, m_framesWritten, m_sharpnessScores, m_sky);

@@ -22,6 +22,7 @@
 #include <cmath>
 #include <cstdio>
 #include "SkyMath.h"   // ShortestTurnDeg
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -89,7 +90,7 @@ public:
     // only thing that legitimately zeroes the count — it cannot be
     // inferred, because the app has no way to see a cable.
     void CablesDressed() {
-        printf("[CordWrap] Reset - was %+.0f deg (%d discontinuities ignored)\n",
+        raduk::core::CoreLog("[CordWrap] Reset - was %+.0f deg (%d discontinuities ignored)\n",
                m_cumulativeDeg, m_skipped);
         m_cumulativeDeg = 0.0;
         m_skipped       = 0;

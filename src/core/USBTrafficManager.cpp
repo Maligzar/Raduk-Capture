@@ -4,6 +4,7 @@
 // ============================================================
 
 #include "USBTrafficManager.h"
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -16,7 +17,7 @@ USBTrafficManager::USBTrafficManager() {
 void USBTrafficManager::SetCapturing(bool capturing) {
     if (m_capturing == capturing) return;
     m_capturing = capturing;
-    printf("[USBTrafficMgr] Capture mode %s — "
+    raduk::core::CoreLog("[USBTrafficMgr] Capture mode %s — "
            "EAF poll: %dms, Mount poll: %dms\n",
            capturing ? "ON" : "OFF",
            capturing ? FOCUSER_POLL_CAPTURE_MS : FOCUSER_POLL_NORMAL_MS,

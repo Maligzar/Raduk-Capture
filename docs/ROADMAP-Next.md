@@ -1529,15 +1529,21 @@ the app works with no connection at all.
    here, new wiring goes into controllers.
 20. **Phase 151.0 and 151.1 (row 51)**: airplane mode proven. **151.0 written
    2026-11-13 (3.3.8)**: `Offline=1`, the automatic back-off, and "offline"
-   in place of fetch errors. Next: 151.1, each cache's age.
+   in place of fetch errors. Next: 151.1, each cache's age, after 153.0
+   (agreed 2026-11-13): its age line goes into several screens, and
+   153.0 is about to move that wiring into controllers.
 21. **155.3 to 155.5 (row 55)**: the plate scale from solves, the validation
    mode, the replay camera with real clips in CI.
 22. **153.1 and 153.2 (row 53)**: the autofocus and recording controllers,
    ahead of AVI and TIFF, which add recording wiring.
-23. **Phases 147 and 148 (rows 47, 48)**: AVI, then TIFF.
-24. **The rest of 153, 149 and 150 (rows 53, 49, 50)**, and **Phase 154
+23. **Phase 156 (row 56), the unattended live-sky test run**, after the
+   validation mode (155.4) it consumes and the controllers (153.1-153.2)
+   it drives. Its CI dress rehearsal (156.5) can start once 153.0's
+   harness exists. Added by the owner 2026-11-13.
+24. **Phases 147 and 148 (rows 47, 48)**: AVI, then TIFF.
+25. **The rest of 153, 149 and 150 (rows 53, 49, 50)**, and **Phase 154
    (row 54)**.
-25. **Phase 152 (row 52), last, by the owner's word.**
+26. **Phase 152 (row 52), last, by the owner's word.**
    Lowest priority on the roadmap: nothing above waits for it.
 
 155's hygiene list (printf, dead entry points) is small and can land
@@ -1660,6 +1666,7 @@ consolidated](#live-sky-debt-consolidated).
 | 53 | **Phase 153: taking the wiring out of main.cpp** - the owner's review 2026-11-13 | Bench | L, about 6 PRs | The largest untested surface becomes the most tested: an `AppCore` driven headless, then a controller per subsystem. [`Phase153-Plan-Main-Decomposition.md`](Phase153-Plan-Main-Decomposition.md) |
 | 54 | **Phase 154: the hand-written network code** - the owner's review 2026-11-13 | Bench | M | Coverage-guided fuzzing first, then a decision with evidence. [`Phase154-Plan-Network-Surface.md`](Phase154-Plan-Network-Surface.md) |
 | 55 | **Phase 155: turning "unproven" into a number, and hygiene** - the owner's review 2026-11-13 | Bench, then real nights | M | A register of unverified constants, a validation mode, real recordings replayed in CI; printf, dead code. [`Phase155-Plan-Constants-And-Hygiene.md`](Phase155-Plan-Constants-And-Hygiene.md) |
+| 56 | **Phase 156: an unattended live-sky test run, handed to Claude Code** - the owner 2026-11-13 | The sky, then Claude Code on the imaging PC | L | The automated tests run under a real sky on the hardware build: targets outside the horizon limits skipped, failures recorded and passed over, a stop on clouds, a lost target or a stalled device, a park at the end. The checklist is updated with what passed, failed or was skipped, and the night's results go to Claude Code, which writes findings and opens a draft PR. [`Phase156-Plan-Live-Sky-Test-Run.md`](Phase156-Plan-Live-Sky-Test-Run.md) |
 | 34 | **Phase 134: panels that dock together** - PLANNED 2026-11-11, defaults approved by the owner 2026-11-11 | Bench, then eyes on a screen | L, in 6 stages | Asked for by the owner: the operator panels (Histogram, Status, Sharpness, Temperature, ADC, both sky maps, GoTo, the player) snap together like Lego. Groups are derived from geometry, move as one and resize along shared edges, and F11 fills a monitor with the group. **134.0 to 134.4a merged (#126 to #129, #131). 134.4b (drag onto the dock, drop zones) and 134.5 (persistence) wait at row 34's place in the order (2026-11-11).** A dock window holds panels in a split tree and can go fullscreen. Panels are positioned, not reparented. Shift+drag pulls one out; the snap distance is 12 px. 134.0 is pure geometry and tests, with no pixel changes. [`Phase134-Plan-Panel-Docking.md`](Phase134-Plan-Panel-Docking.md) |
 | 33 | **Phase 133: field proof for the 2026-11-07 night** - PLANNED 2026-11-08, **ahead of 132.3e at the owner's word** | Bench, then one clear night | M | The night's fixes are merged (#105), but only guiding and the target finder are proven on the sky. Autofocus has not run a sweep on the sky, four guiding fixes are bench-only, and the ~8° pointing error is open. Category 1 and 3 by the ranking above. The emulated mount learns the NexStar behaviours measured that night, and the scenarios gate the guiding fixes indoors. [`Phase133-Plan-Field-Proof.md`](Phase133-Plan-Field-Proof.md) |
 | 32 | **Phase 132: the instrument UI** - PLANNED 2026-11-07, **PRIORITIZED by the owner 2026-11-07: first on the bench** | Bench, then eyes on a screen | L, in 11 stages | Asked for by the owner: away from the generic neon-cyan look toward a precision instrument (warm graphite, one muted accent, engraved hairlines, small-caps labels, tabular readouts). It also covers the HTML pages, which the app will write itself from its own tokens and embedded fonts. By the categories above it is category 5, but the owner has put it ahead of every other bench item, including row 7. It still ranks below the clear-night items, which need sky rather than bench time. Next stage: 132.10b, the dashboard restyle (132.0 to 132.9 and 132.10a are written). **132.10b also takes in PR #95's behaviour that `master` lacks** (listed under [Open pull requests](#open-pull-requests)), and comes after 135.1 and 135.2. It is built to be paused: one PR per stage, `master` field-ready between them, and a visual baseline diff (132.0) ahead of any pixel change. 132.1 drops the 10% green from night vision, which sits near the rods' peak and is the one stage that changes what the eye receives. It finishes 96.4b and 119.5 rather than restarting them. [`Phase132-Plan-Instrument-UI.md`](Phase132-Plan-Instrument-UI.md) |

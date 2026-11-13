@@ -577,6 +577,7 @@ scenario is the way to retire a row below.
 | A real fetch from Leoben on Elminster | Needs `expose_lan`, `LEOBEN_API_TOKEN`, `LeobenUrl` and `LeobenToken` |
 | `Ctrl+Shift+G` framing restore | Needs a guide calibration |
 | Visual system in a dark room | Clear-night item 16 and item 17 |
+| Airplane mode (151.0) | Run `tests\run-scenarios.ps1 offline`; then disable the network adapter, start the app, and time start-up against a normal one. The log should show `[NET]` lines and nothing should wait |
 
 ### 13.3 New capability, next in direction
 

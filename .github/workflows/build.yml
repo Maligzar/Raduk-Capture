@@ -37,7 +37,7 @@ jobs:
           $base = Ver ((git show "origin/${{ github.base_ref }}:src/Version.h") -join "`n")
           $head = Ver (Get-Content src/Version.h -Raw)
           if ($head -le $base) {
-            Write-Host "::error file=src/Version.h::Version $head is not above $base on ${{ github.base_ref }}. Every PR bumps PATCH (a completed phase bumps MINOR): see src/Version.h."
+            Write-Host "::error file=src/Version.h::Version $head is not above $base on ${{ github.base_ref }}. Every PR bumps PATCH (a release milestone bumps MINOR): see src/Version.h."
             exit 1
           }
           Write-Host "Version $base -> $head"

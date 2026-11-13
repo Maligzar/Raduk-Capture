@@ -1,0 +1,44 @@
+# Phase 151.0: airplane mode. With rig.ini Offline=1 nothing on the
+# internet is tried, and everything that does not need it works as
+# usual: GoTo, autofocus, a recording, the satellite and NEO fetches
+# answered from the cache with "offline" rather than an error.
+# Written 2026-11-13 in the cloud; first run on Windows when StarMachine
+# is back (tests\run-scenarios.ps1 offline).
+name    Offline: everything local works, nothing waits on the internet
+timeout 420
+
+rig     Offline=1
+rig     NeoMagLimit=30
+profile jupiter.ini roi width=640
+profile jupiter.ini roi height=480
+profile jupiter.ini roi img_type=0
+profile jupiter.ini capture limit_value=60
+
+expect 30  [SCENARIO] Offline
+wait   3
+
+# The fetchers that run at start-up are skipped, said once, and never
+# reported as a failure to reach a server.
+expect 60  [NET] skipped
+absent 5   could not reach
+
+goto   Jupiter
+expect 120 Slew to 'Jupiter' complete
+wait   3
+
+tab    FOCUS
+press  AUTO FOCUS
+expect 240 [AF] Complete
+
+tab    CAMERA
+press  RECORD
+expect 60  Recording stopped: 60 frames
+
+# The satellite tab answers from the elements on disk.
+press  GOTO:PASSES
+wait   5
+absent 5   Could not reach CelesTrak
+shot   offline-passes
+
+# Nothing above may have waited on a lookup: no WinHTTP failure at all.
+absent 1   could not be found (WinHTTP

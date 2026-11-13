@@ -10,8 +10,10 @@
 //
 //   PATCH  every pull request bumps it (3.1.0 -> 3.1.1), and adds its
 //          line to the Phase History in RadukCapture-Help.md.
-//   MINOR  when a phase is complete, the PR that completes it bumps
-//          MINOR and resets PATCH (3.1.4 -> 3.2.0).
+//   MINOR  a release milestone (from 2026-11-13): 3.4 reliability,
+//          3.5 planetary, 3.6 hardware, 3.7 science, then 4.0. Cut only
+//          when the milestone's acceptance holds (ROADMAP-Next.md);
+//          completing a phase no longer bumps it.
 //   MAJOR  and a git tag (vMAJOR.MINOR): the owner's call, at a release.
 //
 // CI enforces it: on a pull request, .github/workflows/build.yml fails
@@ -27,5 +29,5 @@
 // recompile, so the two always move together.
 // ============================================================
 
-#define RADUK_VERSION_W  L"3.3.7"
-#define RADUK_VERSION_A   "3.3.7"
+#define RADUK_VERSION_W  L"3.3.9"
+#define RADUK_VERSION_A   "3.3.9"

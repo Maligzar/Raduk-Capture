@@ -427,6 +427,15 @@ struct RigConfig {
     //   TimeServer=pool.ntp.org
     //   PhemuSite=Home_8SE
     std::string timeServer = "pool.ntp.org";
+
+    // Phase 151.0. Offline=1: never try the internet (JPL, CelesTrak,
+    // IMCCE, an internet time server). Everything that needs it keeps
+    // what it has cached and says it is offline. Without it the app
+    // notices a missing network by itself and stops trying for ten
+    // minutes at a time. LAN hosts (Leoben, Ollama, a local time server)
+    // are unaffected.
+    //   Offline=0
+    int         offline = 0;
     std::string phemuSite  = "RadukCapture_8SE";
 
     // Phase 139. The focuser's backlash in steps: the knob's slack plus
@@ -742,6 +751,7 @@ private:
         cfg.leobenUrl   = rs("LeobenUrl", "");
         cfg.leobenToken = rs("LeobenToken", "");
         cfg.timeServer  = rs("TimeServer", cfg.timeServer);
+        cfg.offline     = (int)rf("Offline", cfg.offline) != 0 ? 1 : 0;
         if (cfg.timeServer.empty()) cfg.timeServer = "pool.ntp.org";
         cfg.phemuSite   = rs("PhemuSite", cfg.phemuSite);
         if (cfg.phemuSite.empty()) cfg.phemuSite = "RadukCapture_8SE";

@@ -1,0 +1,44 @@
+# Phase 153 plan: taking the wiring out of main.cpp
+
+From the owner's weakness review, 2026-11-13. Status: `PLANNED`.
+
+## The problem
+- `src/main.cpp` is 9,047 lines (2026-11-13) and holds nearly all the callback wiring: AE before autofocus, autofocus's fine-pass feed, Autorun, recording start and stop, observation records, Jupiter's events, the assistant's snapshot, the dock, the dashboard commands.
+- The architecture document calls it the largest risk in the tree. Most `owes:` clauses in PHASE-STATUS come down to wiring there.
+- **No test compiles it.** CI builds it, and the scenario runner (phase 125) drives it in the emulator build, but only along the paths a scenario takes.
+- The rest of the code is testable because it is pure: `AutorunRunner`, `FocusDirection.h`, `JupiterPlan.h`. main.cpp is where those pure pieces meet the UI and the devices, untested.
+
+## The approach: an application core, extracted by strangling
+
+The owner's review (2026-11-13) recommends an `AppController` that takes the device and writer interfaces. main.cpp then shrinks to four jobs: parse the config, construct the real backends, construct the core, and run the render loop. With that, the emulators and a fake clock can drive the **whole application** headless, not just the runners. Adopted, with one caution: a single `AppController` holding everything main.cpp holds today would move the god object instead of removing it. So:
+- **`AppCore`** is the composition root and the headless entry point. It owns the controllers below and the fake-able seams (a clock, a logger, a UI sink), and nothing else.
+- **The controllers** hold the behaviour, each small enough to test alone.
+- **153.0 comes first:** `AppCore`, plus a headless harness (`tests/app_headless.cpp`). It builds `AppCore` with the emulators, a fake clock and a recording UI sink, and runs a whole night in seconds: connect, GoTo, lock, autofocus, record, stop. At first the controllers are thin wrappers that call the existing main.cpp code; each later stage moves the real logic in behind a harness that already exists.
+
+A rewrite of 9,000 lines of working, field-used wiring is the riskiest change this project could make. So it is strangled out instead:
+A rewrite of 9,000 lines of working, field-used wiring is the riskiest change this project could make. Instead:
+- **Controllers.** Each subsystem's wiring moves into a class in `src/app/` that takes its dependencies as interfaces (`ICamera`, `IFocuser`, `IMount`, a clock, a logger, a small UI sink) and owns its state. main.cpp constructs the controllers and connects them, and nothing else.
+- **A test per controller.** Each one is compiled in `tests/` against fakes: the emulator devices already exist, plus a fake UI sink that records what would have been shown.
+- **One controller per PR.** Each PR keeps behaviour identical, proved by the controller's new test plus the scenario runner's existing scenarios passing before and after.
+
+## Order (by how much `owes:` sits behind each, and how often it changes)
+1. **153.1 `AutofocusController`**: AE settling before the sweep, the fine pass's 30 Hz edge feed, readiness, and the Moon path. Phase 145 just added wiring here, and it has never run on the sky.
+2. **153.2 `RecordingController`**: start and stop, `endRecording`, `onComplete`, observation records, the DeTeCt and submission lists, auto-stack.
+3. **153.3 `AutorunController`**: the sequence wiring round `AutorunRunner`, including Jupiter's deferral.
+4. **153.4 `JupiterServices`**: `J`, the disc line, and the assistant's Jupiter snapshot.
+5. **153.5 `TrackingController`**: LOCK, GoTo hand-backs, remote stops.
+6. **Later, as touched:** the dock, the dashboard commands, the mutual-event recording.
+
+## A rule from now on
+A phase that adds wiring adds it to a controller, not to main.cpp, from the moment that subsystem's controller exists. PHASE-STATUS records main.cpp's line count at each extraction.
+
+## The headless harness and the scenario runner
+The scenario runner (phase 125) drives the real executable through its UI, in real time. The harness drives `AppCore` directly, on a fake clock, in seconds, and runs in CI on every push. The scenarios stay as the end-to-end check, and each one that `AppCore` can express is mirrored in the harness.
+
+## Measures of done
+- main.cpp under about 2,500 lines: construction and connection only.
+- Every controller has a bench test.
+- The scenario runner passes unchanged.
+
+## Versioning
+Every PR bumps PATCH; the PR that completes the phase bumps MINOR ([`ROADMAP-Next.md`](ROADMAP-Next.md#next-in-order)). About six PRs.

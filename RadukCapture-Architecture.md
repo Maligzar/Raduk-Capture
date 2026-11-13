@@ -161,7 +161,8 @@ not go through it.
 
 `ICamera` is brand-neutral, and the capture hot path names no vendor type.
 `FrameSlot::imgType` and `TargetProfile::imgType` keep the ZWO enum, because
-the second persists to saved profiles.
+the second persists to saved profiles. Phase 149.0b plans a RadukCapture
+`PixelFormat` and versioned profiles that migrate on load.
 
 The mount path tries ASCOM first, when CPWI is running, then NexStar serial
 direct. Simulators are refused unless `AscomProgId` in `rig.ini` names one.
@@ -333,10 +334,13 @@ src\
 └── main.cpp    Startup and all callback wiring
 ```
 
-`src/analysis`, `src/bridge` and `src/writers` are empty directories.
+There are no empty directories in the repository (git does not track them);
+`src/analysis`, `src/bridge` and `src/writers` existed only in a local working
+copy (corrected 2026-11-13, phase 155).
 
 `main.cpp` is the largest risk in the tree: most `owes:` clauses in the status
-file come down to wiring there, which no test reaches.
+file come down to wiring there, which no test reaches. Phase 153 plans to take
+the wiring into an `AppCore` and tested controllers.
 
 Data outside `src`: `data/object_knowledge.db`, `data/pointing_model.csv`,
 `profiles/*.ini`, `rig.ini` beside the executable, `captures/`, `logs/`, and

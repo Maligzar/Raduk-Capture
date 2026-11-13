@@ -3144,6 +3144,7 @@ order.
 | 3.3.0 | 145 | Autofocus in two stages: the coarse sweep on the half-flux diameter, then a fine pass on edge contrast (20 frames a point, the 75th percentile) that sharpens a big disc's focus and can focus on the Moon; `FocuserFinalDirection` sets which way every move ends, so the last travel can push the mirror against gravity |
 | 3.3.0 | 145.5 | The fine pass reads its centre point again at the end: a target that dimmed or brightened while it swept is corrected for, and one that changed by more than 40% keeps the coarse result. On the Moon, autofocus compares the result with where it started and goes back if the start was really better |
 | 3.3.1 | 146-152 | Planned: the real camera's throughput measured indoors, uncompressed AVI recording, TIFF (a 16-bit snapshot, sequence recording, SER to TIFF), readiness for any ZWO camera (cooling, long exposures, a second camera, the filter wheel), an outline for deep sky and stars, airplane mode (no internet ever required), and the AI assistant revisited with a preferred and a fallback model |
+| 3.3.2 | 153-155 | Planned, from a review of the design: the wiring taken out of main.cpp into a tested application core, the hand-written network code fuzzed and decided on, and the unverified constants measured by the app itself and tested against real recordings |
 
 ---
 

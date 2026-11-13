@@ -40,5 +40,13 @@ A frame can be lost in four places, and today only two are counted.
 - **USB 3 behaviour depends on the controller and the cable.** If the first run drops frames, try the other controller and a shorter cable before blaming the code. Record which was used.
 - **The emulator's 37 fps at full frame was disk-bound, not camera-bound.** The real camera may be faster than the disk can write: 3840×2160 RAW8 at about 47 fps is about 390 MB/s, above the 292 MB/s disk ceiling (inferred). Then the write buffer fills, and 146.0's `dropped_buffer` count says so honestly. That is the right answer, not a failure of the measurement.
 
+
+## Future cameras and deep sky (the owner's direction, 2026-11-13)
+Built to the rules in [Phase 149](Phase149-Plan-Any-ZWO-Camera.md#rules-for-every-phase-from-146-on): no camera model, resolution, bit depth or plate scale in code; mono and colour alike; frames that may take minutes.
+- The drop ledger counts per camera and per run, keyed by `CameraInfo.name`, so a second camera, a guide camera, or a successor gets its own figures.
+- The audit tool reads any SER, mono or colour, at any bit depth.
+- The procedure is written for "the camera's full sensor at its fastest mode", not for 3840×2160. The table keeps a row per camera.
+- The ledger tells a transfer-limited run (frames arrive as fast as USB allows) from an exposure-limited one (each frame waits on its exposure), so the same accounting holds for a deep-sky sequence, where only drops and gaps matter, not frame rate.
+
 ## Versioning
 Every PR bumps PATCH; the PR that completes the phase bumps MINOR ([`ROADMAP-Next.md`](ROADMAP-Next.md#next-in-order)). 146.0 and 146.1 are one PR (PATCH). 146.3 completes the phase (MINOR).

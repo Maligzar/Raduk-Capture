@@ -34,6 +34,15 @@ Why not WIC's TIFF encoder: it would work, but it cannot be tested off Windows, 
   - A command-line twin, `tools/ser2tif`, like `fits2ser`.
 - **148.4 The stack's output.** AutoStakkert already writes its stacked result itself, into the run's `_AS` folder (`AutoStakkertRunner.h:267`), as TIFF by default (recalled). Confirm by listing that folder after a stack. If it is TIFF, nothing to build, and the help says where to find it. If not, pass AutoStakkert's own output-format option, once its command line is confirmed.
 
+
+## Future cameras and deep sky (the owner's direction, 2026-11-13)
+Built to the rules in [Phase 149](Phase149-Plan-Any-ZWO-Camera.md#rules-for-every-phase-from-146-on): no camera model, resolution, bit depth or plate scale in code; mono and colour alike; frames that may take minutes.
+- 16-bit TIFF holds every native depth (8, 12, 14, 16), left-aligned as ZWO delivers it. ImageDescription states the camera's real bit depth, so a 12-bit frame in a 16-bit file is not mistaken for more.
+- Mono is grey with no debayer; colour keeps the Bayer note when not debayered.
+- A 26 MP 16-bit frame is about 52 MB, comfortably inside classic TIFF's 4 GB. BigTIFF is not needed for single frames.
+- ImageDescription carries the camera model, sensor temperature and cooler set point (149.2) and the filter (149.5) when known.
+- FITS stays the primary deep-sky format. TIFF is for exchange, so the snapshot and the sequence writer must also work for 149.3's long single exposures, where one frame may take minutes.
+
 ## Tests
 New `tests/tiff_writer.cpp`:
 - writes 8- and 16-bit grey and RGB and reads the IFD back;

@@ -26,6 +26,13 @@ The owner asked for this on 2026-11-13: uncompressed AVI, as a recording format 
   - RAW16 refused.
 - **147.3 Readers.** One AVI each of RAW8 and RGB24, at 1280×960 and at full sensor, opened in AutoStakkert, PIPP and VirtualDub (whatever the owner has). A clear-night or emulator-run checklist item, because no reader runs in CI.
 
+
+## Future cameras and deep sky (the owner's direction, 2026-11-13)
+Built to the rules in [Phase 149](Phase149-Plan-Any-ZWO-Camera.md#rules-for-every-phase-from-146-on): no camera model, resolution, bit depth or plate scale in code; mono and colour alike; frames that may take minutes.
+- AVI stays a video format: it is offered only in video mode, never for 149.3's single exposures or deep-sky subs.
+- Width, height and the stride come from the frame. The colour or mono choice of `Y800` against `BI_RGB` comes from `CameraInfo`, so a mono camera writes plain grey with no Bayer note.
+- The 8-bit refusal is by depth, not by mode name: a camera delivering 12, 14 or 16 bits is refused in the same way.
+
 ## Not in scope
 - **A `[TO AVI]` converter.** Not asked. The writer makes it a small addition later.
 - **Compressed AVI.**

@@ -4,6 +4,7 @@
 
 #include "EAFFocuser.h"
 #include <cstdio> 
+#include "CoreLog.h"
 
 // Manual definitions for ZWO EAF types
 #ifndef EAF_BOOL
@@ -24,20 +25,20 @@ namespace raduk::core {
 
 bool EAFFocuser::Open(int index) {
     if (m_isOpen) {
-        printf("[EAFFocuser] Already open\n");
+        raduk::core::CoreLog("[EAFFocuser] Already open\n");
         return false;
     }
 
     int id = 0;
     EAF_ERROR_CODE err = EAFGetID(index, &id);
     if (err != EAF_SUCCESS) {
-        printf("[EAFFocuser] GetID(%d) failed: %d\n", index, (int)err);
+        raduk::core::CoreLog("[EAFFocuser] GetID(%d) failed: %d\n", index, (int)err);
         return false;
     }
 
     err = EAFOpen(id);
     if (err != EAF_SUCCESS) {
-        printf("[EAFFocuser] Open(%d) failed: %d\n", id, (int)err);
+        raduk::core::CoreLog("[EAFFocuser] Open(%d) failed: %d\n", id, (int)err);
         return false;
     }
 
@@ -45,7 +46,7 @@ bool EAFFocuser::Open(int index) {
 
     err = EAFGetProperty(id, &m_info);
     if (err != EAF_SUCCESS) {
-        printf("[EAFFocuser] GetProperty failed: %d\n", (int)err);
+        raduk::core::CoreLog("[EAFFocuser] GetProperty failed: %d\n", (int)err);
         EAFClose(id);
         m_focuserId = -1;
         return false;
@@ -53,7 +54,7 @@ bool EAFFocuser::Open(int index) {
 
     m_isOpen = true;
     m_fwBacklashAtOpen = GetBacklash();
-    printf("[EAFFocuser] Opened: id=%d, maxStep=%d, firmware backlash=%d\n",
+    raduk::core::CoreLog("[EAFFocuser] Opened: id=%d, maxStep=%d, firmware backlash=%d\n",
            id, m_info.MaxStep, m_fwBacklashAtOpen);
     return true;
 }
@@ -64,7 +65,7 @@ void EAFFocuser::Close() {
     if (m_fwBacklashAtOpen >= 0 && GetBacklash() != m_fwBacklashAtOpen)
         EAFSetBacklash(m_focuserId, m_fwBacklashAtOpen);
     EAFClose(m_focuserId);
-    printf("[EAFFocuser] Closed: id=%d\n", m_focuserId);
+    raduk::core::CoreLog("[EAFFocuser] Closed: id=%d\n", m_focuserId);
     
     m_focuserId = -1;
     m_isOpen = false;
@@ -79,7 +80,7 @@ bool EAFFocuser::MoveTo(int position) {
     EAF_ERROR_CODE err = EAFMove(m_focuserId, leg);
     if (err != EAF_SUCCESS) {
         m_approach.Cancel();
-        printf("[EAFFocuser] MoveTo(%d) failed: %d\n", leg, (int)err);
+        raduk::core::CoreLog("[EAFFocuser] MoveTo(%d) failed: %d\n", leg, (int)err);
         return false;
     }
     return true;
@@ -90,7 +91,7 @@ bool EAFFocuser::MoveToDirect(int position) {
     m_approach.Direct(GetPosition(), position);
     EAF_ERROR_CODE err = EAFMove(m_focuserId, position);
     if (err != EAF_SUCCESS) {
-        printf("[EAFFocuser] MoveTo(%d) failed: %d\n", position, (int)err);
+        raduk::core::CoreLog("[EAFFocuser] MoveTo(%d) failed: %d\n", position, (int)err);
         return false;
     }
     return true;

@@ -32,6 +32,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <cmath>
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -98,7 +99,7 @@ struct RigConfig {
     bool AdoptSite(double latDeg, double lonDeg, double elevM,
                    const char* source) {
         if (siteValid && siteSource == "manual") {
-            printf("[RigConfig] Keeping the manual site; ignoring %s\n", source);
+            raduk::core::CoreLog("[RigConfig] Keeping the manual site; ignoring %s\n", source);
             return false;
         }
         if (latDeg < -90 || latDeg > 90 || lonDeg < -180 || lonDeg > 180)
@@ -113,7 +114,7 @@ struct RigConfig {
             siteElevationM = elevM;
         siteSource     = source;
         siteValid      = true;
-        printf("[RigConfig] Site adopted from %s: %.1f%c %.1f%c\n", source,
+        raduk::core::CoreLog("[RigConfig] Site adopted from %s: %.1f%c %.1f%c\n", source,
                latDeg < 0 ? -latDeg : latDeg, latDeg < 0 ? 'S' : 'N',
                lonDeg < 0 ? -lonDeg : lonDeg, lonDeg < 0 ? 'W' : 'E');
         Save();
@@ -554,7 +555,7 @@ struct RigConfig {
                                    p.c_str());
         WritePrivateProfileStringA("Rig", "MountPort",
                                    mountPort.c_str(), p.c_str());
-        printf("[RigConfig] Saved %s\n", p.c_str());
+        raduk::core::CoreLog("[RigConfig] Saved %s\n", p.c_str());
     }
 
 public:   // IniPath: main.cpp keeps the last target in [Session] beside the rest
@@ -752,7 +753,7 @@ private:
         // phase exists to prevent.
         if (cfg.siteLatDeg < -90 || cfg.siteLatDeg > 90 ||
             cfg.siteLonDeg < -180 || cfg.siteLonDeg > 180) {
-            printf("[RigConfig] Site out of range (%.4f,%.4f) - treating as unset\n",
+            raduk::core::CoreLog("[RigConfig] Site out of range (%.4f,%.4f) - treating as unset\n",
                    cfg.siteLatDeg, cfg.siteLonDeg);
             cfg.siteLatDeg = 0.0;
             cfg.siteLonDeg = 0.0;
@@ -796,7 +797,7 @@ private:
             while (delta < -180.0) delta += 360.0;
             if (delta < 0) delta = -delta;
             if (delta > 20.0) {
-                printf("[RigConfig] WARNING: longitude %.2f is %.0f deg from the "
+                raduk::core::CoreLog("[RigConfig] WARNING: longitude %.2f is %.0f deg from the "
                        "timezone centre %.0f - the site or the clock is wrong\n",
                        cfg.siteLonDeg, delta, tzCentreLon);
             }
@@ -806,7 +807,7 @@ private:
         // screenshots; one decimal is about 11 km, which names a town
         // rather than a house, and is plenty to confirm the right site.
         if (cfg.siteValid) {
-            printf("[RigConfig] site=%.1f%c %.1f%c (%s) elev=%.0fm\n",
+            raduk::core::CoreLog("[RigConfig] site=%.1f%c %.1f%c (%s) elev=%.0fm\n",
                    cfg.siteLatDeg < 0 ? -cfg.siteLatDeg : cfg.siteLatDeg,
                    cfg.siteLatDeg < 0 ? 'S' : 'N',
                    cfg.siteLonDeg < 0 ? -cfg.siteLonDeg : cfg.siteLonDeg,
@@ -814,11 +815,11 @@ private:
                    cfg.siteSource.empty() ? "manual" : cfg.siteSource.c_str(),
                    cfg.siteElevationM);
         } else {
-            printf("[RigConfig] SITE NOT SET - alt/az tracking, the sky map and "
+            raduk::core::CoreLog("[RigConfig] SITE NOT SET - alt/az tracking, the sky map and "
                    "the ADC model all need one. Set SiteLatDeg and SiteLonDeg "
                    "in %s\n", p.c_str());
         }
-        printf("[RigConfig] scale=%.3f\"/px guide=%.1f\"/s port=%s (%s)\n",
+        raduk::core::CoreLog("[RigConfig] scale=%.3f\"/px guide=%.1f\"/s port=%s (%s)\n",
                cfg.plateScaleArcsecPx, cfg.guideRateArcsecPerSec,
                cfg.mountPort.empty() ? "auto" : cfg.mountPort.c_str(), p.c_str());
         return cfg;

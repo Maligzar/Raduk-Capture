@@ -220,7 +220,6 @@ public:
 
     void SetLostCallback(std::function<void()> cb)            { m_onLost  = std::move(cb); }
     void SetDwellCallback(std::function<void()> cb)           { m_onDwell = std::move(cb); }
-    void SetDriftCallback(std::function<void(float,float)> cb){ m_onDrift = std::move(cb); }
     // Fired from Tick() (main thread) when a calibration attempt finishes:
     // (success, human-readable summary/reason).
     // Phase 65: fired from Tick() when auto-acquire reaches Locked, so
@@ -276,10 +275,6 @@ public:
     // next Tick. Thread-safe; does not join the correction thread.
     void YieldMount(const char* why);
 
-    // Direct entry to Centering — only valid with a measured calibration.
-    // (The Calibrating stage transitions here itself on success.)
-    void StartCentering();
-
     bool HasCalibration() const;
 
     // The capture format changed (size or position of the box). The
@@ -307,7 +302,6 @@ public:
     static constexpr float GUIDE_KI         = 0.05f;  // 1/s^2
     static constexpr float GUIDE_MAX_CORR_AS = 30.0f; // "/s either way
     GuideCalibration Calibration() const;
-    void ClearCalibration();
 
     // Only callable once IsDwellMet() is true
     void StartLocked();
@@ -462,7 +456,6 @@ private:
     // ── Main-thread callbacks ──────────────────────────────────
     std::function<void()>            m_onLost;
     std::function<void()>            m_onDwell;
-    std::function<void(float,float)> m_onDrift;
     std::function<void(bool, const std::string&)> m_onCalibration;
     std::function<void(const std::string&)>       m_onAbort;
     std::atomic<bool> m_abortPending{false};

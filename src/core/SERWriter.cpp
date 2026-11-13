@@ -4,6 +4,7 @@
 // ============================================================
 
 #include "SERWriter.h"
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -18,7 +19,7 @@ bool SERWriter::Open(const std::string& path,
 
     m_file = fopen(path.c_str(), "wb");
     if (!m_file) {
-        printf("[SERWriter] Failed to open: %s\n", path.c_str());
+        raduk::core::CoreLog("[SERWriter] Failed to open: %s\n", path.c_str());
         return false;
     }
 
@@ -54,13 +55,13 @@ bool SERWriter::Open(const std::string& path,
     hdr.DateTimeUTC = FrameClock::NowUtcTicks();
 
     if (fwrite(&hdr, sizeof(hdr), 1, m_file) != 1) {
-        printf("[SERWriter] Failed to write header\n");
+        raduk::core::CoreLog("[SERWriter] Failed to write header\n");
         fclose(m_file); m_file = nullptr;
         return false;
     }
     m_bytesWritten += sizeof(hdr);
 
-    printf("[SERWriter] Opened: %s  %dx%d  %d-bit\n",
+    raduk::core::CoreLog("[SERWriter] Opened: %s  %dx%d  %d-bit\n",
            path.c_str(), width, height, bitDepth);
     return true;
 }
@@ -71,7 +72,7 @@ bool SERWriter::WriteFrame(const uint8_t* data, size_t sizeBytes,
 
     size_t written = fwrite(data, 1, sizeBytes, m_file);
     if (written != sizeBytes) {
-        printf("[SERWriter] Write error: only %zu of %zu bytes written\n",
+        raduk::core::CoreLog("[SERWriter] Write error: only %zu of %zu bytes written\n",
                written, sizeBytes);
         return false;
     }
@@ -121,7 +122,7 @@ bool SERWriter::Close() {
     fclose(m_file);
     m_file = nullptr;
 
-    printf("[SERWriter] Closed: %s  %u frames  %.1f MB\n",
+    raduk::core::CoreLog("[SERWriter] Closed: %s  %u frames  %.1f MB\n",
            m_path.c_str(), m_framesWritten,
            m_bytesWritten / (1024.0 * 1024.0));
 

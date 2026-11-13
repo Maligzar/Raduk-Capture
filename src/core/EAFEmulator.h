@@ -20,6 +20,7 @@
 #include <chrono>
 #include "IFocuser.h"
 #include "FocusDirection.h"
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -34,7 +35,7 @@ public:
     // ── Lifecycle ──────────────────────────────────────────────
 
     static int GetCount() {
-        printf("[EAFEmulator] GetCount: 1 emulated focuser\n");
+        raduk::core::CoreLog("[EAFEmulator] GetCount: 1 emulated focuser\n");
         return 1;
     }
 
@@ -52,7 +53,7 @@ public:
         m_moving   = false;
         // Start the motor simulation thread
         m_motorThread = std::thread(&EAFFocuser::MotorLoop, this);
-        printf("[EAFEmulator] Opened: id=0, pos=%d, maxStep=600000\n", m_position.load());
+        raduk::core::CoreLog("[EAFEmulator] Opened: id=0, pos=%d, maxStep=600000\n", m_position.load());
         return true;
     }
 
@@ -61,7 +62,7 @@ public:
         m_isOpen = false;
         m_moving = false;
         if (m_motorThread.joinable()) m_motorThread.join();
-        printf("[EAFEmulator] Closed\n");
+        raduk::core::CoreLog("[EAFEmulator] Closed\n");
     }
 
     bool IsOpen() const override { return m_isOpen; }
@@ -98,7 +99,7 @@ private:
         std::lock_guard<std::mutex> lk(m_mutex);
         m_target = position;
         m_moving = (m_target != m_position.load());
-        printf("[EAFEmulator] MoveTo %d (from %d)\n", position, m_position.load());
+        raduk::core::CoreLog("[EAFEmulator] MoveTo %d (from %d)\n", position, m_position.load());
         return true;
     }
 public:
@@ -115,7 +116,7 @@ public:
         std::lock_guard<std::mutex> lk(m_mutex);
         m_target = m_position.load();  // Cancel move — target = current
         m_moving = false;
-        printf("[EAFEmulator] Stop at %d\n", m_position.load());
+        raduk::core::CoreLog("[EAFEmulator] Stop at %d\n", m_position.load());
         return true;
     }
 
@@ -138,12 +139,12 @@ public:
 
     void SetReverse(bool reversed) override {
         m_reversed = reversed;
-        printf("[EAFEmulator] Reverse: %s\n", reversed ? "on" : "off");
+        raduk::core::CoreLog("[EAFEmulator] Reverse: %s\n", reversed ? "on" : "off");
     }
 
     void SetBacklash(int steps) override {
         m_backlash = steps;
-        printf("[EAFEmulator] Backlash: %d steps\n", steps);
+        raduk::core::CoreLog("[EAFEmulator] Backlash: %d steps\n", steps);
     }
     int GetBacklash() const override { return m_backlash; }
 

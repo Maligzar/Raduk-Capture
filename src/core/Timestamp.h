@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <cstdint>
 #include <cstdio>
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -12,7 +13,7 @@ class Timestamp {
 public:
     static void Init() {
         (void)Frequency();
-        printf("[Timestamp] QPC frequency: %lld Hz\n", Frequency());
+        raduk::core::CoreLog("[Timestamp] QPC frequency: %lld Hz\n", Frequency());
     }
 
     static uint64_t Now() {

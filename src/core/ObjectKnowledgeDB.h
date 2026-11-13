@@ -28,6 +28,7 @@
 #include <sstream>
 #include <cstdio>
 #include <cctype>
+#include "CoreLog.h"
 
 // SQLite3 runtime interface — loaded dynamically, no .lib needed
 extern "C" {
@@ -56,7 +57,7 @@ public:
     bool Open(const std::string& path) {
         m_path = path;
         if (GetFileAttributesA(path.c_str()) == INVALID_FILE_ATTRIBUTES) {
-            printf("[ObjectKnowledgeDB] Not found: %s\n", path.c_str());
+            raduk::core::CoreLog("[ObjectKnowledgeDB] Not found: %s\n", path.c_str());
             return false;
         }
         m_hSQLite = LoadLibraryA("sqlite3.dll");
@@ -69,7 +70,7 @@ public:
             m_hSQLite = LoadLibraryA((dir + "\\sqlite3.dll").c_str());
         }
         if (!m_hSQLite) {
-            printf("[ObjectKnowledgeDB] sqlite3.dll not found — "
+            raduk::core::CoreLog("[ObjectKnowledgeDB] sqlite3.dll not found — "
                    "place it alongside RadukCapture.exe\n");
             return false;
         }
@@ -107,7 +108,7 @@ public:
         auto fnInit = (pfn_sqlite3_initialize)
                       GetProcAddress(m_hSQLite, "sqlite3_initialize");
         if (fnInit && fnInit() != 0) {
-            printf("[ObjectKnowledgeDB] sqlite3_initialize failed\n");
+            raduk::core::CoreLog("[ObjectKnowledgeDB] sqlite3_initialize failed\n");
             FreeLibrary(m_hSQLite); m_hSQLite = nullptr; return false;
         }
 
@@ -115,7 +116,7 @@ public:
             FreeLibrary(m_hSQLite); m_hSQLite = nullptr; return false;
         }
         m_available = true;
-        printf("[ObjectKnowledgeDB] Ready: %s\n", path.c_str());
+        raduk::core::CoreLog("[ObjectKnowledgeDB] Ready: %s\n", path.c_str());
         return true;
     }
 

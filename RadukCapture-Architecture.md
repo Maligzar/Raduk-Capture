@@ -614,9 +614,10 @@ scenario is the way to retire a row below.
 - Should dark subtraction feed the sharpness metric? It would help focusing
   and would move the gate and `SHARP_CEIL`, so it needs before and after
   numbers from a real night.
-- `CentroidTracker`'s unreachable entry points stand for now: `StartCentering`,
-  `ClearCalibration`, `SetDriftCallback`, `AutoAdvancing`, `DwellCount` and
-  `GUIDE_RATE_AS_PER_S`.
+- `CentroidTracker`'s `StartCentering`, `ClearCalibration` and
+  `SetDriftCallback` were removed in phase 155 (the owner's call: Centering is
+  reached through calibration's auto-advance). `AutoAdvancing`, `DwellCount`
+  and `GUIDE_RATE_AS_PER_S` stand for now.
 
 ### 13.7 Parked, backlogged, dropped
 

@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <windows.h>
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -41,7 +42,7 @@ public:
         m_numSlots = numSlots;
         m_slots = new (std::nothrow) FrameSlot[numSlots];
         if (!m_slots) {
-            printf("[RingBuffer] Failed to allocate %d slots\n", numSlots);
+            raduk::core::CoreLog("[RingBuffer] Failed to allocate %d slots\n", numSlots);
             return false;
         }
 
@@ -51,7 +52,7 @@ public:
                 VirtualAlloc(nullptr, frameSizeBytes,
                              MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
             if (!m_slots[i].data) {
-                printf("[RingBuffer] VirtualAlloc failed for slot %d (%zu bytes)\n",
+                raduk::core::CoreLog("[RingBuffer] VirtualAlloc failed for slot %d (%zu bytes)\n",
                        i, frameSizeBytes);
                 Deallocate();
                 return false;
@@ -66,7 +67,7 @@ public:
         m_allocated = true;
 
         double totalMB = (numSlots * frameSizeBytes) / (1024.0 * 1024.0);
-        printf("[RingBuffer] Allocated %d slots x %zu bytes = %.1f MB\n",
+        raduk::core::CoreLog("[RingBuffer] Allocated %d slots x %zu bytes = %.1f MB\n",
                numSlots, frameSizeBytes, totalMB);
         return true;
     }

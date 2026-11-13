@@ -32,6 +32,7 @@
 #include <atomic>
 #include "../core/RigConfig.h"
 #include "SolveResult.h"
+#include "../core/CoreLog.h"
 
 namespace raduk::sky {
 
@@ -148,7 +149,7 @@ private:
 
         wcscpy_s(cmd, base.c_str());
 
-        printf("[ASTAP] Running: %ls\n", cmd);
+        raduk::core::CoreLog("[ASTAP] Running: %ls\n", cmd);
 
         // Launch ASTAP process
         STARTUPINFOW si = {}; si.cb = sizeof(si);
@@ -256,7 +257,7 @@ private:
             // Every convention-sensitive decision is in ApplyWcsKeys,
             // in SolveResult.h, where tests/pixel_wcs.cpp compiles it.
             ApplyWcsKeys(result, keys, imgW, imgH);
-            printf("[ASTAP] Solved: RA=%.4fh Dec=%.4f° FoV=%.3f°x%.3f° "
+            raduk::core::CoreLog("[ASTAP] Solved: RA=%.4fh Dec=%.4f° FoV=%.3f°x%.3f° "
                    "rot=%.1f° via %s%s%s%s\n",
                    result.ra, result.dec, result.fovW, result.fovH,
                    result.rotation,
@@ -267,7 +268,7 @@ private:
         } else {
             result.error = errorText.empty()
                          ? "ASTAP could not find a solution" : errorText;
-            printf("[ASTAP] Solve failed: %s\n", result.error.c_str());
+            raduk::core::CoreLog("[ASTAP] Solve failed: %s\n", result.error.c_str());
         }
 
         return result;

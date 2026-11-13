@@ -42,6 +42,7 @@
 #include <vector>
 #include <algorithm>
 #include <cstdio>
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -312,7 +313,7 @@ inline bool ProbeNmeaPort(const std::string& comPort, GpsFix& fix,
     }
     CloseHandle(h);
     if (found)
-        printf("[SerialPortScan] NMEA fix on %s: %.1f%c %.1f%c\n",
+        raduk::core::CoreLog("[SerialPortScan] NMEA fix on %s: %.1f%c %.1f%c\n",
                comPort.c_str(),
                fix.latDeg < 0 ? -fix.latDeg : fix.latDeg, fix.latDeg < 0 ? 'S' : 'N',
                fix.lonDeg < 0 ? -fix.lonDeg : fix.lonDeg, fix.lonDeg < 0 ? 'W' : 'E');

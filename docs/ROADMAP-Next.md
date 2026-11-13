@@ -1518,7 +1518,9 @@ the app works with no connection at all.
    2026-11-13 (3.3.3)**: the drop ledger and `ser_drop_audit`. Next: the
    owner's indoor runs (146.2). **155.1 and 155.2 written 2026-11-13
    (3.3.6)**: 20 `UNVERIFIED(item N)` tags and `docs/UNVERIFIED.md`, kept
-   in step by CI. The clip tool waits for the real recordings.
+   in step by CI. The clip tool waits for the real recordings. **155's
+   hygiene written 2026-11-13 (3.3.7)**: core `printf` to `CoreLog`, and
+   three dead tracker entry points removed.
 18. **149.0 and 149.0b (row 49), size S-M**: one description of the imaging
    train, and the app's own `PixelFormat` with versioned profiles, while
    there is one backend. **149.0b written 2026-11-13 (3.3.4). 149.0 written

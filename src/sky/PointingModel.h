@@ -31,6 +31,7 @@
 #include <cmath>
 #include <algorithm>
 #include <ctime>
+#include "../core/CoreLog.h"
 
 namespace raduk::sky {
 
@@ -110,7 +111,7 @@ public:
         e.seeing_score = seeing_score;
         e.object_name  = objectName;
 
-        printf("[PointingModel] Recorded: %s  error=%.1f\"  az=%.1f alt=%.1f\n",
+        raduk::core::CoreLog("[PointingModel] Recorded: %s  error=%.1f\"  az=%.1f alt=%.1f\n",
                objectName.c_str(), e.error_arcsec, az_deg, alt_deg);
 
         {
@@ -227,7 +228,7 @@ private:
                 loaded++;
             }
         }
-        printf("[PointingModel] Loaded %d historical entries from %s\n",
+        raduk::core::CoreLog("[PointingModel] Loaded %d historical entries from %s\n",
                loaded, m_csvPath.c_str());
     }
 

@@ -21,6 +21,7 @@
 #include "ObservationRecord.h"
 #include "RigConfig.h"   // phase 149.0: the camera and telescope names
 #include "Timestamp.h"
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -226,7 +227,7 @@ inline void WriteQualitySidecar(const std::string& capturePath,
             float mean = frames > 0 ? sum / frames : 0;
             fprintf(qf, "# Mean: %.2f  Peak: %.2f\n", mean, peak);
             fclose(qf);
-            printf("[Capture] Quality file: %s  mean=%.1f peak=%.1f\n",
+            raduk::core::CoreLog("[Capture] Quality file: %s  mean=%.1f peak=%.1f\n",
                    qualPath.c_str(), mean, peak);
         }
     }

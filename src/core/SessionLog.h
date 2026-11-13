@@ -19,6 +19,7 @@
 #include "Paths.h"
 #include "TestProbe.h"
 #include "RigConfig.h"   // phase 149.0: the telescope and camera names
+#include "CoreLog.h"
 
 namespace raduk::core {
 
@@ -64,7 +65,7 @@ public:
 
         m_path = logPath;
         WriteHeader();
-        printf("[SessionLog] Opened: %s\n", logPath.c_str());
+        raduk::core::CoreLog("[SessionLog] Opened: %s\n", logPath.c_str());
         return true;
     }
 

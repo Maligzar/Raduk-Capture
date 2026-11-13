@@ -83,24 +83,6 @@ void CentroidTracker::StartCalibration() {
     CoreLog("[CentroidTracker] Stage -> CALIBRATING\n");
 }
 
-void CentroidTracker::StartCentering() {
-    if (m_stage.load() != AcquisitionStage::Searching) return;
-    if (!IsStable()) return;
-    // Same reason as StartCalibration: centring needs the axes, and
-    // only a calibration takes them.
-    if (!m_appDriving.load()) {
-        CoreLog("[CentroidTracker] StartCentering refused - the app does not hold the axes; calibrate\n");
-        return;
-    }
-    if (!HasCalibration()) {
-        CoreLog("[CentroidTracker] StartCentering refused — no calibration\n");
-        return;
-    }
-    m_dwellCount = 0;
-    m_stage.store(AcquisitionStage::Centering);
-    CoreLog("[CentroidTracker] Stage -> CENTERING\n");
-}
-
 bool CentroidTracker::HasCalibration() const {
     std::lock_guard<std::mutex> lk(m_mutex);
     return m_cal.valid;
@@ -109,11 +91,6 @@ bool CentroidTracker::HasCalibration() const {
 GuideCalibration CentroidTracker::Calibration() const {
     std::lock_guard<std::mutex> lk(m_mutex);
     return m_cal;
-}
-
-void CentroidTracker::ClearCalibration() {
-    std::lock_guard<std::mutex> lk(m_mutex);
-    m_cal = GuideCalibration{};
 }
 
 void CentroidTracker::StartLocked() {
@@ -249,12 +226,7 @@ void CentroidTracker::Tick() {
         } else if (stage == AcquisitionStage::Off) {
             m_autoAdvance.store(false);   // Reset() ends the sequence
         }
-        stage = m_stage.load();
     }
-
-    if ((stage == AcquisitionStage::Centering ||
-         stage == AcquisitionStage::Locked) && m_onDrift)
-        m_onDrift(m_driftRA.load(), m_driftDec.load());
 }
 
 std::string CentroidTracker::CentroidBlockReason() const {

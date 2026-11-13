@@ -9,23 +9,24 @@
 #include <cstdio>
 #include <thread>
 #include <chrono>
+#include "CoreLog.h"
 
 namespace raduk::core {
 
 bool CaptureThread::Start(ICamera& camera, RingBuffer& ringBuffer,
                            double exposureMs, int cpuCore) {
     if (m_running.load()) {
-        printf("[CaptureThread] Already running\n");
+        raduk::core::CoreLog("[CaptureThread] Already running\n");
         return false;
     }
 
     if (!camera.IsOpen()) {
-        printf("[CaptureThread] Camera not open\n");
+        raduk::core::CoreLog("[CaptureThread] Camera not open\n");
         return false;
     }
 
     if (!ringBuffer.IsAllocated()) {
-        printf("[CaptureThread] Ring buffer not allocated\n");
+        raduk::core::CoreLog("[CaptureThread] Ring buffer not allocated\n");
         return false;
     }
 
@@ -47,7 +48,7 @@ bool CaptureThread::Start(ICamera& camera, RingBuffer& ringBuffer,
 
     // Start video capture on the camera
     if (!m_camera->StartVideoCapture()) {
-        printf("[CaptureThread] Failed to start video capture\n");
+        raduk::core::CoreLog("[CaptureThread] Failed to start video capture\n");
         return false;
     }
 
@@ -55,7 +56,7 @@ bool CaptureThread::Start(ICamera& camera, RingBuffer& ringBuffer,
     m_running.store(true, std::memory_order_release);
     m_thread = std::thread(&CaptureThread::Run, this);
 
-    printf("[CaptureThread] Started (exposure=%.2fms, core=%d)\n",
+    raduk::core::CoreLog("[CaptureThread] Started (exposure=%.2fms, core=%d)\n",
            exposureMs, cpuCore);
     return true;
 }
@@ -73,7 +74,7 @@ void CaptureThread::Stop() {
         m_camera->StopVideoCapture();
     }
 
-    printf("[CaptureThread] Stopped — %llu frames captured, %llu timeouts, "
+    raduk::core::CoreLog("[CaptureThread] Stopped — %llu frames captured, %llu timeouts, "
            "%d SDK drops, %llu overruns\n",
            m_stats.framesCaptured.load(),
            m_stats.timeouts.load(),
@@ -102,7 +103,7 @@ void CaptureThread::Run() {
     m_fpsStartTime = Timestamp::Now();
     m_fpsFrameCount = 0;
 
-    printf("[CaptureThread] Capture loop running — %dx%d %s (%d bytes/frame)\n",
+    raduk::core::CoreLog("[CaptureThread] Capture loop running — %dx%d %s (%d bytes/frame)\n",
            roiWidth, roiHeight,
            (roiType == ImageType::Raw16) ? "RAW16" : "RAW8",
            frameSizeBytes);
@@ -147,7 +148,7 @@ void CaptureThread::Run() {
         if (gotFrame) {
             wedge.OnFrame(Timestamp::Now());
             if (m_stats.cameraFault.exchange(false))
-                printf("[CaptureThread] Camera recovered — frames flowing again\n");
+                raduk::core::CoreLog("[CaptureThread] Camera recovered — frames flowing again\n");
             faultLogged = false;
 
             // Fill metadata
@@ -203,14 +204,14 @@ void CaptureThread::Run() {
                 m_stats.cameraFault.store(true, std::memory_order_relaxed);
                 if (!faultLogged) {
                     faultLogged = true;
-                    printf("[CaptureThread] *** CAMERA FAULT: %s — attempting "
+                    raduk::core::CoreLog("[CaptureThread] *** CAMERA FAULT: %s — attempting "
                            "recovery every 1s ***\n",
                            Describe(frameErr));
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 if (m_running.load(std::memory_order_relaxed) &&
                     m_camera->RestartCapture()) {
-                    printf("[CaptureThread] RestartCapture succeeded after fault\n");
+                    raduk::core::CoreLog("[CaptureThread] RestartCapture succeeded after fault\n");
                     m_stats.restarts.fetch_add(1, std::memory_order_relaxed);
                 }
                 wedge.Reset(Timestamp::Now());   // a fault is not also a wedge
@@ -218,7 +219,7 @@ void CaptureThread::Run() {
                 // Timeout — §6.3 pipeline-wedge detection, in time
                 m_stats.timeouts.fetch_add(1, std::memory_order_relaxed);
                 if (wedge.OnTimeout(Timestamp::Now(), budgetMs)) {
-                    printf("[CaptureThread] Pipeline wedge (no frame for %.0f ms) "
+                    raduk::core::CoreLog("[CaptureThread] Pipeline wedge (no frame for %.0f ms) "
                            "— RestartCapture\n", budgetMs);
                     m_stats.restarts.fetch_add(1, std::memory_order_relaxed);
                     if (!m_camera->RestartCapture())

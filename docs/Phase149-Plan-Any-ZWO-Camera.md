@@ -1,5 +1,7 @@
 # Phase 149 plan: ready for any ZWO camera
 
+**Placement changed 2026-11-13 (the strategic review):** 149.0, 149.0b, 149.1 and 149.4 serve release 3.6 (hardware), and 149.5 and 149.6 serve release 3.5. 149.2 (cooling) and 149.3 (long exposures) move after 4.0, with deep sky. See [`ROADMAP-Next.md`](ROADMAP-Next.md#next-in-order).
+
 The owner set this direction on 2026-11-13. The app is a planetary imager today, but it must also image deep-sky objects and stars, with the ASI678MC and with the ZWO cameras that follow it. Status: `PLANNED`. Every phase from 146 on follows the rules at the end of this plan.
 
 ## Where it stands
@@ -52,6 +54,12 @@ The owner set this direction on 2026-11-13. The app is a planetary imager today,
   - Named filters in rig.ini.
   - The record's `filter` and FITS `FILTER` (phase 143) are filled from the wheel instead of typed.
   - Per-filter focus offsets for the EAF, which matter for mono imaging.
+- **149.6 RGB sequencing on a mono camera** (from the strategic review the owner brought on 2026-11-13; release 3.5).
+  - Needs 149.5's wheel.
+  - A sequence of R, G and B runs (or any named filters) fitted inside the derotation window, so the three channels show the same face of the planet.
+  - Per filter: exposure, gain and the focus offset from 149.5, applied before each run.
+  - One record per channel, with the filter in `FILTER` and the record. WinJUPOS names carry the filter, so the channels derotate and combine.
+  - The order and the cycle count are saved in the profile.
 
 ## Rules for every phase from 146 on
 1. **Never name a camera model, a resolution, a pixel size or a plate scale in code.** Read them from `CameraInfo` and the rig's optics.

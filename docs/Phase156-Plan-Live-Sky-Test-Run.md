@@ -94,10 +94,10 @@ The owner asked for this on 2026-11-13: a phase that runs the automated tests un
 - **Phase 149's rules.** Nothing in the sky tests names a camera model, resolution or plate scale. The expected values come from the rig and the register.
 
 ## Order
-After 155.3 to 155.5 (the validation mode it consumes) and 153.1 to 153.2 (the controllers it drives). 156.5 can start as soon as 153.0's harness exists.
+Release 3.4. After 155.3 to 155.5 (the validation mode it consumes) and 153.1 to 153.2 (the controllers it drives). 156.5 can start as soon as 153.0's harness exists.
 
 ## Versioning
-Every pull request bumps PATCH; the one that completes the phase bumps MINOR ([`ROADMAP-Next.md`](ROADMAP-Next.md#next-in-order)). Suggested PRs:
-1. 156.0 with 156.5 (PATCH);
-2. 156.1 with 156.2 (PATCH);
-3. 156.3 to 156.4, which completes the phase (MINOR).
+Every pull request bumps PATCH. MINOR marks a milestone release (3.4 for this phase), not a phase ([`ROADMAP-Next.md`](ROADMAP-Next.md#next-in-order)). Suggested PRs:
+1. 156.0 with 156.5;
+2. 156.1 with 156.2;
+3. 156.3 to 156.4.

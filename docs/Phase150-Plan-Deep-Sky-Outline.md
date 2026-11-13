@@ -1,5 +1,7 @@
 # Phase 150: deep sky and stars, an outline
 
+**Moved after release 4.0 (P3) by the owner, 2026-11-13**, following the strategic review's advice: deep sky waits until the planetary product has proven itself, so the app does not compete with mature deep-sky tools before its core is reliable. 149.2 and 149.3 move with it. Nothing in 146 to 149 stops building to fit it.
+
 This is an outline, not a plan. It is written 2026-11-13 so that phases 146 to 149 are built to fit it, and it is to be planned properly when 149's single exposures exist. Status: `OUTLINED`.
 
 ## What deep-sky imaging asks that planetary does not

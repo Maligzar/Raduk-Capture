@@ -9,8 +9,8 @@ namespace raduk::core {
 
 static fits::HeaderExtras ExtrasFor(const ObservationRecord& r) {
     fits::HeaderExtras x;
-    x.instrument = kCaptureInstrument;
-    x.telescope  = kCaptureTelescope;
+    x.instrument = CaptureInstrument();
+    x.telescope  = CaptureTelescope();
     x.software   = "RadukCapture";
     if (!r.appVersion.empty()) x.software += " " + r.appVersion;
     x.pixelUm    = r.pixelUm;

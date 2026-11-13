@@ -255,7 +255,7 @@ bool PreviewRenderer::HandleMouseDown(float x, float y) {
         m_showResetPopup = false;
         m_dragState = DragState::Idle;
         if (m_onROIChange)
-            m_onROIChange(MAX_SENSOR_W, MAX_SENSOR_H, 0, 0);
+            m_onROIChange(m_maxSensorW, m_maxSensorH, 0, 0);
         return true;
     }
 
@@ -327,8 +327,8 @@ void PreviewRenderer::HandleMouseUp(float x, float y) {
     snapH = (snapH < 64)  ? 64  : snapH;
 
     // Enforce maximum (full sensor)
-    snapW = (snapW > MAX_SENSOR_W) ? MAX_SENSOR_W : snapW;
-    snapH = (snapH > MAX_SENSOR_H) ? MAX_SENSOR_H : snapH;
+    snapW = (snapW > m_maxSensorW) ? m_maxSensorW : snapW;
+    snapH = (snapH > m_maxSensorH) ? m_maxSensorH : snapH;
 
     // Reject if essentially the same as current ROI (< 5% different)
     float diffW = (float)(m_sensorW - snapW) / m_sensorW;
@@ -1206,8 +1206,9 @@ void PreviewRenderer::DrawResetPopup() {
     // Button label
     if (m_barFont && m_accentBrush) {
         m_barFont->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-        m_renderTarget->DrawText(
-            L"RESET  3840 \u00d7 2160", 19,
+        wchar_t lbl[48];
+        const int n = swprintf(lbl, 48, L"RESET  %d \u00d7 %d", m_maxSensorW, m_maxSensorH);
+        m_renderTarget->DrawText(lbl, (UINT32)(n > 0 ? n : 0),
             m_barFont, m_btnResetMax, m_accentBrush);
     }
 }

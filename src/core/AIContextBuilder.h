@@ -552,8 +552,14 @@ public:
            << RigConfig::Get().siteLatDeg << ", "
            << RigConfig::Get().siteLonDeg
            << std::defaultfloat << " (approx, from rig.ini).\n"
-           << "Equipment: Celestron 8SE SCT (f/10, 2032mm FL), ZWO ASI678MC "
-              "(Sony IMX678, " << s.sensorWidth << "x" << s.sensorHeight
+           // Phase 149.0: the imaging train as rig.ini and the camera
+           // describe it, not one camera typed into the prompt.
+           << "Equipment: " << RigConfig::Get().telescopeName << " ("
+           << std::fixed << std::setprecision(0) << RigConfig::Get().Train().EffectiveFocalMm() << "mm FL, f/"
+           << std::setprecision(1) << RigConfig::Get().Train().FocalRatio(RigConfig::Get().apertureMm)
+           << std::defaultfloat << "), " << RigConfig::Get().cameraName << " ("
+           << (RigConfig::Get().cameraColor ? "colour, " : "mono, ")
+           << s.sensorWidth << "x" << s.sensorHeight
            // 2.0um, not 2.9. The 2.9 figure was wrong and had been here
            // since this prompt was written -- flagged in the June code
            // review (CODE_REVIEW_2026-06-10, line 503) and never acted
@@ -561,7 +567,8 @@ public:
            // 2.9um at 2032mm is 0.294"/px, not 0.203. The model was
            // handed two facts that cannot both be true and no way to
            // tell which.
-           << ", 2.0um), ZWO EAF, NexStar mount.\n"
+           << ", " << std::fixed << std::setprecision(1) << RigConfig::Get().cameraPixelUm
+           << std::defaultfloat << "um), ZWO EAF, NexStar mount.\n"
            // P3.6 option C: the app's number, not one typed into a
            // prompt. A Barlow or a reducer changes this, rig.ini
            // records it, and a hardcoded 0.203 would go on being quoted

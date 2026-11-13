@@ -324,7 +324,11 @@ static void UpdateStartupDeviceLabels(StartupDlgState& s) {
         swprintf(buf, 64, L"%s  %s", ok ? L"\u2705" : L"\u274C", name);
         SetWindowTextW(h, buf);
     };
-    setLbl(s.lblCamera, s.hw.cameraFound, L"ZWO ASI678MC Camera");
+    {   // Phase 149.0: the camera's own name, last seen in rig.ini.
+        const std::string cn = raduk::core::RigConfig::Get().cameraName;
+        const std::wstring wcn(cn.begin(), cn.end());
+        setLbl(s.lblCamera, s.hw.cameraFound, (wcn + L" camera").c_str());
+    }
     setLbl(s.lblEAF,    s.hw.eafFound,    L"ZWO EAF Focuser");
     {
         wchar_t mountName[64];
@@ -825,9 +829,12 @@ static void ApplyProfile(const TargetProfile& p,
     }
     // Format after the control writes: it stops and restarts the capture
     // thread, and the gain/exposure values set above survive that.
-    if (hooks.setFormat && p.roiWidth > 0 && p.roiHeight > 0) {
-        hooks.setFormat(p.roiWidth, p.roiHeight,
-                        raduk::core::BitDepthOf(p.imgType));
+    // Phase 149.0: a size of 0 is "the full sensor", whatever camera it is.
+    if (hooks.setFormat) {
+        const auto& rgc = raduk::core::RigConfig::Get();
+        const int w = p.roiWidth  > 0 ? p.roiWidth  : rgc.cameraWidth;
+        const int h = p.roiHeight > 0 ? p.roiHeight : rgc.cameraHeight;
+        hooks.setFormat(w, h, raduk::core::BitDepthOf(p.imgType));
     }
     // Last, so the panel describes the state everything above left.
     if (hooks.syncUi) hooks.syncUi(p);
@@ -921,7 +928,13 @@ static int RunApp(bool useEmulator) {
     } else {
         Log("[INIT] Camera: %s\n", cam.Name().c_str());
         slog.Camera("Opened: %s", cam.Name().c_str());
+        // Phase 149.0: the camera describes itself; remember it, so the
+        // plate scale, the full-sensor size and every label follow it.
+        const CameraInfo ci = cam.Describe();
+        raduk::core::RigConfig::Get().NoteCamera(ci.name, ci.maxWidth, ci.maxHeight,
+                                                 ci.pixelSizeUm, ci.isColor);
     }
+    Log("[INIT] Imaging train: %s\n", raduk::core::RigConfig::Get().Train().Describe().c_str());
 
     // Full sensor at startup: the widest field, and the one to come back
     // to. roiBits tracks what the camera actually gave us -- before this
@@ -930,7 +943,9 @@ static int RunApp(bool useEmulator) {
     // Phase 88: come back where we left off. Full frame 8-bit remains
     // the fallback for a first run or an upgrade, so nothing changes for
     // a rig that has never stored a session.
-    int roiWidth = 3840, roiHeight = 2160, roiBits = 8;
+    int roiWidth  = raduk::core::RigConfig::Get().cameraWidth;    // phase 149.0: the camera's
+    int roiHeight = raduk::core::RigConfig::Get().cameraHeight;   // full sensor
+    int roiBits = 8;
     {
         const auto& rgs = raduk::core::RigConfig::Get();
         if (rgs.HasLastFormat()) {
@@ -3220,6 +3235,13 @@ static int RunApp(bool useEmulator) {
 
     // ── Preview renderer ───────────────────────────────────────
     PreviewRenderer preview;
+    // Phase 149.0: the full sensor and the camera's name, from the camera.
+    {
+        const auto& rgc = raduk::core::RigConfig::Get();
+        preview.SetSensorMax(rgc.cameraWidth, rgc.cameraHeight);
+        toolbar.SetFullSensor(rgc.cameraWidth, rgc.cameraHeight);
+        telemetry.camera = rgc.cameraName;
+    }
     if (!preview.Init(window.RenderTarget(), window.DWriteFactory()) ||
         !preview.SetFrameSize(roiWidth, roiHeight)) {
         Log("[FATAL] PreviewRenderer init failed\n");
@@ -3823,6 +3845,17 @@ static int RunApp(bool useEmulator) {
             if (cam.Open(0)) {
                 Log("[HW] Camera: %s\n", cam.Name().c_str());
                 gotoPanel.SetPixelSizeUm(cam.Describe().pixelSizeUm);
+                // Phase 149.0: a different camera may have been plugged in.
+                {
+                    const CameraInfo ci = cam.Describe();
+                    if (raduk::core::RigConfig::Get().NoteCamera(ci.name, ci.maxWidth, ci.maxHeight,
+                                                                 ci.pixelSizeUm, ci.isColor))
+                        Log("[HW] A different camera: %s\n",
+                            raduk::core::RigConfig::Get().Train().Describe().c_str());
+                    preview.SetSensorMax(ci.maxWidth, ci.maxHeight);
+                    toolbar.SetFullSensor(ci.maxWidth, ci.maxHeight);
+                    telemetry.camera = ci.name;
+                }
                 // The settings the session was using, not the camera's
                 // defaults: a reconnect mid-session should look like
                 // nothing happened.
@@ -5578,6 +5611,10 @@ static int RunApp(bool useEmulator) {
             rig.latDeg = r.siteLatDeg; rig.lonDeg = r.siteLonDeg; rig.elevM = r.siteElevationM;
             rig.apertureMm = r.apertureMm;
             rig.filter = r.filterName;
+            // Phase 149.0: the train as it is, not one camera typed in.
+            rig.focalMm   = r.Train().EffectiveFocalMm();
+            rig.telescope = r.telescopeName;
+            rig.camera    = r.cameraName;
             raduk::core::phemu_sheet::Run run;
             const size_t slash = phemuRun.serPath.find_last_of("\\/");
             run.serFile = slash == std::string::npos ? phemuRun.serPath : phemuRun.serPath.substr(slash + 1);
@@ -8474,7 +8511,7 @@ static int RunApp(bool useEmulator) {
                     // the profiles are per-object -- so it is the right
                     // thing to fall back to.
                     sc.target = targetNow();
-                    sc.rig       = "Celestron 8SE  \xc2\xb7  ZWO ASI678MC";
+                    sc.rig       = raduk::core::RigConfig::Get().Train().RigLine();   // phase 149.0
                     sc.fps       = fps;
                     sc.recording = sd.recording;
                     if (cam.IsOpen()) {

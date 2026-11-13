@@ -19,13 +19,16 @@
 #include <vector>
 #include <windows.h>
 #include "ObservationRecord.h"
+#include "RigConfig.h"   // phase 149.0: the camera and telescope names
 #include "Timestamp.h"
 
 namespace raduk::core {
 
-// The imaging train, as both formats name it.
-constexpr const char* kCaptureInstrument = "ZWO ASI678MC";
-constexpr const char* kCaptureTelescope  = "Celestron 8SE";
+// The imaging train, as both formats name it. Phase 149.0: from the
+// camera that connected (CameraInfo.name, remembered in rig.ini) and
+// rig.ini TelescopeName, never a model typed into code.
+inline std::string CaptureInstrument() { return RigConfig::Get().cameraName; }
+inline std::string CaptureTelescope()  { return RigConfig::Get().telescopeName; }
 
 // Phase 135.2: the header's frame count is brought up to date on disk
 // once a second during a run, by the frames' own timestamps (no extra

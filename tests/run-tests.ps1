@@ -51,6 +51,7 @@ $Tests = @(
     @{ Name = "drop_ledger";       Sources = @() }
     @{ Name = "ser_drop_audit";    Sources = @() }
     @{ Name = "pixel_format";      Sources = @() }
+    @{ Name = "imaging_train";     Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
     @{ Name = "mutual_events";     Sources = @() }
     @{ Name = "sntp_offset";       Sources = @() }

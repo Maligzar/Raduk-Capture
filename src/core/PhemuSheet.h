@@ -65,8 +65,8 @@ struct Rig {
     double latDeg = 0, lonDeg = 0, elevM = 0;   // +N, +E
     bool   siteKnown = false;
     double apertureMm = 203.2, focalMm = 2032.0;
-    std::string telescope = "Celestron_NexStar_8SE";
-    std::string camera = "ZWO_ASI678MC";
+    std::string telescope;         // rig.ini TelescopeName (phase 149.0)
+    std::string camera;            // the connected camera's name
     std::string filter;            // as fitted; empty for none
 };
 

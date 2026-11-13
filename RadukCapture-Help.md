@@ -2910,7 +2910,11 @@ real site is stored. Most of it is written for you.
 | `SiteElevationM` | Metres above sea level; sets the ADC pressure model. |
 | `SiteSource` | `manual`, `windows`, `gps` or `mount`. A `manual` site is never overwritten by an automatic one. |
 | `MountPort` | Pin a COM port. Empty means auto-detect. |
-| `PlateScaleArcsecPx` | Nominal image scale; seeds overlays and solver hints. |
+| `PlateScaleArcsecPx` | The image scale in use, written for you to read; no longer read back as a setting (phase 149.0). It is derived from the camera's pixel size and `FocalLengthMm` x `FocalReducer`, unless `PlateScaleMeasuredArcsecPx` is set. An older rig.ini whose figure differs from the derived one by more than 1% has that figure kept as the measured one. |
+| `PlateScaleMeasuredArcsecPx` | The scale measured on the sky (clear-night item 3). Overrides the derived one when set; 0 = not measured. |
+| `FocalLengthMm` / `FocalReducer` | The telescope's focal length (default 2032) and what sits in front of the camera: 1 for none, 0.63 for a reducer, 2 for a 2x Barlow. |
+| `TelescopeName` | The telescope as files, records and the audience screen name it. Default `Celestron 8SE`. |
+| `CameraName` / `CameraWidth` / `CameraHeight` / `CameraPixelUm` / `CameraColor` | The last camera that connected, as it described itself. Written for you when a camera connects; they let start-up and the emulator know the sensor before one does. |
 | `GuideRateArcsecPerSec` | Assumed guide rate. Calibration measures the real one and warns if they disagree. |
 | `WrapLimitDeg` | Cumulative azimuth travel before the cord-wrap warning. |
 | `KeepOutStartDeg` / `KeepOutEndDeg` | Obstruction sector, clockwise from start to end. Equal values = none. |
@@ -3174,6 +3178,7 @@ order.
 | 3.3.2 | 153-155 | Planned, from a review of the design: the wiring taken out of main.cpp into a tested application core, the hand-written network code fuzzed and decided on, and the unverified constants measured by the app itself and tested against real recordings |
 | 3.3.3 | 146.0, 146.1 | Every run says where each frame it did not keep went: the camera or USB, skipped by the gate or a pause, our buffer, or a gap in the frame times nobody reported; exposure- or transfer-limited; and `ser_drop_audit` gives the same for any SER |
 | 3.3.4 | 149.0b | Frames and profiles use the app's own pixel format instead of the camera maker's; profile files carry a format version and older ones still load; CI keeps the maker's names inside its own code |
+| 3.3.5 | 149.0 | The camera describes itself: the plate scale is derived from its pixel size and the focal length (or the measured figure), and the full-sensor size, file and record names, the audience screen, the sky map's field circle and the assistant all follow whatever camera is connected. New settings `FocalLengthMm`, `FocalReducer`, `PlateScaleMeasuredArcsecPx` and `TelescopeName` |
 
 ---
 

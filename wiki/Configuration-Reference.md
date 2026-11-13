@@ -150,6 +150,16 @@ The full list, with every key, is the help file's
 | `TimeServer` | `pool.ntp.org` | The NTP server for the mutual-event clock check (141) |
 | `LeobenUrl` / `LeobenToken` | empty | Weather, and the seeing forecast, from Leoben on the home network |
 
+### The imaging train (phase 149.0)
+
+The plate scale is derived, not typed: 206.264806 x the camera's pixel size in
+µm ÷ (`FocalLengthMm` x `FocalReducer`). A measured figure in
+`PlateScaleMeasuredArcsecPx` overrides it. `PlateScaleArcsecPx` is still
+written, so the figure in use can be read, but it is no longer read back. The
+camera that last connected is remembered (`CameraName`, `CameraWidth`,
+`CameraHeight`, `CameraPixelUm`, `CameraColor`), so the full-sensor size and
+the names in files follow it. `TelescopeName` names the telescope.
+
 ### The three values that bias results and cannot be detected
 
 Since Phase 77 these report themselves rather than sitting silent:

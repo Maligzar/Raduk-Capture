@@ -566,15 +566,15 @@ inline TargetProfile DefaultDSO() {
     p.wbBlue      = 47;
     p.usbBandwidth = 80;
     p.highSpeed   = false;     // no need for high speed — long subs
-    p.roiWidth    = 3840;
-    p.roiHeight   = 2160;      // full sensor for maximum field
+    p.roiWidth    = 0;         // 0 = the full sensor, whatever the camera
+    p.roiHeight   = 0;         // (phase 149.0)
     p.binning     = 1;
     p.imgType     = raduk::core::ImageType::Raw16;  // 16-bit for stacking headroom
     p.limitType   = "time";
     p.limitValue  = 1800;      // 30 min session = many 60s subs
     p.filePrefix  = "DSO_";
     p.histogram_target = "10-30% peak (faint DSO)";
-    p.notes = "RAW16 for stacking. Full sensor 3840x2160. "
+    p.notes = "RAW16 for stacking. Full sensor. "
               "HCG active at gain 300 (0.8e read noise). "
               "60s subs at a Bortle 4 site is a good starting point. "
               "Dark frames at same gain/temp improve stack quality. "

@@ -400,6 +400,13 @@ What the bench cannot answer:
 > left is whether a real ASI678MC over real USB behaves the same, and
 > that is a different question from whether our side keeps up. It does.
 >
+> **2026-11-13, phase 146:** that question needs no night at all. Every
+> run now logs a `[CAPTURE] Frames:` line accounting for each frame it
+> did not keep (the camera or USB, the gate, our buffer, or an
+> unreported gap in the frame times), and `ser_drop_audit` does the
+> same for any SER. The indoor procedure is in the help, under *Where
+> every frame went*: five capped runs, about 30 minutes.
+>
 > **One thing worth knowing before you try the full sensor in the
 > field:** the write buffer sized itself to 1000 slots = **7910 MB of
 > RAM** at 3840×2160. That is the `RAM_SHARE = 0.5` rule working as

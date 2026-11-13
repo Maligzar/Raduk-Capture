@@ -185,6 +185,12 @@ target_include_directories(fits2ser PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_executable(phemu_lightcurve tools/phemu_lightcurve.cpp)
 target_include_directories(phemu_lightcurve PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
+# ser_drop_audit (phase 146.1): the drop ledger from a finished SER's
+# timestamps, with the run's observation record when it is beside it.
+# Built beside the app: build\Release\ser_drop_audit.exe.
+add_executable(ser_drop_audit tools/ser_drop_audit.cpp)
+target_include_directories(ser_drop_audit PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
 # ── Include directories ────────────────────────────────────────
 
 target_include_directories(RadukCapture PRIVATE

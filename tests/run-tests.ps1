@@ -48,6 +48,8 @@ $Tests = @(
     @{ Name = "dock_geometry";     Sources = @() }
     @{ Name = "capture_wedge";     Sources = @() }
     @{ Name = "seeing_tally";      Sources = @() }
+    @{ Name = "drop_ledger";       Sources = @() }
+    @{ Name = "ser_drop_audit";    Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
     @{ Name = "mutual_events";     Sources = @() }
     @{ Name = "sntp_offset";       Sources = @() }

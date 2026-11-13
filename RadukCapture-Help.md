@@ -1624,6 +1624,28 @@ A `_quality.txt` file is written alongside each SER with per-frame sharpness sco
 - **A stalled camera recovers in about 1.5 s.** If no frame arrives for 1.5 s, or for 10 frame intervals on a long exposure, the camera is restarted. It used to take at least 10 s. Each restart writes a `Pipeline wedge` line in the log.
 - **A run that records nothing leaves nothing behind.** No empty file, sidecar or record, and no line in the night's DeTeCt or submission lists.
 
+### Where every frame went (phase 146)
+
+At the end of each run, one line in the log, `[CAPTURE] Frames: ...`, says what happened to every frame the run did not keep. The same figures go into the observation record (`dropped_sdk`, `frames_dropped`, `skipped_by_choice`, `timestamp_gaps`, `frames_unexplained`, `median_interval_ms`, `effective_fps`, `rate_limit`, and `camera`, the camera's own name).
+
+- **The camera or USB lost it** (`dropped_sdk`): the camera driver's own count, only this run's share.
+- **Skipped on purpose** (`skipped_by_choice`): the quality gate was shut or the run was paused. Never a loss.
+- **Our buffer was full** (`frames_dropped`).
+- **Nobody reported it** (`frames_unexplained`): a gap in the frame times, more than 1.5 times the usual spacing, that none of the above accounts for. Anything above 0 here is worth knowing about.
+
+The line also says whether the run was **exposure-limited** (each frame waited on its exposure) or **transfer-limited** (frames came as fast as USB, the camera or the disk allowed), and the effective frame rate.
+
+**Any SER, after the fact:** `ser_drop_audit.exe <file.ser>` (built beside the app) reads the file's frame times and gives the same breakdown. With the run's `_observation.txt` beside it, it separates gate skips and camera drops from real losses; without one, every gap counts as unexplained, and it says so. It works on older recordings too.
+
+**Measuring the camera itself (146.2).** About 30 minutes indoors; no sky needed, because frame rate over USB does not depend on what the sensor sees.
+1. Cap the telescope, or take the camera off it with its cap on. Plug it into a USB 3 port on its own controller (this PC has two, Intel and ASMedia) with the cable you use at night.
+2. FULL resolution, RAW8, high-speed mode on, the USB bandwidth control at its highest, exposure 0.1 ms, gain anywhere, the gate off.
+3. Record three runs of 60 seconds. Note the `[CAPTURE] Frames:` line after each.
+4. Then one 60-second run at 1280×960 RAW8, and one at FULL RAW16.
+5. Send the five lines. If the first runs show camera or USB drops, try the other USB controller and a shorter cable before anything else, and say which you used.
+
+If the full-sensor RAW8 rate is above what the disk can write (this PC's disk measured about 292 MB/s), the run will show our buffer dropping frames once it fills. That is the right answer, not a fault in the measurement.
+
 ### What goes beside each Jupiter run (phases 142 to 144)
 
 - **The observation record** (`_observation.txt`) and **the FITS header** also carry:
@@ -3145,6 +3167,7 @@ order.
 | 3.3.0 | 145.5 | The fine pass reads its centre point again at the end: a target that dimmed or brightened while it swept is corrected for, and one that changed by more than 40% keeps the coarse result. On the Moon, autofocus compares the result with where it started and goes back if the start was really better |
 | 3.3.1 | 146-152 | Planned: the real camera's throughput measured indoors, uncompressed AVI recording, TIFF (a 16-bit snapshot, sequence recording, SER to TIFF), readiness for any ZWO camera (cooling, long exposures, a second camera, the filter wheel), an outline for deep sky and stars, airplane mode (no internet ever required), and the AI assistant revisited with a preferred and a fallback model |
 | 3.3.2 | 153-155 | Planned, from a review of the design: the wiring taken out of main.cpp into a tested application core, the hand-written network code fuzzed and decided on, and the unverified constants measured by the app itself and tested against real recordings |
+| 3.3.3 | 146.0, 146.1 | Every run says where each frame it did not keep went: the camera or USB, skipped by the gate or a pause, our buffer, or a gap in the frame times nobody reported; exposure- or transfer-limited; and `ser_drop_audit` gives the same for any SER |
 
 ---
 

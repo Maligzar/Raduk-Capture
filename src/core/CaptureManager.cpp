@@ -115,6 +115,10 @@ bool CaptureManager::StartRecording(int width, int height, int bitDepth) {
         return false;
     }
 
+    // Phase 146.0: this run's ledger, charged only its own SDK drops.
+    m_ledger.Begin(m_sdkDropSource ? m_sdkDropSource() : 0);
+    m_skippedByChoice.store(0);
+
     // Reset stats
     m_status.framesRecorded.store(0);
     m_status.framesDropped.store(0);
@@ -197,6 +201,28 @@ void CaptureManager::StopRecording(bool normal) {
     } else if (DiskStopped() == DiskStop::DiskFull) {
         std::lock_guard<std::mutex> lk(m_mutex);
         m_status.lastError = "Stopped: the disk is nearly full";
+    }
+
+    // Phase 146.0: every frame this run did not keep, accounted. The
+    // writer thread has been joined, so the ledger is ours alone now.
+    {
+        const DropReport dr = m_ledger.Finish(m_sdkDropSource ? m_sdkDropSource() : 0,
+                                              m_status.framesDropped.load(),
+                                              m_skippedByChoice.load(),
+                                              m_obs.exposureMs > 0 ? m_obs.exposureMs : 0.0);
+        m_obs.droppedSdk      = (int)dr.droppedSdk;
+        m_obs.skippedByChoice = (int)dr.skippedByChoice;
+        if (dr.haveTiming) {
+            m_obs.timestampGaps     = (int)dr.gaps;
+            m_obs.framesUnexplained = (int)dr.unexplained;
+            m_obs.medianIntervalMs  = dr.medianIntervalMs;
+            m_obs.effectiveFps      = dr.effectiveFps;
+            m_obs.rateLimit         = dr.exposureLimited ? "exposure" : "transfer";
+        }
+        Say("Frames: " + DropLine(dr, m_obs.camera));
+        if (m_log) m_log->Capture("Frames: %s", DropLine(dr, m_obs.camera).c_str());
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_lastDrops = dr;
     }
 
     // Remember the finished file before closing, so the caller can
@@ -407,7 +433,7 @@ bool CaptureManager::SubmitFromCaptureThread(const FrameSlot* slot) {
     // Phase 135.1: the disk has stopped the run; nothing more goes in.
     if (m_diskStop.load(std::memory_order_relaxed) != 0) return false;
     if (!slot || !slot->data) return false;
-    if (m_paused.load()) return false;
+    if (m_paused.load()) { m_skippedByChoice.fetch_add(1, std::memory_order_relaxed); return false; }
 
     // Limits are checked here but acted on elsewhere. StopRecording()
     // joins the writer thread, and with a buffer sized to a whole run
@@ -445,7 +471,10 @@ bool CaptureManager::SubmitFromCaptureThread(const FrameSlot* slot) {
 
     // A gated frame is deliberately skipped, not lost, so it must not
     // count as a drop.
-    if (!m_gateOpen.load(std::memory_order_relaxed)) return false;
+    if (!m_gateOpen.load(std::memory_order_relaxed)) {
+        m_skippedByChoice.fetch_add(1, std::memory_order_relaxed);   // phase 146.0
+        return false;
+    }
 
     const bool ok = m_writeBuffer.Push(
         slot->data, slot->dataSize, slot->timestamp,
@@ -470,7 +499,7 @@ bool CaptureManager::SubmitFrame(const FrameSlot* slot, float sharpness,
     if (!slot || !slot->data) return false;
 
     // Phase 41 — Pause: skip frames without closing the SER file
-    if (m_paused.load()) return false;
+    if (m_paused.load()) { m_skippedByChoice.fetch_add(1, std::memory_order_relaxed); return false; }
 
     uint32_t recorded = m_status.framesRecorded.load();
     if (m_config.limitType == LimitType::Frames &&
@@ -575,6 +604,7 @@ void CaptureManager::WriterLoop() {
         if (ok) {
             m_status.framesRecorded.fetch_add(1);
             m_status.bytesWritten.fetch_add(slot->dataSize);
+            m_ledger.OnWritten(slot->timestampUs);   // phase 146.0
         } else {
             // Phase 135.1: raise the flag before leaving, so the capture
             // thread stops submitting and the render loop ends the run.

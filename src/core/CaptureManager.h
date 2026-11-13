@@ -20,6 +20,7 @@
 #include "FrameSlot.h"
 #include "Sharpness.h"
 #include "ObservationRecord.h"
+#include "DropLedger.h"
 #include "Paths.h"
 #include <string>
 #include <thread>
@@ -128,6 +129,12 @@ public:
     void SetObservationSource(std::function<void(ObservationRecord&)> fn) {
         m_obsSource = std::move(fn);
     }
+    // Phase 146.0: the camera's cumulative dropped-frame count (the
+    // SDK's), read at the start and end of each run so the run is charged
+    // only its own share. Unset: SDK drops are reported as 0.
+    void SetSdkDropSource(std::function<int()> fn) { m_sdkDropSource = std::move(fn); }
+    // The last finished run's ledger.
+    DropReport LastDropReport() const { std::lock_guard<std::mutex> lk(m_mutex); return m_lastDrops; }
     // 2026-11-08: who names the run. Called on the thread that calls
     // StartRecording(), before the file path is built, with the
     // configured prefix; returns the prefix to use. Like the
@@ -310,6 +317,10 @@ private:
 
     std::string     m_lastPath;      // most recently finished recording
     std::function<void(ObservationRecord&)> m_obsSource;
+    std::function<int()> m_sdkDropSource;          // phase 146.0
+    DropLedger           m_ledger;                 // writer thread, then the stop after join
+    std::atomic<uint64_t> m_skippedByChoice{0};    // gate shut or paused, this run
+    DropReport           m_lastDrops;
     std::function<std::string(const std::string&)> m_prefixSource;
     ObservationRecord m_obs;         // this run's record, filled at start
     std::string     m_lastObsPath;
@@ -326,7 +337,7 @@ private:
     ICaptureWriter* m_writer = &m_ser;
     SessionLog*     m_log = nullptr;
     CaptureStatus   m_status;
-    std::mutex      m_mutex;
+    mutable std::mutex m_mutex;
 
     std::thread     m_writerThread;
     std::atomic<bool> m_writerRunning{false};

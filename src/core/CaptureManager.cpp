@@ -352,7 +352,7 @@ void CaptureManager::StopRecording(bool normal) {
         if (f) fclose(f);
         if (fopen_s(&f, sheet.c_str(), "ab") == 0 && f) {
             if (fresh) fputs(SubmissionSheetHeader().c_str(), f);
-            fputs(SubmissionSheetLine(m_obs, kCaptureTelescope, kCaptureInstrument).c_str(), f);
+            fputs(SubmissionSheetLine(m_obs, CaptureTelescope().c_str(), CaptureInstrument().c_str()).c_str(), f);
             fclose(f);
         }
     }

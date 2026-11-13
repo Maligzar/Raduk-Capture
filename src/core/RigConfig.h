@@ -25,6 +25,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX  // keep windows.h min/max macros away from std::min/max
 #endif
+#include "ImagingTrain.h"   // phase 149.0
 #include <windows.h>
 #include <string>
 #include <cstdio>
@@ -132,8 +133,61 @@ struct RigConfig {
         return 2.0 * R * std::asin(std::sqrt(a < 0 ? 0 : (a > 1 ? 1 : a)));
     }
 
-    // Optics / sensor (nominal)
-    float  plateScaleArcsecPx = 0.203f;  // 8SE 2032mm + 2.0um pixels
+    // Optics / sensor. Phase 149.0: plateScaleArcsecPx is the EFFECTIVE
+    // scale every caller reads, set by ApplyTrain() from the imaging train:
+    // the measured figure when there is one, else derived from the camera's
+    // pixel size and the focal length. It is still written to rig.ini, for
+    // reading, but no longer read back as a setting.
+    float  plateScaleArcsecPx = 0.203f;
+    float  focalLengthMm = 2032.0f;          // FocalLengthMm
+    float  focalReducer  = 1.0f;             // FocalReducer: 0.63 reducer, 2 Barlow
+    float  plateScaleMeasuredArcsecPx = 0.0f;// PlateScaleMeasuredArcsecPx; 0 = not measured
+    std::string telescopeName = "Celestron 8SE";   // TelescopeName
+    // The last camera seen (CameraName, CameraWidth, CameraHeight,
+    // CameraPixelUm, CameraColor). First-run defaults: this rig's camera,
+    // until one connects and NoteCamera() replaces them.
+    std::string cameraName    = "ZWO ASI678MC";
+    int         cameraWidth   = 3840;
+    int         cameraHeight  = 2160;
+    float       cameraPixelUm = 2.0f;
+    bool        cameraColor   = true;
+
+    ImagingTrain Train() const {
+        ImagingTrain t;
+        t.camera = cameraName; t.telescope = telescopeName;
+        t.sensorW = cameraWidth; t.sensorH = cameraHeight;
+        t.pixelUm = cameraPixelUm; t.color = cameraColor;
+        t.focalMm = focalLengthMm; t.reducer = focalReducer;
+        t.measuredArcsecPx = plateScaleMeasuredArcsecPx;
+        return t;
+    }
+    // Sets the effective plate scale from the train.
+    void ApplyTrain() {
+        const double s = Train().ArcsecPx();
+        if (s > 0.01 && s < 20.0) plateScaleArcsecPx = (float)s;
+    }
+    // A camera connected: remember it, recompute the scale, save those keys.
+    // Returns true when anything changed.
+    bool NoteCamera(const std::string& name, int w, int h, double pixelUm, bool color) {
+        if (w <= 0 || h <= 0 || !(pixelUm > 0)) return false;
+        const bool same = name == cameraName && w == cameraWidth && h == cameraHeight &&
+                          std::fabs(pixelUm - cameraPixelUm) < 1e-3 && color == cameraColor;
+        cameraName = name; cameraWidth = w; cameraHeight = h;
+        cameraPixelUm = (float)pixelUm; cameraColor = color;
+        ApplyTrain();
+        if (!same) SaveCamera();
+        return !same;
+    }
+    void SaveCamera() const {
+        const std::string p = IniPath();
+        char buf[64];
+        WritePrivateProfileStringA("Rig", "CameraName", cameraName.c_str(), p.c_str());
+        snprintf(buf, sizeof(buf), "%d", cameraWidth);  WritePrivateProfileStringA("Rig", "CameraWidth", buf, p.c_str());
+        snprintf(buf, sizeof(buf), "%d", cameraHeight); WritePrivateProfileStringA("Rig", "CameraHeight", buf, p.c_str());
+        snprintf(buf, sizeof(buf), "%.3f", cameraPixelUm); WritePrivateProfileStringA("Rig", "CameraPixelUm", buf, p.c_str());
+        WritePrivateProfileStringA("Rig", "CameraColor", cameraColor ? "1" : "0", p.c_str());
+        snprintf(buf, sizeof(buf), "%.4f", plateScaleArcsecPx); WritePrivateProfileStringA("Rig", "PlateScaleArcsecPx", buf, p.c_str());
+    }
     // Phase 108: sets the resolution a run can lose to rotation.
     float  apertureMm = 203.0f;
     // Phase 77: hand each finished recording to AutoStakkert
@@ -429,7 +483,11 @@ struct RigConfig {
         };
         wf("SiteLatDeg", siteLatDeg);
         wf("SiteLonDeg", siteLonDeg);
-        wf("PlateScaleArcsecPx", plateScaleArcsecPx);
+        wf("PlateScaleArcsecPx", plateScaleArcsecPx);   // the effective figure, for reading
+        wf("FocalLengthMm", focalLengthMm);
+        wf("FocalReducer", focalReducer);
+        wf("PlateScaleMeasuredArcsecPx", plateScaleMeasuredArcsecPx);
+        ws("TelescopeName", telescopeName);
         ws("FilterName", filterName);
         wf("FilterLowNm",  filterLowNm);
         wf("FilterHighNm", filterHighNm);
@@ -606,7 +664,36 @@ private:
             GetPrivateProfileStringA("Rig", "SiteSource", "", sbuf, sizeof(sbuf), p.c_str());
             cfg.siteSource = sbuf[0] ? sbuf : (cfg.siteValid ? "manual" : "");
         }
-        cfg.plateScaleArcsecPx    = (float)rf("PlateScaleArcsecPx", cfg.plateScaleArcsecPx);
+        // Phase 149.0: the imaging train. PlateScaleArcsecPx is no longer
+        // read as a setting -- except once, to keep a figure someone set by
+        // hand: an old rig.ini whose value is more than 1% from the derived
+        // nominal one, with no measured key yet, becomes the measured one.
+        cfg.focalLengthMm  = (float)rf("FocalLengthMm", cfg.focalLengthMm);
+        cfg.focalReducer   = (float)rf("FocalReducer", cfg.focalReducer);
+        cfg.plateScaleMeasuredArcsecPx = (float)rf("PlateScaleMeasuredArcsecPx", -1.0);
+        cfg.telescopeName  = rs("TelescopeName", cfg.telescopeName);
+        cfg.cameraName     = rs("CameraName", cfg.cameraName);
+        cfg.cameraWidth    = (int)rf("CameraWidth", cfg.cameraWidth);
+        cfg.cameraHeight   = (int)rf("CameraHeight", cfg.cameraHeight);
+        cfg.cameraPixelUm  = (float)rf("CameraPixelUm", cfg.cameraPixelUm);
+        cfg.cameraColor    = rs("CameraColor", cfg.cameraColor ? "1" : "0") == "1";
+        if (!(cfg.focalLengthMm > 50.0f && cfg.focalLengthMm < 50000.0f)) cfg.focalLengthMm = 2032.0f;
+        if (!(cfg.focalReducer > 0.1f && cfg.focalReducer < 10.0f)) cfg.focalReducer = 1.0f;
+        if (cfg.cameraWidth <= 0 || cfg.cameraHeight <= 0 || cfg.cameraWidth > 65536 || cfg.cameraHeight > 65536) {
+            cfg.cameraWidth = 3840; cfg.cameraHeight = 2160;
+        }
+        if (!(cfg.cameraPixelUm > 0.5f && cfg.cameraPixelUm < 50.0f)) cfg.cameraPixelUm = 2.0f;
+        if (cfg.plateScaleMeasuredArcsecPx < 0.0f) {
+            const float legacy = (float)rf("PlateScaleArcsecPx", 0.0);
+            cfg.plateScaleMeasuredArcsecPx = 0.0f;
+            const double nominal = cfg.Train().NominalArcsecPx();
+            if (legacy > 0.01f && legacy < 20.0f && nominal > 0 &&
+                std::fabs(legacy - nominal) > 0.01 * nominal)
+                cfg.plateScaleMeasuredArcsecPx = legacy;
+        }
+        if (!(cfg.plateScaleMeasuredArcsecPx > 0.01f && cfg.plateScaleMeasuredArcsecPx < 20.0f))
+            cfg.plateScaleMeasuredArcsecPx = 0.0f;
+        cfg.ApplyTrain();
         cfg.filterName            = rs("FilterName", cfg.filterName);
         cfg.filterLowNm           = (float)rf("FilterLowNm",  cfg.filterLowNm);
         cfg.filterHighNm          = (float)rf("FilterHighNm", cfg.filterHighNm);

@@ -48,8 +48,8 @@ bool SERWriter::Open(const std::string& path,
     hdr.PixelDepthPerPlane = bitDepth;
     hdr.FrameCount        = 0;  // filled at Close()
     ZeroFill(hdr.Observer,   "Raduk",            sizeof(hdr.Observer));
-    ZeroFill(hdr.Instrument, kCaptureInstrument, sizeof(hdr.Instrument));
-    ZeroFill(hdr.Telescope,  kCaptureTelescope,  sizeof(hdr.Telescope));
+    ZeroFill(hdr.Instrument, CaptureInstrument().c_str(), sizeof(hdr.Instrument));
+    ZeroFill(hdr.Telescope,  CaptureTelescope().c_str(),  sizeof(hdr.Telescope));
     hdr.DateTime    = CurrentFileTime();
     hdr.DateTimeUTC = FrameClock::NowUtcTicks();
 

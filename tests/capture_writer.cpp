@@ -128,9 +128,9 @@ int main() {
             Check(At<int32_t>(b, 26) == 4 && At<int32_t>(b, 30) == 2, "size");
             Check(At<int32_t>(b, 34) == 8, "depth");
             Check(At<int32_t>(b, 38) == 2, "the count is patched at close");
-            Check(strcmp((const char*)b.data() + 82, kCaptureInstrument) == 0,
+            Check(strcmp((const char*)b.data() + 82, CaptureInstrument().c_str()) == 0,
                   "instrument");
-            Check(strcmp((const char*)b.data() + 122, kCaptureTelescope) == 0,
+            Check(strcmp((const char*)b.data() + 122, CaptureTelescope().c_str()) == 0,
                   "telescope");
             Check(memcmp(b.data() + 178, f1, 8) == 0 &&
                   memcmp(b.data() + 186, f2, 8) == 0, "pixels, in order");

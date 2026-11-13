@@ -18,6 +18,7 @@
 #include <mutex>
 #include "Paths.h"
 #include "TestProbe.h"
+#include "RigConfig.h"   // phase 149.0: the telescope and camera names
 
 namespace raduk::core {
 
@@ -196,9 +197,11 @@ private:
             "# RadukCapture Session Log\n"
             "# Started: %s\n"
             "# Machine: %s\n"
-            "# Telescope: Celestron 8SE  Camera: ZWO ASI678MC\n"
+            "# Telescope: %s  Camera: %s\n"
             "# ============================================================\n\n",
-            timebuf, machine);
+            timebuf, machine,
+            // Phase 149.0: from rig.ini, the last camera seen.
+            RigConfig::Get().telescopeName.c_str(), RigConfig::Get().cameraName.c_str());
         fflush(m_file);
     }
 

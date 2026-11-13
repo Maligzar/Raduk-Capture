@@ -127,8 +127,11 @@ public:
     int  SensorW() const { return m_sensorW; }
     int  SensorH() const { return m_sensorH; }
 
-    static constexpr int MAX_SENSOR_W = 3840;
-    static constexpr int MAX_SENSOR_H = 2160;
+    // Phase 149.0: the full sensor is the connected camera's, set by main
+    // from CameraInfo (the defaults hold only until it is).
+    void SetSensorMax(int w, int h) { if (w > 0 && h > 0) { m_maxSensorW = w; m_maxSensorH = h; } }
+    int  SensorMaxW() const { return m_maxSensorW; }
+    int  SensorMaxH() const { return m_maxSensorH; }
 
     // ── Debayer control ────────────────────────────────────────
     DebayerMode GetDebayerMode() const  { return m_debayerMode; }
@@ -773,8 +776,10 @@ private:
     int                     m_pendingROIY   = 0;
     std::chrono::steady_clock::time_point m_confirmTime;
 
-    int                     m_sensorW       = MAX_SENSOR_W;
-    int                     m_sensorH       = MAX_SENSOR_H;
+    int                     m_maxSensorW    = 3840;   // until SetSensorMax (phase 149.0)
+    int                     m_maxSensorH    = 2160;
+    int                     m_sensorW       = 3840;
+    int                     m_sensorH       = 2160;
 };
 
 } // namespace raduk::gui

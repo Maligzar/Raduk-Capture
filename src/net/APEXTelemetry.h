@@ -47,7 +47,7 @@ struct SessionEvent {
 struct APEXTelemetry {
     // ── Identity ────────────────────────────────────────────
     bool        rc_running     = false;
-    std::string camera         = "ZWO ASI678MC";
+    std::string camera;          // the connected camera's name (phase 149.0)
 
     // ── Camera ──────────────────────────────────────────────
     double      fps            = 0.0;
@@ -58,8 +58,8 @@ struct APEXTelemetry {
     int         wb_blue        = 47;
     int         usb_bw         = 80;
     float       sensor_temp    = 0.0f;
-    int         width          = 3840;
-    int         height         = 2160;
+    int         width          = 0;   // the live format, set each tick
+    int         height         = 0;
     int         bit_depth      = 8;
 
     // ── EAF ─────────────────────────────────────────────────

@@ -41,7 +41,8 @@ namespace raduk::gui {
 // widest field -- the one to come back to when a crop went wrong.
 struct ResPreset { const wchar_t* label; int w; int h; };
 static constexpr ResPreset kResPresets[] = {
-    { L"FULL", 3840, 2160 },   // whole sensor, widest FOV
+    { L"FULL",    0,    0 },   // whole sensor, widest FOV: the camera's own size
+                               // (phase 149.0), set by SetFullSensor
     { L"1920", 1920, 1080 },
     { L"1280", 1280,  960 },   // what [ROI] crops to
     { L"640",   640,  480 },   // high frame rate
@@ -57,6 +58,11 @@ static_assert(ID_TB_RES_640 - ID_TB_RES_FULL + 1 == kResPresetCount,
 
 class ToolbarStrip {
 public:
+    // Phase 149.0: FULL is the connected camera's sensor, not a number in code.
+    void SetFullSensor(int w, int h) { if (w > 0 && h > 0) { m_fullW = w; m_fullH = h; } }
+    int  PresetW(int i) const { return kResPresets[i].w > 0 ? kResPresets[i].w : m_fullW; }
+    int  PresetH(int i) const { return kResPresets[i].h > 0 ? kResPresets[i].h : m_fullH; }
+
     ToolbarStrip() = default;
     ~ToolbarStrip() {
         if (m_viewHwnd) { DestroyWindow(m_viewHwnd); m_viewHwnd = nullptr; }
@@ -228,8 +234,7 @@ public:
         // [ROI] that is not 1280x960 because the sensor clamped it.
         // Every preset reads inactive, which is correct: none is live.
         for (int i = 0; i < kResPresetCount; i++) {
-            const bool active = (kResPresets[i].w == roiW &&
-                                 kResPresets[i].h == roiH);
+            const bool active = (PresetW(i) == roiW && PresetH(i) == roiH);
             Toggle(ID_TB_RES_FULL + i, kResPresets[i].label, active);
         }
         Toggle(ID_TB_BIT8,  L"8b",  bits == 8);
@@ -310,7 +315,7 @@ public:
             case ID_TB_RES_640: {
                 const int i = id - ID_TB_RES_FULL;
                 if (m_onRes && i >= 0 && i < kResPresetCount)
-                    m_onRes(kResPresets[i].w, kResPresets[i].h);
+                    m_onRes(PresetW(i), PresetH(i));
                 return true;
             }
             case ID_TB_BIT8:     if (m_onBits)     m_onBits(8);    return true;
@@ -321,6 +326,8 @@ public:
     }
 
 private:
+    int m_fullW = 3840, m_fullH = 2160;   // until a camera reports its own (phase 149.0)
+
     // Idle, on its way (searching, or two devices of three), and on.
     // Night vision flattens hue, so the three differ in shape as well as
     // colour: nothing, an outline, a filled face with a bar under it.

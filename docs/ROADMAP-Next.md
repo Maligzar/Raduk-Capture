@@ -1519,7 +1519,8 @@ the app works with no connection at all.
    owner's indoor runs (146.2).
 18. **149.0 and 149.0b (row 49), size S-M**: one description of the imaging
    train, and the app's own `PixelFormat` with versioned profiles, while
-   there is one backend. **149.0b written 2026-11-13 (3.3.4).**
+   there is one backend. **149.0b written 2026-11-13 (3.3.4). 149.0 written
+   2026-11-13 (3.3.5).**
 19. **153.0 (row 53), size M**: `AppCore` and the headless harness. From
    here, new wiring goes into controllers.
 20. **Phase 151.0 and 151.1 (row 51)**: airplane mode proven.

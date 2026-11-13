@@ -861,8 +861,10 @@ private:
                                       xhBrush, 1.0f);
                     xhBrush->Release();
                 }
-                // FOV circle — ASI678MC + 8SE = 0.13° diagonal
-                float fovPx = (float)(0.065 / 90.0) * (std::min(cx,cy) - 20.0f) * 2;
+                // FOV circle: half the sensor's diagonal field, from the
+                // imaging train (phase 149.0), not one camera's 0.13 deg.
+                const double halfDiagDeg = raduk::core::RigConfig::Get().Train().FovDiagDeg() * 0.5;
+                float fovPx = (float)(halfDiagDeg / 90.0) * (std::min(cx,cy) - 20.0f) * 2;
                 ID2D1SolidColorBrush* fovBrush = nullptr;
                 m_rt->CreateSolidColorBrush(Theme::Color(Theme::GREEN, 0.2f), &fovBrush);
                 if (fovBrush) {

@@ -12,9 +12,13 @@ It is a custom, open-source alternative in the space occupied by FireCapture
 and SharpCap, aimed at one goal: the most surface detail a planetary rig can
 deliver. No frameworks, no .NET, no Qt. The whole application runs with no
 hardware attached, through device emulators that follow the real ZWO SDK and
-NexStar semantics.
+NexStar semantics. It never needs an internet connection: everything it fetches
+online is an optional extra with a local cache.
 
-Version 3.1, source release (the title bar shows the exact build; the number moves with every merge, see `src/Version.h`). Developed through phase 133, and first used
+Planetary imaging comes first. Deep-sky objects and stars, with the ASI678MC
+and the ZWO cameras that follow it, are planned (see [Status](#status)).
+
+Version 3.3, source release (the title bar shows the exact build; the number moves with every merge, see `src/Version.h`). Developed through phase 145, and first used
 under the sky on 2026-11-07.
 
 ## Who this is for
@@ -57,6 +61,13 @@ under the sky on 2026-11-07.
   crash by recovering every whole frame on disk
 - **Fade warning** when the target dims steadily during autofocus or a
   recording, naming dew when the weather feed's dew risk is up
+- **Recording that survives the disk and the process**: a failed or filling
+  disk stops the run cleanly and says so, the file's frame count is kept
+  current on disk during the run, a stalled camera restarts in about 1.5 s,
+  and an empty run leaves nothing behind
+- **Records good enough to submit**: the filter, Jupiter's central meridians,
+  the clock check and what was on the disc in every observation record and
+  FITS header, and a nightly submission sheet
 
 ### Tracking and pointing
 
@@ -89,13 +100,41 @@ under the sky on 2026-11-07.
   JPL Horizons and followed from the map
 - **Any JPL Horizons target**, and **image-only tracking** that follows
   whatever is in the frame with no prediction at all
+- **Satellite elements as OMM**, so objects with six-digit catalogue numbers
+  (CelesTrak's five-digit numbers ran out in 2026) are not lost
+
+### Jupiter and science
+
+- **Jupiter's events**: the central meridians, the Great Red Spot's transits
+  (from a longitude you keep current), and every moon's transits, shadow
+  transits, occultations and eclipses, judged for your site on `J`
+- **Autorun planned around them**: on Jupiter, a focus sweep waits while the
+  Red Spot is near the meridian or a shadow is on the disc, and each run is
+  noted with what it shows
+- **Galilean mutual events** for IMCCE's PHEMU campaign: predictions, a
+  recording mode with the PC clock checked by NTP and the settings locked,
+  IMCCE's observation sheet, and a light-curve tool
+- **Impact-flash coverage**: each Jupiter run listed for DeTeCt, with the
+  night's minutes counted
+- **Seeing forecast against the measured sky**: an hourly log line beside
+  7Timer's seeing and the jet stream, when the Leoben weather service sends
+  them
 
 ### Focus, exposure and quality
 
-- **ZWO EAF V-curve autofocus** with per-position averaging, a parabola fit it
-  will reject, and an honest report when focus got worse
-- **Auto-exposure**, a light ladder, typed values on every camera control,
-  and capture quality gating
+- **Two-stage autofocus** for the ZWO EAF: a coarse V-curve on the planet's
+  half-flux diameter, then a fine pass on edge contrast (Tenengrad, noise-gated,
+  20 frames a point at the 75th percentile) that sharpens a large disc and
+  focuses a frame-filling Moon on its surface; a fade during the pass is
+  corrected, and an honest report says when focus got worse
+- **Backlash handled in software**: every focuser move ends one way, set so
+  the last travel pushes the SCT's mirror against gravity, the backlash is
+  measured on every sweep, and AUTO FOCUS says NOT NOW, and why, when focus
+  cannot work
+- **Exposure set by the planet**: auto-exposure meters the target, not the
+  frame, within a per-planet exposure band, and an automatic display stretch
+  makes short exposures easy to see without touching the data
+- **Typed values on every camera control**, and capture quality gating
 - **Seeing score, sharpness graph, histograms and clipping**
 - **Quick-look stacker**: an aligned, quality-gated preview stack while you
   record, plus a one-button handoff to AutoStakkert
@@ -118,6 +157,9 @@ under the sky on 2026-11-07.
   collimation rings, framing box), and a five-second framing boost
 - **Five-monitor workspace** with a one-monitor fallback, an audience share
   view, and an object panel backed by a knowledge database
+- **Panels that dock together**: they snap like building blocks, move and
+  resize as a group, fill a monitor with F11, or go into a dock window by
+  drag and drop, and the layout is remembered
 - **Readiness check** that stays silent when the rig is fine
 - **Local AI assistant** (Ollama) given the help file and a live session
   snapshot: mount position, camera settings, capture format, display modes
@@ -143,7 +185,8 @@ under the sky on 2026-11-07.
 
 | Item | Status |
 |---|---|
-| ZWO ASI678MC (Sony IMX678, 3840x2160, 2.0 um, RGGB, USB 3) | Primary camera. Other ZWO ASI cameras use the same SDK path but are untested |
+| ZWO ASI678MC (Sony IMX678, 3840x2160, 2.0 um, RGGB, USB 3) | Primary camera. Other ZWO ASI cameras use the same SDK path but are untested. Reading every figure from the camera, cooled cameras, long exposures and a guide camera are planned (phase 149) |
+| ZWO EFW filter wheel | Planned (phase 149) |
 | ZWO EAF | Supported through the ZWO EAF SDK |
 | Celestron NexStar 8SE, StarSense hand control | Direct serial protocol, or ASCOM (CPWI preferred) |
 | Other ASCOM telescopes | Through the ASCOM path; tested against the ASCOM telescope simulator |
@@ -177,14 +220,26 @@ asserts status. The order of what remains is in
 [docs/ROADMAP-Next.md](docs/ROADMAP-Next.md) and section 13 of
 [RadukCapture-Architecture.md](RadukCapture-Architecture.md).
 
-In progress: phase 132, the instrument UI, has stages 132.0 to 132.9 written
-and 132.10 planned. Phase 133's remaining stages, the field proof of the
-night's fixes, need a clear night. Not built: AVI output, multi-star FWHM, a
-Bahtinov focus aid, deep-sky annotation and stellar photometry. Polar
-alignment is backlogged because the mount is alt-az with no wedge.
-Calibration frames are a preview aid only; recordings stay raw. Full
-stacking is deliberately out of scope, since AutoStakkert does it better.
-There is no installer or binary download yet.
+Built since the first night, and waiting on the sky: two-stage autofocus with
+the backlash handled (phases 139 and 145), exposure set by the planet (140),
+recording hardening (135), Jupiter's events and the science records (136 to
+144), and docking panels (134). In progress: phase 132.10c, the dashboard's
+panels. Phase 133's remaining stages, the field proof of the first night's
+fixes, need a clear night.
+
+**Planned next** (each with a plan in [docs/](docs/)):
+1. Phase 146: the real camera's throughput, measured over real USB.
+2. Phase 149: ready for any ZWO camera (cooling, long single exposures, a second camera, the filter wheel).
+3. Phase 151: airplane mode proven, with a prefetch for nights away from a connection.
+4. Phases 147 and 148: uncompressed AVI, and TIFF.
+5. Phase 150: deep-sky imaging.
+
+Not built: AVI and TIFF output, deep-sky sequences, multi-star FWHM, a Bahtinov
+focus aid, deep-sky annotation and stellar photometry. Polar alignment is
+backlogged because the mount is alt-az with no wedge. Calibration frames are a
+preview aid only; recordings stay raw. Full stacking is deliberately out of
+scope, since AutoStakkert does it better. There is no installer or binary
+download yet.
 
 ## Getting started from a fresh clone
 

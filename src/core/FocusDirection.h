@@ -31,6 +31,7 @@
 // ============================================================
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <mutex>
 #include <vector>
@@ -97,24 +98,31 @@ inline DirectionFit FitDirections(const std::vector<int>& pos,
     return f;
 }
 
-// 139.2. Outward is rising step numbers, the direction autofocus makes
-// its final approach in. A move is made in one leg when it already ends
-// outward with the slack taken up; otherwise it first goes to
-// target - backlash and then comes up.
+// 139.2. Every move ends travelling the FINAL direction with the slack
+// taken up: outward (rising step numbers, dir +1) by default, inward
+// (dir -1) when rig.ini FocuserFinalDirection=in (phase 145.4). Which of
+// the two pushes the 8SE's primary toward the corrector, against gravity,
+// depends on how the EAF is mounted and its reverse setting, so the owner
+// sets it once. A move is one leg when it already ends the final way with
+// the slack taken up; otherwise it first goes a backlash past the target
+// on the other side, and then comes back.
 struct OneSidedApproach {
     int  backlash = 0;        // 0: off, every move in one leg
-    bool loadedUp = false;    // the slack is taken up outward right now
+    int  dir      = 1;        // +1 finish outward, -1 finish inward
+    bool loadedUp = false;    // the slack is taken up the final way right now
 
     // The first leg's target, or `to` when one leg will do.
     int ViaFor(int from, int to) const {
         if (backlash <= 0 || to == from) return to;
-        if (to > from && (loadedUp || to - from >= backlash)) return to;
-        return (std::max)(0, to - backlash);
+        const int d = (to - from) * (dir < 0 ? -1 : 1);
+        if (d > 0 && (loadedUp || d >= backlash)) return to;
+        return dir < 0 ? to + backlash : (std::max)(0, to - backlash);
     }
     // Record a leg that was commanded and completed.
     void Moved(int from, int to) {
-        if (to > from) { if (loadedUp || to - from >= backlash) loadedUp = true; }
-        else if (to < from) loadedUp = false;
+        const int d = (to - from) * (dir < 0 ? -1 : 1);
+        if (d > 0) { if (loadedUp || d >= backlash) loadedUp = true; }
+        else if (d < 0) loadedUp = false;
     }
 };
 
@@ -124,6 +132,13 @@ class ApproachSequencer {
 public:
     void SetBacklash(int b) { std::lock_guard<std::mutex> lk(m_mx); m_a.backlash = (std::max)(0, b); }
     int  Backlash() const   { std::lock_guard<std::mutex> lk(m_mx); return m_a.backlash; }
+    // Phase 145.4: +1 finish outward, -1 inward. A change forgets the slack.
+    void SetDirection(int d) {
+        std::lock_guard<std::mutex> lk(m_mx);
+        const int nd = d < 0 ? -1 : 1;
+        if (nd != m_a.dir) { m_a.dir = nd; m_a.loadedUp = false; }
+    }
+    int  Direction() const  { std::lock_guard<std::mutex> lk(m_mx); return m_a.dir; }
 
     // A one-sided move from `from` to `to`: returns the leg to command now.
     int Begin(int from, int to) {
@@ -161,6 +176,99 @@ private:
     OneSidedApproach   m_a;
     int                m_pending = -1;
 };
+
+// ── Phase 145.3: the fine stage's arithmetic ────────────────────
+//
+// The coarse sweep (HFD) finds roughly where focus is and how wide its
+// curve is; the fine pass then sweeps a narrow span on the edge metric,
+// every point approached the final way, many frames a point.
+
+// The value at fraction p (0..1) of the sorted scores: the 75th
+// percentile is the focus as it looks in the steadier moments, which is
+// what lucky imaging keeps. 0 for no scores.
+inline float ScorePercentile(std::vector<float> v, float p) {
+    if (v.empty()) return 0.0f;
+    std::sort(v.begin(), v.end());
+    const float k = (std::max)(0.0f, (std::min)(1.0f, p)) * (float)(v.size() - 1);
+    const size_t i = (size_t)k;
+    if (i + 1 >= v.size()) return v.back();
+    return v[i] + (v[i + 1] - v[i]) * (k - (float)i);
+}
+
+// The fine span: the coarse curve's width where it is within 10% of its
+// peak, at least 2 backlashes and 120 steps (or 7 points sit inside the
+// slack and seeing), at most two coarse steps (it was bracketed by them).
+inline int FineSpanFrom(const std::vector<int>& pos, const std::vector<float>& score, int backlash) {
+    const int n = (int)(std::min)(pos.size(), score.size());
+    if (n < 2) return 0;
+    int lo = pos[0], hi = pos[0];
+    for (int i = 1; i < n; ++i) { lo = (std::min)(lo, pos[i]); hi = (std::max)(hi, pos[i]); }
+    const int coarseStep = (hi - lo) / (n - 1);
+    float pk = score[0];
+    for (int i = 1; i < n; ++i) pk = (std::max)(pk, score[i]);
+    int wlo = INT32_MAX, whi = INT32_MIN;
+    for (int i = 0; i < n; ++i)
+        if (score[i] >= 0.9f * pk) { wlo = (std::min)(wlo, pos[i]); whi = (std::max)(whi, pos[i]); }
+    int span = (whi > wlo) ? whi - wlo : 2 * coarseStep;
+    const int floorSpan = (std::max)(2 * backlash, 120);
+    const int ceilSpan  = (std::max)(floorSpan, 2 * coarseStep);
+    return (std::max)(floorSpan, (std::min)(span, ceilSpan));
+}
+
+// The fine pass's positions in the order they are visited: `points`
+// across `span` centred on `center`, travelling the final way (rising for
+// dir +1), kept within [minStep, maxStep].
+inline std::vector<int> FineSweepPositions(int center, int span, int points, int dir,
+                                           int minStep, int maxStep) {
+    std::vector<int> out;
+    if (points < 3 || span <= 0) return out;
+    int lo = center - span / 2, hi = lo + span;
+    if (lo < minStep) { hi += minStep - lo; lo = minStep; }
+    if (hi > maxStep) { lo -= hi - maxStep; hi = maxStep; }
+    lo = (std::max)(lo, minStep);
+    for (int i = 0; i < points; ++i)
+        out.push_back(lo + (int)std::lround((double)(hi - lo) * i / (points - 1)));
+    if (dir < 0) std::reverse(out.begin(), out.end());
+    return out;
+}
+
+// ── Phase 145.5: a fade during the fine pass ────────────────────
+//
+// The fine pass visits its points one way only, so a target dimming as
+// it goes (dew, haze: 2026-11-08) lowers the later points and pulls the
+// fit toward the first. The coarse sweep cancels that by averaging out
+// and back; the fine pass instead scores its centre point again at the
+// end, and the ratio of the two readings says how much the light moved.
+
+// Second centre reading over the first; 1 when either is missing.
+inline float FadeRatio(float firstCentre, float againCentre) {
+    if (!(firstCentre > 0.0f) || !(againCentre > 0.0f)) return 1.0f;
+    return againCentre / firstCentre;
+}
+
+enum class FadeAction { None, Correct, GiveUp };
+
+// Within 10%: seeing alone does that. Under 60%: too much changed to fit.
+inline FadeAction FadeVerdict(float ratio) {
+    if (ratio >= 0.9f && ratio <= 1.0f / 0.9f) return FadeAction::None;
+    if (ratio >= 0.6f && ratio <= 1.0f / 0.6f) return FadeAction::Correct;
+    return FadeAction::GiveUp;
+}
+
+// Undo a fade taken as linear in time. The centre was read at tFirst and
+// again at tEnd, `ratio` apart, so the light at time t relative to tFirst
+// is 1 + (ratio - 1) * (t - tFirst) / (tEnd - tFirst); every score is
+// brought to the light at tFirst.
+inline std::vector<float> FadeCorrect(const std::vector<float>& score, const std::vector<double>& t,
+                                      float ratio, double tFirst, double tEnd) {
+    std::vector<float> out(score);
+    if (!(tEnd > tFirst)) return out;
+    for (size_t i = 0; i < out.size() && i < t.size(); ++i) {
+        const double f = 1.0 + ((double)ratio - 1.0) * (t[i] - tFirst) / (tEnd - tFirst);
+        if (f > 0.05) out[i] = (float)(out[i] / f);
+    }
+    return out;
+}
 
 // Which backlash figure to use until the sky measures one. rigSteps < 0
 // means rig.ini does not set it.

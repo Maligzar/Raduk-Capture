@@ -386,6 +386,14 @@ struct RigConfig {
     //   FocuserOneSidedMoves=1
     int  focuserBacklashSteps = -1;
     bool focuserOneSidedMoves = true;
+    // Phase 145.4: which way every move ends, "out" (rising step numbers)
+    // or "in". Set it so the last travel pushes the 8SE's primary toward
+    // the corrector, against gravity; which that is depends on the EAF's
+    // mounting and reverse setting (the help says how to check).
+    std::string focuserFinalDirection = "out";
+    // Phase 145.3: after the coarse HFD sweep, a fine pass on the edge
+    // metric; 0 is the routine as it was before.
+    bool autofocusFineStage = true;
 
     // Phase 137. The Great Red Spot's System II longitude, measured on a
     // date, and its drift. Published figures disagree (Sky & Telescope
@@ -439,6 +447,8 @@ struct RigConfig {
         wf("AutorunPrimeDeferMin", autorunPrimeDeferMin);
         wf("FocuserBacklashSteps", focuserBacklashSteps);
         ws("FocuserOneSidedMoves", focuserOneSidedMoves ? "1" : "0");
+        ws("FocuserFinalDirection", focuserFinalDirection);
+        ws("AutofocusFineStage", autofocusFineStage ? "1" : "0");
         wf("GrsLonSys2", grsLonSys2);
         ws("GrsEpoch", grsEpoch);
         wf("GrsDriftDegPerMonth", grsDriftDegPerMonth);
@@ -617,6 +627,8 @@ private:
         cfg.focuserBacklashSteps  = (int)rf("FocuserBacklashSteps", cfg.focuserBacklashSteps);
         if (cfg.focuserBacklashSteps < -1 || cfg.focuserBacklashSteps > 20000) cfg.focuserBacklashSteps = -1;
         cfg.focuserOneSidedMoves  = rs("FocuserOneSidedMoves", cfg.focuserOneSidedMoves ? "1" : "0") == "1";
+        cfg.focuserFinalDirection = rs("FocuserFinalDirection", cfg.focuserFinalDirection) == "in" ? "in" : "out";
+        cfg.autofocusFineStage    = rs("AutofocusFineStage", cfg.autofocusFineStage ? "1" : "0") == "1";
         cfg.grsLonSys2            = rf("GrsLonSys2", cfg.grsLonSys2);
         cfg.grsEpoch              = rs("GrsEpoch", cfg.grsEpoch);
         cfg.grsDriftDegPerMonth   = rf("GrsDriftDegPerMonth", cfg.grsDriftDegPerMonth);

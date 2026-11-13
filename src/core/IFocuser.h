@@ -64,6 +64,9 @@ public:
     virtual bool MoveToDirect(int position) = 0;
     virtual void SetApproachBacklash(int steps) = 0;   // 0: off
     virtual int  ApproachBacklash() const = 0;
+    // Phase 145.4: which way that final travel goes, +1 outward (rising
+    // numbers, the default) or -1 inward (rig.ini FocuserFinalDirection).
+    virtual void SetApproachDirection(int dir) = 0;
 
     // ── Readout ────────────────────────────────────────────────
     virtual int   GetPosition() const = 0;

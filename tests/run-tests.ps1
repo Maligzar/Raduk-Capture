@@ -93,6 +93,7 @@ $Tests = @(
     @{ Name = "tracking_emulator"; Sources = @() }
     @{ Name = "autofocus_saturn"; Sources = @() }
     @{ Name = "focus_metric";     Sources = @() }
+    @{ Name = "focus_metric_compare"; Sources = @() }
     @{ Name = "neo_list";         Sources = @() }
     @{ Name = "mosaic_run";      Sources = @() }
     @{ Name = "camera_panel";    Sources = @() }

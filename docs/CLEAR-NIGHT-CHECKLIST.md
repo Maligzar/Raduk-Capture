@@ -1308,3 +1308,17 @@ the bench already showed, so the night only has to confirm it. The plan is
     off the meridian when the note says it is near, `GrsLonSys2` needs a
     recent figure. The run's `_observation.txt` (`jupiter_disc`) and a FITS
     run's `JUPDISC` card should say the same as the list.
+
+58. **The fine pass, and which way moves end** (145, added 2026-11-12).
+    Before the night, set `FocuserFinalDirection` (the help says how to tell
+    which way pushes the primary toward the corrector). On a planet, run
+    autofocus and read raduk_log.txt: `[AF] Fine pass: N (coarse M, +D)`.
+    Then judge three positions by eye at 200%: the coarse result, the fine
+    result, and the fine result +/- half the fine spacing. The fine result
+    should look best, and the 7 `Fine k/7 ... edge=` scores should rise and
+    fall once. On the Moon (the frame filled), autofocus should run the fine
+    pass alone and land visibly sharp on crater rims. Note how far the
+    focus drifts over 30 minutes with the final travel set each way; a
+    drift that is smaller one way confirms the setting. Note the
+    `[AF] Fine pass fade check` line: a ratio far from 1 on a clear, steady
+    night means the target was not steady in the frame, not a fade.

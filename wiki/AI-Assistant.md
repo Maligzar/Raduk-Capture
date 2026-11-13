@@ -10,6 +10,21 @@ button opens the chat panel.
 
 ---
 
+## Since v3.0, and the honest state
+
+- **Phase 144:** the session snapshot carries Jupiter's next 8 hours, filtered by the site and marked computed and UTC: what is on the disc now, the Red Spot's transits, and the moons' events.
+- **The weather from Leoben** goes in as measured, and the site never reaches the model at more than one decimal (`tests/ai_context_facts.cpp`).
+
+**Benched, not solved (the owner, 2026-11-13).** P3.6's options C (the app's own numbers) and B (the project's notes and logs) made the assistant honest. The model has not changed since it was boxed in: llama3.2:3b on StarMachine's CPU, hard-coded. The GPU route crashes on StarMachine's driver (roadmap D4), and the written check that would let its scope widen was never written.
+
+**Phase 152** (planned, the lowest priority on the roadmap):
+- the best model the hardware can take, benchmarked on the owner's RTX 4090 PC;
+- StarMachine's model as the fallback;
+- a written, scored check deciding the models and the scope;
+- both scenarios tested, including the switch between them.
+
+Plan: [`Phase152-Plan-AI-Assistant-Revisited.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/Phase152-Plan-AI-Assistant-Revisited.md).
+
 ## The client
 
 [`src/core/AIAssistant.h`](https://github.com/Maligzar/Raduk-Capture/blob/master/src/core/AIAssistant.h)

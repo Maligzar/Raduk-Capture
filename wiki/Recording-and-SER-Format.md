@@ -9,6 +9,25 @@ in AutoStakkert!, Registax, Siril, and PIPP.
 
 ---
 
+## Since v3.0: what protects a recording, and what goes beside it
+
+**Phase 135, recording that survives the disk and the process.**
+- A failed write ends the run with an error. The output volume's free space is checked once a second; below the floor (the larger of 256 MB and what is still in memory), nothing more is accepted and every captured frame is still written.
+- The SER `FrameCount` (and FITS `NAXIS3`) is patched on disk once a second, so a crash leaves a header that counts its frames. The trailer is still written at close, so a crash loses timestamps, not frames.
+- A stalled camera restarts after max(1.5 s, 10 frame intervals) (`WedgeBudget.h`). It used to be at least 10 s.
+- A run that records nothing leaves no file, sidecar, record or list entry.
+- The capture, writer, analyser and WebSocket threads are named for the debugger.
+
+**Phases 142 to 144, records good enough to submit.**
+- The observation record and the FITS header carry:
+  - the filter;
+  - Jupiter's central meridians at mid-run;
+  - whether the clock was checked by NTP;
+  - what was on the disc as the run started (`jupiter_disc`, `JUPDISC`).
+- Each night's capture folder gains `detect_jupiter_<date>.txt` (Jupiter runs for DeTeCt's impact-flash search) and `submission_<date>.txt` (one line per Light run for a measurer or an archive).
+
+**Planned formats.** Uncompressed AVI (phase 147) and TIFF (phase 148), both behind the same `ICaptureWriter` as SER and FITS. Plans: [147](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/Phase147-Plan-AVI-Recording.md), [148](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/Phase148-Plan-TIFF.md).
+
 ## File layout
 
 ```

@@ -131,6 +131,25 @@ everything.
 **This is not the same as a profile.** The session is where you left off; a
 profile is a named set of settings for a target that you choose to load.
 
+### Keys added in phases 134 to 145
+
+The full list, with every key, is the help file's
+[rig.ini reference](https://github.com/Maligzar/Raduk-Capture/blob/master/RadukCapture-Help.md#rigini-reference).
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `CaptureFormat` | `ser` | `ser` or `fits`, as the toolbar's selector leaves it |
+| `PanelSnap` | `1` | Panels snap together and to the screen edges (134); Shift does it per drag |
+| `DashboardAppWindow` | `1` | The dashboard opens as an app window; `0` uses the default browser |
+| `FocuserBacklashSteps` | `-1` | The focuser's backlash; `-1` uses the EAF's own figure, else 200 (139) |
+| `FocuserOneSidedMoves` | `1` | Every focuser move ends travelling one way by at least the backlash (139) |
+| `FocuserFinalDirection` | `out` | `out` (rising numbers) or `in`; set so the last travel pushes the SCT's primary toward the corrector (145) |
+| `AutofocusFineStage` | `1` | The edge-contrast fine pass after the coarse sweep, and alone on the Moon (145) |
+| `GrsLonSys2` / `GrsEpoch` / `GrsDriftDegPerMonth` | `91` / `2026-06-01` / `1.75` | The Red Spot's System II longitude, its date, and its drift a month (137) |
+| `AutorunPrimeDeferMin` | `30` | On Jupiter, how long `[RUNS]` puts a due focus sweep off for the Red Spot or a moon (144) |
+| `TimeServer` | `pool.ntp.org` | The NTP server for the mutual-event clock check (141) |
+| `LeobenUrl` / `LeobenToken` | empty | Weather, and the seeing forecast, from Leoben on the home network |
+
 ### The three values that bias results and cannot be detected
 
 Since Phase 77 these report themselves rather than sitting silent:

@@ -49,6 +49,31 @@ graph, RGB align, pixel readout.
 injection, defocus and sensor noise; WebSocket telemetry and browser
 dashboard; session logging; profile management.
 
+**Added since v3.0 (phases 115 to 145, through v3.3).** Each phase's evidence,
+and what it still owes, is in [`PHASE-STATUS.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/PHASE-STATUS.md).
+Most of these are proven on the bench and in the emulator, not yet under the
+sky.
+- **Fast targets:** lunar features (115); satellite passes, image lock and a
+  night plan (116 to 118); JPL Horizons targets and image-only tracking (121,
+  122); NEOs and satellites on the map (128, 130, 131); satellite elements as
+  OMM (136).
+- **Pointing and testing:** the measured pointing map (123); session statistics
+  (124); the scenario runner and its scenarios (125, 127, 129); Moon lock (126).
+- **The first field night** (2026-11-07) and its fixes and field proof (133).
+- **Look and layout:** the instrument UI (132); panels that dock together (134).
+- **Recording hardening** (135): disk failures and a full disk stop cleanly,
+  the header counts frames during the run, a stalled camera restarts in about
+  1.5 s, and empty runs leave nothing.
+- **Jupiter and science:** the Red Spot, moons and shadows (137); mutual events
+  for IMCCE (141); DeTeCt coverage (142); records good enough to submit (143);
+  Autorun and the assistant using Jupiter's events, and the disc in every
+  record (144).
+- **The seeing forecast** logged against the measured sky (138).
+- **Exposure set by the planet**, and an automatic display stretch (140).
+- **Focus:** backlash handled in software, and a readiness indicator (139);
+  two-stage autofocus with an edge-contrast fine pass, focus on the Moon's
+  surface, a configurable final direction, and a fade check (145).
+
 ---
 
 ## Tier 0 — reliability, validated in emulation 2026-07-11
@@ -87,6 +112,32 @@ The 100 ms sleep is the load-bearing part: restarting immediately leaves the
 camera's internal buffer in the state that wedged it.
 
 ---
+
+## Planned from 2026-11-13
+
+The order, and the reasons for it, are in
+[`ROADMAP-Next.md`](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/ROADMAP-Next.md#next-in-order). Each phase has a
+plan in [`docs/`](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/):
+
+| Phase | What | Why now |
+|---|---|---|
+| 146 | The real camera's throughput, measured over real USB | The 293 MB/s run was the emulator; needs no sky |
+| 149 | Ready for any ZWO camera: one description of the imaging train, capabilities not models, cooling, single long exposures, a second camera, the ZWO filter wheel | About 15 sites still assume the ASI678MC |
+| 151 | Airplane mode proven, with cache ages and a prefetch for a trip | The owner's rule: no internet, ever |
+| 147 | Uncompressed AVI recording (8-bit; OpenDML past 1 GB) | Asked for by the owner |
+| 148 | TIFF: a 16-bit snapshot of the data, sequence recording, SER to TIFF | Asked for by the owner |
+| 150 | Deep sky and stars (outline): sequences in FITS, calibration, star focus and guiding, dithering | After 149's single exposures |
+| 152 | The AI assistant revisited: the best model the hardware allows, StarMachine's as the fallback, a written check | Lowest priority, by the owner's word |
+
+**Rules for every phase from 146 on** (from the
+[Phase 149 plan](https://github.com/Maligzar/Raduk-Capture/blob/master/docs/Phase149-Plan-Any-ZWO-Camera.md#rules-for-every-phase-from-146-on)):
+1. No camera model, resolution, pixel size or plate scale in code.
+2. Mono and colour alike.
+3. Any bit depth from 8 to 16.
+4. Frames that may take minutes.
+5. More than one device of a kind.
+6. SER and AVI for video, FITS for deep sky, TIFF for exchange.
+7. **Nothing ever needs the internet.**
 
 ## Outstanding plan
 
@@ -143,7 +194,7 @@ never verified, and the fix costs no code.
 |-------|---------|--------|
 | 31 | Multi-star FWHM focus | Hard |
 | 32 | Bahtinov mask focus | Hard |
-| 18 | AVI output (FITS shipped as phase 106) | Medium |
+| 18 | AVI output (FITS shipped as phase 106): now phase 147 | Medium |
 | 19 | Multi-session stats dashboard | Medium |
 | 43 | Deep sky image annotation | Hard |
 | 33 | Stellar photometry | Very hard |
@@ -311,7 +362,9 @@ Condensed from the help file's phase history. The full table is in
 | v2.3 | `[DASH]` on the toolbar opens the browser dashboard with the access token already in it, and it connects by itself |
 | v2.4 | The dashboard from any device on the home network (`WsLan`, `WsLanOpen`), and it stays connected; weather and sky from Leoben into the ADC, the status window, the observation record and the assistant. No tag yet |
 | v3.0 | Matches the `v3.0` tag, a source release through phase 114: FITS output, ROI following, surface lock, the derotation limit, lunar and solar mosaics, push-to, the pixel readout, Autorun with seeing-aware runs, the camera controls review, the visual system and the two-row toolbar |
-| v3.1 | **The current version.** The catch-up for phases 115 to 143 merged after 3.0.0 without a number (the instrument look, field fixes, panel docking, recording hardening, the science phases). From 3.1.0 every pull request bumps the last part and the one completing a phase bumps the middle, checked by CI; the exact build is in the title bar and the help's Phase History |
+| v3.1 | The catch-up for phases 115 to 143 merged after 3.0.0 without a number (the instrument look, field fixes, panel docking, recording hardening, the science phases). From 3.1.0 every pull request bumps the last part and the one completing a phase bumps the middle, checked by CI; the exact build is in the title bar and the help's Phase History. 3.1.1: the seeing forecast logged (138) |
+| v3.2 | Jupiter's events put to work (144); 3.2.1: the disc in the record and FITS (144.1), and the object panel no longer bleeds over its diagram on a star (B1) |
+| v3.3 | **The current version.** Two-stage autofocus with an edge-contrast fine pass, focus on the Moon's surface, a configurable final direction and a fade check (145); 3.3.1: the plans for phases 146 to 152 |
 
 ### Two version boundaries that invalidate old numbers
 

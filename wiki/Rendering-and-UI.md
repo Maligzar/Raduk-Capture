@@ -6,6 +6,13 @@ together.
 
 ---
 
+## Since v3.0
+
+- **Phase 132, the instrument UI.** One palette defined as tokens and shared with the browser pages, custom-drawn buttons, lists and tabs, dark scrollbars, the Ctrl+K command palette, and night vision that emits red and nothing else.
+- **Phase 134, panels that dock together.** The operator panels snap to each other and to the screen (`PanelSnap`); snapped panels form groups that move and resize as one; F11 fills a monitor with a group. A dock window holds panels in a split tree, by menu or by drag and drop onto highlighted zones, and the layout is saved to `dock.ini`. The geometry is pure code in `DockGeometry.h`, gated by `tests/dock_geometry.cpp`.
+- **Phase 140.3, the automatic display stretch** (`Shift+L`, on by default): black just above the sky, the target's highlight at about 90%, never more than 8×. An amber `DISPLAY STRETCHED (AUTO)` tag shows when it is on, and the data is never touched.
+- **B1:** the object panel on a star no longer paints its description across the scale diagram.
+
 ## Window layout
 
 See [Architecture Overview](Architecture-Overview#window-architecture) for

@@ -5,6 +5,13 @@ whole chain — sensor readout, mount control, focus, plate solving, quality
 scoring, and session logging — in one address space, on one machine, with no
 intermediary drivers.
 
+> **Where it is going (2026-11-13).** Planetary imaging stays first. The
+> owner's direction adds deep-sky objects and stars, with this camera and its
+> ZWO successors, and the rule that **an internet connection is never
+> required**. Phase 149 removes the remaining ASI678MC assumptions, phase 150
+> outlines deep sky, and phase 151 proves airplane mode; see
+> [Roadmap and Phase History](Roadmap-and-Phase-History#planned-from-2026-11-13).
+
 **Who it is for:** one observer with one specific rig, plus anyone whose rig
 is close enough that the constants in [`rig.ini`](Configuration-Reference)
 cover the difference.

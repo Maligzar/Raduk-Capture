@@ -33,12 +33,17 @@ struct FakeRoutine {
     bool IsRunning() const { return running; }
     void Abort() { ++aborts; running = false; }
     bool Start(int pos, bool fine) { ++starts; lastPos = pos; lastFine = fine; running = true; return true; }
+    // Phase 161: AE between the stages.
+    bool wants = false; int settledCalls = 0;
+    bool WantsExposure() const { return wants; }
+    void ExposureSettled() { ++settledCalls; wants = false; }
 };
 struct FakeAe {
     bool enabled = false, autoMode = false, settled = false;
     void SetEnabled(bool e) { enabled = e; }
     void SetAuto(bool a) { autoMode = a; }
     bool Settled() const { return settled; }
+    bool IsAuto() const { return autoMode; }
 };
 struct FakeFocuser : raduk::core::IFocuser {
     bool open = true; int pos = 12345;
@@ -173,6 +178,40 @@ int main() {
         Check(r.LastStatus() == "Focus got worse" && r.sessions.back() == "AutoFocus failed: Focus got worse" &&
               r.ui.Saw("[AF] Failed: Focus got worse") && r.failed == 1,
               "failure: said everywhere, and Autorun told");
+    }
+
+    // Phase 161: AE is part of autofocus from the first press to the
+    // result. Settled before the sweep (above), held inside a stage,
+    // released while the routine waits for it at the coarse focus.
+    {
+        Rig r;
+        Check(r.c.ExposureHold() == nullptr, "idle: autofocus holds nothing");
+        r.c.Start();
+        Check(r.ae.enabled && r.ae.autoMode, "starting turns AE on, in AUTO");
+        Check(r.c.ExposureHold() == nullptr, "waiting for AE: it must be free to act");
+        r.ae.settled = true;
+        r.c.Tick(false, false, true);
+        Check(r.c.ExposureHold() != nullptr && std::string(r.c.ExposureHold()) == "autofocus",
+              "sweeping: AE is held, and says for what");
+        r.ae.settled = false;                 // held: it has not looked
+        r.c.ExposureTicked(false);
+        Check(r.af.settledCalls == 0, "no window open: nothing is told to the routine");
+
+        r.af.wants = true;                    // parked at the coarse focus
+        Check(r.c.ExposureHold() == nullptr, "between the stages: AE is released");
+        r.c.ExposureTicked(false);
+        Check(r.af.settledCalls == 0 && r.af.wants, "AE still working: the routine keeps waiting");
+        r.ae.settled = true;
+        r.c.ExposureTicked(false);
+        Check(r.af.settledCalls == 1, "AE has looked and has nothing to change: the routine is told");
+        Check(r.c.ExposureHold() != nullptr, "and AE is held again for the fine pass");
+
+        r.af.wants = true; r.ae.settled = false;
+        r.c.ExposureTicked(true);
+        Check(r.af.settledCalls == 2, "a recording holds AE: the routine is not kept waiting");
+        r.af.wants = true; r.ae.autoMode = false;
+        r.c.ExposureTicked(false);
+        Check(r.af.settledCalls == 3, "AE taken out of AUTO meanwhile: the same");
     }
 
     // Phase 161.0a: the sweep is centred on the focuser's position, so a

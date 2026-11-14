@@ -54,6 +54,7 @@ $Tests = @(
     @{ Name = "net_policy";        Sources = @() }
     @{ Name = "app_feed";          Sources = @() }
     @{ Name = "af_controller";     Sources = @() }
+    @{ Name = "rec_controller";    Sources = @() }
     @{ Name = "app_headless";      Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "imaging_train";     Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
@@ -66,6 +67,7 @@ $Tests = @(
     @{ Name = "display_stretch";   Sources = @() }
     @{ Name = "af_direction_fit";  Sources = @() }
     @{ Name = "focuser_safety";    Sources = @() }
+    @{ Name = "af_exposure_window"; Sources = @() }
     @{ Name = "af_readiness";      Sources = @() }
     @{ Name = "jupiter_events";    Sources = @() }
     @{ Name = "jupiter_plan";      Sources = @() }

@@ -1,6 +1,6 @@
 # Phase 161 plan: focus that is safe, calibrated and stated with an error bar
 
-From the first-principles review of 2026-11-14 (architecture, concurrency, and the autofocus arithmetic). Status: `PLANNED`. 161.0 to 161.2 belong to release 3.4 (reliability); 161.3 to 161.6 to release 3.5 (planetary), whose acceptance is "autofocus repeatable across sessions" ([`ROADMAP-Next.md`](ROADMAP-Next.md#next-in-order)).
+From the first-principles review of 2026-11-14 (architecture, concurrency, and the autofocus arithmetic). Status: `PARTIAL` (161.0a and AE between the stages written; see [`PHASE-STATUS.md`](PHASE-STATUS.md)). 161.0 to 161.2 belong to release 3.4 (reliability); 161.3 to 161.6 to release 3.5 (planetary), whose acceptance is "autofocus repeatable across sessions" ([`ROADMAP-Next.md`](ROADMAP-Next.md#next-in-order)).
 
 ## Why
 
@@ -36,13 +36,23 @@ Tested on the bench for this plan (a hard-edged disc convolved with a 34% obstru
 - For the fine pass, a log-parabola over all seven points cut the scatter from about 25 steps to 5 when the span covered the curve, and was worse than three points when it did not. The lever is the span against the curve's width.
 - The edge metric's region holds 23% to 46% disc for any planet, so its median noise estimate reads the sky, not the disc's shot noise.
 
+## Auto-exposure is part of autofocus
+
+The owner's instruction, 2026-11-14. It holds for every stage below, and for anything added later that sweeps the focuser.
+
+- **Before.** Every way of starting autofocus (the button, Autorun, a remote command) goes through `AutofocusController::Start`: AE on, in AUTO, and the sweep waits until AE says it is settled, a recording is running, or 20 s have passed (phase 112). Unchanged.
+- **During a stage.** AE is held. A change of exposure inside a stage bends that stage's curve. Unchanged.
+- **Between the stages. Written 2026-11-14 (3.3.13).** AE settled before the sweep on whatever focus the rig was left at. A defocused disc is spread out and dim, so that exposure can clip once the coarse sweep has gathered the light back up, and a clipped limb is what the fine pass reads. The routine now goes to the coarse result, releases AE there (`WantsExposure`), waits up to `AF_EXPOSURE_WINDOW_MS` (10 s, UNVERIFIED, item 58) for it to settle, and holds it again for the fine pass. Both scores divide exposure out, so a change between stages costs nothing. If AE cannot act (not in AUTO, a recording holds it) the routine is told at once and does not wait. Gated by `tests/af_exposure_window.cpp` and `tests/af_controller.cpp`.
+- **After.** AE stays on, in AUTO, as phase 112 left it. An earlier draft of 161.6 put AE back to its state before autofocus; that is withdrawn.
+- **Still to do, in the stages named:** CALIBRATE FOCUS (161.3) starts through the same controller path, and gives AE a turn before each of its measurements, since each sits at a different focus. The fine pass's own re-run when its best point is at an end (161.4) gives AE a turn at the new centre. A change of exposure or gain made by hand or by a profile during a stage ends that stage and repeats it, with a line saying why (161.4).
+
 ## Stages
 
 Bench stages first: they need no sky, and the sky stages are not safe to run before 161.0.
 
 ### 161.0 The focuser cannot be sent somewhere by accident (bench, M)
 
-**161.0a written 2026-11-14 (3.3.12)**: everything below except "Stop wins", which is 161.0b. As built, where it differs from the bullets:
+**161.0a written 2026-11-14 (3.3.13)**: everything below except "Stop wins", which is 161.0b. As built, where it differs from the bullets:
 - The rule is one pure header, `src/core/FocuserGuard.h`, used by the EAF wrapper and the emulator alike.
 - A profile load and the remote `move_eaf` never override the guard: they are refused and logged. Only the panel's GO TO asks twice. A remote command cannot be asked twice, and a profile's position is a number from another night.
 - Autofocus is held to the guard measured from where the sweep started, not per hop, so a move from one side of its span to the other is not refused half way (`MoveToDirectFar`).
@@ -110,7 +120,7 @@ One command, CALIBRATE FOCUS, on a bright star or a planet's limb at 45° or hig
 
 - The sharpness HUD shows distance from the last focus result in zones, not steps, and how long ago and how many degrees ago it was taken.
 - Phase 158's history line gains µm per step, the error bar and the altitude, and 158.2's temperature fit starts from the expected 40 to 60 steps per degree as a sanity bound, not as a value.
-- AE is returned to the state it was in before autofocus took it.
+- The focus status line says what AE did for the sweep: the exposure and gain it settled on before, and whether it changed them at the coarse focus.
 
 ## Which model builds each stage
 
@@ -126,7 +136,7 @@ The owner asked on 2026-11-14 for each stage to be marked: needs Fable, or Opus 
 | 161.4 The sweep in optical units | Fable | The fits, the shuffled order and the bootstrap decide the final position; a subtle bias is invisible without knowing where to look |
 | 161.5a The edge metric's noise gate | Fable | A noise model that must hold from gain 100 to 450 on light the emulator does not reproduce |
 | 161.5b The region from focus, and `AutofocusChannel=green` | Opus | Sizing and a channel switch, gated by `focus_metric` |
-| 161.6 The operator's view, AE put back | Opus | Display and state restore |
+| 161.6 The operator's view | Opus | Display only |
 | Smaller: the write buffer's pre-touch off the GUI thread; the stamp latency constant | Opus | Contained, each with an obvious check |
 | Smaller: a missing coarse point left out of the fit | Fable | Lands inside 161.4's fit |
 
@@ -154,7 +164,7 @@ Review follows the same split in reverse: a stage Opus builds is reviewed by Fab
 
 1. The travel guard's default (12,000 steps proposed).
 2. The overshoot's default before 161.3 has run (1,500 proposed; time is the only cost of a larger one).
-3. Whether 161.0 and 161.1 go ahead of 153.2, as this plan argues: they are safety, and 153.2 moves recording wiring that neither touches.
+3. ~~Whether 161.0 and 161.1 go ahead of 153.2.~~ Settled by events: 153.2 merged on 2026-11-14 while 161.0a was being built.
 
 ## Versioning
 

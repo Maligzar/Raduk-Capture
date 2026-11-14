@@ -174,19 +174,28 @@ static void GroupRecord() {
     core.capturer.SetLogCallback([&ui](const std::string& s) { ui.Line(s); });
     std::atomic<bool> complete{false};
     std::string path;
-    core.capturer.SetOnComplete([&](const std::string& p, bool) { path = p; complete.store(true); });
+    // Phase 153.2: started, serviced and finished through the controller.
+    bool stack = false;
+    core.capturer.SetOnComplete([&](const std::string& p, bool normal) {
+        stack = core.recCtl.Complete(p, normal, true, false, false).stack;
+        path = p; complete.store(true);
+    });
     core.capture.SetFrameSink([&core](const FrameSlot* s) { core.capturer.SubmitFromCaptureThread(s); });
 
-    Check(core.capturer.StartRecording(kW, kH, 8), "a recording starts");
+    Check(core.recCtl.Begin(kW, kH, 8, false), "a recording starts");
     AnalysisResult last{};
     const auto t0 = std::chrono::steady_clock::now();
     while (!complete.load() && std::chrono::steady_clock::now() - t0 < std::chrono::seconds(60)) {
         Pump(core, last);   // the loop keeps running beside a recording
-        // The capture thread only raises the limit; the render loop stops
-        // the run (main.cpp's endRecording), because StopRecording joins
-        // the writer. Done here as the loop does it.
-        if (core.capturer.IsRecording() && core.capturer.LimitReached())
-            core.capturer.StopRecording(true);
+        // The render loop's part: the controller publishes the gate and
+        // stops the run at the limit the capture thread raised.
+        if (core.capturer.IsRecording()) {
+            RecordingFrameView rv;
+            rv.valid = last.valid; rv.centroidValid = last.centroidValid;
+            rv.centroidX = (uint32_t)last.centroidX; rv.centroidY = (uint32_t)last.centroidY;
+            rv.sharpnessPct = last.sharpnessPct; rv.seeingScore = last.seeingScore;
+            core.recCtl.Service(false, 0.0f, rv);
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     Check(complete.load(), "it stops at its frame limit");
@@ -197,6 +206,8 @@ static void GroupRecord() {
     Check(ser, "the SER is on disk with every frame", path);
     const std::string obs = path.empty() ? "" : ObservationPathFor(path);
     Check(!obs.empty() && fs::exists(obs, e2), "the observation record is beside it", obs);
+    Check(stack && ui.Saw("[REC] stopped (frame/time limit reached)"),
+          "the controller stopped it at the limit and would auto-stack it");
     const DropReport d = core.capturer.LastDropReport();
     Check(d.unexplained == 0, "no frame unexplained by the drop ledger",
           std::to_string(d.unexplained) + " unexplained of " + std::to_string(d.framesWritten));

@@ -11,6 +11,8 @@
 //      AF_AE_SETTLE_LIMIT_S has passed.
 //    - The Moon path (phase 145.3): a target that fills the frame gets
 //      the edge metric's fine pass alone.
+//    - AE between the stages (phase 161): released at the coarse focus,
+//      held again for the fine pass.
 //    - Aborting, and the quiet cancel the emergency paths use.
 //    - The completion messages, the panel's and the session log's.
 //
@@ -146,6 +148,26 @@ public:
             return false;
         }
         return true;
+    }
+
+    // ── Phase 161: AE is part of autofocus, start to finish ────
+    // Before the sweep it settles (Start and Tick above). During a stage
+    // it is held, because a change inside a stage bends that stage's
+    // curve. Between the coarse sweep and the fine pass the routine
+    // parks at the coarse focus and asks for AE again, since exposure
+    // settled on a defocused disc can clip a focused one.
+    //
+    // What AE is held for right now, or nullptr when it may act.
+    const char* ExposureHold() const {
+        return (m_af.IsRunning() && !m_af.WantsExposure()) ? "autofocus" : nullptr;
+    }
+    // After AE's tick, each time round. Tells the routine AE is done when
+    // it has looked and has nothing to change, or cannot act at all (not
+    // in AUTO, or a recording holds it), so the routine never waits on an
+    // answer that is not coming.
+    void ExposureTicked(bool recording) {
+        if (!m_af.WantsExposure()) return;
+        if (recording || !m_ae.IsAuto() || m_ae.Settled()) m_af.ExposureSettled();
     }
 
     // The routine's completion (on its own thread).

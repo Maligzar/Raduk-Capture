@@ -61,6 +61,19 @@ namespace raduk::core {
 
 inline constexpr int MAX_EXTRA_SWEEPS = 2;
 
+// Phase 161 (the owner, 2026-11-14: auto-exposure is part of autofocus,
+// not only what runs before it). AE settles before the sweep on whatever
+// focus the rig was left at. A defocused disc is spread out and dim, so
+// that exposure can clip once the coarse sweep has gathered the light
+// back up, and a clipped limb is exactly what the fine pass reads. So
+// between the stages the routine goes to the coarse result, lets AE look
+// again there, and holds it again for the fine pass. Both scores divide
+// exposure out, so a change BETWEEN the stages costs nothing; a change
+// inside one would bend its curve, and stays held. This is the longest
+// the routine waits for AE to say it is done.
+// UNVERIFIED(item 58): AE settles at the coarse focus inside this, on a planet at the gain the night needs
+inline constexpr int AF_EXPOSURE_WINDOW_MS = 10000;
+
 struct AutofocusParams {
     int   scanRange     = 6000;  // total steps to sweep (±3000 from start)
     int   nSteps        = 11;    // number of sample positions (odd preferred)
@@ -84,6 +97,12 @@ struct AutofocusParams {
     int   fineFrames     = 20;
     float finePercentile = 0.75f;
     int   fineOnlySpan   = 2400;   // a frame-filling target: no coarse curve
+
+    // Phase 161: how long AE may take at the coarse result before the
+    // fine pass (see AF_EXPOSURE_WINDOW_MS). 0: no window, AE held from
+    // the first move to the last, as before. The app sets it; a test
+    // that does not answer for AE leaves it 0.
+    int   exposureWindowMs = 0;
 };
 
 // ── State machine ─────────────────────────────────────────────
@@ -163,6 +182,8 @@ public:
             return false;
 
         m_abortFlag.store(false);
+        m_aeWindow.store(false);
+        m_aeSettled.store(false);
         m_moveError.clear();
         // Phase 161.0a: the sweep stays inside the focuser's own range and
         // within the travel guard of where it started, whatever it finds.
@@ -250,6 +271,14 @@ public:
         m_fastScores.push_back(score);
     }
     bool FineOnly() const { return m_fineOnly; }
+
+    // ── Phase 161: AE between the stages ──────────────────────
+    // True while the routine is parked at the coarse result waiting for
+    // auto-exposure. The loop that ticks AE releases its hold for as long
+    // as this is true, and calls ExposureSettled() when AE has looked and
+    // has nothing to change (or cannot act at all).
+    bool WantsExposure() const { return m_aeWindow.load(); }
+    void ExposureSettled() { if (m_aeWindow.load()) m_aeSettled.store(true); }
 
     // ── State queries (main thread safe — atomics only) ───────
     AFState     State()      const { return m_state.load(); }
@@ -570,6 +599,12 @@ private:
             // A flat-topped coarse curve (a big disc) can put its peak a
             // coarse step from focus, at the fine span's edge: one more
             // fine pass, centred on that end, as the coarse sweep does.
+            // Phase 161: AE looks again at the coarse focus, where the
+            // light is gathered up, before the fine pass reads the edges.
+            if (!SettleExposure(bestPos)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                return;
+            }
             int endBest = -1;
             int fine = FineSweep(bestPos, span, nullptr, &endBest);
             if (fine < 0 && endBest >= 0 && !m_abortFlag.load()) {
@@ -1202,6 +1237,32 @@ private:
         return m_moveError.empty() ? "the focuser did not complete a move" : m_moveError.c_str();
     }
 
+    // Phase 161: to `at` the final way, then AE's turn. False only when
+    // the move failed or the operator aborted; AE not settling in time is
+    // said and the fine pass goes on with the exposure it has.
+    bool SettleExposure(int at) {
+        if (m_params.exposureWindowMs <= 0) return true;
+        if (!DriveFinal(at)) return false;
+        Sleep(m_params.settleMs);
+        SetStatus("Auto-exposure at the coarse focus...");
+        m_aeSettled.store(false);
+        m_aeWindow.store(true);
+        const auto start = std::chrono::steady_clock::now();
+        long long waited = 0;
+        while (!m_aeSettled.load() && !m_abortFlag.load()) {
+            waited = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start).count();
+            if (waited > m_params.exposureWindowMs) break;
+            Sleep(16);
+        }
+        const bool settled = m_aeSettled.load();
+        m_aeWindow.store(false);
+        if (m_abortFlag.load()) return false;
+        Emit("[AF] AE at the coarse focus pos=%d: %s after %.1f s; held again for the fine pass\n",
+             at, settled ? "settled" : "not settled, going on", waited / 1000.0);
+        return true;
+    }
+
     bool WaitForFast(int count, int timeoutMs) {
         const auto start = std::chrono::steady_clock::now();
         while (true) {
@@ -1273,6 +1334,7 @@ private:
             raduk::core::CoreLog("[AF] FAILED: %s\n", msg ? msg : "unknown");
         }
 
+        m_aeWindow.store(false);
         m_state.store(success ? AFState::Complete : AFState::Failed);
 
         if (m_onComplete) m_onComplete(result);
@@ -1310,6 +1372,8 @@ private:
     // Phase 145.
     bool                   m_fineOnly = false;
     std::atomic<int>       m_fastNeeded{0};
+    std::atomic<bool>      m_aeWindow{false};    // phase 161: AE's turn
+    std::atomic<bool>      m_aeSettled{false};
     mutable std::mutex     m_fastMutex;
     std::vector<float>     m_fastScores;
 

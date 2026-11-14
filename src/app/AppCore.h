@@ -11,7 +11,8 @@
 //  docs/Phase153-Plan-Main-Decomposition.md):
 //    - The objects live here; main.cpp binds references to them under
 //      their old names, so its other lines are untouched.
-//    - The autofocus feeds have moved here (AutofocusFeed). The rest of
+//    - The autofocus feeds have moved here (AutofocusFeed), and in 153.1
+//      autofocus's wiring (AutofocusController). The rest of
 //      the per-frame wiring moves as each controller is extracted
 //      (153.1 autofocus, 153.2 recording, ... 153.5 tracking), and with
 //      it the clock reaches each subsystem in turn.
@@ -30,6 +31,7 @@
 #include "../core/CaptureManager.h"
 #include "../core/PixelFormat.h"
 
+#include "AutofocusController.h"
 #include "AutofocusFeed.h"
 #include "Clock.h"
 #include "UiSink.h"
@@ -50,13 +52,20 @@ public:
     raduk::core::CentroidTracker       tracker;
     raduk::core::CaptureManager        capturer;
 
-    AppCore() : m_clock(&m_steady), m_ui(&m_null) {}
+    // Phase 153.1: autofocus's wiring (the button, AE before the sweep,
+    // the Moon path, completion). The panel is reached through its hooks.
+    using AutofocusController = AutofocusControllerT<raduk::core::AutofocusRoutine,
+                                                     raduk::core::AutoExposureAssistant>;
+    AutofocusController afCtl;
+
+    AppCore() : afCtl(autofocus, ae, focuser, m_steady, m_null, raduk::core::AF_AE_SETTLE_LIMIT_S),
+                m_clock(&m_steady), m_ui(&m_null) {}
     AppCore(const AppCore&) = delete;
     AppCore& operator=(const AppCore&) = delete;
 
     // The seams. Not owned; must outlive the core. Null restores the default.
-    void SetClock(const IClock* c) { m_clock = c ? c : &m_steady; }
-    void SetUi(IUiSink* u)         { m_ui = u ? u : &m_null; }
+    void SetClock(const IClock* c) { m_clock = c ? c : &m_steady; afCtl.SetClock(*m_clock); }
+    void SetUi(IUiSink* u)         { m_ui = u ? u : &m_null; afCtl.SetUi(*m_ui); }
     const IClock& Clock() const    { return *m_clock; }
     IUiSink&      Ui()             { return *m_ui; }
 

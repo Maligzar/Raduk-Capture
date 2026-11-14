@@ -1024,9 +1024,8 @@ static int RunApp(bool useEmulator) {
     auto& autofocus = core.autofocus;
     // Up here because the observation record states its mode.
     auto& ae        = core.ae;
-    // Phase 112: autofocus has been asked for and AE is settling first.
-    bool afWaitingForAE = false;
-    auto afWaitStart = std::chrono::steady_clock::now();
+    // Phase 112's wait for AE before the sweep is in AppCore's
+    // AutofocusController (phase 153.1): core.afCtl.
     // Phase 139: after every connect. Which backlash figure, and where it
     // came from; the EAF's own compensation set to 0 so it is not applied
     // on top of ours (EAFFocuser::Close puts it back); one-sided moves.
@@ -1888,7 +1887,6 @@ static int RunApp(bool useEmulator) {
     // Phase 139.3: autofocus readiness, and when a fade last fired.
     auto lastFadeAt = std::chrono::steady_clock::now() - std::chrono::hours(1);
     raduk::core::AfReadyOut afReady;
-    auto afConfirmUntil = std::chrono::steady_clock::now() - std::chrono::seconds(1);
     std::vector<raduk::core::RunResult> autorunResults;
     std::string autorunLastPath;
     bool autorunWasHolding = false;
@@ -3938,8 +3936,7 @@ static int RunApp(bool useEmulator) {
             usbMgr.SetCapturing(false);
         }
         if (tracker.IsRunning()) tracker.Reset();
-        afWaitingForAE = false;
-        autofocus.Abort();
+        core.afCtl.Cancel();
 
         if (mountProxy.IsConnected()) {
             mountProxy.StopSlew(0);
@@ -4514,40 +4511,26 @@ static int RunApp(bool useEmulator) {
 
     // ── Phase 9: Autofocus ────────────────────────────────────
     // Completion callback — fires from scan thread, no Win32 UI calls here
-    autofocus.SetOnComplete([&](raduk::core::AFResult result) {
-        controls.SetAutofocusRunning(false);
-        if (result.success) {
-            // A caveat on the success path still has to reach the user. When
-            // the sweep did not bracket focus the routine lands on whichever
-            // end it stopped at, which is the best it saw but probably not
-            // focus — reporting only "AF done" there reads as a clean result.
-            wchar_t buf[192];
-            wchar_t note[128] = L"";
-            if (!result.message.empty())
-                MultiByteToWideChar(CP_UTF8, 0, result.message.c_str(), -1,
-                                    note, 127);
-            swprintf(buf, 192, L"AF done: pos=%d  sharp=%.1f%%  +%.1f%%%s%s",
-                     result.bestPosition, result.bestSharpness,
-                     result.improvement,
-                     note[0] ? L" — " : L"", note);
-            controls.SetAutofocusStatus(buf);
-            slog.Focuser("AutoFocus: pos=%d  sharp=%.1f%%  +%.1f%%%s%s",
-                         result.bestPosition, result.bestSharpness,
-                         result.improvement,
-                         result.message.empty() ? "" : " — ",
-                         result.message.c_str());
-            Log("[AF] Complete: pos=%d  sharp=%.1f%%  improvement=+%.1f%%%s%s\n",
-                result.bestPosition, result.bestSharpness, result.improvement,
-                result.message.empty() ? "" : " — ", result.message.c_str());
-        } else {
-            wchar_t buf[128];
-            MultiByteToWideChar(CP_UTF8, 0, result.message.c_str(), -1, buf, 128);
-            controls.SetAutofocusStatus(buf);
-            slog.Focuser("AutoFocus failed: %s", result.message.c_str());
-            Log("[AF] Failed: %s\n", result.message.c_str());
-            autorunFocusFailed.store(true);
-        }
-    });
+    // Phase 153.1: autofocus's wiring is AppCore's AutofocusController;
+    // the panel and the session log are its hooks.
+    {
+        raduk::app::AutofocusHooks h;
+        h.running = [&](bool r) { controls.SetAutofocusRunning(r); };
+        h.status = [&](const std::string& u8) {
+            wchar_t w[320];
+            MultiByteToWideChar(CP_UTF8, 0, u8.c_str(), -1, w, 320);
+            controls.SetAutofocusStatus(w);
+        };
+        h.showAutoExposure = [&]() {
+            controls.ShowCameraSection();
+            controls.SetAEState(2);
+            controls.SetAEStatus(L"AE: auto");
+        };
+        h.session = [&](const std::string& t) { slog.Focuser("%s", t.c_str()); };
+        h.failed  = [&]() { autorunFocusFailed.store(true); };
+        core.afCtl.SetHooks(std::move(h));
+    }
+    autofocus.SetOnComplete([&](raduk::core::AFResult result) { core.afCtl.OnComplete(result); });
 
     // ── Phase 112: autofocus runs with auto-exposure, visibly ──
     //
@@ -4559,49 +4542,13 @@ static int RunApp(bool useEmulator) {
     // the sharpness score goes as the square of the signal, and resumes
     // afterwards. It stays on: the sharper disc is brighter, and that
     // correction is the point of leaving it running.
-    auto startAutofocus = [&]() {
-        if (!focuser.IsOpen()) {
-            controls.SetAutofocusStatus(L"No focuser connected");
-            return;
-        }
-        controls.ShowCameraSection();
-        controls.SetAEState(2);
-        ae.SetEnabled(true);
-        ae.SetAuto(true);
-        controls.SetAEStatus(L"AE: auto");
-        controls.SetAutofocusRunning(true);
-        controls.SetAutofocusStatus(L"AE AUTO on: settling exposure before focus");
-        Log("[AF] AE AUTO on; waiting for it to settle before the sweep\n");
-        afWaitingForAE = true;
-        afWaitStart = std::chrono::steady_clock::now();
-    };
-    auto abortAutofocus = [&]() {
-        afWaitingForAE = false;
-        autofocus.Abort();
-        controls.SetAutofocusRunning(false);
-        controls.SetAutofocusStatus(L"Aborted");
-    };
+    auto startAutofocus = [&]() { core.afCtl.Start(); };   // phase 153.1
+    auto abortAutofocus = [&]() { core.afCtl.Abort(); };
 
     // Button callback — toggles start/abort
+    // Phase 139.3's NOT NOW / press-twice lives in the controller.
     controls.SetAutofocusCallback([&](bool start) {
-        if (start) {
-            // Phase 139.3: NOT NOW asks for a second press within 5 s
-            // rather than refusing; the owner may know better.
-            const auto nowC = std::chrono::steady_clock::now();
-            if (!afReady.ready && focuser.IsOpen() && nowC > afConfirmUntil) {
-                afConfirmUntil = nowC + std::chrono::seconds(5);
-                const std::wstring w(afReady.why.begin(), afReady.why.end());
-                controls.SetAutofocusStatus((L"Not now: " + w + L". Press again within 5 s to focus anyway").c_str());
-                Log("[AF] Not ready (%s): asked for a second press\n", afReady.why.c_str());
-                return;
-            }
-            if (!afReady.ready) Log("[AF] Started although not ready (%s): the owner pressed twice\n", afReady.why.c_str());
-            afConfirmUntil = nowC - std::chrono::seconds(1);
-            startAutofocus();
-        } else {
-            Log("[AF] Abort requested\n");
-            abortAutofocus();
-        }
+        core.afCtl.Press(start, afReady.ready, afReady.why);
     });
 
     // MOUNT CTRL button in panel - shows floating controller at default position
@@ -4867,8 +4814,7 @@ static int RunApp(bool useEmulator) {
             capturer.StopRecording(false);  // emergency stop - do not auto-stack
             usbMgr.SetCapturing(false);
         }
-        afWaitingForAE = false;
-        autofocus.Abort();                // Phase 9: stop any running AF scan
+        core.afCtl.Cancel();                // Phase 9: stop any running AF scan
         controls.SetAutofocusRunning(false);
         tracker.Reset();  // stops all stages, joins correction thread
         controls.SetSkyMapLocked(false);
@@ -5532,7 +5478,7 @@ static int RunApp(bool useEmulator) {
         phemuRun.prevRoiFollow = rig.roiFollow;
         phemuRun.prevAeEnabled = ae.IsEnabled();
         phemuRun.prevAeAuto    = ae.IsAuto();
-        if (autofocus.IsRunning() || afWaitingForAE) abortAutofocus();
+        if (core.afCtl.Busy()) abortAutofocus();
         ae.SetEnabled(false);
         controls.SetAEState(0);
         controls.SetAEStatus(L"AE: off for the mutual event");
@@ -5772,7 +5718,7 @@ static int RunApp(bool useEmulator) {
     });
     window.SetAutofocusToggleHandler([&]() {
         // A key: same as clicking the AF button — toggle start/abort
-        if (autofocus.IsRunning() || afWaitingForAE) abortAutofocus();
+        if (core.afCtl.Busy()) abortAutofocus();
         else                                         startAutofocus();
     });
 
@@ -6291,7 +6237,7 @@ static int RunApp(bool useEmulator) {
             return;
         }
         if (capturer.IsRecording() || gotoPanel.MosaicRunning() ||
-            autofocus.IsRunning() || afWaitingForAE) {
+            core.afCtl.Busy()) {
             notifBar.NotifyWarn(L"Finish what is running first");
             return;
         }
@@ -6588,7 +6534,7 @@ static int RunApp(bool useEmulator) {
                     Log("[WS] Remote set_gamma: %d\n", g);
                 }
             } else if (rc.cmd == "autofocus") {
-                if (!autofocus.IsRunning() && !afWaitingForAE && focuser.IsOpen()) {
+                if (!core.afCtl.Busy() && focuser.IsOpen()) {
                     Log("[WS] Remote autofocus\n");
                     slog.Focuser("APEX: autofocus triggered");
                     startAutofocus();
@@ -6601,7 +6547,7 @@ static int RunApp(bool useEmulator) {
                     focuser.MoveRelative(steps);
                 }
             } else if (rc.cmd == "autofocus_abort") {
-                if (autofocus.IsRunning() || afWaitingForAE) {
+                if (core.afCtl.Busy()) {
                     abortAutofocus();
                     Log("[WS] Remote autofocus_abort\n");
                 }
@@ -7277,7 +7223,7 @@ static int RunApp(bool useEmulator) {
         // Phase 138: every analysed frame of a target, outside a focus
         // sweep, counts toward the hour's measured seeing -- not only
         // during Autorun, which is phase 114's own use below.
-        if (freshAnalysis && lastAnalysis.valid && !autofocus.IsRunning() && !afWaitingForAE)
+        if (freshAnalysis && lastAnalysis.valid && !core.afCtl.Busy())
             seeingTally.Measured(raduk::core::SeeingMonitor::Normalised(
                                      lastAnalysis.sharpnessPct, lastAnalysis.highlightDN),
                                  targetNow());
@@ -7297,7 +7243,7 @@ static int RunApp(bool useEmulator) {
 
         // Phase 114. Not during a sweep: defocus is not the sky.
         if (freshAnalysis && lastAnalysis.valid && autorun.Running() &&
-            !autofocus.IsRunning() && !afWaitingForAE) {
+            !core.afCtl.Busy()) {
             seeing.Push(std::chrono::duration<double>(
                             std::chrono::steady_clock::now().time_since_epoch()).count(),
                         lastAnalysis.sharpnessPct, lastAnalysis.highlightDN);
@@ -7825,7 +7771,7 @@ static int RunApp(bool useEmulator) {
                 raduk::core::AfReadyIn ri;
                 ri.focuserOpen   = focuser.IsOpen();
                 ri.focuserMoving = focuser.IsOpen() && focuser.IsMoving();
-                ri.afRunning     = autofocus.IsRunning() || afWaitingForAE;
+                ri.afRunning     = core.afCtl.Busy();
                 ri.recording     = capturer.IsRecording();
                 ri.targetFound   = lastAnalysis.valid && lastAnalysis.targetFound;
                 ri.focusValid    = lastAnalysis.valid && lastAnalysis.focusValid;
@@ -7890,27 +7836,10 @@ static int RunApp(bool useEmulator) {
             // Phase 112: the sweep starts when AE is done, or when it
             // is plainly not going to be. A rig that cannot reach its
             // target still needs focusing, on the settings it has.
-            if (afWaitingForAE) {
-                const double waited = std::chrono::duration<double>(
-                    now - afWaitStart).count();
-                if (ae.Settled() || capturer.IsRecording() ||
-                    waited >= raduk::core::AF_AE_SETTLE_LIMIT_S) {
-                    afWaitingForAE = false;
-                    const int pos = focuser.GetPosition();
-                    Log("[AF] AE %s after %.1fs; V-curve scan from pos=%d\n",
-                        ae.Settled() ? "settled" : "not settled, going anyway",
-                        waited, pos);
-                    slog.Focuser("AutoFocus: starting from pos=%d", pos);
-                    controls.SetAutofocusStatus(L"Sweeping, AE held until it ends");
-                    // Phase 145.3: a frame-filling target (the Moon) has
-                    // no disc for the coarse HFD sweep; the edge metric's
-                    // fine pass runs alone.
-                    const bool fineOnly = lastAnalysis.valid && lastAnalysis.surfaceTracked &&
-                                          raduk::core::RigConfig::Get().autofocusFineStage;
-                    if (fineOnly) Log("[AF] the target fills the frame: fine pass on the edge metric only\n");
-                    autofocus.Start(pos, fineOnly);
-                }
-            }
+            if (core.afCtl.WaitingForAE())   // phase 153.1: the controller's
+                core.afCtl.Tick(capturer.IsRecording(),
+                                lastAnalysis.valid && lastAnalysis.surfaceTracked,
+                                raduk::core::RigConfig::Get().autofocusFineStage);
 
             // Phase 113. After the autofocus wait above, so the sweep it
             // asks for has started by the next time it looks.
@@ -7923,7 +7852,7 @@ static int RunApp(bool useEmulator) {
 
                 Autorun::Inputs ai;
                 ai.recording = capturer.IsRecording();
-                ai.focusing  = autofocus.IsRunning() || afWaitingForAE;
+                ai.focusing  = core.afCtl.Busy();
                 ai.frames    = capturer.FramesRecorded();
                 if (autorun.AboutToCheck(nowSec)) {
                     ai.targetSeen = lastAnalysis.valid && lastAnalysis.centroidValid;

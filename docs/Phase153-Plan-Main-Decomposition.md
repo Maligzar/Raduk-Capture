@@ -39,6 +39,18 @@ A rewrite of 9,000 lines of working, field-used wiring is the riskiest change th
 - **`tests/app_headless.cpp`.** It builds the same `AppCore` on the emulators and runs in groups (`connect`, `focus`, `record`, or `all`), so a change runs its own group. **Real time, not a fake clock, for now:** the emulators, `AutofocusRoutine`, `CaptureManager` and `CentroidTracker` sleep and read `steady_clock` on their own threads. The clock reaches each one as its controller is extracted, and the harness gets faster with it. GoTo and lock join at 153.5.
 - **CI cannot run the scenarios (tried 2026-11-13/14).** On GitHub's Windows runner the emulator exe hung for 150 s before it made its scenario sandbox or wrote a line of log: early start-up (DPI awareness, the bundled fonts, or scenario set-up) stalls without an interactive desktop. The step was removed. The before-and-after scenario gate for each extraction runs on the imaging PC (`tests\run-scenarios.ps1`), and `app_headless` is CI's check.
 
+## 153.1, as built (2026-11-14)
+- **`src/app/AutofocusController.h`** holds what main.cpp did round `AutofocusRoutine`:
+  - the button's NOT NOW and press-twice confirm (139.3);
+  - starting with AE set to AUTO, and the sweep held until AE settles, a recording starts, or the settle limit passes (112);
+  - the Moon path (145.3);
+  - abort, and the quiet cancel the emergency paths use;
+  - the completion messages.
+
+  It is a template over the routine and AE, so `tests/af_controller.cpp` drives it with fakes on a manual clock. The panel and the session log are reached through `AutofocusHooks`.
+- **`AppCore` owns it** (`core.afCtl`). main.cpp's lambdas, `afWaitingForAE`, `afWaitStart` and `afConfirmUntil` are gone; every "is autofocus busy" test reads `core.afCtl.Busy()`.
+- **`app_headless focus`** now starts and finishes through the controller, on emulated frames.
+
 ## A rule from now on
 A phase that adds wiring adds it to a controller, not to main.cpp, from the moment that subsystem's controller exists. PHASE-STATUS records main.cpp's line count at each extraction.
 

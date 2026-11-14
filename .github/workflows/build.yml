@@ -101,20 +101,22 @@ jobs:
         shell: pwsh
         run: ./tests/run-tests.ps1
 
-      # Phase 153.0: the emulator build run through three scenarios, to learn
-      # whether this runner can drive the app with its window. Non-gating
-      # until it is known to work here; if it does, it becomes the
-      # before-and-after proof each 153 extraction asks for.
+      # Phase 153.0: can this runner drive the app with its window? The
+      # first try (2026-11-13) hung for 150 s before the app made its
+      # sandbox. Non-gating; one scenario, then whatever log the app left,
+      # to see where it stops.
       - name: Scenario smoke (non-gating)
         if: always()
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 10
         shell: pwsh
         run: |
-          $failed = 0
-          foreach ($s in @("smoke", "recording", "autofocus")) {
-            ./tests/run-scenarios.ps1 $s
-            if ($LASTEXITCODE -ne 0) { $failed++ }
-          }
-          Write-Host "Scenario smoke: $failed of 3 did not pass"
-          exit $failed
+          ./tests/run-scenarios.ps1 smoke
+          $rc = $LASTEXITCODE
+          $logs = @()
+          $logs += Get-ChildItem test_runs -Recurse -Include report.txt, raduk_log.txt -ErrorAction SilentlyContinue
+          $logs += Get-ChildItem build_emu/Release -Filter raduk_log.txt -ErrorAction SilentlyContinue
+          $logs += Get-ChildItem "D:/RadukCapture" -Filter raduk_log.txt -ErrorAction SilentlyContinue
+          foreach ($l in $logs) { Write-Host "== $($l.FullName)"; Get-Content $l.FullName -Tail 60 }
+          if (-not $logs) { Write-Host "No log was written: the app stopped before LogInit" }
+          exit $rc

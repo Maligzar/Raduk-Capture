@@ -33,6 +33,7 @@
 
 #include "AutofocusController.h"
 #include "AutofocusFeed.h"
+#include "RecordingController.h"
 #include "Clock.h"
 #include "UiSink.h"
 
@@ -57,15 +58,20 @@ public:
     using AutofocusController = AutofocusControllerT<raduk::core::AutofocusRoutine,
                                                      raduk::core::AutoExposureAssistant>;
     AutofocusController afCtl;
+    // Phase 153.2: recording's wiring (start, the one stop, the per-frame
+    // gate and stops, what a finished recording means).
+    using RecordingController = RecordingControllerT<raduk::core::CaptureManager>;
+    RecordingController recCtl;
 
     AppCore() : afCtl(autofocus, ae, focuser, m_steady, m_null, raduk::core::AF_AE_SETTLE_LIMIT_S),
+                recCtl(capturer, m_null),
                 m_clock(&m_steady), m_ui(&m_null) {}
     AppCore(const AppCore&) = delete;
     AppCore& operator=(const AppCore&) = delete;
 
     // The seams. Not owned; must outlive the core. Null restores the default.
     void SetClock(const IClock* c) { m_clock = c ? c : &m_steady; afCtl.SetClock(*m_clock); }
-    void SetUi(IUiSink* u)         { m_ui = u ? u : &m_null; afCtl.SetUi(*m_ui); }
+    void SetUi(IUiSink* u)         { m_ui = u ? u : &m_null; afCtl.SetUi(*m_ui); recCtl.SetUi(*m_ui); }
     const IClock& Clock() const    { return *m_clock; }
     IUiSink&      Ui()             { return *m_ui; }
 

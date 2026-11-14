@@ -51,6 +51,15 @@ A rewrite of 9,000 lines of working, field-used wiring is the riskiest change th
 - **`AppCore` owns it** (`core.afCtl`). main.cpp's lambdas, `afWaitingForAE`, `afWaitStart` and `afConfirmUntil` are gone; every "is autofocus busy" test reads `core.afCtl.Busy()`.
 - **`app_headless focus`** now starts and finishes through the controller, on emulated frames.
 
+## 153.2, as built (2026-11-14)
+- **`src/app/RecordingController.h`** holds what main.cpp did round `CaptureManager`:
+  - `Begin`: start, USB throttled, the derotation window announced;
+  - `End`: the one stop, USB restored;
+  - `Service`, every frame: the quality gate and the writer's hints published, the disk stop, the limit and the derotation stop acted on, and the window warning once;
+  - `Complete`: whether a sequence must stop, and whether to auto-stack. It is a decision; Autorun and AutoStakkert act on it in main.cpp.
+- **The derotation window's state** lives in the controller. main.cpp still works the window out, from the GoTo panel and the ephemeris.
+- **Tests.** `tests/rec_controller.cpp` drives it with a fake capture manager. `app_headless record` starts, services and finishes through it.
+
 ## A rule from now on
 A phase that adds wiring adds it to a controller, not to main.cpp, from the moment that subsystem's controller exists. PHASE-STATUS records main.cpp's line count at each extraction.
 

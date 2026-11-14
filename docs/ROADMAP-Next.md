@@ -1617,7 +1617,8 @@ paths pass fault injection, and one unattended sky run completes.
    a failed position read can no longer start a move, every move is
    checked and stoppable, and the overshoot stops depending on the
    backlash figure. Bench only, and ahead of any sweep on the sky.
-   Planned 2026-11-14 from the first-principles review.
+   Planned 2026-11-14 from the first-principles review. **161.0a written
+   2026-11-14 (3.3.12)**: `FocuserGuard.h`, gated by `focuser_safety`.
    Model: **Fable** for 161.0b (stop wins: the command lock and abort
    generation) and 161.1 (threads, the ring); **Opus** for 161.0a (reads,
    guards, arrival checks, the emulator's faults) and 161.2. The table

@@ -772,8 +772,17 @@ static void ApplyProfile(const TargetProfile& p,
         cam->SetUSBBandwidth(p.usbBandwidth); cam->SetHighSpeedMode(p.highSpeed);
     }
     if (focuser && focuser->IsOpen()) {
-        focuser->MoveTo(p.focusPosition);
-        slog.Focuser("GoTo %d", p.focusPosition);
+        // Phase 161.0a: a profile's saved position is a number from
+        // another night. It is applied only when the focuser accepts it
+        // (position read, in range, within FocuserMaxTravelSteps).
+        if (focuser->MoveTo(p.focusPosition)) {
+            slog.Focuser("GoTo %d", p.focusPosition);
+        } else {
+            Log("[PROFILE] Focus position %d not applied: %s\n", p.focusPosition,
+                focuser->LastRefusal().c_str());
+            slog.Focuser("Profile's focus position %d not applied: %s", p.focusPosition,
+                         focuser->LastRefusal().c_str());
+        }
     }
     if (mount && mount->IsConnected() && hooks.mountBusy && hooks.mountBusy()) {
         Log("[PROFILE] Tracking mode and rate left alone: guiding holds the mount\n");
@@ -1039,6 +1048,9 @@ static int RunApp(bool useEmulator) {
         focuser.SetApproachBacklash(rig.focuserOneSidedMoves ? b : 0);
         const int finalDir = rig.focuserFinalDirection == "in" ? -1 : 1;
         focuser.SetApproachDirection(finalDir);
+        focuser.SetMaxTravel(rig.focuserMaxTravelSteps);   // phase 161.0a
+        Log("[FOCUS] one command may travel %d steps (FocuserMaxTravelSteps%s)\n",
+            rig.focuserMaxTravelSteps, rig.focuserMaxTravelSteps > 0 ? "" : ": guard off");
         raduk::core::AutofocusParams ap;
         ap.backlash = b;
         ap.finalDir = finalDir;
@@ -2898,7 +2910,13 @@ static int RunApp(bool useEmulator) {
         // Focus is the setting most worth preserving: ApplyProfile drives
         // the focuser to p->focusPosition on every LOAD, so a stale value
         // actively defocuses the rig.
-        if (focuser.IsOpen()) p->focusPosition = focuser.GetPosition();
+        // Phase 161.0a: only a position that was read. A failed read used
+        // to save 0, and the next LOAD drove the focuser there.
+        if (focuser.IsOpen()) {
+            int fp = 0;
+            if (focuser.TryGetPosition(fp)) p->focusPosition = fp;
+            else Log("[PROFILE] Focus position not saved: the focuser's position could not be read\n");
+        }
 
         // Phase 85: the capture fields too. LOAD now pushes these into
         // the panel, so SAVE has to read them back or the round trip is
@@ -6367,7 +6385,11 @@ static int RunApp(bool useEmulator) {
         int mag = coarse ? (p ? p->stepCoarse : 100)
                          : (p ? p->stepFine   : 10);
         if (mag < 1) mag = coarse ? 100 : 10;   // a 0 in a hand-edited ini
-        focuser.MoveRelative(signedSteps < 0 ? -mag : mag);
+        if (!focuser.MoveRelative(signedSteps < 0 ? -mag : mag)) {   // 161.0a
+            Log("[FOCUS] step refused: %s\n", focuser.LastRefusal().c_str());
+            notifBar.NotifyWarn((L"Focuser did not move: " +
+                raduk::core::ToWide(focuser.LastRefusal())).c_str());
+        }
     };
     window.SetFocusFineHandler  ([&](int steps) { profileStep(steps, false); });
     window.SetFocusCoarseHandler([&](int steps) { profileStep(steps, true);  });
@@ -6544,7 +6566,8 @@ static int RunApp(bool useEmulator) {
                 try { if (!rc.arg.empty()) steps = std::stoi(rc.arg); } catch (...) {}
                 if (steps != 0 && focuser.IsOpen()) {
                     Log("[WS] Remote move_eaf_rel: %d\n", steps);
-                    focuser.MoveRelative(steps);
+                    if (!focuser.MoveRelative(steps))   // 161.0a
+                        Log("[WS] move_eaf_rel refused: %s\n", focuser.LastRefusal().c_str());
                 }
             } else if (rc.cmd == "autofocus_abort") {
                 if (core.afCtl.Busy()) {
@@ -6637,8 +6660,14 @@ static int RunApp(bool useEmulator) {
                 pos = std::max(0, std::min(pos, 600000));
                 if (focuser.IsOpen()) {
                     Log("[WS] Remote move_eaf: %d\n", pos);
-                    slog.Focuser("APEX: move_eaf %d", pos);
-                    focuser.MoveTo(pos);
+                    // Phase 161.0a: guarded like any other move. A remote
+                    // command cannot be asked twice, so it never overrides.
+                    if (focuser.MoveTo(pos)) {
+                        slog.Focuser("APEX: move_eaf %d", pos);
+                    } else {
+                        Log("[WS] move_eaf refused: %s\n", focuser.LastRefusal().c_str());
+                        slog.Focuser("APEX: move_eaf %d refused: %s", pos, focuser.LastRefusal().c_str());
+                    }
                 }
             } else if (rc.cmd == "goto_target") {
                 Log("[WS] Remote goto_target: %s\n", rc.arg.c_str());

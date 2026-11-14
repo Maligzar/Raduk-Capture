@@ -42,6 +42,13 @@ Bench stages first: they need no sky, and the sky stages are not safe to run bef
 
 ### 161.0 The focuser cannot be sent somewhere by accident (bench, M)
 
+**161.0a written 2026-11-14 (3.3.12)**: everything below except "Stop wins", which is 161.0b. As built, where it differs from the bullets:
+- The rule is one pure header, `src/core/FocuserGuard.h`, used by the EAF wrapper and the emulator alike.
+- A profile load and the remote `move_eaf` never override the guard: they are refused and logged. Only the panel's GO TO asks twice. A remote command cannot be asked twice, and a profile's position is a number from another night.
+- Autofocus is held to the guard measured from where the sweep started, not per hop, so a move from one side of its span to the other is not refused half way (`MoveToDirectFar`).
+- A focuser that says "not moving" short of its leg gets 2 s before the move is called short. Whether the real EAF ever does this is not known: clear-night item 59.
+- The second leg is still commanded from `IsMoving()`; moving it to `Service()` is 161.0b's.
+
 - **A read that fails says so.** `IFocuser::TryGetPosition(int&)` returns false on an SDK error. `GetPosition()` returns the last good value and never 0 for a failure. `IsMoving` reports its error the same way; an unknown state counts as moving.
 - **No move from a failed read.** `MoveRelative`, autofocus's start, the profile save and the dashboard all refuse, with a visible line, when the position is not known.
 - **Relative steps add to the commanded target.** Two quick presses of "in 10" end 20 below where the first began, however far the first leg had got.

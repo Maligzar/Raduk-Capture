@@ -54,6 +54,15 @@ struct FakeFocuser : raduk::core::IFocuser {
     int  ApproachBacklash() const override { return 0; }
     void SetApproachDirection(int) override {}
     int   GetPosition() const override { return pos; }
+    // Phase 161.0a.
+    bool readFails = false;
+    bool TryGetPosition(int& p) const override { if (readFails) return false; p = pos; return true; }
+    bool MoveToFar(int p) override { pos = p; return true; }
+    bool MoveToDirectFar(int p) override { pos = p; return true; }
+    void SetMaxTravel(int) override {}
+    int  MaxTravel() const override { return 0; }
+    raduk::core::MoveRefusal LastRefusalKind() const override { return raduk::core::MoveRefusal::None; }
+    std::string LastRefusal() const override { return ""; }
     int   GetMaxPosition() const override { return 200000; }
     float GetTemperature() const override { return 10.0f; }
     void SetReverse(bool) override {}
@@ -164,6 +173,24 @@ int main() {
         Check(r.LastStatus() == "Focus got worse" && r.sessions.back() == "AutoFocus failed: Focus got worse" &&
               r.ui.Saw("[AF] Failed: Focus got worse") && r.failed == 1,
               "failure: said everywhere, and Autorun told");
+    }
+
+    // Phase 161.0a: the sweep is centred on the focuser's position, so a
+    // position that could not be read starts nothing.
+    {
+        Rig r;
+        r.ae.settled = true;
+        r.c.Start();
+        r.f.readFails = true;
+        Check(!r.c.Tick(false, false, true) && r.af.starts == 0,
+              "a position that cannot be read: no sweep", r.LastStatus());
+        Check(!r.c.Busy() && r.failed == 1 && !r.running.empty() && !r.running.back() &&
+              r.LastStatus().find("could not be read") != std::string::npos,
+              "said on the panel, the button released, Autorun told");
+        r.f.readFails = false;
+        r.c.Start();
+        Check(r.c.Tick(false, false, true) && r.af.starts == 1 && r.af.lastPos == 12345,
+              "and the next press, with a good read, sweeps from it");
     }
 
     if (g_fail) { printf("af_controller: %d FAILED\n", g_fail); return 1; }

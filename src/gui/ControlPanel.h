@@ -789,6 +789,17 @@ private:
 
     raduk::core::ASICamera*    m_camera  = nullptr;
     raduk::core::EAFFocuser*   m_focuser = nullptr;
+    // Phase 161.0a: a focuser move that was refused says so on the focus
+    // status line, and a move past the travel guard is asked for twice.
+    raduk::core::FarMoveConfirm m_farFocusMove;
+    void FocusMoveSaid(bool moved) {
+        if (moved || !m_focuser) return;
+        SetAutofocusStatus((L"Focuser did not move: " +
+                            raduk::core::ToWide(m_focuser->LastRefusal())).c_str());
+    }
+    void FocusStep(int steps) {
+        if (m_focuser) FocusMoveSaid(m_focuser->MoveRelative(steps));
+    }
     raduk::core::IMount*       m_mount   = nullptr;
 
     // ── Camera controls ────────────────────────────────────────

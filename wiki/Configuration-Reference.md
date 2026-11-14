@@ -143,6 +143,7 @@ The full list, with every key, is the help file's
 | `DashboardAppWindow` | `1` | The dashboard opens as an app window; `0` uses the default browser |
 | `FocuserBacklashSteps` | `-1` | The focuser's backlash; `-1` uses the EAF's own figure, else 200 (139) |
 | `FocuserOneSidedMoves` | `1` | Every focuser move ends travelling one way by at least the backlash (139) |
+| `FocuserMaxTravelSteps` | `12000` | The furthest one focuser command may travel; a longer one is refused, and GO TO asks twice. `0` off (161.0a) |
 | `FocuserFinalDirection` | `out` | `out` (rising numbers) or `in`; set so the last travel pushes the SCT's primary toward the corrector (145) |
 | `AutofocusFineStage` | `1` | The edge-contrast fine pass after the coarse sweep, and alone on the Moon (145) |
 | `GrsLonSys2` / `GrsEpoch` / `GrsDriftDegPerMonth` | `91` / `2026-06-01` / `1.75` | The Red Spot's System II longitude, its date, and its drift a month (137) |

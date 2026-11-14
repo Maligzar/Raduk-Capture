@@ -65,6 +65,7 @@ $Tests = @(
     @{ Name = "exposure_band";     Sources = @() }
     @{ Name = "display_stretch";   Sources = @() }
     @{ Name = "af_direction_fit";  Sources = @() }
+    @{ Name = "focuser_safety";    Sources = @() }
     @{ Name = "af_readiness";      Sources = @() }
     @{ Name = "jupiter_events";    Sources = @() }
     @{ Name = "jupiter_plan";      Sources = @() }

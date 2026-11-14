@@ -10,6 +10,7 @@
 // EAFEmulator.h defines raduk::core::EAFFocuser — do not redefine here.
 #else
 #  include "EAF_focuser.h"
+#include <atomic>
 #include <vector>
 #include "IFocuser.h"
 #include "FocusDirection.h"
@@ -32,12 +33,19 @@ public:
 
     bool MoveTo(int position) override;
     bool MoveToDirect(int position) override;
+    bool MoveToFar(int position) override;
+    bool MoveToDirectFar(int position) override;
+    void SetMaxTravel(int steps) override { m_maxTravel.store(steps < 0 ? 0 : steps); }
+    int  MaxTravel() const override       { return m_maxTravel.load(); }
+    MoveRefusal LastRefusalKind() const override { return m_ledger.LastRefusal(); }
+    std::string LastRefusal() const override     { return m_ledger.LastRefusalText(); }
     void SetApproachBacklash(int steps) override { m_approach.SetBacklash(steps); }
     void SetApproachDirection(int dir) override  { m_approach.SetDirection(dir); }
     int  ApproachBacklash() const override       { return m_approach.Backlash(); }
     bool MoveRelative(int steps) override;
     bool Stop() override;
     bool IsMoving() const override;
+    bool TryGetPosition(int& position) const override;
     int  GetPosition() const override;
     int  GetMaxPosition() const override { return m_info.MaxStep; }
 
@@ -54,6 +62,10 @@ private:
     bool        m_isOpen = false;
     // Phase 139.2: the second leg of a one-sided move.
     mutable ApproachSequencer m_approach;
+    // Phase 161.0a: one checked path for every move.
+    bool Command(int position, bool oneSided, bool pastGuard);
+    mutable MoveLedger  m_ledger;
+    std::atomic<int>    m_maxTravel{kDefaultMaxTravelSteps};
     // The firmware's backlash when opened, put back on Close so other
     // software finds the EAF as it was.
     int         m_fwBacklashAtOpen = -1;

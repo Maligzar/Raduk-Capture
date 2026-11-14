@@ -140,7 +140,7 @@ public:
 
     // ── Setup ─────────────────────────────────────────────────
     void SetFocuser(EAFFocuser* f)       { m_focuser = f; }
-    void SetParams(const AutofocusParams& p) { m_params = p; }
+    void SetParams(const AutofocusParams& p) { m_baseParams = p; m_params = p; }
 
     // Callback fires on completion from the scan thread.
     // Do NOT call Win32 UI functions from this callback —
@@ -163,6 +163,19 @@ public:
             return false;
 
         m_abortFlag.store(false);
+        m_moveError.clear();
+        // Phase 161.0a: the sweep stays inside the focuser's own range and
+        // within the travel guard of where it started, whatever it finds.
+        m_params = m_baseParams;
+        {
+            const int top = m_focuser->GetMaxPosition();
+            if (top > 0 && m_params.maxStepBound > top) m_params.maxStepBound = top;
+            const int guard = m_focuser->MaxTravel();
+            if (guard > 0) {
+                m_params.minStepBound = (std::max)(m_params.minStepBound, currentPosition - guard);
+                m_params.maxStepBound = (std::min)(m_params.maxStepBound, currentPosition + guard);
+            }
+        }
         m_fineOnly = fineOnly;
         m_fastNeeded.store(0);
         m_startPosition = currentPosition;
@@ -362,18 +375,15 @@ private:
             // false peak between them (tests/autofocus_saturn.cpp, case 4).
             if (v == 0 && m_params.backlash > 0) {
                 const int below = (std::max)(m_params.minStepBound, pos - m_params.backlash);
-                m_focuser->MoveToDirect(below);
-                if (!WaitForMove()) {
-                    Finish(false, m_startPosition, 0.0f, startSharpness, "EAF move timed out");
+                if (!GoDirect(below)) {
+                    Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
                     return;
                 }
             }
-            m_focuser->MoveToDirect(pos);
-
-            // Wait for motion to complete
-            if (!WaitForMove()) {
-                Finish(false, m_startPosition, 0.0f, startSharpness,
-                       "EAF move timed out");
+            // Phase 161.0a: accepted, finished, and where it was sent, or
+            // the sweep ends here with the motor stopped.
+            if (!GoDirect(pos)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
                 return;
             }
 
@@ -504,8 +514,10 @@ private:
         if (bestPos < 0 && m_notBracketed) {
             // Still at an end after the extra sweeps: do not drive to the
             // edge of a range that never contained focus.
-            m_focuser->MoveTo(m_startPosition);
-            WaitForMove();
+            if (!GoOneSided(m_startPosition)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                return;
+            }
             Finish(false, m_startPosition, 0.0f, startSharpness,
                    "focus never bracketed after extra sweeps - left at the start; "
                    "check the target is in the frame");
@@ -564,8 +576,8 @@ private:
                 Emit("[AF] Fine pass again, centred on %d\n", endBest);
                 fine = FineSweep(endBest, span, nullptr, nullptr);
             }
-            if (m_abortFlag.load()) {
-                Finish(false, m_startPosition, 0.0f, startSharpness, "Aborted by user");
+            if (m_abortFlag.load() || MoveFailed()) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
                 return;
             }
             if (fine >= 0) {
@@ -589,15 +601,17 @@ private:
             int approachFrom = finalPos - dir * m_params.backlash;
             approachFrom = (std::max)(m_params.minStepBound,
                                       (std::min)(m_params.maxStepBound, approachFrom));
-            m_focuser->MoveToDirect(approachFrom);
-            if (!WaitForMove())
-                raduk::core::CoreLog("[AF] backlash approach to %d did not complete\n", approachFrom);
+            if (!GoDirect(approachFrom)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                return;
+            }
             Sleep(300);
         }
 
-        m_focuser->MoveToDirect(finalPos);
-        if (!WaitForMove())
-            raduk::core::CoreLog("[AF] final move to %d did not complete - focus may be off\n", finalPos);
+        if (!GoDirect(finalPos)) {
+            Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+            return;
+        }
         Sleep(m_params.settleMs);
 
         // Verify final sharpness. 8000ms, not 4000: samples now arrive only
@@ -643,8 +657,10 @@ private:
             // ago was no fair comparison. Measure the start position again
             // under the same sky; only if it is really better is the fit
             // wrong. Otherwise the sky changed, and the fit stands.
-            m_focuser->MoveTo(m_startPosition);
-            WaitForMove();
+            if (!GoOneSided(m_startPosition)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                return;
+            }
             Sleep(m_params.settleMs);
             m_sharpnessSamples.clear();
             m_centValidSamples.clear();
@@ -675,7 +691,10 @@ private:
             if (fineUsed) {
                 int nS = 0, nF = 0;
                 const float eStart = ScoreHere(&nS);   // the focuser is at the start
-                DriveFinal(finalPos);
+                if (!DriveFinal(finalPos)) {
+                    Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                    return;
+                }
                 const float eFit = ScoreHere(&nF);
                 Emit("[AF] Same sky, edge metric: start pos=%d %.4f, fit pos=%d %.4f\n",
                      m_startPosition, eStart, finalPos, eFit);
@@ -687,11 +706,15 @@ private:
                     int approachFrom = finalPos - dir * m_params.backlash;
                     approachFrom = (std::max)(m_params.minStepBound,
                                               (std::min)(m_params.maxStepBound, approachFrom));
-                    m_focuser->MoveToDirect(approachFrom);
-                    WaitForMove();
+                    if (!GoDirect(approachFrom)) {
+                        Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                        return;
+                    }
                 }
-                m_focuser->MoveToDirect(finalPos);
-                WaitForMove();
+                if (!GoDirect(finalPos)) {
+                    Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                    return;
+                }
                 m_bestPosition.store(finalPos);
                 m_bestSharpness.store(finalSharp);
                 Finish(true, finalPos, finalSharp, startNow,
@@ -703,10 +726,10 @@ private:
                  "start pos=%d - WORSE, returning to start\n",
                  finalPos, finalSharp, startSharpness, m_startPosition);
             SetStatus("Focus got worse — returning to start");
-            m_focuser->MoveTo(m_startPosition);
-            if (!WaitForMove())
-                raduk::core::CoreLog("[AF] return to start pos=%d did not complete\n",
-                       m_startPosition);
+            if (!GoOneSided(m_startPosition)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                return;
+            }
             m_bestPosition.store(m_startPosition);
             m_bestSharpness.store(startSharpness);
             char msg[128];
@@ -923,10 +946,16 @@ private:
             if (msSince(lastProgress) > stallMs) {
                 raduk::core::CoreLog("[AF] EAF stalled at %d (%d ms without progress)\n",
                        lastPos, stallMs);
+                char b[96];
+                sprintf_s(b, "the focuser stalled at %d - stopped", lastPos);
+                m_moveError = b;
                 return false;
             }
             if (msSince(start) > capMs) {
                 raduk::core::CoreLog("[AF] EAF move exceeded %d ms cap at %d\n", capMs, lastPos);
+                char b[96];
+                sprintf_s(b, "the focuser was still moving after %d s - stopped", capMs / 1000);
+                m_moveError = b;
                 return false;
             }
             Sleep(50);
@@ -951,8 +980,7 @@ private:
         if (m_params.backlash > 0) {
             int pre = pts.front() - dir * m_params.backlash;
             pre = (std::max)(m_params.minStepBound, (std::min)(m_params.maxStepBound, pre));
-            m_focuser->MoveToDirect(pre);
-            if (!WaitForMove()) return -1;
+            if (!GoDirect(pre)) return -1;
         }
         std::vector<int> pos;
         std::vector<float> sc;
@@ -966,8 +994,7 @@ private:
             char st[64];
             sprintf_s(st, "Fine pass %d/%d  pos=%d", (int)k + 1, (int)pts.size(), pts[k]);
             SetStatus(st);
-            m_focuser->MoveToDirect(pts[k]);
-            if (!WaitForMove()) return -1;
+            if (!GoDirect(pts[k])) return -1;
             int got = 0;
             const float p = ScoreHere(&got);
             Emit("[AF] Fine %d/%d  pos=%d  edge=%.4f  (%d frames)\n", (int)k + 1, (int)pts.size(),
@@ -1037,12 +1064,10 @@ private:
             fine = FineSweep(endBest, m_params.fineOnlySpan, &best, nullptr);
         }
         if (fine < 0) {
-            if (m_abortFlag.load()) {
-                Finish(false, m_startPosition, 0.0f, 0.0f, "Aborted by user");
+            if (m_abortFlag.load() || MoveFailed() || !GoOneSided(m_startPosition)) {
+                Finish(false, m_startPosition, 0.0f, 0.0f, MoveFailure());
                 return;
             }
-            m_focuser->MoveTo(m_startPosition);
-            WaitForMove();
             Finish(false, m_startPosition, 0.0f, 0.0f,
                    "no bracketed peak on the edge metric - left at the start; "
                    "start nearer focus or on a sharper part of the surface");
@@ -1050,7 +1075,10 @@ private:
         }
         m_state.store(AFState::Moving);
         SetStatus("Moving to best focus...");
-        DriveFinal(fine);
+        if (!DriveFinal(fine)) {
+            Finish(false, m_startPosition, 0.0f, 0.0f, MoveFailure());
+            return;
+        }
         int nFinal = 0;
         const float finalScore = ScoreHere(&nFinal);
         Emit("[AF] Fit pos=%d  edge=%.4f  (start %.4f)\n", fine, finalScore, startScore);
@@ -1059,7 +1087,10 @@ private:
         // measure the start again under the same sky; only if it is really
         // better is the fit wrong, otherwise the sky changed.
         if (startScore > 0.0f && nFinal > 0 && finalScore < 0.8f * startScore) {
-            DriveFinal(m_startPosition);
+            if (!DriveFinal(m_startPosition)) {
+                Finish(false, m_startPosition, 0.0f, 0.0f, MoveFailure());
+                return;
+            }
             int nNow = 0;
             const float startNow = ScoreHere(&nNow);
             Emit("[AF] Re-measured start pos=%d now: %.4f (was %.4f); fit pos=%d: %.4f\n",
@@ -1074,7 +1105,10 @@ private:
                 return;
             }
             Emit("[AF] The sky changed, not the focus: keeping pos=%d\n", fine);
-            DriveFinal(fine);
+            if (!DriveFinal(fine)) {
+                Finish(false, m_startPosition, 0.0f, 0.0f, MoveFailure());
+                return;
+            }
             m_bestPosition.store(fine);
             m_bestSharpness.store(finalScore);
             Finish(true, fine, finalScore, startNow,
@@ -1106,11 +1140,66 @@ private:
         if (m_params.backlash > 0) {
             int from = to - dir * m_params.backlash;
             from = (std::max)(m_params.minStepBound, (std::min)(m_params.maxStepBound, from));
-            m_focuser->MoveToDirect(from);
-            if (!WaitForMove()) return false;
+            if (!GoDirect(from)) return false;
         }
-        m_focuser->MoveToDirect(to);
-        return WaitForMove();
+        return GoDirect(to);
+    }
+
+    // ── Phase 161.0a: a move that is checked ──────────────────
+    // Accepted by the focuser, finished, and stopped where it was sent.
+    // Anything else stops the motor and leaves the reason in
+    // MoveFailure(). Before this, a refused move went unnoticed (its
+    // sample was credited to a step the focuser never reached) and a
+    // timed-out one was left running.
+    bool GoDirect(int pos)   { return Go(pos, false); }
+    bool GoOneSided(int pos) { return Go(pos, true); }
+    bool Go(int pos, bool oneSided) {
+        if (m_abortFlag.load()) return false;
+        // The sweep's own bound: the focuser's range, and the travel guard
+        // measured from where the sweep started (set in Start). Inside
+        // it, a hop is not held to the guard a second time, so a move
+        // from one side of the span to the other is not refused half way.
+        if (pos < m_params.minStepBound || pos > m_params.maxStepBound) {
+            char b[160];
+            sprintf_s(b, "autofocus would not move to %d: outside %d to %d, the span allowed "
+                         "round its start", pos, m_params.minStepBound, m_params.maxStepBound);
+            m_moveError = b;
+            Emit("[AF] %s\n", b);
+            return false;
+        }
+        const bool sent = oneSided ? m_focuser->MoveToFar(pos) : m_focuser->MoveToDirectFar(pos);
+        if (!sent) {
+            m_moveError = "the focuser refused a move: " + m_focuser->LastRefusal();
+            Emit("[AF] move to %d refused: %s\n", pos, m_focuser->LastRefusal().c_str());
+            return false;
+        }
+        if (!WaitForMove()) {
+            // Stalled, over the cap, or aborted: the motor may still be
+            // turning (an abort can land just before this move is sent).
+            m_focuser->Stop();
+            return false;
+        }
+        int at = 0;
+        if (!m_focuser->TryGetPosition(at)) {
+            m_focuser->Stop();
+            m_moveError = "the focuser's position could not be read after a move";
+            return false;
+        }
+        if (std::abs(at - pos) > kArrivalToleranceSteps) {
+            m_focuser->Stop();
+            char b[120];
+            sprintf_s(b, "the focuser stopped at %d, not %d", at, pos);
+            m_moveError = b;
+            Emit("[AF] %s\n", b);
+            return false;
+        }
+        return true;
+    }
+    bool MoveFailed() const { return !m_moveError.empty(); }
+    // Why the sweep is ending: the operator's abort, or the move.
+    const char* MoveFailure() const {
+        if (m_abortFlag.load()) return "Aborted by user";
+        return m_moveError.empty() ? "the focuser did not complete a move" : m_moveError.c_str();
     }
 
     bool WaitForFast(int count, int timeoutMs) {
@@ -1191,7 +1280,9 @@ private:
 
     // ── Members ───────────────────────────────────────────────
     EAFFocuser*      m_focuser   = nullptr;
-    AutofocusParams  m_params;
+    AutofocusParams  m_params;       // this run's, bounds narrowed in Start
+    AutofocusParams  m_baseParams;   // as set
+    std::string      m_moveError;    // scan thread only (and Start, before it)
 
     std::function<void(const char*)> m_logSink;
     std::thread      m_thread;

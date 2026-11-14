@@ -36,6 +36,9 @@
 //   them knows it has an emulator.
 // ============================================================
 
+#include <string>
+#include "FocuserGuard.h"
+
 namespace raduk::core {
 
 class IFocuser {
@@ -62,6 +65,23 @@ public:
     // stays true until the second leg is done. MoveToDirect is one leg,
     // for autofocus's sweep, which measures both directions on purpose.
     virtual bool MoveToDirect(int position) = 0;
+    // Phase 161.0a: no move starts from a position that could not be
+    // read, goes outside the focuser's range, or travels further than
+    // the guard (rig.ini FocuserMaxTravelSteps; 0: off) in one command.
+    // A refused move returns false and LastRefusal() says why.
+    // MoveToFar is MoveTo with the travel guard overridden, for a caller
+    // that has asked the operator twice. MoveRelative adds to the
+    // commanded target while a move is in flight.
+    virtual bool MoveToFar(int position) = 0;
+    // MoveToDirect with the travel guard overridden, for autofocus alone:
+    // it holds every target within the guard of where the sweep STARTED,
+    // which is the bound that matters, so a hop from one side of that
+    // span to the other is not refused part way through.
+    virtual bool MoveToDirectFar(int position) = 0;
+    virtual void SetMaxTravel(int steps) = 0;
+    virtual int  MaxTravel() const = 0;
+    virtual MoveRefusal LastRefusalKind() const = 0;
+    virtual std::string LastRefusal() const = 0;
     virtual void SetApproachBacklash(int steps) = 0;   // 0: off
     virtual int  ApproachBacklash() const = 0;
     // Phase 145.4: which way that final travel goes, +1 outward (rising
@@ -69,6 +89,11 @@ public:
     virtual void SetApproachDirection(int dir) = 0;
 
     // ── Readout ────────────────────────────────────────────────
+    // Phase 161.0a: TryGetPosition is false when the read failed.
+    // GetPosition never invents a number: after a failed read it returns
+    // the last good one. Anything that MOVES from a position, or saves
+    // one, uses TryGetPosition.
+    virtual bool  TryGetPosition(int& position) const = 0;
     virtual int   GetPosition() const = 0;
     virtual int   GetMaxPosition() const = 0;
     virtual float GetTemperature() const = 0;

@@ -1336,3 +1336,18 @@ the bench already showed, so the night only has to confirm it. The plan is
     drift that is smaller one way confirms the setting. Note the
     `[AF] Fine pass fade check` line: a ratio far from 1 on a clear, steady
     night means the target was not steady in the frame, not a fade.
+
+59. **The focuser's travel guard, and its calibration** (161, added
+    2026-11-14). Phase 161.0a refuses any single focuser command longer
+    than `FocuserMaxTravelSteps` (12,000, about two turns of the knob) and
+    any move from a position it could not read. Over one night of ordinary
+    use (focus keys, the panel's buttons, a profile load, two autofocus
+    runs) read raduk_log.txt for `refused`: there should be none that was
+    not asked for, and the panel's GO TO to a far position should ask for
+    a second press and then go. Note the largest move the night needed;
+    the guard should sit comfortably above it and far below the distance
+    to either end of travel. Count `[EAFFocuser]` lines that report a
+    failed read or `stopped short`: any at all on the real EAF is a
+    finding, and says whether the 2 s grace is right. When 161.3 is
+    built, its CALIBRATE FOCUS run (um per step, slack, repeatability,
+    settle time, image shift) is this item too.

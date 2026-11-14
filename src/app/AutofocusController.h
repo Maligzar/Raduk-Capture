@@ -116,7 +116,17 @@ public:
         const bool settled = m_ae.Settled();
         if (!(settled || recording || waited >= m_settleLimit)) return false;
         m_waitingForAE = false;
-        const int pos = m_focuser.GetPosition();
+        // Phase 161.0a: the sweep is centred on this, so it must be a
+        // position that was read, not the last one remembered or 0.
+        int pos = 0;
+        if (!m_focuser.TryGetPosition(pos)) {
+            if (m_hooks.running) m_hooks.running(false);
+            Status("The focuser's position could not be read: autofocus not started");
+            Session("AutoFocus not started: the focuser's position could not be read");
+            Line("[AF] Not started: the focuser's position could not be read\n");
+            if (m_hooks.failed) m_hooks.failed();
+            return false;
+        }
         char b[160];
         std::snprintf(b, sizeof(b), "[AF] AE %s after %.1fs; V-curve scan from pos=%d\n",
                       settled ? "settled" : "not settled, going anyway", waited, pos);
@@ -128,7 +138,13 @@ public:
         // HFD sweep: the edge metric's fine pass runs alone.
         const bool fineOnly = targetFillsFrame && fineStageEnabled;
         if (fineOnly) Line("[AF] the target fills the frame: fine pass on the edge metric only\n");
-        m_af.Start(pos, fineOnly);
+        if (!m_af.Start(pos, fineOnly)) {
+            if (m_hooks.running) m_hooks.running(false);
+            Status("Autofocus could not start");
+            Line("[AF] Not started: the routine refused (already running, or no focuser)\n");
+            if (m_hooks.failed) m_hooks.failed();
+            return false;
+        }
         return true;
     }
 

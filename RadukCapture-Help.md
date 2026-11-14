@@ -3222,6 +3222,7 @@ order.
 | 3.3.10 | 153.0 | Nothing changes on screen. The camera, focuser, mount link and frame pipeline now live in one application core that a test can build without a window, and a new test runs connect, focus and record against the emulators in groups. Planned for phase 156: tests in groups run for whatever you are observing, and in the emulator every group on a synthetic sky time |
 | 3.3.11 | 153.1 | Nothing changes on screen. Autofocus's wiring (the press-twice when it is not ready, waiting for auto-exposure, the Moon's fine pass, its messages) moved out of the main program into a controller with its own tests |
 | 3.3.12 | 153.2 | Nothing changes on screen. Recording's wiring (starting, the one way a run stops, the quality gate, the disk, limit and derotation stops, and whether a finished run is auto-stacked) moved into a controller with its own tests |
+| 3.3.13 | 153.3 | Nothing changes on screen. A sequence of runs (`[RUNS]`) is driven by a controller with its own tests: when to focus and record, each run noted, the seeing hold and the Jupiter deferral announced, and the ranked list at the end |
 
 ---
 

@@ -60,6 +60,20 @@ A rewrite of 9,000 lines of working, field-used wiring is the riskiest change th
 - **The derotation window's state** lives in the controller. main.cpp still works the window out, from the GoTo panel and the ephemeris.
 - **Tests.** `tests/rec_controller.cpp` drives it with a fake capture manager. `app_headless record` starts, services and finishes through it.
 
+## 153.3, as built (2026-11-14)
+- **`src/app/AutorunController.h`** holds what main.cpp did round `AutorunRunner`:
+  - `Start`: reset the sequence's state and the seeing monitor.
+  - `Tick` from the readout:
+    - the runner's slow inputs, only when it is about to check;
+    - its action carried out (focus, a run through the RECORD path, the one stop, an abort);
+    - each run noted with file, frames, seeing score and Jupiter note;
+    - the seeing hold and the Jupiter deferral announced once a change;
+    - the toolbar kept in step;
+    - at the end, the summary, the ranked list and the notice.
+  - `Pressing` tells the sequence's own RECORD press from a person's.
+- **`AppCore` now owns the seeing monitor as well** (`core.seeing`). main.cpp's nine sequence variables are gone; Jupiter's disc line and the deferral wording stay in main.cpp as hooks.
+- **`tests/autorun_controller.cpp`** drives it on the real `AutorunRunner` and `SeeingMonitor`, with the rig faked behind the hooks. It covers a whole sequence, a refused run, an abort mid-run, a first-check refusal, a failed sweep, the prime deferral and the seeing hold.
+
 ## A rule from now on
 A phase that adds wiring adds it to a controller, not to main.cpp, from the moment that subsystem's controller exists. PHASE-STATUS records main.cpp's line count at each extraction.
 

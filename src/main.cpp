@@ -1871,13 +1871,10 @@ static int RunApp(bool useEmulator) {
     // Phase 113: a sequence of runs. It presses the same RECORD and the
     // same autofocus as a person does, so a press from it has to be told
     // apart from a person's, which stops it.
-    raduk::core::AutorunRunner autorun;
-    bool autorunPressing = false;
-    bool autorunShown    = false;
-    std::atomic<bool> autorunFocusFailed{false};
+    auto& autorun = core.arCtl.runner;   // phase 153.3: AppCore's AutorunController
     // Phase 114: how the sky is doing against tonight's best, and the
     // runs so far, for the list written when the sequence ends.
-    raduk::core::SeeingMonitor seeing;
+    auto& seeing = core.seeing;          // phase 153.3: owned by AppCore
     // Phase 138: an hourly SEEING line in the session log, the forecast
     // Leoben passed on beside the seeing measured that hour.
     raduk::core::SeeingTally seeingTally;
@@ -1885,14 +1882,8 @@ static int RunApp(bool useEmulator) {
     // Phase 139.3: autofocus readiness, and when a fade last fired.
     auto lastFadeAt = std::chrono::steady_clock::now() - std::chrono::hours(1);
     raduk::core::AfReadyOut afReady;
-    std::vector<raduk::core::RunResult> autorunResults;
-    std::string autorunLastPath;
-    bool autorunWasHolding = false;
-    // Phase 144: a sequence on Jupiter puts a due sweep off through a
-    // prime spell, and notes what was on the disc against each run.
-    bool autorunJupiter = false;
-    bool autorunWasDeferring = false;
-    std::string autorunRunNote;
+    // The sequence's runs, its Jupiter note and its announcements are held
+    // by core.arCtl (phase 153.3).
 
     gotoPanel.SetMosaicCapture(
         [&](int ordinal, int total) -> bool {
@@ -4245,7 +4236,7 @@ static int RunApp(bool useEmulator) {
     auto doRecord = [&]() {
         // Phase 113: RECORD during a sequence stops the sequence, and the
         // next tick closes the file.
-        if (autorun.Running() && !autorunPressing) {
+        if (autorun.Running() && !core.arCtl.Pressing()) {
             autorun.Abort("stopped with RECORD");
             return;
         }
@@ -4313,7 +4304,7 @@ static int RunApp(bool useEmulator) {
         // Phase 113: anything but a normal end stops a sequence, whoever
         // did it: Escape, a format change, the hardware going away.
         if (c.abortAutorun) autorun.Abort("a recording was stopped from outside");
-        autorunLastPath = path;
+        core.arCtl.SetLastPath(path);
         if (c.fitsNotice)
             notifBar.NotifyInfo(L"Auto-stack is SER only - press [STACK] "
                                 L"to open this FITS in AutoStakkert");
@@ -4505,7 +4496,7 @@ static int RunApp(bool useEmulator) {
             controls.SetAEStatus(L"AE: auto");
         };
         h.session = [&](const std::string& t) { slog.Focuser("%s", t.c_str()); };
-        h.failed  = [&]() { autorunFocusFailed.store(true); };
+        h.failed  = [&]() { core.arCtl.NoteFocusFailed(); };
         core.afCtl.SetHooks(std::move(h));
     }
     autofocus.SetOnComplete([&](raduk::core::AFResult result) { core.afCtl.OnComplete(result); });
@@ -6229,26 +6220,15 @@ static int RunApp(bool useEmulator) {
         c.minAltDeg    = rig.autorunMinAltDeg;
         c.holdForSeeing = rig.autorunSeeingPct > 0;
         c.seeingHoldSec = rig.autorunSeeingHoldSec;
-        autorunJupiter  = _stricmp(targetNow().c_str(), "Jupiter") == 0;
-        c.deferFocusInPrime = autorunJupiter && rig.autorunPrimeDeferMin > 0.0f;
+        const bool onJupiter = _stricmp(targetNow().c_str(), "Jupiter") == 0;
+        c.deferFocusInPrime = onJupiter && rig.autorunPrimeDeferMin > 0.0f;
         c.primeDeferMaxSec  = rig.autorunPrimeDeferMin * 60.0;
         c.runSec       = raduk::core::AutorunRunSec(
             core.recCtl.DerotWindowSec(), controls.GetLimitByFrames(),
             controls.GetLimitFrames(), controls.GetLimitTimeSec(),
             capture.Stats().fps.load());
 
-        autorunFocusFailed.store(false);
-        {
-            raduk::core::SeeingMonitor::Config sc;
-            sc.openFraction = rig.autorunSeeingPct / 100.0;
-            seeing.Reset(sc);
-        }
-        autorunResults.clear();
-        autorunLastPath.clear();
-        autorunWasHolding = false;
-        autorunWasDeferring = false;
-        autorunRunNote.clear();
-        if (!autorun.Start(c, nowSec)) {
+        if (!core.arCtl.Start(c, nowSec, onJupiter, rig.autorunSeeingPct / 100.0)) {
             wchar_t msg[128];
             swprintf(msg, 128, L"Runs not started: %hs", autorun.Reason().c_str());
             notifBar.NotifyWarn(msg);
@@ -6257,7 +6237,7 @@ static int RunApp(bool useEmulator) {
         Log("[AUTORUN] start: %d runs of %.0f s, gap %.0f s, focus every %d, "
             "floor %.0f deg, seeing bar %d%%\n", c.runs, c.runSec, c.gapSec,
             c.refocusEvery, c.minAltDeg, rig.autorunSeeingPct);
-        if (autorunJupiter) {
+        if (onJupiter) {
             const double jd = raduk::sky::PreciseJdNow();
             const auto d = jupiterDisc(jd);
             Log("[AUTORUN] Jupiter: %s; a due sweep %s\n",
@@ -6270,6 +6250,68 @@ static int RunApp(bool useEmulator) {
                  c.runSec / 60.0);
         notifBar.NotifyInfo(msg);
     });
+
+    // Phase 153.3: the sequence's wiring is AppCore's AutorunController;
+    // autofocus, recording, the mount, the disk, Jupiter, the toolbar and
+    // the files are its hooks.
+    {
+        raduk::app::AutorunHooks h;
+        h.checkInputs = [&](raduk::core::AutorunRunner::Inputs& ai) {
+            ai.targetSeen = lastAnalysis.valid && lastAnalysis.centroidValid;
+            ai.altDeg     = preview.MountAltitude();
+            ai.seeingOpen = seeing.Open(core.Clock().Now());
+            if (core.arCtl.Jupiter())
+                ai.prime = jupiterDisc(raduk::sky::PreciseJdNow()).Prime();
+            // A disk that will not answer is not a reason to stop.
+            ULARGE_INTEGER avail{};
+            const uint64_t want = raduk::core::AutorunRunBytes(
+                roiWidth, roiHeight, roiBits, capture.Stats().fps.load(),
+                autorun.RunSec());
+            ai.diskHasRoom =
+                !GetDiskFreeSpaceExA(controls.GetOutputDir().c_str(),
+                                     &avail, nullptr, nullptr) ||
+                avail.QuadPart >= want;
+        };
+        h.startFocus = [&]() { startAutofocus(); };
+        h.abortFocus = [&]() { abortAutofocus(); };
+        h.startRecording = [&]() { doRecord(); return capturer.IsRecording(); };
+        h.stopRecording = [&]() {
+            endRecording(true, "sequence");
+            controls.ForceRecordButtonUpdate(false);
+        };
+        h.framesRecorded = [&]() { return capturer.FramesRecorded(); };
+        h.runNote = [&]() {
+            return raduk::sky::jupiter::DiscLine(jupiterDisc(raduk::sky::PreciseJdNow()));
+        };
+        // Phase 144: say once when a sweep is put off, and when.
+        h.deferChanged = [&](bool deferring) {
+            if (deferring) {
+                const double jd = raduk::sky::PreciseJdNow();
+                const auto d = jupiterDisc(jd);
+                const double end = raduk::sky::jupiter::PrimeEndJd(jd, grsModel(),
+                                       jupiterDesk.Events(jd - 0.5, jd + 0.5));
+                Log("[AUTORUN] focus put off: %s, until about %s UTC (at most %.0f min)\n",
+                    raduk::sky::jupiter::DiscLine(d).c_str(),
+                    raduk::sky::jupiter::HhMm(end).c_str(),
+                    raduk::core::RigConfig::Get().autorunPrimeDeferMin);
+                slog.Capture("Autorun: focus put off for %s", raduk::sky::jupiter::DiscLine(d).c_str());
+            } else {
+                Log("[AUTORUN] the spell is over or the wait ran out: focus as due\n");
+            }
+        };
+        h.session = [&](const std::string& t) { slog.Capture("%s", t.c_str()); };
+        h.notify = [&](raduk::app::ToastLevel l, const std::string& u8) {
+            wchar_t w[320];
+            MultiByteToWideChar(CP_UTF8, 0, u8.c_str(), -1, w, 320);
+            if (l == raduk::app::ToastLevel::Info) notifBar.NotifyInfo(w);
+            else                                   notifBar.NotifyWarn(w);
+        };
+        h.toolbar = [&](bool running, int ordinal) { toolbar.SetRuns(running, ordinal); };
+        h.rankingPath = [&](const std::string& stamp) {
+            return controls.GetOutputDir() + "\\autorun_" + stamp + ".txt";
+        };
+        core.arCtl.SetHooks(std::move(h));
+    }
 
     // Phase 49: Help toggle — toolbar [?] button and ? key
     auto doHelp = [&]() { helpWindow.Toggle(); };
@@ -7789,159 +7831,11 @@ static int RunApp(bool useEmulator) {
 
             // Phase 113. After the autofocus wait above, so the sweep it
             // asks for has started by the next time it looks.
-            if (autorun.Running() || autorunShown) {
-                using Autorun = raduk::core::AutorunRunner;
+            {
                 const double nowSec = std::chrono::duration<double>(
                     now.time_since_epoch()).count();
-                if (autorunFocusFailed.exchange(false))
-                    autorun.NoteFocusFailed();
-
-                Autorun::Inputs ai;
-                ai.recording = capturer.IsRecording();
-                ai.focusing  = core.afCtl.Busy();
-                ai.frames    = capturer.FramesRecorded();
-                if (autorun.AboutToCheck(nowSec)) {
-                    ai.targetSeen = lastAnalysis.valid && lastAnalysis.centroidValid;
-                    ai.altDeg     = preview.MountAltitude();
-                    ai.seeingOpen = seeing.Open(nowSec);
-                    if (autorunJupiter)
-                        ai.prime = jupiterDisc(raduk::sky::PreciseJdNow()).Prime();
-                    // A disk that will not answer is not a reason to stop.
-                    ULARGE_INTEGER avail{};
-                    const uint64_t want = raduk::core::AutorunRunBytes(
-                        roiWidth, roiHeight, roiBits, stats.fps.load(),
-                        autorun.RunSec());
-                    ai.diskHasRoom =
-                        !GetDiskFreeSpaceExA(controls.GetOutputDir().c_str(),
-                                             &avail, nullptr, nullptr) ||
-                        avail.QuadPart >= want;
-                }
-
-                // A run that ended by itself shows up as the count moving.
-                // One ended here shows up as StopRun, and never counts.
-                const int ordinalBefore = autorun.Ordinal();
-                auto noteRun = [&]() {
-                    autorunResults.push_back({ordinalBefore, autorunLastPath,
-                                              capturer.FramesRecorded(),
-                                              seeing.EndRun(), autorunRunNote});
-                };
-                const int doneBefore = autorun.Done();
-                // Phase 128, found by a scenario: a sequence refused at its
-                // first check (below the altitude floor, no target, no disk)
-                // ended before it had ever been shown, so it ended in
-                // silence -- RUNS did nothing and said nothing. Ending is
-                // judged from before this tick as well as after the last.
-                const bool runningBefore = autorun.Running();
-
-                switch (autorun.Tick(nowSec, ai)) {
-                case Autorun::Action::StartFocus:
-                    Log("[AUTORUN] focus before run %d\n", autorun.Ordinal());
-                    startAutofocus();
-                    break;
-                case Autorun::Action::StartRun: {
-                    autorunPressing = true;
-                    doRecord();
-                    autorunPressing = false;
-                    if (capturer.IsRecording()) {
-                        seeing.BeginRun();
-                        Log("[AUTORUN] run %d of %d\n", autorun.Ordinal(),
-                            autorun.Total());
-                        autorunRunNote.clear();
-                        if (autorunJupiter) {
-                            autorunRunNote = raduk::sky::jupiter::DiscLine(
-                                jupiterDisc(raduk::sky::PreciseJdNow()));
-                            if (!autorunRunNote.empty())
-                                Log("[AUTORUN] on the disc: %s\n", autorunRunNote.c_str());
-                        }
-                        slog.Capture("Autorun: run %d of %d", autorun.Ordinal(),
-                                     autorun.Total());
-                    } else {
-                        autorun.RunRefused();
-                    }
-                    break;
-                }
-                case Autorun::Action::StopRun:
-                    endRecording(true, "sequence");
-                    controls.ForceRecordButtonUpdate(false);
-                    noteRun();
-                    break;
-                case Autorun::Action::AbortFocus:
-                    abortAutofocus();
-                    break;
-                default:
-                    break;
-                }
-
-                if (autorun.Done() > doneBefore) noteRun();
-
-                if (autorun.HoldingForSeeing() != autorunWasHolding) {
-                    autorunWasHolding = autorun.HoldingForSeeing();
-                    Log("[AUTORUN] seeing %.1f against tonight's best %.1f: %s\n",
-                        seeing.Current(nowSec), seeing.Best(),
-                        autorunWasHolding ? "waiting" : "going");
-                    if (autorunWasHolding)
-                        notifBar.NotifyInfo(L"Sequence is waiting for the seeing");
-                }
-
-                // Phase 144: say once when a sweep is put off, and when.
-                if (autorun.DeferringFocus() != autorunWasDeferring) {
-                    autorunWasDeferring = autorun.DeferringFocus();
-                    if (autorunWasDeferring) {
-                        const double jd = raduk::sky::PreciseJdNow();
-                        const auto d = jupiterDisc(jd);
-                        const double end = raduk::sky::jupiter::PrimeEndJd(jd, grsModel(),
-                                               jupiterDesk.Events(jd - 0.5, jd + 0.5));
-                        Log("[AUTORUN] focus put off: %s, until about %s UTC (at most %.0f min)\n",
-                            raduk::sky::jupiter::DiscLine(d).c_str(),
-                            raduk::sky::jupiter::HhMm(end).c_str(),
-                            raduk::core::RigConfig::Get().autorunPrimeDeferMin);
-                        slog.Capture("Autorun: focus put off for %s", raduk::sky::jupiter::DiscLine(d).c_str());
-                    } else {
-                        Log("[AUTORUN] the spell is over or the wait ran out: focus as due\n");
-                    }
-                }
-
-                toolbar.SetRuns(autorun.Running(), autorun.Ordinal());
-                const bool ended = (autorunShown || runningBefore) && !autorun.Running();
-                autorunShown = autorun.Running();
-                if (ended) {
-                    const bool ok = autorun.State() == Autorun::Phase::Complete;
-                    Log("[AUTORUN] end: %d of %d runs, %d empty, %d focus failed, "
-                        "%d without the seeing, %d with a sweep put off: %s\n",
-                        autorun.Done(), autorun.Total(), autorun.Empty(),
-                        autorun.FocusFailures(), autorun.SeeingGaveUp(),
-                        autorun.FocusDeferred(), autorun.Reason().c_str());
-
-                    // Phase 114: which runs to stack first.
-                    if (!autorunResults.empty()) {
-                        const auto ranked = raduk::core::RankRuns(autorunResults);
-                        std::time_t tt = std::time(nullptr);
-                        std::tm lt{};
-                        localtime_s(&lt, &tt);
-                        char stamp[32];
-                        std::strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", &lt);
-                        const std::string listPath = controls.GetOutputDir() +
-                            "\\autorun_" + stamp + ".txt";
-                        FILE* lf = nullptr;
-                        if (fopen_s(&lf, listPath.c_str(), "w") == 0 && lf) {
-                            fputs(raduk::core::FormatRunRanking(
-                                      ranked, autorun.Reason()).c_str(), lf);
-                            fclose(lf);
-                            Log("[AUTORUN] runs ranked in %s, best is run %d\n",
-                                listPath.c_str(), ranked.front().ordinal);
-                        } else {
-                            Log("[AUTORUN] could not write %s\n", listPath.c_str());
-                        }
-                    }
-                    slog.Capture("Autorun ended: %d of %d runs: %s", autorun.Done(),
-                                 autorun.Total(), autorun.Reason().c_str());
-                    wchar_t msg[192];
-                    swprintf(msg, 192, L"Sequence: %d of %d runs - %hs",
-                             autorun.Done(), autorun.Total(),
-                             autorun.Reason().c_str());
-                    if (ok) notifBar.NotifyInfo(msg);
-                    else    notifBar.NotifyWarn(msg);
-                }
+                core.arCtl.Tick(nowSec, capturer.IsRecording(), core.afCtl.Busy(),
+                                capturer.FramesRecorded());   // phase 153.3
             }
 
             // GoTo panel — refresh planet positions and slew status.

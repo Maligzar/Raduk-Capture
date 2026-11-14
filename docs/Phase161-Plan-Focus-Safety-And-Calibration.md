@@ -76,6 +76,14 @@ Bench stages first: they need no sky, and the sky stages are not safe to run bef
 
 ### 161.1 Threads (bench, S)
 
+**Written 2026-11-14 (3.3.13).** As built:
+- **Completion on the frame loop's thread.** The routine's thread leaves its result with `AutofocusController::OnComplete`; `Deliver()`, called every pass of the loop, runs the hooks. `Busy()` stays true until they have run, and the routine hands its result over before its state says done, so Autorun cannot read a failed sweep as a finished one.
+- **Running from the first instant.** `Start()` sets the state before the thread exists.
+- **The ring only goes forward.** Each committed frame takes the ring's own sequence number (`FrameSlot::ringSeq`, which a capture restart does not reset, unlike `frameNumber`); `GetLatestFrame` frees a frame no newer than the last it returned and reports nothing new.
+- **A sample belongs to its frame.** `AnalysisResult::frameTimeUs` and the fast score carry the capture thread's stamp; a collection window takes only frames stamped after it opened, and counts what it leaves out (`StaleDropped`). The stamp is the exposure's midpoint, so up to half an exposure of a taken frame can predate the window: negligible against the settle at planetary exposures, and said here so nobody assumes otherwise. The three sample vectors are cleared under their mutex.
+- **Not done:** the write buffer's pre-touch stays on the thread that starts a recording (it changes when a recording can begin, which belongs with 153.2's controller, not here), and ThreadSanitizer, which this toolchain cannot run on Windows binaries.
+- Gate: `tests/ring_monotonic.cpp`, `tests/af_sample_window.cpp`, cases in `tests/af_controller.cpp`; `app_headless focus` runs through all of it on the real pipeline.
+
 - **Completion goes to the GUI thread.** The scan thread posts its result; the hooks run from the message loop. `AutofocusController` gains a `Deliver()` the loop calls. No Win32 call and no shared string is touched from the scan thread.
 - **Running from the first instant.** `Start()` sets the state before the thread exists, so `Busy()` has no gap and a second `Start()` cannot join a live sweep.
 - **The ring only goes forward.** `GetLatestFrame` returns nothing unless the frame is newer than the last one it returned. Gate: a ring test where the producer outruns the consumer and then pauses.

@@ -83,6 +83,7 @@ static bool Pump(AppCore& core, AnalysisResult& last) {
     }
     if (core.analyzer.HasResult()) { last = core.analyzer.GetResult(); fresh = true; }
     core.FeedAutofocusAnalysis(last, fresh);
+    core.afCtl.Deliver();   // phase 161.1: completion on the loop's thread
     return fresh;
 }
 
@@ -143,6 +144,7 @@ static void GroupFocus() {
         core.afCtl.Tick(false, last.valid && last.surfaceTracked, true);
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
+    core.afCtl.Deliver();   // 161.1: the last result, if the loop ended on it
     const int end = core.focuser.GetOpticalPosition();
     Check(done.load(), "the sweep finishes",
           std::to_string((int)std::chrono::duration_cast<std::chrono::seconds>(

@@ -14,7 +14,8 @@
 //    - AE between the stages (phase 161): released at the coarse focus,
 //      held again for the fine pass.
 //    - Aborting, and the quiet cancel the emergency paths use.
-//    - The completion messages, the panel's and the session log's.
+//    - The completion messages, the panel's and the session log's,
+//      delivered on the frame loop's thread (phase 161.1).
 //
 //  The panel and the session log are reached through hooks (as
 //  ProfileApplyHooks does), the log through IUiSink, and time through
@@ -24,7 +25,9 @@
 // ============================================================
 
 #include <cstdio>
+#include <atomic>
 #include <functional>
+#include <mutex>
 #include <string>
 
 #include "../core/IFocuser.h"
@@ -57,7 +60,10 @@ public:
     void SetUi(IUiSink& u)          { m_ui = &u; }
 
     // Autofocus is sweeping, or waiting for AE before it does.
-    bool Busy() const { return m_af.IsRunning() || m_waitingForAE; }
+    // Phase 161.1: or finished, with the result not yet delivered. Busy
+    // must not read false before the hooks (the button, the status line,
+    // Autorun's "failed") have run.
+    bool Busy() const { return m_af.IsRunning() || m_waitingForAE || m_resultPending.load(); }
     bool WaitingForAE() const { return m_waitingForAE; }
 
     // The AUTO FOCUS button. `ready`/`why` are the readiness check's.
@@ -170,9 +176,39 @@ public:
         if (recording || !m_ae.IsAuto() || m_ae.Settled()) m_af.ExposureSettled();
     }
 
-    // The routine's completion (on its own thread).
+    // The routine's completion. Called on the routine's own thread.
+    //
+    // Phase 161.1: it only leaves the result here. The hooks set window
+    // text and write strings the window's thread also writes, and they
+    // used to run on the scan thread: a data race, and a deadlock if the
+    // window's thread was waiting in join() when SetWindowText tried to
+    // reach it. Deliver(), called from the frame loop, runs them on the
+    // thread the window belongs to.
     template <class Result>
     void OnComplete(const Result& r) {
+        std::lock_guard<std::mutex> lk(m_resultMx);
+        m_result = [this, r] { Complete(r); };
+        m_resultPending.store(true);
+    }
+
+    // From the frame loop, every pass. Returns whether a result was
+    // delivered.
+    bool Deliver() {
+        std::function<void()> f;
+        {
+            std::lock_guard<std::mutex> lk(m_resultMx);
+            if (!m_result) return false;
+            f = std::move(m_result);
+            m_result = nullptr;
+        }
+        f();
+        m_resultPending.store(false);   // after the hooks: Busy() until they have run
+        return true;
+    }
+
+private:
+    template <class Result>
+    void Complete(const Result& r) {
         if (m_hooks.running) m_hooks.running(false);
         char b[320];
         if (r.success) {
@@ -194,7 +230,7 @@ public:
         }
     }
 
-private:
+
     void Status(const std::string& s)  { if (m_hooks.status) m_hooks.status(s); }
     void Session(const std::string& s) { if (m_hooks.session) m_hooks.session(s); }
     void Line(const std::string& s)    { m_ui->Line(s); }
@@ -209,6 +245,9 @@ private:
     bool                   m_waitingForAE = false;
     double                 m_waitStart = 0.0;
     double                 m_confirmUntil = -1e18;
+    std::mutex             m_resultMx;            // phase 161.1
+    std::function<void()>  m_result;
+    std::atomic<bool>      m_resultPending{false};
 };
 
 } // namespace raduk::app

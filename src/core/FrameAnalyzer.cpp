@@ -38,6 +38,7 @@ void FrameAnalyzer::Submit(const FrameSlot* slot) {
         m_pendingW        = slot->width;
         m_pendingH        = slot->height;
         m_pendingBitDepth = slot->bitDepth;
+        m_pendingTimeUs   = slot->timestamp;
     }
     m_hasWork.store(true, std::memory_order_release);
 }
@@ -63,19 +64,21 @@ void FrameAnalyzer::Run() {
 
         // Grab pending frame
         std::vector<uint8_t> buf;
-        uint32_t w, h; uint8_t bd;
+        uint32_t w, h; uint8_t bd; uint64_t frameTimeUs = 0;
         {
             std::lock_guard<std::mutex> lk(m_frameMutex);
             buf = m_frameBuffer;
             w   = m_pendingW;
             h   = m_pendingH;
             bd  = m_pendingBitDepth;
+            frameTimeUs = m_pendingTimeUs;
         }
 
         if (buf.empty() || w == 0 || h == 0) continue;
 
         AnalysisResult r;
         r.valid  = true;
+        r.frameTimeUs = frameTimeUs;
         r.width  = w;
         r.height = h;
         r.histogram.fill(0);

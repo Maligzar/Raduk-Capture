@@ -33,6 +33,10 @@ struct FrameSlot {
     size_t                  dataSize = 0;       // Actual bytes written this frame
     uint64_t                timestamp = 0;      // Microsecond timestamp (QPC)
     uint64_t                frameNumber = 0;    // Monotonic frame counter
+    // Phase 161.1: the ring's own count of committed frames. Unlike
+    // frameNumber it does not start again when capture restarts, so the
+    // reader can refuse to go back in time.
+    uint64_t                ringSeq = 0;
     uint32_t                width = 0;
     uint32_t                height = 0;
     uint8_t                 bitDepth = 0;       // 8 or 16

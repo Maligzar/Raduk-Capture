@@ -32,6 +32,7 @@ struct FrameView {
     uint32_t width = 0, height = 0;
     uint8_t  bitDepth = 8;
     bool     bayerRaw = false;
+    uint64_t timeUs = 0;        // phase 161.1: when the frame was taken
 };
 
 struct AnalysisView {
@@ -44,6 +45,7 @@ struct AnalysisView {
     bool  focusValid = false;
     float focusScore = 0.0f;
     float focusHfdPx = 0.0f;
+    uint64_t frameTimeUs = 0;   // phase 161.1: the frame it was measured on
 };
 
 class AutofocusFeed {
@@ -82,13 +84,13 @@ public:
         const float bg = filled ? 0.0f : a.centroidBgDN;
         const raduk::core::EdgeFocus ef = raduk::core::MeasureEdgeFocus(
             f.data, f.width, f.height, f.bitDepth, ecx, ecy, m_edgeHalf, bg, m_scratch);
-        if (ef.valid) af.SubmitFastScore(ef.score);
+        if (ef.valid) af.SubmitFastScore(ef.score, f.timeUs);
     }
 
     template <class Routine>
     static void Sharpness(Routine& af, const AnalysisView& a, bool fresh) {
         if (fresh && a.valid && af.IsRunning() && a.focusValid)
-            af.SubmitSharpness(a.focusScore, a.centroidValid, (int)a.centroidPeak);
+            af.SubmitSharpness(a.focusScore, a.centroidValid, (int)a.centroidPeak, a.frameTimeUs);
     }
 
     int EdgeHalf() const { return m_edgeHalf; }

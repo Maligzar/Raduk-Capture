@@ -168,18 +168,37 @@ int main() {
     }
     {
         Rig r;
-        r.c.OnComplete(Result{true, 168000, 82.5f, 12.25f, ""});
+        r.c.OnComplete(Result{true, 168000, 82.5f, 12.25f, ""}); r.c.Deliver();
         Check(r.LastStatus() == "AF done: pos=168000  sharp=82.5%  +12.2%" &&
               r.ui.Saw("[AF] Complete: pos=168000  sharp=82.5%  improvement=+12.2%") &&
               !r.running.empty() && !r.running.back() && r.failed == 0,
               "success: the panel, the log, the button", r.LastStatus());
-        r.c.OnComplete(Result{true, 168000, 82.5f, 12.25f, "not bracketed"});
+        r.c.OnComplete(Result{true, 168000, 82.5f, 12.25f, "not bracketed"}); r.c.Deliver();
         Check(r.LastStatus().find("+12.2% \xE2\x80\x94 not bracketed") != std::string::npos,
               "a caveat on success still reaches the panel");
-        r.c.OnComplete(Result{false, 0, 0, 0, "Focus got worse"});
+        r.c.OnComplete(Result{false, 0, 0, 0, "Focus got worse"}); r.c.Deliver();
         Check(r.LastStatus() == "Focus got worse" && r.sessions.back() == "AutoFocus failed: Focus got worse" &&
               r.ui.Saw("[AF] Failed: Focus got worse") && r.failed == 1,
               "failure: said everywhere, and Autorun told");
+    }
+
+    // Phase 161.1: the routine's thread only leaves the result; the hooks
+    // run when the frame loop calls Deliver(), on its own thread.
+    {
+        Rig r;
+        r.ae.settled = true;
+        r.c.Start();
+        r.c.Tick(false, false, true);
+        const size_t before = r.statuses.size();
+        r.af.running = false;                                   // the routine has finished
+        r.c.OnComplete(Result{false, 0, 0, 0, "Focus got worse"});  // on its thread
+        Check(r.statuses.size() == before && r.failed == 0,
+              "a completion runs no hook on the routine's thread");
+        Check(r.c.Busy(), "and autofocus still reads as busy: Autorun has not been told yet");
+        Check(r.c.Deliver() && r.failed == 1 && r.LastStatus() == "Focus got worse",
+              "Deliver() runs them: the panel, and Autorun told", r.LastStatus());
+        Check(!r.c.Busy(), "and only then is it idle");
+        Check(!r.c.Deliver(), "a second Deliver() has nothing to do");
     }
 
     // Phase 161: AE is part of autofocus from the first press to the

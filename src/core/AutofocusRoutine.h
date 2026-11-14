@@ -49,6 +49,7 @@
 #include "DeviceFactory.h"
 #include "FocusDirection.h"   // phase 139
 #include "CoreLog.h"
+#include "Timestamp.h"      // phase 161.1
 
 namespace raduk::core {
 
@@ -203,14 +204,18 @@ public:
         m_startPosition = currentPosition;
         m_samples.clear();
         m_pendingSharpness.store(-1.0f);
-        m_sharpnessSamples.clear();
-        m_centValidSamples.clear();
-        m_centPeakSamples.clear();
-        m_samplesNeeded.store(0);
+        DisarmSamples();
+        ClearSamples();
+        m_staleDropped.store(0);
         SetStatus("Autofocus starting...");
 
         // Reap the previous (finished) scan thread before starting a new one
         if (m_thread.joinable()) m_thread.join();
+        // Phase 161.1: running from this instant, not from whenever the
+        // thread gets to say so. In that gap IsRunning() was false with a
+        // sweep on its way: a second Start() would have joined a live
+        // thread and held the caller for the whole sweep.
+        m_state.store(AFState::Scanning);
         m_thread = std::thread(&AutofocusRoutine::ScanThread, this);
         return true;
     }
@@ -240,8 +245,14 @@ public:
     // centroidValid/centroidPeak are diagnostic only: the sharpness crop
     // follows the centroid, so a step where the centroid kept dropping out
     // measured something other than focus.
+    // Phase 161.1, frameTimeUs: when the frame behind this score was
+    // taken (0: not known, as in a test). The analyser runs about twice a
+    // second, so a result arriving just after a window opens was measured
+    // on a frame from up to half a second earlier, while the mirror was
+    // still settling. A score from a frame taken before the window opened
+    // is left out.
     void SubmitSharpness(float sharpness, bool centroidValid = true,
-                         int centroidPeak = -1) {
+                         int centroidPeak = -1, uint64_t frameTimeUs = 0) {
         // Gate on m_samplesNeeded, not on state == Scanning. The final
         // verification after the move runs in state Moving (set before it),
         // so a Scanning-only gate collected NOTHING there: finalSharp was
@@ -253,6 +264,10 @@ public:
         if (st != AFState::Scanning && st != AFState::Moving) return;
         int needed = m_samplesNeeded.load();
         if (needed <= 0) return;
+        if (frameTimeUs != 0 && frameTimeUs < m_notBeforeUs.load()) {
+            m_staleDropped.fetch_add(1);
+            return;
+        }
         // Accumulate in a small local buffer
         m_sharpnessMutex.lock();
         m_sharpnessSamples.push_back(sharpness);
@@ -266,12 +281,18 @@ public:
     // the newest frame on the edge metric (FocusMetric.h) up to 30 times a
     // second and submits each here. Only inside a collection window.
     bool WantsFastScores() const { return m_fastNeeded.load() > 0; }
-    void SubmitFastScore(float score) {
+    void SubmitFastScore(float score, uint64_t frameTimeUs = 0) {
         if (m_fastNeeded.load() <= 0) return;
+        if (frameTimeUs != 0 && frameTimeUs < m_fastNotBeforeUs.load()) {
+            m_staleDropped.fetch_add(1);
+            return;
+        }
         std::lock_guard<std::mutex> lk(m_fastMutex);
         m_fastScores.push_back(score);
     }
     bool FineOnly() const { return m_fineOnly; }
+    // Phase 161.1: scores left out because their frame predated the window.
+    int  StaleDropped() const { return m_staleDropped.load(); }
 
     // ── Phase 161: AE between the stages ──────────────────────
     // True while the routine is parked at the coarse result waiting for
@@ -339,10 +360,7 @@ private:
             // could reallocate underneath a clear() - a data race on
             // the vector's internal pointers. The two other collection
             // points below already order it this way.
-            m_sharpnessSamples.clear();
-            m_centValidSamples.clear();
-            m_centPeakSamples.clear();
-            m_samplesNeeded.store(3);
+            ArmSamples(3);
             WaitForSamples(3, 6000);   // 3 fresh analyses at ~2Hz = ~1.5s
             m_sharpnessMutex.lock();
             if (!m_sharpnessSamples.empty()) {
@@ -351,7 +369,7 @@ private:
                 startSharpness = sum / m_sharpnessSamples.size();
             }
             m_sharpnessMutex.unlock();
-            m_samplesNeeded.store(0);
+            DisarmSamples();
         }
 
         // ── Sweep ─────────────────────────────────────────────
@@ -428,10 +446,7 @@ private:
 
             // Collect sharpness samples
             int fp = (std::max)(2, (m_params.framesPerStep + 1) / 2);   // per visit
-            m_sharpnessSamples.clear();
-            m_centValidSamples.clear();
-            m_centPeakSamples.clear();
-            m_samplesNeeded.store(fp);
+            ArmSamples(fp);
 
             // Timeout budget: samples now arrive only on a FRESH analyzer
             // result (~2Hz), not on every render tick, so framesPerStep=8
@@ -443,7 +458,7 @@ private:
                        "%d frames, V-curve point is noisier than intended\n",
                        pos, fp);
             }
-            m_samplesNeeded.store(0);
+            DisarmSamples();
 
             // Compute mean sharpness at this position
             float meanSharp = 0.0f;
@@ -652,12 +667,9 @@ private:
 
         // Verify final sharpness. 8000ms, not 4000: samples now arrive only
         // on a fresh analyzer result (~2Hz), so 5 of them take ~2.5s.
-        m_sharpnessSamples.clear();
-        m_centValidSamples.clear();
-        m_centPeakSamples.clear();
-        m_samplesNeeded.store(5);
+        ArmSamples(5);
         WaitForSamples(5, 8000);
-        m_samplesNeeded.store(0);
+        DisarmSamples();
 
         float finalSharp = 0.0f;
         {
@@ -698,12 +710,9 @@ private:
                 return;
             }
             Sleep(m_params.settleMs);
-            m_sharpnessSamples.clear();
-            m_centValidSamples.clear();
-            m_centPeakSamples.clear();
-            m_samplesNeeded.store(5);
+            ArmSamples(5);
             WaitForSamples(5, 8000);
-            m_samplesNeeded.store(0);
+            DisarmSamples();
             float startNow = 0.0f;
             {
                 m_sharpnessMutex.lock();
@@ -1161,6 +1170,7 @@ private:
     float ScoreHere(int* n) {
         Sleep(m_params.settleMs);
         { std::lock_guard<std::mutex> lk(m_fastMutex); m_fastScores.clear(); }
+        m_fastNotBeforeUs.store(Timestamp::Now());   // 161.1: frames from now on
         m_fastNeeded.store(m_params.fineFrames);
         WaitForFast(m_params.fineFrames, (std::max)(6000, m_params.fineFrames * 250));
         m_fastNeeded.store(0);
@@ -1282,6 +1292,24 @@ private:
         }
     }
 
+    // ── Phase 161.1: a collection window ──────────────────────
+    // The three vectors are shared with the thread that submits, so they
+    // are cleared under their mutex (they were cleared bare, on the
+    // strength of the gate being shut). A window takes scores only from
+    // frames taken after it opened.
+    void ClearSamples() {
+        std::lock_guard<std::mutex> lk(m_sharpnessMutex);
+        m_sharpnessSamples.clear();
+        m_centValidSamples.clear();
+        m_centPeakSamples.clear();
+    }
+    void ArmSamples(int n) {
+        ClearSamples();
+        m_notBeforeUs.store(Timestamp::Now());
+        m_samplesNeeded.store(n);
+    }
+    void DisarmSamples() { m_samplesNeeded.store(0); }
+
     bool WaitForSamples(int count, int timeoutMs) {
         auto start = std::chrono::steady_clock::now();
         while (true) {
@@ -1339,9 +1367,12 @@ private:
         }
 
         m_aeWindow.store(false);
-        m_state.store(success ? AFState::Complete : AFState::Failed);
-
+        // Phase 161.1: the result is handed over BEFORE the state says the
+        // routine is done. The other way round left a moment when it was
+        // neither running nor reported, in which a caller polling for the
+        // end (Autorun) could read a failed sweep as a finished one.
         if (m_onComplete) m_onComplete(result);
+        m_state.store(success ? AFState::Complete : AFState::Failed);
     }
 
     // ── Members ───────────────────────────────────────────────
@@ -1361,6 +1392,10 @@ private:
     std::atomic<float>     m_bestSharpness{0.0f};
     std::atomic<float>     m_pendingSharpness{-1.0f};
     std::atomic<int>       m_samplesNeeded{0};
+    // Phase 161.1: a window takes frames from this time on (Timestamp::Now).
+    std::atomic<uint64_t>  m_notBeforeUs{0};
+    std::atomic<uint64_t>  m_fastNotBeforeUs{0};
+    std::atomic<int>       m_staleDropped{0};
 
     int              m_startPosition = 0;
     std::vector<AFSample>  m_samples;

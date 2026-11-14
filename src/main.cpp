@@ -7047,6 +7047,8 @@ static int RunApp(bool useEmulator) {
         // frame on the edge metric, up to 30 times a second, over a region
         // whose size is fixed for the run. Phase 153.0: in AppCore.
         core.FeedAutofocusFrame(frame, lastAnalysis);
+        // Phase 161.1: a finished sweep's messages, on this thread.
+        core.afCtl.Deliver();
 
         // B3: dashboard preview. The timer is checked first so the
         // subscriber count (a lock) is asked twice a second, not per pass.

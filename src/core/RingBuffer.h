@@ -64,6 +64,8 @@ public:
         m_writePos.store(0, std::memory_order_relaxed);
         m_totalFrames.store(0, std::memory_order_relaxed);
         m_overruns.store(0, std::memory_order_relaxed);
+        m_seq = 0;
+        m_lastRead = 0;
         m_allocated = true;
 
         double totalMB = (numSlots * frameSizeBytes) / (1024.0 * 1024.0);
@@ -133,6 +135,7 @@ public:
 
     // Mark the slot as READY (frame data is complete) and advance write position.
     void CommitWrite(FrameSlot* slot) {
+        slot->ringSeq = ++m_seq;   // before READY: the reader sees it with the frame
         slot->state.store(FrameState::READY, std::memory_order_release);
         // Advance so (m_writePos − 1) % numSlots is the slot just written —
         // keeps GetLatestFrame's newest-first scan anchored even when
@@ -155,6 +158,14 @@ public:
     // overwrite it while the caller is using it.
     // Returns nullptr if no frames are ready.
     // Caller MUST call ReleaseRead() when done with the frame.
+    //
+    // Phase 161.1: never a frame older than the last one returned. The
+    // reader takes only the newest each pass, so when the camera outruns
+    // it the frames in between stay READY in the ring. The scan below
+    // used to hand one of those back whenever a pass found nothing new:
+    // the preview stepped back in time, and autofocus could score a frame
+    // from before the focuser had settled. A stale frame is now freed and
+    // the caller is told there is nothing new, which is the truth.
     FrameSlot* GetLatestFrame() {
         uint64_t wp = m_writePos.load(std::memory_order_acquire);
         for (int i = 0; i < m_numSlots; i++) {
@@ -166,6 +177,11 @@ public:
             // Transition READY → READING (not FREE — caller holds it)
             if (slot->state.compare_exchange_strong(expected, FrameState::READING,
                     std::memory_order_acquire, std::memory_order_relaxed)) {
+                if (slot->ringSeq <= m_lastRead) {
+                    slot->state.store(FrameState::FREE, std::memory_order_release);
+                    return nullptr;
+                }
+                m_lastRead = slot->ringSeq;
                 return slot;
             }
         }
@@ -195,6 +211,9 @@ private:
     // Producer-thread-only: slots skipped by the last AcquireWriteSlot,
     // consumed by CommitWrite to keep m_writePos anchored (SPSC — no atomics)
     int                     m_acquiredOffset = 0;
+    // Phase 161.1. m_seq: producer only. m_lastRead: reader only.
+    uint64_t                m_seq = 0;
+    uint64_t                m_lastRead = 0;
 };
 
 } // namespace raduk::core

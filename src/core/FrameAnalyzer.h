@@ -35,6 +35,10 @@ namespace raduk::core {
 
 struct AnalysisResult {
     bool valid = false;
+    // Phase 161.1: when the frame this was measured on was taken (the
+    // capture thread's stamp, microseconds). Autofocus takes a sample
+    // only from a frame taken after the focuser had settled.
+    uint64_t frameTimeUs = 0;
 
     // ── Luminance histogram (brightness-weighted from Bayer) ──
     std::array<uint32_t, 256> histogram{};
@@ -366,6 +370,7 @@ private:
     uint32_t             m_pendingW        = 0;
     uint32_t             m_pendingH        = 0;
     uint8_t              m_pendingBitDepth = 8;
+    uint64_t             m_pendingTimeUs   = 0;   // phase 161.1
 
     // Result (written by analyzer thread, read by main thread)
     std::mutex           m_resultMutex;

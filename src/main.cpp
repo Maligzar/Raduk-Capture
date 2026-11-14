@@ -772,8 +772,17 @@ static void ApplyProfile(const TargetProfile& p,
         cam->SetUSBBandwidth(p.usbBandwidth); cam->SetHighSpeedMode(p.highSpeed);
     }
     if (focuser && focuser->IsOpen()) {
-        focuser->MoveTo(p.focusPosition);
-        slog.Focuser("GoTo %d", p.focusPosition);
+        // Phase 161.0a: a profile's saved position is a number from
+        // another night. It is applied only when the focuser accepts it
+        // (position read, in range, within FocuserMaxTravelSteps).
+        if (focuser->MoveTo(p.focusPosition)) {
+            slog.Focuser("GoTo %d", p.focusPosition);
+        } else {
+            Log("[PROFILE] Focus position %d not applied: %s\n", p.focusPosition,
+                focuser->LastRefusal().c_str());
+            slog.Focuser("Profile's focus position %d not applied: %s", p.focusPosition,
+                         focuser->LastRefusal().c_str());
+        }
     }
     if (mount && mount->IsConnected() && hooks.mountBusy && hooks.mountBusy()) {
         Log("[PROFILE] Tracking mode and rate left alone: guiding holds the mount\n");
@@ -1036,17 +1045,28 @@ static int RunApp(bool useEmulator) {
         const char* src = "";
         const int b = raduk::core::ResolveBacklash(rig.focuserBacklashSteps, fw, &src);
         if (fw > 0) focuser.SetBacklash(0);
-        focuser.SetApproachBacklash(rig.focuserOneSidedMoves ? b : 0);
+        // Phase 161.2: one-sided moves go past by the overshoot, which has
+        // only to exceed the slack; the backlash figure keeps its one job,
+        // the coarse result's half-backlash shift.
+        const char* ovSrc = "";
+        const int ov = raduk::core::ResolveOvershoot(rig.focuserOvershootSteps, b, &ovSrc);
+        focuser.SetApproachBacklash(rig.focuserOneSidedMoves ? ov : 0);
         const int finalDir = rig.focuserFinalDirection == "in" ? -1 : 1;
         focuser.SetApproachDirection(finalDir);
+        focuser.SetMaxTravel(rig.focuserMaxTravelSteps);   // phase 161.0a
+        Log("[FOCUS] one command may travel %d steps (FocuserMaxTravelSteps%s)\n",
+            rig.focuserMaxTravelSteps, rig.focuserMaxTravelSteps > 0 ? "" : ": guard off");
         raduk::core::AutofocusParams ap;
         ap.backlash = b;
+        ap.overshoot = ov;
         ap.finalDir = finalDir;
         ap.fineStage = rig.autofocusFineStage;
+        ap.exposureWindowMs = raduk::core::AF_EXPOSURE_WINDOW_MS;   // phase 161
         autofocus.SetParams(ap);
         Log("[FOCUS] every move ends %s (FocuserFinalDirection); fine pass %s (AutofocusFineStage)\n",
             finalDir > 0 ? "outward, rising numbers" : "inward, falling numbers",
             rig.autofocusFineStage ? "ON" : "OFF");
+        Log("[FOCUS] overshoot %d steps, from %s\n", ov, ovSrc);
         Log("[FOCUS] backlash %d steps, from %s; EAF firmware had %d%s; one-sided moves %s\n",
             b, src, fw, fw > 0 ? " (set to 0 while connected)" : "",
             rig.focuserOneSidedMoves ? "ON" : "OFF");
@@ -2887,7 +2907,13 @@ static int RunApp(bool useEmulator) {
         // Focus is the setting most worth preserving: ApplyProfile drives
         // the focuser to p->focusPosition on every LOAD, so a stale value
         // actively defocuses the rig.
-        if (focuser.IsOpen()) p->focusPosition = focuser.GetPosition();
+        // Phase 161.0a: only a position that was read. A failed read used
+        // to save 0, and the next LOAD drove the focuser there.
+        if (focuser.IsOpen()) {
+            int fp = 0;
+            if (focuser.TryGetPosition(fp)) p->focusPosition = fp;
+            else Log("[PROFILE] Focus position not saved: the focuser's position could not be read\n");
+        }
 
         // Phase 85: the capture fields too. LOAD now pushes these into
         // the panel, so SAVE has to read them back or the round trip is
@@ -6387,7 +6413,11 @@ static int RunApp(bool useEmulator) {
         int mag = coarse ? (p ? p->stepCoarse : 100)
                          : (p ? p->stepFine   : 10);
         if (mag < 1) mag = coarse ? 100 : 10;   // a 0 in a hand-edited ini
-        focuser.MoveRelative(signedSteps < 0 ? -mag : mag);
+        if (!focuser.MoveRelative(signedSteps < 0 ? -mag : mag)) {   // 161.0a
+            Log("[FOCUS] step refused: %s\n", focuser.LastRefusal().c_str());
+            notifBar.NotifyWarn((L"Focuser did not move: " +
+                raduk::core::ToWide(focuser.LastRefusal())).c_str());
+        }
     };
     window.SetFocusFineHandler  ([&](int steps) { profileStep(steps, false); });
     window.SetFocusCoarseHandler([&](int steps) { profileStep(steps, true);  });
@@ -6564,7 +6594,8 @@ static int RunApp(bool useEmulator) {
                 try { if (!rc.arg.empty()) steps = std::stoi(rc.arg); } catch (...) {}
                 if (steps != 0 && focuser.IsOpen()) {
                     Log("[WS] Remote move_eaf_rel: %d\n", steps);
-                    focuser.MoveRelative(steps);
+                    if (!focuser.MoveRelative(steps))   // 161.0a
+                        Log("[WS] move_eaf_rel refused: %s\n", focuser.LastRefusal().c_str());
                 }
             } else if (rc.cmd == "autofocus_abort") {
                 if (core.afCtl.Busy()) {
@@ -6657,8 +6688,14 @@ static int RunApp(bool useEmulator) {
                 pos = std::max(0, std::min(pos, 600000));
                 if (focuser.IsOpen()) {
                     Log("[WS] Remote move_eaf: %d\n", pos);
-                    slog.Focuser("APEX: move_eaf %d", pos);
-                    focuser.MoveTo(pos);
+                    // Phase 161.0a: guarded like any other move. A remote
+                    // command cannot be asked twice, so it never overrides.
+                    if (focuser.MoveTo(pos)) {
+                        slog.Focuser("APEX: move_eaf %d", pos);
+                    } else {
+                        Log("[WS] move_eaf refused: %s\n", focuser.LastRefusal().c_str());
+                        slog.Focuser("APEX: move_eaf %d refused: %s", pos, focuser.LastRefusal().c_str());
+                    }
                 }
             } else if (rc.cmd == "goto_target") {
                 Log("[WS] Remote goto_target: %s\n", rc.arg.c_str());
@@ -7059,6 +7096,8 @@ static int RunApp(bool useEmulator) {
         // frame on the edge metric, up to 30 times a second, over a region
         // whose size is fixed for the run. Phase 153.0: in AppCore.
         core.FeedAutofocusFrame(frame, lastAnalysis);
+        // Phase 161.1: a finished sweep's messages, on this thread.
+        core.afCtl.Deliver();
 
         // B3: dashboard preview. The timer is checked first so the
         // subscriber count (a lock) is asked twice a second, not per pass.
@@ -7758,6 +7797,9 @@ static int RunApp(bool useEmulator) {
             {
                 raduk::core::AfReadyIn ri;
                 ri.focuserOpen   = focuser.IsOpen();
+                // Phase 161.0b: the second leg of a one-sided move is
+                // commanded here, every 500 ms, whoever else is asking.
+                if (focuser.IsOpen()) focuser.Service();
                 ri.focuserMoving = focuser.IsOpen() && focuser.IsMoving();
                 ri.afRunning     = core.afCtl.Busy();
                 ri.recording     = capturer.IsRecording();
@@ -7790,7 +7832,9 @@ static int RunApp(bool useEmulator) {
                 // clipping. With no target clear of the sky it holds: the
                 // whole-frame figure it used to fall back to is the sky's,
                 // which is what pushed exposure up on small planets.
-                ae.SetHold(autofocus.IsRunning()  ? "autofocus"
+                // Phase 161: not held while autofocus has parked at the
+                // coarse focus and asked for AE (AutofocusController).
+                ae.SetHold(core.afCtl.ExposureHold() ? "autofocus"
                          : capturer.IsRecording() ? "recording"
                          : !lastAnalysis.targetFound ? "no target in the frame" : nullptr);
                 ae.Feed(lastAnalysis.targetHighlightDN,
@@ -7824,6 +7868,9 @@ static int RunApp(bool useEmulator) {
             // Phase 112: the sweep starts when AE is done, or when it
             // is plainly not going to be. A rig that cannot reach its
             // target still needs focusing, on the settings it has.
+            // Phase 161: AE between autofocus's stages. Outside the AE
+            // block above, so a tick where AE could not run still answers.
+            core.afCtl.ExposureTicked(capturer.IsRecording());
             if (core.afCtl.WaitingForAE())   // phase 153.1: the controller's
                 core.afCtl.Tick(capturer.IsRecording(),
                                 lastAnalysis.valid && lastAnalysis.surfaceTracked,

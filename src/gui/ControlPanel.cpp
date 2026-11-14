@@ -991,21 +991,34 @@ bool ControlPanel::HandleCommand(WPARAM wParam, LPARAM lParam) {
         case ID_BTN_FOCUS_STOP:
             if (m_focuser && m_focuser->IsOpen()) m_focuser->Stop();
             return true;
-        case ID_BTN_FOCUS_IN5000:  if (m_focuser) m_focuser->MoveRelative(-5000); return true;
-        case ID_BTN_FOCUS_IN1000:  if (m_focuser) m_focuser->MoveRelative(-1000); return true;
-        case ID_BTN_FOCUS_OUT1000: if (m_focuser) m_focuser->MoveRelative(1000);  return true;
-        case ID_BTN_FOCUS_OUT5000: if (m_focuser) m_focuser->MoveRelative(5000);  return true;
-        case ID_BTN_FOCUS_IN100:   if (m_focuser) m_focuser->MoveRelative(-100);  return true;
-        case ID_BTN_FOCUS_IN10:    if (m_focuser) m_focuser->MoveRelative(-10);   return true;
-        case ID_BTN_FOCUS_OUT10:   if (m_focuser) m_focuser->MoveRelative(10);    return true;
-        case ID_BTN_FOCUS_OUT100:  if (m_focuser) m_focuser->MoveRelative(100);   return true;
+        case ID_BTN_FOCUS_IN5000:  FocusStep(-5000); return true;
+        case ID_BTN_FOCUS_IN1000:  FocusStep(-1000); return true;
+        case ID_BTN_FOCUS_OUT1000: FocusStep(1000);  return true;
+        case ID_BTN_FOCUS_OUT5000: FocusStep(5000);  return true;
+        case ID_BTN_FOCUS_IN100:   FocusStep(-100);  return true;
+        case ID_BTN_FOCUS_IN10:    FocusStep(-10);   return true;
+        case ID_BTN_FOCUS_OUT10:   FocusStep(10);    return true;
+        case ID_BTN_FOCUS_OUT100:  FocusStep(100);   return true;
         case ID_BTN_FOCUS_GOTO: {
             if (m_focuser && m_editFocusGoto) {
                 wchar_t buf[32] = {};
                 GetWindowTextW(m_editFocusGoto, buf, 32);
                 int pos = _wtoi(buf);
                 pos = (pos < 0) ? 0 : (pos > 600000) ? 600000 : pos;
-                m_focuser->MoveTo(pos);
+                // Phase 161.0a: past the travel guard, GO TO asks for a
+                // second press and then makes the move.
+                if (m_focuser->MoveTo(pos)) {
+                    FocusMoveSaid(true);
+                } else if (m_focuser->LastRefusalKind() == raduk::core::MoveRefusal::TooFar) {
+                    if (m_farFocusMove.Confirmed(pos, (double)GetTickCount64() / 1000.0)) {
+                        FocusMoveSaid(m_focuser->MoveToFar(pos));
+                    } else {
+                        SetAutofocusStatus((L"Focuser: " + raduk::core::ToWide(m_focuser->LastRefusal()) +
+                                            L". Press GO TO again within 5 s to move anyway").c_str());
+                    }
+                } else {
+                    FocusMoveSaid(false);
+                }
             }
             return true;
         }

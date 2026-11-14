@@ -36,6 +36,9 @@
 //   them knows it has an emulator.
 // ============================================================
 
+#include <string>
+#include "FocuserGuard.h"
+
 namespace raduk::core {
 
 class IFocuser {
@@ -62,6 +65,34 @@ public:
     // stays true until the second leg is done. MoveToDirect is one leg,
     // for autofocus's sweep, which measures both directions on purpose.
     virtual bool MoveToDirect(int position) = 0;
+    // Phase 161.0a: no move starts from a position that could not be
+    // read, goes outside the focuser's range, or travels further than
+    // the guard (rig.ini FocuserMaxTravelSteps; 0: off) in one command.
+    // A refused move returns false and LastRefusal() says why.
+    // MoveToFar is MoveTo with the travel guard overridden, for a caller
+    // that has asked the operator twice. MoveRelative adds to the
+    // commanded target while a move is in flight.
+    virtual bool MoveToFar(int position) = 0;
+    // Phase 161.0b: stop wins. Stop() advances the stop generation, under
+    // the lock every move takes. A caller making a sequence of moves
+    // (autofocus) takes StopGeneration() when it starts and passes it
+    // with each move; once any Stop() has returned, a move carrying the
+    // older generation is refused (MoveRefusal::Stopped) and the motor
+    // does not turn. oneSided: as MoveTo, else one leg as MoveToDirect.
+    // The travel guard is the caller's here: autofocus holds every
+    // target within the guard of where its sweep STARTED, which is the
+    // bound that matters, so a hop across that span is not refused.
+    virtual unsigned StopGeneration() const = 0;
+    virtual bool MoveInSequence(unsigned generation, int position, bool oneSided) = 0;
+    // Commands the second leg of a one-sided move once the first is
+    // done, and notices a move that stopped short. IsMoving() does the
+    // same on the way to its answer; the app also calls this from its
+    // 500 ms tick, so a move's second half never waits on a question.
+    virtual void Service() = 0;
+    virtual void SetMaxTravel(int steps) = 0;
+    virtual int  MaxTravel() const = 0;
+    virtual MoveRefusal LastRefusalKind() const = 0;
+    virtual std::string LastRefusal() const = 0;
     virtual void SetApproachBacklash(int steps) = 0;   // 0: off
     virtual int  ApproachBacklash() const = 0;
     // Phase 145.4: which way that final travel goes, +1 outward (rising
@@ -69,6 +100,11 @@ public:
     virtual void SetApproachDirection(int dir) = 0;
 
     // ── Readout ────────────────────────────────────────────────
+    // Phase 161.0a: TryGetPosition is false when the read failed.
+    // GetPosition never invents a number: after a failed read it returns
+    // the last good one. Anything that MOVES from a position, or saves
+    // one, uses TryGetPosition.
+    virtual bool  TryGetPosition(int& position) const = 0;
     virtual int   GetPosition() const = 0;
     virtual int   GetMaxPosition() const = 0;
     virtual float GetTemperature() const = 0;

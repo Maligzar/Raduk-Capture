@@ -33,8 +33,9 @@ struct FakeRoutine {
     bool IsRunning() const { return running; }
     bool WantsFastScores() const { return wantsFast; }
     bool FineOnly() const { return fineOnly; }
-    void SubmitFastScore(float) { ++fast; }
-    void SubmitSharpness(float s, bool v, int p) { ++sharp; lastSharp = s; lastValid = v; lastPeak = p; }
+    void SubmitFastScore(float, uint64_t t = 0) { ++fast; lastFastTime = t; }
+    uint64_t lastFastTime = 0, lastSharpTime = 0;
+    void SubmitSharpness(float s, bool v, int p, uint64_t t = 0) { ++sharp; lastSharp = s; lastValid = v; lastPeak = p; lastSharpTime = t; }
 };
 
 // A bright disc with soft edges on a dark sky, 8-bit, so the edge metric

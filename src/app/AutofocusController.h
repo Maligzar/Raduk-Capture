@@ -11,8 +11,11 @@
 //      AF_AE_SETTLE_LIMIT_S has passed.
 //    - The Moon path (phase 145.3): a target that fills the frame gets
 //      the edge metric's fine pass alone.
+//    - AE between the stages (phase 161): released at the coarse focus,
+//      held again for the fine pass.
 //    - Aborting, and the quiet cancel the emergency paths use.
-//    - The completion messages, the panel's and the session log's.
+//    - The completion messages, the panel's and the session log's,
+//      delivered on the frame loop's thread (phase 161.1).
 //
 //  The panel and the session log are reached through hooks (as
 //  ProfileApplyHooks does), the log through IUiSink, and time through
@@ -22,7 +25,9 @@
 // ============================================================
 
 #include <cstdio>
+#include <atomic>
 #include <functional>
+#include <mutex>
 #include <string>
 
 #include "../core/IFocuser.h"
@@ -55,7 +60,10 @@ public:
     void SetUi(IUiSink& u)          { m_ui = &u; }
 
     // Autofocus is sweeping, or waiting for AE before it does.
-    bool Busy() const { return m_af.IsRunning() || m_waitingForAE; }
+    // Phase 161.1: or finished, with the result not yet delivered. Busy
+    // must not read false before the hooks (the button, the status line,
+    // Autorun's "failed") have run.
+    bool Busy() const { return m_af.IsRunning() || m_waitingForAE || m_resultPending.load(); }
     bool WaitingForAE() const { return m_waitingForAE; }
 
     // The AUTO FOCUS button. `ready`/`why` are the readiness check's.
@@ -116,7 +124,17 @@ public:
         const bool settled = m_ae.Settled();
         if (!(settled || recording || waited >= m_settleLimit)) return false;
         m_waitingForAE = false;
-        const int pos = m_focuser.GetPosition();
+        // Phase 161.0a: the sweep is centred on this, so it must be a
+        // position that was read, not the last one remembered or 0.
+        int pos = 0;
+        if (!m_focuser.TryGetPosition(pos)) {
+            if (m_hooks.running) m_hooks.running(false);
+            Status("The focuser's position could not be read: autofocus not started");
+            Session("AutoFocus not started: the focuser's position could not be read");
+            Line("[AF] Not started: the focuser's position could not be read\n");
+            if (m_hooks.failed) m_hooks.failed();
+            return false;
+        }
         char b[160];
         std::snprintf(b, sizeof(b), "[AF] AE %s after %.1fs; V-curve scan from pos=%d\n",
                       settled ? "settled" : "not settled, going anyway", waited, pos);
@@ -128,13 +146,69 @@ public:
         // HFD sweep: the edge metric's fine pass runs alone.
         const bool fineOnly = targetFillsFrame && fineStageEnabled;
         if (fineOnly) Line("[AF] the target fills the frame: fine pass on the edge metric only\n");
-        m_af.Start(pos, fineOnly);
+        if (!m_af.Start(pos, fineOnly)) {
+            if (m_hooks.running) m_hooks.running(false);
+            Status("Autofocus could not start");
+            Line("[AF] Not started: the routine refused (already running, or no focuser)\n");
+            if (m_hooks.failed) m_hooks.failed();
+            return false;
+        }
         return true;
     }
 
-    // The routine's completion (on its own thread).
+    // ── Phase 161: AE is part of autofocus, start to finish ────
+    // Before the sweep it settles (Start and Tick above). During a stage
+    // it is held, because a change inside a stage bends that stage's
+    // curve. Between the coarse sweep and the fine pass the routine
+    // parks at the coarse focus and asks for AE again, since exposure
+    // settled on a defocused disc can clip a focused one.
+    //
+    // What AE is held for right now, or nullptr when it may act.
+    const char* ExposureHold() const {
+        return (m_af.IsRunning() && !m_af.WantsExposure()) ? "autofocus" : nullptr;
+    }
+    // After AE's tick, each time round. Tells the routine AE is done when
+    // it has looked and has nothing to change, or cannot act at all (not
+    // in AUTO, or a recording holds it), so the routine never waits on an
+    // answer that is not coming.
+    void ExposureTicked(bool recording) {
+        if (!m_af.WantsExposure()) return;
+        if (recording || !m_ae.IsAuto() || m_ae.Settled()) m_af.ExposureSettled();
+    }
+
+    // The routine's completion. Called on the routine's own thread.
+    //
+    // Phase 161.1: it only leaves the result here. The hooks set window
+    // text and write strings the window's thread also writes, and they
+    // used to run on the scan thread: a data race, and a deadlock if the
+    // window's thread was waiting in join() when SetWindowText tried to
+    // reach it. Deliver(), called from the frame loop, runs them on the
+    // thread the window belongs to.
     template <class Result>
     void OnComplete(const Result& r) {
+        std::lock_guard<std::mutex> lk(m_resultMx);
+        m_result = [this, r] { Complete(r); };
+        m_resultPending.store(true);
+    }
+
+    // From the frame loop, every pass. Returns whether a result was
+    // delivered.
+    bool Deliver() {
+        std::function<void()> f;
+        {
+            std::lock_guard<std::mutex> lk(m_resultMx);
+            if (!m_result) return false;
+            f = std::move(m_result);
+            m_result = nullptr;
+        }
+        f();
+        m_resultPending.store(false);   // after the hooks: Busy() until they have run
+        return true;
+    }
+
+private:
+    template <class Result>
+    void Complete(const Result& r) {
         if (m_hooks.running) m_hooks.running(false);
         char b[320];
         if (r.success) {
@@ -156,7 +230,7 @@ public:
         }
     }
 
-private:
+
     void Status(const std::string& s)  { if (m_hooks.status) m_hooks.status(s); }
     void Session(const std::string& s) { if (m_hooks.session) m_hooks.session(s); }
     void Line(const std::string& s)    { m_ui->Line(s); }
@@ -171,6 +245,9 @@ private:
     bool                   m_waitingForAE = false;
     double                 m_waitStart = 0.0;
     double                 m_confirmUntil = -1e18;
+    std::mutex             m_resultMx;            // phase 161.1
+    std::function<void()>  m_result;
+    std::atomic<bool>      m_resultPending{false};
 };
 
 } // namespace raduk::app

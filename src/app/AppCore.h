@@ -99,6 +99,7 @@ public:
         v.data = f->data; v.width = f->width; v.height = f->height;
         v.bitDepth = f->bitDepth;
         v.bayerRaw = raduk::core::IsBayerRaw(f->imgType);
+        v.timeUs = f->timestamp;
         return v;
     }
     static AnalysisView View(const raduk::core::AnalysisResult& r) {
@@ -107,6 +108,7 @@ public:
         v.centroidX = r.centroidX; v.centroidY = r.centroidY;
         v.centroidBgDN = r.centroidBgDN; v.centroidPeak = r.centroidPeak;
         v.surfaceTracked = r.surfaceTracked;
+        v.frameTimeUs = r.frameTimeUs;
         v.focusValid = r.focusValid; v.focusScore = r.focusScore; v.focusHfdPx = r.focusHfdPx;
         return v;
     }

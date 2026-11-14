@@ -49,6 +49,7 @@
 #include "DeviceFactory.h"
 #include "FocusDirection.h"   // phase 139
 #include "CoreLog.h"
+#include "Timestamp.h"      // phase 161.1
 
 namespace raduk::core {
 
@@ -61,14 +62,37 @@ namespace raduk::core {
 
 inline constexpr int MAX_EXTRA_SWEEPS = 2;
 
+// Phase 161 (the owner, 2026-11-14: auto-exposure is part of autofocus,
+// not only what runs before it). AE settles before the sweep on whatever
+// focus the rig was left at. A defocused disc is spread out and dim, so
+// that exposure can clip once the coarse sweep has gathered the light
+// back up, and a clipped limb is exactly what the fine pass reads. So
+// between the stages the routine goes to the coarse result, lets AE look
+// again there, and holds it again for the fine pass. Both scores divide
+// exposure out, so a change BETWEEN the stages costs nothing; a change
+// inside one would bend its curve, and stays held. This is the longest
+// the routine waits for AE to say it is done.
+// UNVERIFIED(item 58): AE settles at the coarse focus inside this, on a planet at the gain the night needs
+inline constexpr int AF_EXPOSURE_WINDOW_MS = 10000;
+
 struct AutofocusParams {
     int   scanRange     = 6000;  // total steps to sweep (±3000 from start)
     int   nSteps        = 11;    // number of sample positions (odd preferred)
     int   framesPerStep = 8;     // frames to average sharpness at each position
     int   settleMs      = 600;   // ms to wait after EAF stops moving
-    int   backlash      = 200;   // steps of backlash compensation on final move
+    int   backlash      = 200;   // the knob's slack as MEASURED, in steps
                                  // (phase 139: from rig.ini or the EAF, see
-                                 // ResolveBacklash in FocusDirection.h)
+                                 // ResolveBacklash in FocusDirection.h).
+                                 // Since 161.2 used only for the coarse
+                                 // result's half-backlash shift and the fine
+                                 // span's floor.
+    // Phase 161.2: how far a move goes PAST before it comes back the
+    // final way. It has only to exceed the slack, whatever that is, and
+    // costs only time; the backlash figure has to be right. One number
+    // did both jobs, so an under-measured backlash also meant an
+    // overshoot too short to take the slack up. 0: use `backlash`, as
+    // before (see ResolveOvershoot in FocusDirection.h).
+    int   overshoot     = 0;
     float minSharpness  = 2.0f;  // abort if peak never exceeds this (no star/planet)
     int   maxStepBound  = 600000;// clamp to EAF physical range
     int   minStepBound  = 0;
@@ -84,6 +108,12 @@ struct AutofocusParams {
     int   fineFrames     = 20;
     float finePercentile = 0.75f;
     int   fineOnlySpan   = 2400;   // a frame-filling target: no coarse curve
+
+    // Phase 161: how long AE may take at the coarse result before the
+    // fine pass (see AF_EXPOSURE_WINDOW_MS). 0: no window, AE held from
+    // the first move to the last, as before. The app sets it; a test
+    // that does not answer for AE leaves it 0.
+    int   exposureWindowMs = 0;
 };
 
 // ── State machine ─────────────────────────────────────────────
@@ -140,7 +170,7 @@ public:
 
     // ── Setup ─────────────────────────────────────────────────
     void SetFocuser(EAFFocuser* f)       { m_focuser = f; }
-    void SetParams(const AutofocusParams& p) { m_params = p; }
+    void SetParams(const AutofocusParams& p) { m_baseParams = p; m_params = p; }
 
     // Callback fires on completion from the scan thread.
     // Do NOT call Win32 UI functions from this callback —
@@ -163,19 +193,39 @@ public:
             return false;
 
         m_abortFlag.store(false);
+        m_stopGen = m_focuser->StopGeneration();   // 161.0b: this run's
+        m_aeWindow.store(false);
+        m_aeSettled.store(false);
+        m_moveError.clear();
+        // Phase 161.0a: the sweep stays inside the focuser's own range and
+        // within the travel guard of where it started, whatever it finds.
+        m_params = m_baseParams;
+        {
+            const int top = m_focuser->GetMaxPosition();
+            if (top > 0 && m_params.maxStepBound > top) m_params.maxStepBound = top;
+            const int guard = m_focuser->MaxTravel();
+            if (guard > 0) {
+                m_params.minStepBound = (std::max)(m_params.minStepBound, currentPosition - guard);
+                m_params.maxStepBound = (std::min)(m_params.maxStepBound, currentPosition + guard);
+            }
+        }
         m_fineOnly = fineOnly;
         m_fastNeeded.store(0);
         m_startPosition = currentPosition;
         m_samples.clear();
         m_pendingSharpness.store(-1.0f);
-        m_sharpnessSamples.clear();
-        m_centValidSamples.clear();
-        m_centPeakSamples.clear();
-        m_samplesNeeded.store(0);
+        DisarmSamples();
+        ClearSamples();
+        m_staleDropped.store(0);
         SetStatus("Autofocus starting...");
 
         // Reap the previous (finished) scan thread before starting a new one
         if (m_thread.joinable()) m_thread.join();
+        // Phase 161.1: running from this instant, not from whenever the
+        // thread gets to say so. In that gap IsRunning() was false with a
+        // sweep on its way: a second Start() would have joined a live
+        // thread and held the caller for the whole sweep.
+        m_state.store(AFState::Scanning);
         m_thread = std::thread(&AutofocusRoutine::ScanThread, this);
         return true;
     }
@@ -205,8 +255,14 @@ public:
     // centroidValid/centroidPeak are diagnostic only: the sharpness crop
     // follows the centroid, so a step where the centroid kept dropping out
     // measured something other than focus.
+    // Phase 161.1, frameTimeUs: when the frame behind this score was
+    // taken (0: not known, as in a test). The analyser runs about twice a
+    // second, so a result arriving just after a window opens was measured
+    // on a frame from up to half a second earlier, while the mirror was
+    // still settling. A score from a frame taken before the window opened
+    // is left out.
     void SubmitSharpness(float sharpness, bool centroidValid = true,
-                         int centroidPeak = -1) {
+                         int centroidPeak = -1, uint64_t frameTimeUs = 0) {
         // Gate on m_samplesNeeded, not on state == Scanning. The final
         // verification after the move runs in state Moving (set before it),
         // so a Scanning-only gate collected NOTHING there: finalSharp was
@@ -218,6 +274,10 @@ public:
         if (st != AFState::Scanning && st != AFState::Moving) return;
         int needed = m_samplesNeeded.load();
         if (needed <= 0) return;
+        if (frameTimeUs != 0 && frameTimeUs < m_notBeforeUs.load()) {
+            m_staleDropped.fetch_add(1);
+            return;
+        }
         // Accumulate in a small local buffer
         m_sharpnessMutex.lock();
         m_sharpnessSamples.push_back(sharpness);
@@ -231,12 +291,26 @@ public:
     // the newest frame on the edge metric (FocusMetric.h) up to 30 times a
     // second and submits each here. Only inside a collection window.
     bool WantsFastScores() const { return m_fastNeeded.load() > 0; }
-    void SubmitFastScore(float score) {
+    void SubmitFastScore(float score, uint64_t frameTimeUs = 0) {
         if (m_fastNeeded.load() <= 0) return;
+        if (frameTimeUs != 0 && frameTimeUs < m_fastNotBeforeUs.load()) {
+            m_staleDropped.fetch_add(1);
+            return;
+        }
         std::lock_guard<std::mutex> lk(m_fastMutex);
         m_fastScores.push_back(score);
     }
     bool FineOnly() const { return m_fineOnly; }
+    // Phase 161.1: scores left out because their frame predated the window.
+    int  StaleDropped() const { return m_staleDropped.load(); }
+
+    // ── Phase 161: AE between the stages ──────────────────────
+    // True while the routine is parked at the coarse result waiting for
+    // auto-exposure. The loop that ticks AE releases its hold for as long
+    // as this is true, and calls ExposureSettled() when AE has looked and
+    // has nothing to change (or cannot act at all).
+    bool WantsExposure() const { return m_aeWindow.load(); }
+    void ExposureSettled() { if (m_aeWindow.load()) m_aeSettled.store(true); }
 
     // ── State queries (main thread safe — atomics only) ───────
     AFState     State()      const { return m_state.load(); }
@@ -296,10 +370,7 @@ private:
             // could reallocate underneath a clear() - a data race on
             // the vector's internal pointers. The two other collection
             // points below already order it this way.
-            m_sharpnessSamples.clear();
-            m_centValidSamples.clear();
-            m_centPeakSamples.clear();
-            m_samplesNeeded.store(3);
+            ArmSamples(3);
             WaitForSamples(3, 6000);   // 3 fresh analyses at ~2Hz = ~1.5s
             m_sharpnessMutex.lock();
             if (!m_sharpnessSamples.empty()) {
@@ -308,7 +379,7 @@ private:
                 startSharpness = sum / m_sharpnessSamples.size();
             }
             m_sharpnessMutex.unlock();
-            m_samplesNeeded.store(0);
+            DisarmSamples();
         }
 
         // ── Sweep ─────────────────────────────────────────────
@@ -360,20 +431,17 @@ private:
             // half a backlash high, the first two points were that much
             // closer at the mirror than in steps, and seeing noise made a
             // false peak between them (tests/autofocus_saturn.cpp, case 4).
-            if (v == 0 && m_params.backlash > 0) {
-                const int below = (std::max)(m_params.minStepBound, pos - m_params.backlash);
-                m_focuser->MoveToDirect(below);
-                if (!WaitForMove()) {
-                    Finish(false, m_startPosition, 0.0f, startSharpness, "EAF move timed out");
+            if (v == 0 && Over() > 0) {
+                const int below = (std::max)(m_params.minStepBound, pos - Over());
+                if (!GoDirect(below)) {
+                    Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
                     return;
                 }
             }
-            m_focuser->MoveToDirect(pos);
-
-            // Wait for motion to complete
-            if (!WaitForMove()) {
-                Finish(false, m_startPosition, 0.0f, startSharpness,
-                       "EAF move timed out");
+            // Phase 161.0a: accepted, finished, and where it was sent, or
+            // the sweep ends here with the motor stopped.
+            if (!GoDirect(pos)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
                 return;
             }
 
@@ -388,10 +456,7 @@ private:
 
             // Collect sharpness samples
             int fp = (std::max)(2, (m_params.framesPerStep + 1) / 2);   // per visit
-            m_sharpnessSamples.clear();
-            m_centValidSamples.clear();
-            m_centPeakSamples.clear();
-            m_samplesNeeded.store(fp);
+            ArmSamples(fp);
 
             // Timeout budget: samples now arrive only on a FRESH analyzer
             // result (~2Hz), not on every render tick, so framesPerStep=8
@@ -403,7 +468,7 @@ private:
                        "%d frames, V-curve point is noisier than intended\n",
                        pos, fp);
             }
-            m_samplesNeeded.store(0);
+            DisarmSamples();
 
             // Compute mean sharpness at this position
             float meanSharp = 0.0f;
@@ -504,8 +569,10 @@ private:
         if (bestPos < 0 && m_notBracketed) {
             // Still at an end after the extra sweeps: do not drive to the
             // edge of a range that never contained focus.
-            m_focuser->MoveTo(m_startPosition);
-            WaitForMove();
+            if (!GoOneSided(m_startPosition)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                return;
+            }
             Finish(false, m_startPosition, 0.0f, startSharpness,
                    "focus never bracketed after extra sweeps - left at the start; "
                    "check the target is in the frame");
@@ -558,14 +625,20 @@ private:
             // A flat-topped coarse curve (a big disc) can put its peak a
             // coarse step from focus, at the fine span's edge: one more
             // fine pass, centred on that end, as the coarse sweep does.
+            // Phase 161: AE looks again at the coarse focus, where the
+            // light is gathered up, before the fine pass reads the edges.
+            if (!SettleExposure(bestPos)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                return;
+            }
             int endBest = -1;
             int fine = FineSweep(bestPos, span, nullptr, &endBest);
             if (fine < 0 && endBest >= 0 && !m_abortFlag.load()) {
                 Emit("[AF] Fine pass again, centred on %d\n", endBest);
                 fine = FineSweep(endBest, span, nullptr, nullptr);
             }
-            if (m_abortFlag.load()) {
-                Finish(false, m_startPosition, 0.0f, startSharpness, "Aborted by user");
+            if (m_abortFlag.load() || MoveFailed()) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
                 return;
             }
             if (fine >= 0) {
@@ -584,30 +657,29 @@ private:
         // Overshoot by backlash, then approach the final way
         // (always approach in the same direction for repeatability)
         int finalPos = bestPos;
-        if (m_params.backlash > 0) {
+        if (Over() > 0) {
             // Go past by the backlash on the far side, come back
-            int approachFrom = finalPos - dir * m_params.backlash;
+            int approachFrom = finalPos - dir * Over();
             approachFrom = (std::max)(m_params.minStepBound,
                                       (std::min)(m_params.maxStepBound, approachFrom));
-            m_focuser->MoveToDirect(approachFrom);
-            if (!WaitForMove())
-                raduk::core::CoreLog("[AF] backlash approach to %d did not complete\n", approachFrom);
+            if (!GoDirect(approachFrom)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                return;
+            }
             Sleep(300);
         }
 
-        m_focuser->MoveToDirect(finalPos);
-        if (!WaitForMove())
-            raduk::core::CoreLog("[AF] final move to %d did not complete - focus may be off\n", finalPos);
+        if (!GoDirect(finalPos)) {
+            Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+            return;
+        }
         Sleep(m_params.settleMs);
 
         // Verify final sharpness. 8000ms, not 4000: samples now arrive only
         // on a fresh analyzer result (~2Hz), so 5 of them take ~2.5s.
-        m_sharpnessSamples.clear();
-        m_centValidSamples.clear();
-        m_centPeakSamples.clear();
-        m_samplesNeeded.store(5);
+        ArmSamples(5);
         WaitForSamples(5, 8000);
-        m_samplesNeeded.store(0);
+        DisarmSamples();
 
         float finalSharp = 0.0f;
         {
@@ -643,15 +715,14 @@ private:
             // ago was no fair comparison. Measure the start position again
             // under the same sky; only if it is really better is the fit
             // wrong. Otherwise the sky changed, and the fit stands.
-            m_focuser->MoveTo(m_startPosition);
-            WaitForMove();
+            if (!GoOneSided(m_startPosition)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                return;
+            }
             Sleep(m_params.settleMs);
-            m_sharpnessSamples.clear();
-            m_centValidSamples.clear();
-            m_centPeakSamples.clear();
-            m_samplesNeeded.store(5);
+            ArmSamples(5);
             WaitForSamples(5, 8000);
-            m_samplesNeeded.store(0);
+            DisarmSamples();
             float startNow = 0.0f;
             {
                 m_sharpnessMutex.lock();
@@ -675,7 +746,10 @@ private:
             if (fineUsed) {
                 int nS = 0, nF = 0;
                 const float eStart = ScoreHere(&nS);   // the focuser is at the start
-                DriveFinal(finalPos);
+                if (!DriveFinal(finalPos)) {
+                    Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                    return;
+                }
                 const float eFit = ScoreHere(&nF);
                 Emit("[AF] Same sky, edge metric: start pos=%d %.4f, fit pos=%d %.4f\n",
                      m_startPosition, eStart, finalPos, eFit);
@@ -683,15 +757,19 @@ private:
             }
             if (keep) {
                 Emit("[AF] The sky changed, not the focus: keeping pos=%d\n", finalPos);
-                if (m_params.backlash > 0) {
-                    int approachFrom = finalPos - dir * m_params.backlash;
+                if (Over() > 0) {
+                    int approachFrom = finalPos - dir * Over();
                     approachFrom = (std::max)(m_params.minStepBound,
                                               (std::min)(m_params.maxStepBound, approachFrom));
-                    m_focuser->MoveToDirect(approachFrom);
-                    WaitForMove();
+                    if (!GoDirect(approachFrom)) {
+                        Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                        return;
+                    }
                 }
-                m_focuser->MoveToDirect(finalPos);
-                WaitForMove();
+                if (!GoDirect(finalPos)) {
+                    Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                    return;
+                }
                 m_bestPosition.store(finalPos);
                 m_bestSharpness.store(finalSharp);
                 Finish(true, finalPos, finalSharp, startNow,
@@ -703,10 +781,10 @@ private:
                  "start pos=%d - WORSE, returning to start\n",
                  finalPos, finalSharp, startSharpness, m_startPosition);
             SetStatus("Focus got worse — returning to start");
-            m_focuser->MoveTo(m_startPosition);
-            if (!WaitForMove())
-                raduk::core::CoreLog("[AF] return to start pos=%d did not complete\n",
-                       m_startPosition);
+            if (!GoOneSided(m_startPosition)) {
+                Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
+                return;
+            }
             m_bestPosition.store(m_startPosition);
             m_bestSharpness.store(startSharpness);
             char msg[128];
@@ -923,10 +1001,16 @@ private:
             if (msSince(lastProgress) > stallMs) {
                 raduk::core::CoreLog("[AF] EAF stalled at %d (%d ms without progress)\n",
                        lastPos, stallMs);
+                char b[96];
+                sprintf_s(b, "the focuser stalled at %d - stopped", lastPos);
+                m_moveError = b;
                 return false;
             }
             if (msSince(start) > capMs) {
                 raduk::core::CoreLog("[AF] EAF move exceeded %d ms cap at %d\n", capMs, lastPos);
+                char b[96];
+                sprintf_s(b, "the focuser was still moving after %d s - stopped", capMs / 1000);
+                m_moveError = b;
                 return false;
             }
             Sleep(50);
@@ -948,11 +1032,10 @@ private:
         Emit("[AF] Fine pass: %d points across %d steps round %d, travelling %s, %d frames a "
              "point, edge metric at the %.0fth percentile\n", (int)pts.size(), span, center,
              dir > 0 ? "outward" : "inward", m_params.fineFrames, m_params.finePercentile * 100.0f);
-        if (m_params.backlash > 0) {
-            int pre = pts.front() - dir * m_params.backlash;
+        if (Over() > 0) {
+            int pre = pts.front() - dir * Over();
             pre = (std::max)(m_params.minStepBound, (std::min)(m_params.maxStepBound, pre));
-            m_focuser->MoveToDirect(pre);
-            if (!WaitForMove()) return -1;
+            if (!GoDirect(pre)) return -1;
         }
         std::vector<int> pos;
         std::vector<float> sc;
@@ -966,8 +1049,7 @@ private:
             char st[64];
             sprintf_s(st, "Fine pass %d/%d  pos=%d", (int)k + 1, (int)pts.size(), pts[k]);
             SetStatus(st);
-            m_focuser->MoveToDirect(pts[k]);
-            if (!WaitForMove()) return -1;
+            if (!GoDirect(pts[k])) return -1;
             int got = 0;
             const float p = ScoreHere(&got);
             Emit("[AF] Fine %d/%d  pos=%d  edge=%.4f  (%d frames)\n", (int)k + 1, (int)pts.size(),
@@ -1037,12 +1119,10 @@ private:
             fine = FineSweep(endBest, m_params.fineOnlySpan, &best, nullptr);
         }
         if (fine < 0) {
-            if (m_abortFlag.load()) {
-                Finish(false, m_startPosition, 0.0f, 0.0f, "Aborted by user");
+            if (m_abortFlag.load() || MoveFailed() || !GoOneSided(m_startPosition)) {
+                Finish(false, m_startPosition, 0.0f, 0.0f, MoveFailure());
                 return;
             }
-            m_focuser->MoveTo(m_startPosition);
-            WaitForMove();
             Finish(false, m_startPosition, 0.0f, 0.0f,
                    "no bracketed peak on the edge metric - left at the start; "
                    "start nearer focus or on a sharper part of the surface");
@@ -1050,7 +1130,10 @@ private:
         }
         m_state.store(AFState::Moving);
         SetStatus("Moving to best focus...");
-        DriveFinal(fine);
+        if (!DriveFinal(fine)) {
+            Finish(false, m_startPosition, 0.0f, 0.0f, MoveFailure());
+            return;
+        }
         int nFinal = 0;
         const float finalScore = ScoreHere(&nFinal);
         Emit("[AF] Fit pos=%d  edge=%.4f  (start %.4f)\n", fine, finalScore, startScore);
@@ -1059,7 +1142,10 @@ private:
         // measure the start again under the same sky; only if it is really
         // better is the fit wrong, otherwise the sky changed.
         if (startScore > 0.0f && nFinal > 0 && finalScore < 0.8f * startScore) {
-            DriveFinal(m_startPosition);
+            if (!DriveFinal(m_startPosition)) {
+                Finish(false, m_startPosition, 0.0f, 0.0f, MoveFailure());
+                return;
+            }
             int nNow = 0;
             const float startNow = ScoreHere(&nNow);
             Emit("[AF] Re-measured start pos=%d now: %.4f (was %.4f); fit pos=%d: %.4f\n",
@@ -1074,7 +1160,10 @@ private:
                 return;
             }
             Emit("[AF] The sky changed, not the focus: keeping pos=%d\n", fine);
-            DriveFinal(fine);
+            if (!DriveFinal(fine)) {
+                Finish(false, m_startPosition, 0.0f, 0.0f, MoveFailure());
+                return;
+            }
             m_bestPosition.store(fine);
             m_bestSharpness.store(finalScore);
             Finish(true, fine, finalScore, startNow,
@@ -1091,6 +1180,7 @@ private:
     float ScoreHere(int* n) {
         Sleep(m_params.settleMs);
         { std::lock_guard<std::mutex> lk(m_fastMutex); m_fastScores.clear(); }
+        m_fastNotBeforeUs.store(Timestamp::Now());   // 161.1: frames from now on
         m_fastNeeded.store(m_params.fineFrames);
         WaitForFast(m_params.fineFrames, (std::max)(6000, m_params.fineFrames * 250));
         m_fastNeeded.store(0);
@@ -1103,14 +1193,100 @@ private:
     // To `to`, the last travel the final way with the slack taken up.
     bool DriveFinal(int to) {
         const int dir = m_params.finalDir < 0 ? -1 : 1;
-        if (m_params.backlash > 0) {
-            int from = to - dir * m_params.backlash;
+        if (Over() > 0) {
+            int from = to - dir * Over();
             from = (std::max)(m_params.minStepBound, (std::min)(m_params.maxStepBound, from));
-            m_focuser->MoveToDirect(from);
-            if (!WaitForMove()) return false;
+            if (!GoDirect(from)) return false;
         }
-        m_focuser->MoveToDirect(to);
-        return WaitForMove();
+        return GoDirect(to);
+    }
+
+    // ── Phase 161.0a: a move that is checked ──────────────────
+    // Accepted by the focuser, finished, and stopped where it was sent.
+    // Anything else stops the motor and leaves the reason in
+    // MoveFailure(). Before this, a refused move went unnoticed (its
+    // sample was credited to a step the focuser never reached) and a
+    // timed-out one was left running.
+    bool GoDirect(int pos)   { return Go(pos, false); }
+    bool GoOneSided(int pos) { return Go(pos, true); }
+    bool Go(int pos, bool oneSided) {
+        if (m_abortFlag.load()) return false;
+        // The sweep's own bound: the focuser's range, and the travel guard
+        // measured from where the sweep started (set in Start). Inside
+        // it, a hop is not held to the guard a second time, so a move
+        // from one side of the span to the other is not refused half way.
+        if (pos < m_params.minStepBound || pos > m_params.maxStepBound) {
+            char b[160];
+            sprintf_s(b, "autofocus would not move to %d: outside %d to %d, the span allowed "
+                         "round its start", pos, m_params.minStepBound, m_params.maxStepBound);
+            m_moveError = b;
+            Emit("[AF] %s\n", b);
+            return false;
+        }
+        // Phase 161.0b: with this run's stop generation, so a move sent
+        // after any Stop() (an abort, the panel's STOP, the emergency
+        // stop) is refused by the focuser itself and the motor stays put.
+        const bool sent = m_focuser->MoveInSequence(m_stopGen, pos, oneSided);
+        if (!sent) {
+            m_moveError = "the focuser refused a move: " + m_focuser->LastRefusal();
+            Emit("[AF] move to %d refused: %s\n", pos, m_focuser->LastRefusal().c_str());
+            return false;
+        }
+        if (!WaitForMove()) {
+            // Stalled, over the cap, or aborted: the motor may still be
+            // turning (an abort can land just before this move is sent).
+            m_focuser->Stop();
+            return false;
+        }
+        int at = 0;
+        if (!m_focuser->TryGetPosition(at)) {
+            m_focuser->Stop();
+            m_moveError = "the focuser's position could not be read after a move";
+            return false;
+        }
+        if (std::abs(at - pos) > kArrivalToleranceSteps) {
+            m_focuser->Stop();
+            char b[120];
+            sprintf_s(b, "the focuser stopped at %d, not %d", at, pos);
+            m_moveError = b;
+            Emit("[AF] %s\n", b);
+            return false;
+        }
+        return true;
+    }
+    // Phase 161.2: how far past, before coming back the final way.
+    int  Over() const { return m_params.overshoot > 0 ? m_params.overshoot : m_params.backlash; }
+    bool MoveFailed() const { return !m_moveError.empty(); }
+    // Why the sweep is ending: the operator's abort, or the move.
+    const char* MoveFailure() const {
+        if (m_abortFlag.load()) return "Aborted by user";
+        return m_moveError.empty() ? "the focuser did not complete a move" : m_moveError.c_str();
+    }
+
+    // Phase 161: to `at` the final way, then AE's turn. False only when
+    // the move failed or the operator aborted; AE not settling in time is
+    // said and the fine pass goes on with the exposure it has.
+    bool SettleExposure(int at) {
+        if (m_params.exposureWindowMs <= 0) return true;
+        if (!DriveFinal(at)) return false;
+        Sleep(m_params.settleMs);
+        SetStatus("Auto-exposure at the coarse focus...");
+        m_aeSettled.store(false);
+        m_aeWindow.store(true);
+        const auto start = std::chrono::steady_clock::now();
+        long long waited = 0;
+        while (!m_aeSettled.load() && !m_abortFlag.load()) {
+            waited = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start).count();
+            if (waited > m_params.exposureWindowMs) break;
+            Sleep(16);
+        }
+        const bool settled = m_aeSettled.load();
+        m_aeWindow.store(false);
+        if (m_abortFlag.load()) return false;
+        Emit("[AF] AE at the coarse focus pos=%d: %s after %.1f s; held again for the fine pass\n",
+             at, settled ? "settled" : "not settled, going on", waited / 1000.0);
+        return true;
     }
 
     bool WaitForFast(int count, int timeoutMs) {
@@ -1127,6 +1303,24 @@ private:
             Sleep(16);
         }
     }
+
+    // ── Phase 161.1: a collection window ──────────────────────
+    // The three vectors are shared with the thread that submits, so they
+    // are cleared under their mutex (they were cleared bare, on the
+    // strength of the gate being shut). A window takes scores only from
+    // frames taken after it opened.
+    void ClearSamples() {
+        std::lock_guard<std::mutex> lk(m_sharpnessMutex);
+        m_sharpnessSamples.clear();
+        m_centValidSamples.clear();
+        m_centPeakSamples.clear();
+    }
+    void ArmSamples(int n) {
+        ClearSamples();
+        m_notBeforeUs.store(Timestamp::Now());
+        m_samplesNeeded.store(n);
+    }
+    void DisarmSamples() { m_samplesNeeded.store(0); }
 
     bool WaitForSamples(int count, int timeoutMs) {
         auto start = std::chrono::steady_clock::now();
@@ -1184,14 +1378,21 @@ private:
             raduk::core::CoreLog("[AF] FAILED: %s\n", msg ? msg : "unknown");
         }
 
-        m_state.store(success ? AFState::Complete : AFState::Failed);
-
+        m_aeWindow.store(false);
+        // Phase 161.1: the result is handed over BEFORE the state says the
+        // routine is done. The other way round left a moment when it was
+        // neither running nor reported, in which a caller polling for the
+        // end (Autorun) could read a failed sweep as a finished one.
         if (m_onComplete) m_onComplete(result);
+        m_state.store(success ? AFState::Complete : AFState::Failed);
     }
 
     // ── Members ───────────────────────────────────────────────
     EAFFocuser*      m_focuser   = nullptr;
-    AutofocusParams  m_params;
+    AutofocusParams  m_params;       // this run's, bounds narrowed in Start
+    AutofocusParams  m_baseParams;   // as set
+    std::string      m_moveError;    // scan thread only (and Start, before it)
+    unsigned         m_stopGen = 0;  // the focuser's stop generation when this run began
 
     std::function<void(const char*)> m_logSink;
     std::thread      m_thread;
@@ -1203,6 +1404,10 @@ private:
     std::atomic<float>     m_bestSharpness{0.0f};
     std::atomic<float>     m_pendingSharpness{-1.0f};
     std::atomic<int>       m_samplesNeeded{0};
+    // Phase 161.1: a window takes frames from this time on (Timestamp::Now).
+    std::atomic<uint64_t>  m_notBeforeUs{0};
+    std::atomic<uint64_t>  m_fastNotBeforeUs{0};
+    std::atomic<int>       m_staleDropped{0};
 
     int              m_startPosition = 0;
     std::vector<AFSample>  m_samples;
@@ -1219,6 +1424,8 @@ private:
     // Phase 145.
     bool                   m_fineOnly = false;
     std::atomic<int>       m_fastNeeded{0};
+    std::atomic<bool>      m_aeWindow{false};    // phase 161: AE's turn
+    std::atomic<bool>      m_aeSettled{false};
     mutable std::mutex     m_fastMutex;
     std::vector<float>     m_fastScores;
 

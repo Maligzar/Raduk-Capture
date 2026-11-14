@@ -1613,6 +1613,12 @@ paths pass fault injection, and one unattended sky run completes.
    it drives. Its CI dress rehearsal (156.5) can start once 153.0's
    harness exists. Added by the owner 2026-11-13.
 
+24a. **161.0 to 161.2 (row 61), focuser safety, threads and overshoot**:
+   a failed position read can no longer start a move, every move is
+   checked and stoppable, and the overshoot stops depending on the
+   backlash figure. Bench only, and ahead of any sweep on the sky.
+   Planned 2026-11-14 from the first-principles review.
+
 #### Release 3.5: planetary excellence
 
 Acceptance: autofocus repeatable across sessions, and the seeing figure
@@ -1620,6 +1626,10 @@ checked against the eye (clear-night items 1, 37, 55, 57 and 58).
 
 25. **Phase 158 (row 58), focus through the night**: the focus history,
     and a refocus when focus drifts.
+25a. **161.3 to 161.6 (row 61)**: the focuser calibrated on the sky
+    (um per step, slack, repeatability, settle), the sweep in units of
+    the critical focus zone, and a result with an error bar. 158 builds
+    on its figures.
 26. **Phases 147 and 148 (rows 47, 48)**: AVI, then TIFF.
 27. **149.5 and 149.6 (row 49)**: the ZWO filter wheel, then RGB sequencing
     on a mono camera.

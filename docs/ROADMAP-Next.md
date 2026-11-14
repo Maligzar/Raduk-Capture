@@ -1603,7 +1603,8 @@ paths pass fault injection, and one unattended sky run completes.
 21. **155.3 to 155.5 (row 55)**: the plate scale from solves, the validation
    mode, the replay camera with real clips in CI.
 22. **153.1 and 153.2 (row 53)**: the autofocus and recording controllers,
-   ahead of AVI and TIFF, which add recording wiring.
+   ahead of AVI and TIFF, which add recording wiring. **153.1 written
+   2026-11-14 (3.3.11)**: `AutofocusController`.
 23. **Phase 157 (row 57), reliability qualification**: fault injection, a
    soak, SER and FITS read back by independent readers in CI, and the
    qualification report. 157.0 can start once 153.0's harness exists.

@@ -31,6 +31,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -118,19 +119,28 @@ static void GroupFocus() {
     core.autofocus.SetParams(p);
     core.autofocus.SetFocuser(&core.focuser);
     core.autofocus.SetLogger([&ui](const char* s) { ui.Line(s); });
+    // Phase 153.1: started, and finished, through the controller main.cpp uses.
     std::atomic<bool> done{false};
-    AFResult res{};
-    core.autofocus.SetOnComplete([&](AFResult r) { res = r; done.store(true); });
+    std::string lastStatus;
+    std::mutex statusMu;
+    AutofocusHooks h;
+    h.status = [&](const std::string& s) { std::lock_guard<std::mutex> lk(statusMu); lastStatus = s; };
+    core.afCtl.SetHooks(h);
+    core.autofocus.SetOnComplete([&](AFResult r) { core.afCtl.OnComplete(r); done.store(true); });
 
     const int start = kTrueFocus + 700;
     core.focuser.MoveTo(start);
     while (core.focuser.IsMoving()) std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    Check(core.autofocus.Start(core.focuser.GetPosition(), false), "a sweep starts 700 steps from focus");
+    core.afCtl.Start();
+    Check(core.afCtl.WaitingForAE(), "the controller starts 700 steps from focus, waiting for AE");
 
     AnalysisResult last{};
     const auto t0 = std::chrono::steady_clock::now();
     while (!done.load() && std::chrono::steady_clock::now() - t0 < std::chrono::minutes(8)) {
         Pump(core, last);
+        // The readout's part: AE is not fed here, so the sweep starts at
+        // the settle limit, as on a rig whose AE cannot reach its target.
+        core.afCtl.Tick(false, last.valid && last.surfaceTracked, true);
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     const int end = core.focuser.GetOpticalPosition();
@@ -140,6 +150,10 @@ static void GroupFocus() {
     Check(std::abs(end - kTrueFocus) <= 200, "the mirror ends near true focus",
           std::to_string(end - kTrueFocus) + " steps");
     Check(ui.Saw("[AF]"), "its lines reach the core's UI sink");
+    {
+        std::lock_guard<std::mutex> lk(statusMu);
+        Check(lastStatus.rfind("AF done:", 0) == 0, "and the panel would say it is done", lastStatus);
+    }
     StopPipeline(core);
 }
 

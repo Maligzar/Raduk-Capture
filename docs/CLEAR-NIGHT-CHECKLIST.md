@@ -1348,6 +1348,10 @@ the bench already showed, so the night only has to confirm it. The plan is
     the guard should sit comfortably above it and far below the distance
     to either end of travel. Count `[EAFFocuser]` lines that report a
     failed read or `stopped short`: any at all on the real EAF is a
-    finding, and says whether the 2 s grace is right. When 161.3 is
+    finding, and says whether the 2 s grace is right. Measure the
+    knob's slack by hand: approach a sharp view outward, then reverse in
+    10-step moves and count until the image changes. `FocuserOvershootSteps`
+    (1,500 unless set) must be larger than that count; if it is not, set
+    it, and put the count itself in `FocuserBacklashSteps`. When 161.3 is
     built, its CALIBRATE FOCUS run (um per step, slack, repeatability,
     settle time, image shift) is this item too.

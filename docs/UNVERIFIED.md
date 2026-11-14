@@ -6,7 +6,7 @@ Line numbers are left out on purpose, so an edit elsewhere in a file does not ma
 
 A tag is removed when its clear-night item has been run and the value confirmed or replaced, with the night noted in the checklist.
 
-22 constants across 11 checklist items.
+23 constants across 11 checklist items.
 
 ## Item 1: SHARP_CEIL = 1000
 
@@ -83,4 +83,5 @@ A tag is removed when its clear-night item has been run and the value confirmed 
 
 | Constant | Value | File | What verifies it |
 |---|---|---|---|
+| `kMinDefaultOvershootSteps` | `1500` | `src/core/FocusDirection.h` | the default overshoot exceeds the 8SE's real slack (reverse in 10-step moves until the image changes) |
 | `kDefaultMaxTravelSteps` | `12000` | `src/core/FocuserGuard.h` | the travel guard is wide enough for a night's focus moves and autofocus on the rig |

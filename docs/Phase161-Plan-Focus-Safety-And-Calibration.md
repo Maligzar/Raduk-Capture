@@ -92,6 +92,8 @@ Bench stages first: they need no sky, and the sky stages are not safe to run bef
 
 ### 161.2 Backlash is two numbers (bench, S)
 
+**Written 2026-11-14 (3.3.13).** As built: rig.ini `FocuserOvershootSteps` (`-1`: three times the backlash figure, at least 1,500), resolved by `ResolveOvershoot` and used for every one-sided move and for autofocus's approaches; `FocuserBacklashSteps` keeps the half-backlash shift and the fine span's floor. Gated by `tests/af_overshoot.cpp`, with the emulator's slack unknown to the app (it is told 200): a step reached from both sides is 800 steps of mirror apart with the old overshoot and 0 with 1,500; autofocus ends within 12 steps of focus at slacks of 400, 1,000 and 2,000 in three runs, against 104 to 200 the old way at 1,000. Where it differs from the bullets: a slack of ten times the backlash figure (2,000) is beyond the 1,500 default and needs `FocuserOvershootSteps` set, so that case runs at 2,500. The default stays the 1,500 the owner approved; clear-night item 59 says whether it is enough.
+
 - **`FocuserOvershootSteps`** is how far a move goes past before coming back. It needs only to exceed the slack, and costs only time. Default: the larger of 3 times the backlash figure and 1,500, UNVERIFIED until 161.3.
 - **`FocuserBacklashSteps`** stays the measured slack, used only for the half-backlash shift of a coarse-only result.
 - With the fine stage on, the result no longer depends on the backlash figure at all, because every fine point is approached the final way past a full overshoot. The log says which case applied.

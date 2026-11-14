@@ -272,6 +272,21 @@ inline std::vector<float> FadeCorrect(const std::vector<float>& score, const std
     return out;
 }
 
+// Phase 161.2: how far a one-sided move goes past its target before it
+// comes back. Unlike the backlash figure this has only to be LARGER than
+// the slack; too large costs a second or two a move, too small leaves the
+// mirror somewhere inside the slack and a step number stops meaning one
+// focus position. rigSteps < 0 means rig.ini does not set it: three times
+// the backlash figure, and not less than 1,500 steps (a quarter of a turn
+// of the 8SE's knob at the EAF's 5,760 steps a turn).
+// UNVERIFIED(item 59): the default overshoot exceeds the 8SE's real slack (reverse in 10-step moves until the image changes)
+inline constexpr int kMinDefaultOvershootSteps = 1500;
+inline int ResolveOvershoot(int rigSteps, int backlash, const char** source) {
+    if (rigSteps >= 0) { if (source) *source = "rig.ini FocuserOvershootSteps"; return rigSteps; }
+    if (source) *source = "3 x the backlash figure, at least 1500, not measured";
+    return (std::max)(3 * (std::max)(0, backlash), kMinDefaultOvershootSteps);
+}
+
 // Which backlash figure to use until the sky measures one. rigSteps < 0
 // means rig.ini does not set it.
 inline int ResolveBacklash(int rigSteps, int firmwareSteps, const char** source) {

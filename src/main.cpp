@@ -1045,7 +1045,12 @@ static int RunApp(bool useEmulator) {
         const char* src = "";
         const int b = raduk::core::ResolveBacklash(rig.focuserBacklashSteps, fw, &src);
         if (fw > 0) focuser.SetBacklash(0);
-        focuser.SetApproachBacklash(rig.focuserOneSidedMoves ? b : 0);
+        // Phase 161.2: one-sided moves go past by the overshoot, which has
+        // only to exceed the slack; the backlash figure keeps its one job,
+        // the coarse result's half-backlash shift.
+        const char* ovSrc = "";
+        const int ov = raduk::core::ResolveOvershoot(rig.focuserOvershootSteps, b, &ovSrc);
+        focuser.SetApproachBacklash(rig.focuserOneSidedMoves ? ov : 0);
         const int finalDir = rig.focuserFinalDirection == "in" ? -1 : 1;
         focuser.SetApproachDirection(finalDir);
         focuser.SetMaxTravel(rig.focuserMaxTravelSteps);   // phase 161.0a
@@ -1053,6 +1058,7 @@ static int RunApp(bool useEmulator) {
             rig.focuserMaxTravelSteps, rig.focuserMaxTravelSteps > 0 ? "" : ": guard off");
         raduk::core::AutofocusParams ap;
         ap.backlash = b;
+        ap.overshoot = ov;
         ap.finalDir = finalDir;
         ap.fineStage = rig.autofocusFineStage;
         ap.exposureWindowMs = raduk::core::AF_EXPOSURE_WINDOW_MS;   // phase 161
@@ -1060,6 +1066,7 @@ static int RunApp(bool useEmulator) {
         Log("[FOCUS] every move ends %s (FocuserFinalDirection); fine pass %s (AutofocusFineStage)\n",
             finalDir > 0 ? "outward, rising numbers" : "inward, falling numbers",
             rig.autofocusFineStage ? "ON" : "OFF");
+        Log("[FOCUS] overshoot %d steps, from %s\n", ov, ovSrc);
         Log("[FOCUS] backlash %d steps, from %s; EAF firmware had %d%s; one-sided moves %s\n",
             b, src, fw, fw > 0 ? " (set to 0 while connected)" : "",
             rig.focuserOneSidedMoves ? "ON" : "OFF");

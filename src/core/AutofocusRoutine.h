@@ -80,9 +80,19 @@ struct AutofocusParams {
     int   nSteps        = 11;    // number of sample positions (odd preferred)
     int   framesPerStep = 8;     // frames to average sharpness at each position
     int   settleMs      = 600;   // ms to wait after EAF stops moving
-    int   backlash      = 200;   // steps of backlash compensation on final move
+    int   backlash      = 200;   // the knob's slack as MEASURED, in steps
                                  // (phase 139: from rig.ini or the EAF, see
-                                 // ResolveBacklash in FocusDirection.h)
+                                 // ResolveBacklash in FocusDirection.h).
+                                 // Since 161.2 used only for the coarse
+                                 // result's half-backlash shift and the fine
+                                 // span's floor.
+    // Phase 161.2: how far a move goes PAST before it comes back the
+    // final way. It has only to exceed the slack, whatever that is, and
+    // costs only time; the backlash figure has to be right. One number
+    // did both jobs, so an under-measured backlash also meant an
+    // overshoot too short to take the slack up. 0: use `backlash`, as
+    // before (see ResolveOvershoot in FocusDirection.h).
+    int   overshoot     = 0;
     float minSharpness  = 2.0f;  // abort if peak never exceeds this (no star/planet)
     int   maxStepBound  = 600000;// clamp to EAF physical range
     int   minStepBound  = 0;
@@ -421,8 +431,8 @@ private:
             // half a backlash high, the first two points were that much
             // closer at the mirror than in steps, and seeing noise made a
             // false peak between them (tests/autofocus_saturn.cpp, case 4).
-            if (v == 0 && m_params.backlash > 0) {
-                const int below = (std::max)(m_params.minStepBound, pos - m_params.backlash);
+            if (v == 0 && Over() > 0) {
+                const int below = (std::max)(m_params.minStepBound, pos - Over());
                 if (!GoDirect(below)) {
                     Finish(false, m_startPosition, 0.0f, startSharpness, MoveFailure());
                     return;
@@ -647,9 +657,9 @@ private:
         // Overshoot by backlash, then approach the final way
         // (always approach in the same direction for repeatability)
         int finalPos = bestPos;
-        if (m_params.backlash > 0) {
+        if (Over() > 0) {
             // Go past by the backlash on the far side, come back
-            int approachFrom = finalPos - dir * m_params.backlash;
+            int approachFrom = finalPos - dir * Over();
             approachFrom = (std::max)(m_params.minStepBound,
                                       (std::min)(m_params.maxStepBound, approachFrom));
             if (!GoDirect(approachFrom)) {
@@ -747,8 +757,8 @@ private:
             }
             if (keep) {
                 Emit("[AF] The sky changed, not the focus: keeping pos=%d\n", finalPos);
-                if (m_params.backlash > 0) {
-                    int approachFrom = finalPos - dir * m_params.backlash;
+                if (Over() > 0) {
+                    int approachFrom = finalPos - dir * Over();
                     approachFrom = (std::max)(m_params.minStepBound,
                                               (std::min)(m_params.maxStepBound, approachFrom));
                     if (!GoDirect(approachFrom)) {
@@ -1022,8 +1032,8 @@ private:
         Emit("[AF] Fine pass: %d points across %d steps round %d, travelling %s, %d frames a "
              "point, edge metric at the %.0fth percentile\n", (int)pts.size(), span, center,
              dir > 0 ? "outward" : "inward", m_params.fineFrames, m_params.finePercentile * 100.0f);
-        if (m_params.backlash > 0) {
-            int pre = pts.front() - dir * m_params.backlash;
+        if (Over() > 0) {
+            int pre = pts.front() - dir * Over();
             pre = (std::max)(m_params.minStepBound, (std::min)(m_params.maxStepBound, pre));
             if (!GoDirect(pre)) return -1;
         }
@@ -1183,8 +1193,8 @@ private:
     // To `to`, the last travel the final way with the slack taken up.
     bool DriveFinal(int to) {
         const int dir = m_params.finalDir < 0 ? -1 : 1;
-        if (m_params.backlash > 0) {
-            int from = to - dir * m_params.backlash;
+        if (Over() > 0) {
+            int from = to - dir * Over();
             from = (std::max)(m_params.minStepBound, (std::min)(m_params.maxStepBound, from));
             if (!GoDirect(from)) return false;
         }
@@ -1244,6 +1254,8 @@ private:
         }
         return true;
     }
+    // Phase 161.2: how far past, before coming back the final way.
+    int  Over() const { return m_params.overshoot > 0 ? m_params.overshoot : m_params.backlash; }
     bool MoveFailed() const { return !m_moveError.empty(); }
     // Why the sweep is ending: the operator's abort, or the move.
     const char* MoveFailure() const {

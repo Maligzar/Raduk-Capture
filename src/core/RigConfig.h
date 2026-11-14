@@ -452,6 +452,12 @@ struct RigConfig {
     //   FocuserOneSidedMoves=1
     int  focuserBacklashSteps = -1;
     bool focuserOneSidedMoves = true;
+    // Phase 161.2: how far a one-sided move goes past its target before
+    // coming back, in steps. It has only to exceed the knob's real slack;
+    // a larger figure costs a little time and nothing else. -1 (the
+    // default): three times the backlash figure, at least 1500.
+    //   FocuserOvershootSteps=-1
+    int  focuserOvershootSteps = -1;
     // Phase 161.0a: the furthest one focuser command may travel, in steps.
     // A longer move is refused and says so; the panel's GO TO asks for a
     // second press and then makes it. Autofocus stays within this of
@@ -525,6 +531,7 @@ struct RigConfig {
         wf("FocuserBacklashSteps", focuserBacklashSteps);
         ws("FocuserOneSidedMoves", focuserOneSidedMoves ? "1" : "0");
         wf("FocuserMaxTravelSteps", focuserMaxTravelSteps);
+        wf("FocuserOvershootSteps", focuserOvershootSteps);
         ws("FocuserFinalDirection", focuserFinalDirection);
         ws("AutofocusFineStage", autofocusFineStage ? "1" : "0");
         wf("GrsLonSys2", grsLonSys2);
@@ -736,6 +743,8 @@ private:
         cfg.focuserOneSidedMoves  = rs("FocuserOneSidedMoves", cfg.focuserOneSidedMoves ? "1" : "0") == "1";
         cfg.focuserMaxTravelSteps = (int)rf("FocuserMaxTravelSteps", cfg.focuserMaxTravelSteps);
         if (cfg.focuserMaxTravelSteps < 0 || cfg.focuserMaxTravelSteps > 600000) cfg.focuserMaxTravelSteps = 12000;
+        cfg.focuserOvershootSteps = (int)rf("FocuserOvershootSteps", cfg.focuserOvershootSteps);
+        if (cfg.focuserOvershootSteps < -1 || cfg.focuserOvershootSteps > 20000) cfg.focuserOvershootSteps = -1;
         cfg.focuserFinalDirection = rs("FocuserFinalDirection", cfg.focuserFinalDirection) == "in" ? "in" : "out";
         cfg.autofocusFineStage    = rs("AutofocusFineStage", cfg.autofocusFineStage ? "1" : "0") == "1";
         cfg.grsLonSys2            = rf("GrsLonSys2", cfg.grsLonSys2);

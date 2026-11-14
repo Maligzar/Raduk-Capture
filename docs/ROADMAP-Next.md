@@ -1622,7 +1622,8 @@ paths pass fault injection, and one unattended sky run completes.
    2026-11-14 (3.3.13)**: `FocuserGuard.h`, gated by `focuser_safety`. **161.0b
    written 2026-11-14 (3.3.13)**: the command lock and the stop generation.
    **161.1 written 2026-11-14 (3.3.13)**: completion on the loop's thread,
-   the forward-only ring, samples tied to their frames.
+   the forward-only ring, samples tied to their frames. **161.2 written
+   2026-11-14 (3.3.13)**: `FocuserOvershootSteps`.
    Model: **Fable** for 161.0b (stop wins: the command lock and abort
    generation) and 161.1 (threads, the ring); **Opus** for 161.0a (reads,
    guards, arrival checks, the emulator's faults) and 161.2. The table

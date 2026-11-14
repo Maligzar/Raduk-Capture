@@ -30,8 +30,10 @@
 #include "../core/CentroidTracker.h"
 #include "../core/CaptureManager.h"
 #include "../core/PixelFormat.h"
+#include "../core/SeeingMonitor.h"
 
 #include "AutofocusController.h"
+#include "AutorunController.h"
 #include "AutofocusFeed.h"
 #include "RecordingController.h"
 #include "Clock.h"
@@ -62,16 +64,21 @@ public:
     // gate and stops, what a finished recording means).
     using RecordingController = RecordingControllerT<raduk::core::CaptureManager>;
     RecordingController recCtl;
+    // Phase 153.3: the night's seeing against its best, and a sequence of
+    // runs round AutorunRunner.
+    raduk::core::SeeingMonitor seeing;
+    AutorunController arCtl;
 
     AppCore() : afCtl(autofocus, ae, focuser, m_steady, m_null, raduk::core::AF_AE_SETTLE_LIMIT_S),
                 recCtl(capturer, m_null),
+                arCtl(seeing, m_null),
                 m_clock(&m_steady), m_ui(&m_null) {}
     AppCore(const AppCore&) = delete;
     AppCore& operator=(const AppCore&) = delete;
 
     // The seams. Not owned; must outlive the core. Null restores the default.
     void SetClock(const IClock* c) { m_clock = c ? c : &m_steady; afCtl.SetClock(*m_clock); }
-    void SetUi(IUiSink* u)         { m_ui = u ? u : &m_null; afCtl.SetUi(*m_ui); recCtl.SetUi(*m_ui); }
+    void SetUi(IUiSink* u)         { m_ui = u ? u : &m_null; afCtl.SetUi(*m_ui); recCtl.SetUi(*m_ui); arCtl.SetUi(*m_ui); }
     const IClock& Clock() const    { return *m_clock; }
     IUiSink&      Ui()             { return *m_ui; }
 

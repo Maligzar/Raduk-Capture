@@ -168,9 +168,14 @@ static void GroupRecord() {
     const auto t0 = std::chrono::steady_clock::now();
     while (!complete.load() && std::chrono::steady_clock::now() - t0 < std::chrono::seconds(60)) {
         Pump(core, last);   // the loop keeps running beside a recording
+        // The capture thread only raises the limit; the render loop stops
+        // the run (main.cpp's endRecording), because StopRecording joins
+        // the writer. Done here as the loop does it.
+        if (core.capturer.IsRecording() && core.capturer.LimitReached())
+            core.capturer.StopRecording(true);
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
-    Check(complete.load(), "it stops by itself at its frame limit");
+    Check(complete.load(), "it stops at its frame limit");
     Check(core.capturer.FramesRecorded() == 60, "60 frames recorded",
           std::to_string(core.capturer.FramesRecorded()));
     std::error_code e2;

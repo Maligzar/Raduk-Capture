@@ -1618,6 +1618,10 @@ paths pass fault injection, and one unattended sky run completes.
    checked and stoppable, and the overshoot stops depending on the
    backlash figure. Bench only, and ahead of any sweep on the sky.
    Planned 2026-11-14 from the first-principles review.
+   Model: **Fable** for 161.0b (stop wins: the command lock and abort
+   generation) and 161.1 (threads, the ring); **Opus** for 161.0a (reads,
+   guards, arrival checks, the emulator's faults) and 161.2. The table
+   and the rule are in the plan.
 
 #### Release 3.5: planetary excellence
 
@@ -1630,6 +1634,8 @@ checked against the eye (clear-night items 1, 37, 55, 57 and 58).
     (um per step, slack, repeatability, settle), the sweep in units of
     the critical focus zone, and a result with an error bar. 158 builds
     on its figures.
+    Model: **Fable** for 161.3, 161.4 and 161.5a (the noise gate);
+    **Opus** for 161.5b (the region, the green option) and 161.6.
 26. **Phases 147 and 148 (rows 47, 48)**: AVI, then TIFF.
 27. **149.5 and 149.6 (row 49)**: the ZWO filter wheel, then RGB sequencing
     on a mono camera.

@@ -105,6 +105,26 @@ One command, CALIBRATE FOCUS, on a bright star or a planet's limb at 45° or hig
 - Phase 158's history line gains µm per step, the error bar and the altitude, and 158.2's temperature fit starts from the expected 40 to 60 steps per degree as a sanity bound, not as a value.
 - AE is returned to the state it was in before autofocus took it.
 
+## Which model builds each stage
+
+The owner asked on 2026-11-14 for each stage to be marked: needs Fable, or Opus can handle it. The rule used, which is a judgement and not a measurement: **Fable** where a mistake is silent and no test here would catch it (lock ordering and lock-free state, a measurement whose physics has to be right, numerics that decide where the mirror stops); **Opus** where the change is specified by this plan to the level of a test case and a wrong result fails a gate. Two stages are split so the routine part does not wait on the hard part.
+
+| Stage | Model | Why |
+|---|---|---|
+| 161.0a Reads that fail, no move from a failed read, relative steps from the target, the travel guard, arrival checks, the emulator's four faults | Opus | Each bullet is one test case in `focuser_safety`; a miss fails the gate |
+| 161.0b Stop wins: the command lock, the abort generation, the second leg out of `IsMoving()` | Fable | Three threads touch the focuser; a wrong lock order or a missed generation check passes every test and fails on the rig |
+| 161.1 Completion on the GUI thread, running from the first instant, the forward-only ring, samples tied to frames | Fable | Lock-free state shared with the time-critical capture thread, and a Win32 delivery path CI cannot run |
+| 161.2 Overshoot apart from backlash | Opus | Two settings and three test cases, in code 139 already structured for it |
+| 161.3 CALIBRATE FOCUS | Fable | A new measurement on real hardware: the wing-slope optics, the reversal test's threshold, and a state machine that must be safe when the sky does not cooperate |
+| 161.4 The sweep in optical units | Fable | The fits, the shuffled order and the bootstrap decide the final position; a subtle bias is invisible without knowing where to look |
+| 161.5a The edge metric's noise gate | Fable | A noise model that must hold from gain 100 to 450 on light the emulator does not reproduce |
+| 161.5b The region from focus, and `AutofocusChannel=green` | Opus | Sizing and a channel switch, gated by `focus_metric` |
+| 161.6 The operator's view, AE put back | Opus | Display and state restore |
+| Smaller: the write buffer's pre-touch off the GUI thread; the stamp latency constant | Opus | Contained, each with an obvious check |
+| Smaller: a missing coarse point left out of the fit | Fable | Lands inside 161.4's fit |
+
+Review follows the same split in reverse: a stage Opus builds is reviewed by Fable before it merges when it touches the focuser (161.0a, 161.2), since those are the ones that move glass.
+
 ## Smaller items, folded into the nearest stage
 
 - A missing coarse point is left out of the fit, not scored as 0 (161.4).
@@ -131,4 +151,4 @@ One command, CALIBRATE FOCUS, on a bright star or a planet's limb at 45° or hig
 
 ## Versioning
 
-Every PR bumps PATCH. Suggested PRs: 161.0; 161.1; 161.2; 161.3 (the routine and the checklist item, run when a night allows); 161.4; 161.5 with 161.6.
+Every PR bumps PATCH. Suggested PRs: 161.0a; 161.0b; 161.1; 161.2; 161.3 (the routine and the checklist item, run when a night allows); 161.4; 161.5a; 161.5b with 161.6.

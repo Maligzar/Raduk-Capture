@@ -42,7 +42,7 @@ The owner's instruction, 2026-11-14. It holds for every stage below, and for any
 
 - **Before.** Every way of starting autofocus (the button, Autorun, a remote command) goes through `AutofocusController::Start`: AE on, in AUTO, and the sweep waits until AE says it is settled, a recording is running, or 20 s have passed (phase 112). Unchanged.
 - **During a stage.** AE is held. A change of exposure inside a stage bends that stage's curve. Unchanged.
-- **Between the stages. Written 2026-11-14 (3.3.13).** AE settled before the sweep on whatever focus the rig was left at. A defocused disc is spread out and dim, so that exposure can clip once the coarse sweep has gathered the light back up, and a clipped limb is what the fine pass reads. The routine now goes to the coarse result, releases AE there (`WantsExposure`), waits up to `AF_EXPOSURE_WINDOW_MS` (10 s, UNVERIFIED, item 58) for it to settle, and holds it again for the fine pass. Both scores divide exposure out, so a change between stages costs nothing. If AE cannot act (not in AUTO, a recording holds it) the routine is told at once and does not wait. Gated by `tests/af_exposure_window.cpp` and `tests/af_controller.cpp`.
+- **Between the stages. Written 2026-11-14 (3.3.14).** AE settled before the sweep on whatever focus the rig was left at. A defocused disc is spread out and dim, so that exposure can clip once the coarse sweep has gathered the light back up, and a clipped limb is what the fine pass reads. The routine now goes to the coarse result, releases AE there (`WantsExposure`), waits up to `AF_EXPOSURE_WINDOW_MS` (10 s, UNVERIFIED, item 58) for it to settle, and holds it again for the fine pass. Both scores divide exposure out, so a change between stages costs nothing. If AE cannot act (not in AUTO, a recording holds it) the routine is told at once and does not wait. Gated by `tests/af_exposure_window.cpp` and `tests/af_controller.cpp`.
 - **After.** AE stays on, in AUTO, as phase 112 left it. An earlier draft of 161.6 put AE back to its state before autofocus; that is withdrawn.
 - **Still to do, in the stages named:** CALIBRATE FOCUS (161.3) starts through the same controller path, and gives AE a turn before each of its measurements, since each sits at a different focus. The fine pass's own re-run when its best point is at an end (161.4) gives AE a turn at the new centre. A change of exposure or gain made by hand or by a profile during a stage ends that stage and repeats it, with a line saying why (161.4).
 
@@ -52,14 +52,14 @@ Bench stages first: they need no sky, and the sky stages are not safe to run bef
 
 ### 161.0 The focuser cannot be sent somewhere by accident (bench, M)
 
-**161.0a written 2026-11-14 (3.3.13)**: everything below except "Stop wins", which is 161.0b. As built, where it differs from the bullets:
+**161.0a written 2026-11-14 (3.3.14)**: everything below except "Stop wins", which is 161.0b. As built, where it differs from the bullets:
 - The rule is one pure header, `src/core/FocuserGuard.h`, used by the EAF wrapper and the emulator alike.
 - A profile load and the remote `move_eaf` never override the guard: they are refused and logged. Only the panel's GO TO asks twice. A remote command cannot be asked twice, and a profile's position is a number from another night.
 - Autofocus is held to the guard measured from where the sweep started, not per hop, so a move from one side of its span to the other is not refused half way (`MoveToDirectFar`).
 - A focuser that says "not moving" short of its leg gets 2 s before the move is called short. Whether the real EAF ever does this is not known: clear-night item 59.
 - The second leg is still commanded from `IsMoving()`; moving it to `Service()` is 161.0b's.
 
-**161.0b written 2026-11-14 (3.3.13)**: stop wins. As built:
+**161.0b written 2026-11-14 (3.3.14)**: stop wins. As built:
 - Each focuser holds one command lock (recursive) round every move, stop, second leg and SDK call. This also means the EAF SDK is never entered by two threads at once, which nothing guaranteed before.
 - `Stop()` advances a stop generation under that lock. Autofocus takes the generation in `Start()` and sends every move with it (`IFocuser::MoveInSequence`); a move carrying an older one is refused (`MoveRefusal::Stopped`) inside the lock. So after any `Stop()` has returned (autofocus's abort, the panel's STOP, the emergency stop), no move of that sweep can start. The panel's STOP now ends a sweep, which it did not before.
 - `Service()` exists and the app calls it every 500 ms. `IsMoving()` still does the same work on the way to its answer, now under the lock: taking it out would hang every caller that waits in a `while (IsMoving())` loop with nothing else servicing, and the race that made the side effect dangerous is closed by the lock. A departure from the bullet below, on purpose.
@@ -76,7 +76,7 @@ Bench stages first: they need no sky, and the sky stages are not safe to run bef
 
 ### 161.1 Threads (bench, S)
 
-**Written 2026-11-14 (3.3.13).** As built:
+**Written 2026-11-14 (3.3.14).** As built:
 - **Completion on the frame loop's thread.** The routine's thread leaves its result with `AutofocusController::OnComplete`; `Deliver()`, called every pass of the loop, runs the hooks. `Busy()` stays true until they have run, and the routine hands its result over before its state says done, so Autorun cannot read a failed sweep as a finished one.
 - **Running from the first instant.** `Start()` sets the state before the thread exists.
 - **The ring only goes forward.** Each committed frame takes the ring's own sequence number (`FrameSlot::ringSeq`, which a capture restart does not reset, unlike `frameNumber`); `GetLatestFrame` frees a frame no newer than the last it returned and reports nothing new.
@@ -92,7 +92,7 @@ Bench stages first: they need no sky, and the sky stages are not safe to run bef
 
 ### 161.2 Backlash is two numbers (bench, S)
 
-**Written 2026-11-14 (3.3.13).** As built: rig.ini `FocuserOvershootSteps` (`-1`: three times the backlash figure, at least 1,500), resolved by `ResolveOvershoot` and used for every one-sided move and for autofocus's approaches; `FocuserBacklashSteps` keeps the half-backlash shift and the fine span's floor. Gated by `tests/af_overshoot.cpp`, with the emulator's slack unknown to the app (it is told 200): a step reached from both sides is 800 steps of mirror apart with the old overshoot and 0 with 1,500; autofocus ends within 12 steps of focus at slacks of 400, 1,000 and 2,000 in three runs, against 104 to 200 the old way at 1,000. Where it differs from the bullets: a slack of ten times the backlash figure (2,000) is beyond the 1,500 default and needs `FocuserOvershootSteps` set, so that case runs at 2,500. The default stays the 1,500 the owner approved; clear-night item 59 says whether it is enough.
+**Written 2026-11-14 (3.3.14).** As built: rig.ini `FocuserOvershootSteps` (`-1`: three times the backlash figure, at least 1,500), resolved by `ResolveOvershoot` and used for every one-sided move and for autofocus's approaches; `FocuserBacklashSteps` keeps the half-backlash shift and the fine span's floor. Gated by `tests/af_overshoot.cpp`, with the emulator's slack unknown to the app (it is told 200): a step reached from both sides is 800 steps of mirror apart with the old overshoot and 0 with 1,500; autofocus ends within 12 steps of focus at slacks of 400, 1,000 and 2,000 in three runs, against 104 to 200 the old way at 1,000. Where it differs from the bullets: a slack of ten times the backlash figure (2,000) is beyond the 1,500 default and needs `FocuserOvershootSteps` set, so that case runs at 2,500. The default stays the 1,500 the owner approved; clear-night item 59 says whether it is enough.
 
 - **`FocuserOvershootSteps`** is how far a move goes past before coming back. It needs only to exceed the slack, and costs only time. Default: the larger of 3 times the backlash figure and 1,500, UNVERIFIED until 161.3.
 - **`FocuserBacklashSteps`** stays the measured slack, used only for the half-backlash shift of a coarse-only result.

@@ -1866,9 +1866,7 @@ static int RunApp(bool useEmulator) {
     // eighteen files to register separately and then join, not one
     // file containing eighteen different parts of the Moon.
     // Phase 108: this run's window, worked out when it starts. 0 is none.
-    double      derotWindowSec = 0.0;
-    bool        derotWarned    = false;
-    std::string derotBody;
+    // Phase 108's derotation window is held by core.recCtl (phase 153.2).
 
     // Phase 113: a sequence of runs. It presses the same RECORD and the
     // same autofocus as a person does, so a press from it has to be told
@@ -1909,7 +1907,7 @@ static int RunApp(bool useEmulator) {
             // wrong about it once already.
             //
             // Phase 108: the config still holds the last planet's window.
-            derotWindowSec = 0.0;
+            core.recCtl.ClearDerotWindow();
             {
                 CaptureConfig mc = capturer.Config();
                 mc.derotationStopSec = 0.0;
@@ -4199,20 +4197,35 @@ static int RunApp(bool useEmulator) {
     //
     // Two call sites doing the same thing differently is how that
     // happens, so now there is one.
-    auto endRecording = [&](bool normal, const char* why) {
-        if (!capturer.IsRecording()) return;
-        capturer.StopRecording(normal);
-        usbMgr.SetCapturing(false);
-        slog.System("USB polling restored — %s", usbMgr.StatusString());
-        Log("[REC] stopped (%s); USB polling restored: %s\n",
-            why ? why : "manual", usbMgr.StatusString());
-    };
+    // Phase 153.2: the stop lives in AppCore's RecordingController; the
+    // USB manager, the session log, the bar and the preview are its hooks.
+    {
+        raduk::app::RecordingHooks h;
+        h.usbCapturing = [&](bool on) { usbMgr.SetCapturing(on); };
+        h.usbStatus = [&]() { return std::string(usbMgr.StatusString()); };
+        h.session = [&](const std::string& t) { slog.System("%s", t.c_str()); };
+        h.notify = [&](raduk::app::ToastLevel l, const std::string& u8) {
+            wchar_t w[320];
+            MultiByteToWideChar(CP_UTF8, 0, u8.c_str(), -1, w, 320);
+            if (l == raduk::app::ToastLevel::Error)     notifBar.NotifyError(w);
+            else if (l == raduk::app::ToastLevel::Warn) notifBar.NotifyWarn(w);
+            else                                        notifBar.NotifyInfo(w);
+        };
+        h.resetDisplayFx = [&]() {
+            // Phase 25: disable FX on recording start — capture raw frames
+            if (preview.GetDisplayFX() != DisplayFX::Normal) {
+                preview.SetDisplayFX(DisplayFX::Normal);
+                controls.SetFXLabel(L"[FX] NORMAL");
+                Log("[FX] Reset to NORMAL for capture\n");
+            }
+        };
+        core.recCtl.SetHooks(std::move(h));
+    }
+    auto endRecording = [&](bool normal, const char* why) { core.recCtl.End(normal, why); };
 
     // Phase 108: how long this target has before rotation blurs it.
     auto workOutDerotWindow = [&](const std::string& frameType) {
-        derotWindowSec = 0.0;
-        derotWarned    = false;
-        derotBody.clear();
+        core.recCtl.ClearDerotWindow();
         if (frameType != "Light") return;
         std::string tgt = gotoPanel.CurrentTarget();
         if (tgt.empty())
@@ -4220,13 +4233,11 @@ static int RunApp(bool useEmulator) {
         if (const auto* b = raduk::core::FindRotatingBody(tgt)) {
             const auto sz = raduk::sky::PlanetApparentSizeAt(
                 b->name, raduk::sky::CurrentJD());
-            if (sz.valid) {
-                derotBody      = b->name;
-                derotWindowSec = raduk::core::DerotationWindowSec(
+            if (sz.valid)
+                core.recCtl.SetDerotWindow(raduk::core::DerotationWindowSec(
                     sz.discArcsec, b->periodSec,
                     raduk::core::RayleighArcsec(
-                        raduk::core::RigConfig::Get().apertureMm));
-            }
+                        raduk::core::RigConfig::Get().apertureMm)), b->name);
         }
     };
 
@@ -4257,7 +4268,7 @@ static int RunApp(bool useEmulator) {
             // Phase 113: a sequence always stops at the window. A run
             // past it is what a sequence exists to prevent.
             const bool stopAtWindow = rig.derotationStop || autorun.Running();
-            cfg.derotationStopSec = stopAtWindow ? derotWindowSec : 0.0;
+            cfg.derotationStopSec = stopAtWindow ? core.recCtl.DerotWindowSec() : 0.0;
             cfg.winJuposNames     = rig.winJuposNames;
             capturer.SetConfig(cfg);
             CreateDirectoryA(cfg.outputDir.c_str(), nullptr);
@@ -4276,26 +4287,7 @@ static int RunApp(bool useEmulator) {
             // reason it exists, and the format-change path on line ~2147
             // has always passed it. Only this one, the RECORD button,
             // did not.
-            if (capturer.StartRecording(roiWidth, roiHeight, roiBits)) {
-                usbMgr.SetCapturing(true);
-                slog.System("USB capture mode — %s", usbMgr.StatusString());
-                Log("[USB] Throttling EAF+mount: %s\n", usbMgr.StatusString());
-                if (derotWindowSec > 0.0) {
-                    Log("[DEROT] %s: %.0f s window, %s\n", derotBody.c_str(),
-                        derotWindowSec, stopAtWindow ? "stop" : "warn");
-                    wchar_t msg[128];
-                    swprintf(msg, 128, L"%hs: rotation blurs detail after %.1f min (%ls)",
-                             derotBody.c_str(), derotWindowSec / 60.0,
-                             stopAtWindow ? L"the run stops there" : L"it will warn");
-                    notifBar.NotifyInfo(msg);
-                }
-                // Phase 25: disable FX on recording start — capture raw frames
-                if (preview.GetDisplayFX() != DisplayFX::Normal) {
-                    preview.SetDisplayFX(DisplayFX::Normal);
-                    controls.SetFXLabel(L"[FX] NORMAL");
-                    Log("[FX] Reset to NORMAL for capture\n");
-                }
-            }
+            core.recCtl.Begin(roiWidth, roiHeight, roiBits, stopAtWindow);   // phase 153.2
         }
         // Immediately sync the button visual — don't wait for the 500ms readout tick.
         // UpdateCaptureStatus sets m_status.recording and invalidates the owner-drawn
@@ -4313,33 +4305,19 @@ static int RunApp(bool useEmulator) {
     // false for an emergency stop or an ROI change, and neither should
     // launch minutes of CPU work.
     capturer.SetOnComplete([&](const std::string& path, bool normal) {
-        Log("[STACK] recording complete: normal=%d  autoStack=%d  path=%s\n",
-            normal ? 1 : 0,
-            raduk::core::RigConfig::Get().autoStackOnStop ? 1 : 0,
-            path.empty() ? "(empty)" : path.c_str());
+        // Phase 153.2: the decision is the controller's; Autorun and
+        // AutoStakkert act on it here.
+        const auto c = core.recCtl.Complete(path, normal,
+                                            raduk::core::RigConfig::Get().autoStackOnStop,
+                                            autorun.Running(), raduk::core::IsFitsCapture(path));
         // Phase 113: anything but a normal end stops a sequence, whoever
         // did it: Escape, a format change, the hardware going away.
-        if (!normal) autorun.Abort("a recording was stopped from outside");
+        if (c.abortAutorun) autorun.Abort("a recording was stopped from outside");
         autorunLastPath = path;
-        if (!normal) return;
-        if (path.empty()) return;   // 135.4: no frames, nothing was kept to stack
-        if (!raduk::core::RigConfig::Get().autoStackOnStop) return;
-        // Stacking takes minutes of CPU, and the next run is seconds away.
-        if (autorun.Running()) {
-            Log("[STACK] auto-stack passes over a run in a sequence: %s\n",
-                path.c_str());
-            return;
-        }
-        // Auto-stack is unattended, and a FITS cube only stacks with
-        // someone at AutoStakkert's window. Do not throw one up over the
-        // session when a recording ends.
-        if (raduk::core::IsFitsCapture(path)) {
-            Log("[STACK] auto-stack passes over FITS: %s\n", path.c_str());
+        if (c.fitsNotice)
             notifBar.NotifyInfo(L"Auto-stack is SER only - press [STACK] "
                                 L"to open this FITS in AutoStakkert");
-            return;
-        }
-        doStackFile(path);
+        if (c.stack) doStackFile(path);
     });
 
     // ── Phase 48: what goes into the observation record ──────
@@ -6255,7 +6233,7 @@ static int RunApp(bool useEmulator) {
         c.deferFocusInPrime = autorunJupiter && rig.autorunPrimeDeferMin > 0.0f;
         c.primeDeferMaxSec  = rig.autorunPrimeDeferMin * 60.0;
         c.runSec       = raduk::core::AutorunRunSec(
-            derotWindowSec, controls.GetLimitByFrames(),
+            core.recCtl.DerotWindowSec(), controls.GetLimitByFrames(),
             controls.GetLimitFrames(), controls.GetLimitTimeSec(),
             capture.Stats().fps.load());
 
@@ -6430,7 +6408,7 @@ static int RunApp(bool useEmulator) {
     // WM_USER+10 — GoTo settle timer expired → start centroid acquisition
     window.SetUserMessageHandler([&](UINT msg) {
         if (msg == WM_USER + 12) {
-            derotWindowSec = 0.0;
+            core.recCtl.ClearDerotWindow();
             {
                 CaptureConfig mc = capturer.Config();
                 mc.derotationStopSec = 0.0;
@@ -7001,9 +6979,6 @@ static int RunApp(bool useEmulator) {
         if (capturer.IsRecording()) {
             bool gateEnabled   = controls.GateEnabled();
             float gateThresh   = controls.GateThreshold();
-            bool seenOk        = !gateEnabled
-                                 || !lastAnalysis.valid
-                                 || lastAnalysis.seeingScore >= gateThresh;
 
             // Publish the policy; the CAPTURE thread does the
             // submitting now, once per frame the camera delivers.
@@ -7021,46 +6996,17 @@ static int RunApp(bool useEmulator) {
             // frame: the gate keys off a seeing score that updates at
             // about 2 Hz, and the centroid is only a hint telling the
             // writer where to measure sharpness.
-            capturer.SetGateOpen(seenOk);
-            capturer.SetFrameHints(
-                (lastAnalysis.valid && lastAnalysis.centroidValid)
-                    ? (uint32_t)lastAnalysis.centroidX : 0u,
-                (lastAnalysis.valid && lastAnalysis.centroidValid)
-                    ? (uint32_t)lastAnalysis.centroidY : 0u,
-                lastAnalysis.valid ? lastAnalysis.sharpnessPct : 0.0f);
-
-            if (gateEnabled) controls.SetGateActive(!seenOk);
-
-            // The capture thread raises this and stops there, because
-            // StopRecording() joins the writer thread and a buffer sized
-            // to a whole run can take seconds to drain -- far too long
-            // to stall frame acquisition for.
-            //
-            // Phase 98: through endRecording, so the limit path restores
-            // USB polling like every other stop. It did not, and the EAF
-            // and mount stayed throttled afterwards.
-            // Phase 135.1: the disk stopped the run. Same path as a
-            // limit, so USB polling and the record are handled alike, and
-            // said on screen, not only in the log.
-            if (capturer.DiskStopped() != raduk::core::CaptureManager::DiskStop::None) {
-                const auto ds = capturer.DiskStopped();
-                endRecording(false, raduk::core::CaptureManager::DiskStopReason(ds));
-                notifBar.NotifyError(ds == raduk::core::CaptureManager::DiskStop::WriteFailed
-                    ? L"Recording stopped: a disk write failed. Frames still in memory were lost - check the drive"
-                    : L"Recording stopped: the disk is nearly full. Every captured frame was saved");
-            } else if (capturer.LimitReached()) {
-                const bool derot = capturer.DerotationStopped();
-                endRecording(true, derot ? "derotation window"
-                                         : "frame/time limit reached");
-                if (derot)
-                    notifBar.NotifyInfo(L"Run stopped at the derotation window");
-            } else if (derotWindowSec > 0.0 && !derotWarned &&
-                       capturer.ElapsedSec() >= derotWindowSec) {
-                derotWarned = true;
-                Log("[DEROT] window passed at %.0f s\n", capturer.ElapsedSec());
-                notifBar.NotifyWarn(L"Past the derotation window - rotation is "
-                                    L"blurring this run, unless you derotate it");
-            }
+            // Phase 153.2: the gate, the hints and the stops are the
+            // recording controller's.
+            raduk::app::RecordingFrameView rv;
+            rv.valid = lastAnalysis.valid;
+            rv.centroidValid = lastAnalysis.centroidValid;
+            rv.centroidX = (uint32_t)lastAnalysis.centroidX;
+            rv.centroidY = (uint32_t)lastAnalysis.centroidY;
+            rv.sharpnessPct = lastAnalysis.sharpnessPct;
+            rv.seeingScore = lastAnalysis.seeingScore;
+            const bool held = core.recCtl.Service(gateEnabled, gateThresh, rv);
+            if (gateEnabled) controls.SetGateActive(held);
         }
 
         // Submit to frame analyzer (non-blocking, always)

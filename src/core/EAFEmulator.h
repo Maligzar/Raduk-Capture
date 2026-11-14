@@ -76,7 +76,12 @@ public:
     bool MoveTo(int position) override       { return Command(position, true,  false); }
     bool MoveToFar(int position) override    { return Command(position, true,  true);  }
     bool MoveToDirect(int position) override { return Command(position, false, false); }
-    bool MoveToDirectFar(int position) override { return Command(position, false, true); }
+    // Phase 161.0b: stop wins (FocuserGuard.h).
+    unsigned StopGeneration() const override { return m_stopGen.load(); }
+    bool MoveInSequence(unsigned generation, int position, bool oneSided) override {
+        return Command(position, oneSided, true, &generation);
+    }
+    void Service() override { (void)IsMoving(); }
 
     void SetMaxTravel(int steps) override { m_maxTravel.store(steps < 0 ? 0 : steps); }
     int  MaxTravel() const override       { return m_maxTravel.load(); }
@@ -114,8 +119,14 @@ public:
     int  MaxExcursion() const    { return m_excursion.load(); }
 
 private:
-    bool Command(int position, bool oneSided, bool pastGuard) {
+    bool Command(int position, bool oneSided, bool pastGuard, const unsigned* sequence = nullptr) {
+        std::lock_guard<std::recursive_mutex> cmd(m_cmd);
         if (!m_isOpen) { m_ledger.Refuse(MoveRefusal::NotOpen, 0, position, 0); return false; }
+        if (sequence && *sequence != m_stopGen.load()) {
+            m_ledger.Refuse(MoveRefusal::Stopped, 0, position, 0);
+            raduk::core::CoreLog("[EAFEmulator] move to %d dropped: a stop was asked for\n", position);
+            return false;
+        }
         int from = 0;
         const bool known = TryGetPosition(from);
         const int  guard = m_maxTravel.load();
@@ -159,6 +170,7 @@ private:
 public:
 
     bool MoveRelative(int steps) override {
+        std::lock_guard<std::recursive_mutex> cmd(m_cmd);
         if (!m_isOpen) { m_ledger.Refuse(MoveRefusal::NotOpen, 0, 0, 0); return false; }
         int target = m_ledger.Target();
         if (target >= 0 && !IsMoving()) target = -1;   // it has finished
@@ -173,6 +185,8 @@ public:
     }
 
     bool Stop() override {
+        std::lock_guard<std::recursive_mutex> cmd(m_cmd);
+        m_stopGen.fetch_add(1);
         if (!m_isOpen) return false;
         m_approach.Cancel();
         m_ledger.Idle();
@@ -184,6 +198,7 @@ public:
     }
 
     bool IsMoving() const override {
+        std::lock_guard<std::recursive_mutex> cmd(m_cmd);
         if (!m_isOpen) return false;
         if (m_stalled.load()) {
             std::lock_guard<std::mutex> lk(m_mutex);
@@ -305,6 +320,8 @@ private:
     mutable std::mutex  m_mutex;
     // Phase 161.0a.
     mutable MoveLedger  m_ledger;
+    mutable std::recursive_mutex m_cmd;       // phase 161.0b
+    std::atomic<unsigned> m_stopGen{0};
     std::atomic<int>    m_maxTravel{kDefaultMaxTravelSteps};
     mutable std::atomic<int> m_failReads{0};
     std::atomic<int>    m_refuseMoves{0};

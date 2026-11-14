@@ -63,7 +63,9 @@ struct FakeFocuser : raduk::core::IFocuser {
     bool readFails = false;
     bool TryGetPosition(int& p) const override { if (readFails) return false; p = pos; return true; }
     bool MoveToFar(int p) override { pos = p; return true; }
-    bool MoveToDirectFar(int p) override { pos = p; return true; }
+    unsigned StopGeneration() const override { return 0; }
+    bool MoveInSequence(unsigned, int p, bool) override { pos = p; return true; }
+    void Service() override {}
     void SetMaxTravel(int) override {}
     int  MaxTravel() const override { return 0; }
     raduk::core::MoveRefusal LastRefusalKind() const override { return raduk::core::MoveRefusal::None; }

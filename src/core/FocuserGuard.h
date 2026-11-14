@@ -21,6 +21,16 @@
 //                     leg in flight, and why the last move was refused.
 //    FarMoveConfirm   a move past the guard asks for a second press.
 //
+//  Phase 161.0b, stop wins. Each focuser holds one command lock round
+//  every move, stop, second leg and SDK call, and a stop generation that
+//  Stop() advances. A caller that makes a SEQUENCE of moves (autofocus)
+//  takes the generation when it starts and passes it with each move
+//  (IFocuser::MoveInSequence); a move carrying an old generation is
+//  refused, under the same lock Stop() takes. So once a Stop() has
+//  returned, no move of a sequence that began before it can start: the
+//  check and the command are one step, and "I looked at my abort flag a
+//  moment ago" is no longer good enough to turn the motor.
+//
 //  Gated by tests/focuser_safety.cpp.
 // ============================================================
 
@@ -55,6 +65,7 @@ enum class MoveRefusal {
     TooFar,            // further than the travel guard, and not overridden
     Device,            // the focuser itself refused the command
     StoppedShort,      // it stopped, but not where it was sent
+    Stopped,           // phase 161.0b: a stop was asked for since this sequence began
 };
 
 inline const char* DescribeRefusal(MoveRefusal r) {
@@ -66,6 +77,7 @@ inline const char* DescribeRefusal(MoveRefusal r) {
         case MoveRefusal::TooFar:          return "the move is longer than FocuserMaxTravelSteps";
         case MoveRefusal::Device:          return "the focuser refused the command";
         case MoveRefusal::StoppedShort:    return "the focuser stopped short of its target";
+        case MoveRefusal::Stopped:         return "a stop was asked for";
     }
     return "?";
 }

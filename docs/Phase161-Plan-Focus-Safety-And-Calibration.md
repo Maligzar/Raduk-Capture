@@ -59,6 +59,12 @@ Bench stages first: they need no sky, and the sky stages are not safe to run bef
 - A focuser that says "not moving" short of its leg gets 2 s before the move is called short. Whether the real EAF ever does this is not known: clear-night item 59.
 - The second leg is still commanded from `IsMoving()`; moving it to `Service()` is 161.0b's.
 
+**161.0b written 2026-11-14 (3.3.13)**: stop wins. As built:
+- Each focuser holds one command lock (recursive) round every move, stop, second leg and SDK call. This also means the EAF SDK is never entered by two threads at once, which nothing guaranteed before.
+- `Stop()` advances a stop generation under that lock. Autofocus takes the generation in `Start()` and sends every move with it (`IFocuser::MoveInSequence`); a move carrying an older one is refused (`MoveRefusal::Stopped`) inside the lock. So after any `Stop()` has returned (autofocus's abort, the panel's STOP, the emergency stop), no move of that sweep can start. The panel's STOP now ends a sweep, which it did not before.
+- `Service()` exists and the app calls it every 500 ms. `IsMoving()` still does the same work on the way to its answer, now under the lock: taking it out would hang every caller that waits in a `while (IsMoving())` loop with nothing else servicing, and the race that made the side effect dangerous is closed by the lock. A departure from the bullet below, on purpose.
+- `MoveToDirectFar`, added in 161.0a for autofocus alone, is replaced by `MoveInSequence`.
+
 - **A read that fails says so.** `IFocuser::TryGetPosition(int&)` returns false on an SDK error. `GetPosition()` returns the last good value and never 0 for a failure. `IsMoving` reports its error the same way; an unknown state counts as moving.
 - **No move from a failed read.** `MoveRelative`, autofocus's start, the profile save and the dashboard all refuse, with a visible line, when the position is not known.
 - **Relative steps add to the commanded target.** Two quick presses of "in 10" end 20 below where the first began, however far the first leg had got.

@@ -1619,7 +1619,8 @@ paths pass fault injection, and one unattended sky run completes.
    checked and stoppable, and the overshoot stops depending on the
    backlash figure. Bench only, and ahead of any sweep on the sky.
    Planned 2026-11-14 from the first-principles review. **161.0a written
-   2026-11-14 (3.3.13)**: `FocuserGuard.h`, gated by `focuser_safety`.
+   2026-11-14 (3.3.13)**: `FocuserGuard.h`, gated by `focuser_safety`. **161.0b
+   written 2026-11-14 (3.3.13)**: the command lock and the stop generation.
    Model: **Fable** for 161.0b (stop wins: the command lock and abort
    generation) and 161.1 (threads, the ring); **Opus** for 161.0a (reads,
    guards, arrival checks, the emulator's faults) and 161.2. The table

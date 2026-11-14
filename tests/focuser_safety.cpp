@@ -10,6 +10,10 @@
 //  emulated focuser with its injected faults, and on the real autofocus
 //  routine driving it. The assertion that matters most: no single fault
 //  can make the focuser travel further than the guard.
+//
+//  Phase 161.0b, section 9: a stop cannot be overtaken. Stop() advances
+//  a generation under the lock every move takes, and a sequence's move
+//  carrying an older one is refused.
 // ============================================================
 
 #define RADUK_EMULATOR 1
@@ -289,6 +293,121 @@ int main() {
         Check(r.excursion <= 1500, "and never leaves the guard round its start", N(r.excursion));
         Check(std::abs(f.GetOpticalPosition() - kFocus) < 400, "near focus, which lay inside it",
               N(f.GetOpticalPosition() - kFocus));
+        f.Close();
+    }
+
+    // ── Phase 161.0b: stop wins ─────────────────────────────────
+    std::printf("\n9. A stop cannot be overtaken\n");
+    {
+        EAFFocuser f; f.Open(0); f.ResetExcursion();
+        const unsigned g = f.StopGeneration();
+        Check(f.MoveInSequence(g, kHome + 300, false) && WaitStopped(f) && f.GetPosition() == kHome + 300,
+              "a sequence's move, before any stop", N(f.GetPosition()));
+        f.Stop();
+        f.ResetExcursion();
+        Check(!f.MoveInSequence(g, kHome + 900, false) && f.LastRefusalKind() == MoveRefusal::Stopped,
+              "after a stop, the same sequence's next move is refused", f.LastRefusal());
+        Ms(60);
+        Check(f.MaxExcursion() == 0, "and the motor does not turn", N(f.MaxExcursion()));
+        Check(f.MoveInSequence(f.StopGeneration(), kHome + 900, false),
+              "a sequence begun after the stop moves as asked");
+        f.Stop();
+        Check(f.MoveTo(kHome) && WaitStopped(f), "and an ordinary move is never held by an old stop");
+        f.Close();
+    }
+    {
+        EAFFocuser f; f.Open(0);
+        f.SetApproachBacklash(400);
+        Check(f.MoveTo(kHome - 200), "an inward one-sided move: 400 past, then back");
+        Ms(20);
+        f.Stop();
+        const int at = f.GetPosition();
+        for (int i = 0; i < 40; ++i) { f.Service(); (void)f.IsMoving(); Ms(5); }
+        Check(f.GetPosition() == at, "stopped on its first leg: the second is never commanded",
+              N(f.GetPosition() - at));
+        f.Close();
+    }
+    {
+        // A one-sided move's second leg, with nobody asking IsMoving().
+        EAFFocuser f; f.Open(0);
+        f.SetApproachBacklash(400);
+        f.MoveTo(kHome - 200);
+        for (int i = 0; i < 400; ++i) { f.Service(); Ms(5); }
+        Check(f.GetPosition() == kHome - 200, "Service() alone carries a move through both legs",
+              N(f.GetPosition()));
+        f.Close();
+    }
+    {
+        // Two threads, as autofocus and the operator are. The mover does
+        // what the scan thread used to: looks at its abort flag, then
+        // moves. The stopper sets the flag and stops in between. Before
+        // the generation, the move that lost that race still turned the
+        // motor. Here it must not, in any of the rounds.
+        EAFFocuser f; f.Open(0);
+        f.SetMaxTravel(0);
+        std::atomic<bool> run{true}, abortFlag{false};
+        std::atomic<unsigned> gen{f.StopGeneration()};
+        std::atomic<int> epoch{0};
+        std::atomic<long long> sent{0}, dropped{0};
+        CoreLogHook() = [](const char*) {};      // thousands of moves: not into the log
+        std::thread mover([&] {
+            int k = 0, mine = -1;
+            unsigned g = 0;
+            while (run.load()) {
+                if (abortFlag.load()) { std::this_thread::yield(); continue; }
+                // A sequence takes its generation once, when it begins,
+                // as autofocus does in Start().
+                if (mine != epoch.load()) { mine = epoch.load(); g = gen.load(); }
+                std::this_thread::yield();   // ... the window the review found ...
+                const bool ok = f.MoveInSequence(g, kHome + 200 + (k++ % 7) * 50, false);
+                (ok ? sent : dropped).fetch_add(1);
+            }
+        });
+        int ranOn = 0;
+        const int rounds = 300;
+        for (int r = 0; r < rounds; ++r) {
+            Ms(1 + r % 4);
+            abortFlag.store(true);
+            f.Stop();                       // from here, nothing of that sequence may move
+            Ms(3);                          // let any move that lost the race land
+            const int a = f.GetPosition(); Ms(12);
+            if (f.GetPosition() != a || f.IsMoving()) ++ranOn;
+            gen.store(f.StopGeneration());  // a new sequence
+            epoch.fetch_add(1);
+            abortFlag.store(false);
+        }
+        run.store(false);
+        mover.join();
+        f.Stop();
+        CoreLogHook() = nullptr;
+        Check(ranOn == 0, "300 stops against a thread that keeps moving: the motor never ran on",
+              N(ranOn) + " ran on");
+        Check(sent.load() > 300 && dropped.load() > 0,
+              "and the race was really run: moves went out, and some were dropped",
+              N(sent.load()) + " sent, " + N(dropped.load()) + " dropped");
+        f.Close();
+    }
+    {
+        // The same, through the real routine: aborts at ten different
+        // moments of a sweep.
+        int ranOn = 0, wrongWord = 0;
+        for (int k = 0; k < 10; ++k) {
+            EAFFocuser f; f.Open(0);
+            const AfRun r = RunAf(f, [&](AutofocusRoutine& af) { Ms(37 * k); af.Abort(); });
+            if (r.movingAfter) ++ranOn;
+            if (!r.done || r.res.message != "Aborted by user") ++wrongWord;
+            f.Close();
+        }
+        Check(ranOn == 0, "autofocus aborted at ten moments: the motor never ran on", N(ranOn));
+        Check(wrongWord == 0, "and every one ended as an abort", N(wrongWord));
+    }
+    {
+        // The panel's STOP is not autofocus's abort, but it must end the
+        // sweep all the same: the operator pressed stop.
+        EAFFocuser f; f.Open(0);
+        const AfRun r = RunAf(f, [&](AutofocusRoutine&) { f.Stop(); });
+        Check(r.done && !r.res.success && !r.movingAfter,
+              "the focuser's own STOP during a sweep ends the sweep, motor at rest", r.res.message);
         f.Close();
     }
 

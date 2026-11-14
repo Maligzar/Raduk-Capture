@@ -11,6 +11,7 @@
 #else
 #  include "EAF_focuser.h"
 #include <atomic>
+#include <mutex>
 #include <vector>
 #include "IFocuser.h"
 #include "FocusDirection.h"
@@ -34,7 +35,9 @@ public:
     bool MoveTo(int position) override;
     bool MoveToDirect(int position) override;
     bool MoveToFar(int position) override;
-    bool MoveToDirectFar(int position) override;
+    unsigned StopGeneration() const override { return m_stopGen.load(); }
+    bool MoveInSequence(unsigned generation, int position, bool oneSided) override;
+    void Service() override { (void)IsMoving(); }
     void SetMaxTravel(int steps) override { m_maxTravel.store(steps < 0 ? 0 : steps); }
     int  MaxTravel() const override       { return m_maxTravel.load(); }
     MoveRefusal LastRefusalKind() const override { return m_ledger.LastRefusal(); }
@@ -63,7 +66,11 @@ private:
     // Phase 139.2: the second leg of a one-sided move.
     mutable ApproachSequencer m_approach;
     // Phase 161.0a: one checked path for every move.
-    bool Command(int position, bool oneSided, bool pastGuard);
+    bool Command(int position, bool oneSided, bool pastGuard, const unsigned* sequence = nullptr);
+    // Phase 161.0b: every move, stop, second leg and SDK call, one at a
+    // time. Recursive: a move reads the position under it.
+    mutable std::recursive_mutex m_cmd;
+    std::atomic<unsigned> m_stopGen{0};
     mutable MoveLedger  m_ledger;
     std::atomic<int>    m_maxTravel{kDefaultMaxTravelSteps};
     // The firmware's backlash when opened, put back on Close so other

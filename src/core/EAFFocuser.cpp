@@ -85,8 +85,16 @@ void EAFFocuser::Close() {
 // Phase 161.0a: every move comes through here. It starts only from a
 // position that was read just now, inside the focuser's range, and no
 // further than the travel guard unless `pastGuard` overrides it.
-bool EAFFocuser::Command(int position, bool oneSided, bool pastGuard) {
+// Phase 161.0b: under the command lock, with the caller's stop generation
+// checked inside it, so a Stop() that has returned cannot be overtaken.
+bool EAFFocuser::Command(int position, bool oneSided, bool pastGuard, const unsigned* sequence) {
+    std::lock_guard<std::recursive_mutex> cmd(m_cmd);
     if (!m_isOpen) { m_ledger.Refuse(MoveRefusal::NotOpen, 0, position, 0); return false; }
+    if (sequence && *sequence != m_stopGen.load()) {
+        m_ledger.Refuse(MoveRefusal::Stopped, 0, position, 0);
+        raduk::core::CoreLog("[EAFFocuser] move to %d dropped: a stop was asked for\n", position);
+        return false;
+    }
     int from = 0;
     const bool known = TryGetPosition(from);
     const int  guard = m_maxTravel.load();
@@ -115,9 +123,12 @@ bool EAFFocuser::Command(int position, bool oneSided, bool pastGuard) {
 bool EAFFocuser::MoveTo(int position)       { return Command(position, true,  false); }
 bool EAFFocuser::MoveToFar(int position)    { return Command(position, true,  true);  }
 bool EAFFocuser::MoveToDirect(int position) { return Command(position, false, false); }
-bool EAFFocuser::MoveToDirectFar(int position) { return Command(position, false, true); }
+bool EAFFocuser::MoveInSequence(unsigned generation, int position, bool oneSided) {
+    return Command(position, oneSided, true, &generation);
+}
 
 bool EAFFocuser::MoveRelative(int steps) {
+    std::lock_guard<std::recursive_mutex> cmd(m_cmd);
     if (!m_isOpen) { m_ledger.Refuse(MoveRefusal::NotOpen, 0, 0, 0); return false; }
     // While a move is in flight a step adds to where that move ends, not
     // to wherever the motor is (which may be the overshoot leg).
@@ -134,6 +145,11 @@ bool EAFFocuser::MoveRelative(int steps) {
 }
 
 bool EAFFocuser::Stop() {
+    // Phase 161.0b: the generation moves first and under the lock, so a
+    // sequence's next move is refused from this instant, and the second
+    // leg of a one-sided move cannot be commanded behind the stop.
+    std::lock_guard<std::recursive_mutex> cmd(m_cmd);
+    m_stopGen.fetch_add(1);
     if (!m_isOpen) return false;
     m_approach.Cancel();
     m_ledger.Idle();
@@ -141,6 +157,7 @@ bool EAFFocuser::Stop() {
 }
 
 bool EAFFocuser::IsMoving() const {
+    std::lock_guard<std::recursive_mutex> cmd(m_cmd);
     if (!m_isOpen) return false;
 
     // signature: EAF_ERROR_CODE EAFIsMoving(int, bool*, bool*)
@@ -183,6 +200,7 @@ bool EAFFocuser::IsMoving() const {
 }
 
 bool EAFFocuser::TryGetPosition(int& position) const {
+    std::lock_guard<std::recursive_mutex> cmd(m_cmd);
     if (!m_isOpen) return false;
     int pos = 0;
     if (EAFGetPosition(m_focuserId, &pos) != EAF_SUCCESS) {
@@ -204,6 +222,7 @@ int EAFFocuser::GetPosition() const {
 // ── Configuration & Sensors ───────────────────────────────────────────
 
 float EAFFocuser::GetTemperature() const {
+    std::lock_guard<std::recursive_mutex> cmd(m_cmd);
     if (!m_isOpen) return 0.0f;
     float temp = 0.0f;
     EAFGetTemp(m_focuserId, &temp);
@@ -211,16 +230,19 @@ float EAFFocuser::GetTemperature() const {
 }
 
 void EAFFocuser::SetReverse(bool reversed) {
+    std::lock_guard<std::recursive_mutex> cmd(m_cmd);
     if (!m_isOpen) return;
     EAFSetReverse(m_focuserId, reversed ? EAF_TRUE : EAF_FALSE);
 }
 
 void EAFFocuser::SetBacklash(int steps) {
+    std::lock_guard<std::recursive_mutex> cmd(m_cmd);
     if (!m_isOpen) return;
     EAFSetBacklash(m_focuserId, steps);
 }
 
 int EAFFocuser::GetBacklash() const {
+    std::lock_guard<std::recursive_mutex> cmd(m_cmd);
     if (!m_isOpen) return -1;
     int v = -1;
     if (EAFGetBacklash(m_focuserId, &v) != EAF_SUCCESS) return -1;

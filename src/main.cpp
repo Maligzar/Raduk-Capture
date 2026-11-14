@@ -7746,6 +7746,9 @@ static int RunApp(bool useEmulator) {
             {
                 raduk::core::AfReadyIn ri;
                 ri.focuserOpen   = focuser.IsOpen();
+                // Phase 161.0b: the second leg of a one-sided move is
+                // commanded here, every 500 ms, whoever else is asking.
+                if (focuser.IsOpen()) focuser.Service();
                 ri.focuserMoving = focuser.IsOpen() && focuser.IsMoving();
                 ri.afRunning     = core.afCtl.Busy();
                 ri.recording     = capturer.IsRecording();

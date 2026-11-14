@@ -182,6 +182,7 @@ public:
             return false;
 
         m_abortFlag.store(false);
+        m_stopGen = m_focuser->StopGeneration();   // 161.0b: this run's
         m_aeWindow.store(false);
         m_aeSettled.store(false);
         m_moveError.clear();
@@ -1202,7 +1203,10 @@ private:
             Emit("[AF] %s\n", b);
             return false;
         }
-        const bool sent = oneSided ? m_focuser->MoveToFar(pos) : m_focuser->MoveToDirectFar(pos);
+        // Phase 161.0b: with this run's stop generation, so a move sent
+        // after any Stop() (an abort, the panel's STOP, the emergency
+        // stop) is refused by the focuser itself and the motor stays put.
+        const bool sent = m_focuser->MoveInSequence(m_stopGen, pos, oneSided);
         if (!sent) {
             m_moveError = "the focuser refused a move: " + m_focuser->LastRefusal();
             Emit("[AF] move to %d refused: %s\n", pos, m_focuser->LastRefusal().c_str());
@@ -1345,6 +1349,7 @@ private:
     AutofocusParams  m_params;       // this run's, bounds narrowed in Start
     AutofocusParams  m_baseParams;   // as set
     std::string      m_moveError;    // scan thread only (and Start, before it)
+    unsigned         m_stopGen = 0;  // the focuser's stop generation when this run began
 
     std::function<void(const char*)> m_logSink;
     std::thread      m_thread;

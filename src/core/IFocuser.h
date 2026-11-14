@@ -73,11 +73,22 @@ public:
     // that has asked the operator twice. MoveRelative adds to the
     // commanded target while a move is in flight.
     virtual bool MoveToFar(int position) = 0;
-    // MoveToDirect with the travel guard overridden, for autofocus alone:
-    // it holds every target within the guard of where the sweep STARTED,
-    // which is the bound that matters, so a hop from one side of that
-    // span to the other is not refused part way through.
-    virtual bool MoveToDirectFar(int position) = 0;
+    // Phase 161.0b: stop wins. Stop() advances the stop generation, under
+    // the lock every move takes. A caller making a sequence of moves
+    // (autofocus) takes StopGeneration() when it starts and passes it
+    // with each move; once any Stop() has returned, a move carrying the
+    // older generation is refused (MoveRefusal::Stopped) and the motor
+    // does not turn. oneSided: as MoveTo, else one leg as MoveToDirect.
+    // The travel guard is the caller's here: autofocus holds every
+    // target within the guard of where its sweep STARTED, which is the
+    // bound that matters, so a hop across that span is not refused.
+    virtual unsigned StopGeneration() const = 0;
+    virtual bool MoveInSequence(unsigned generation, int position, bool oneSided) = 0;
+    // Commands the second leg of a one-sided move once the first is
+    // done, and notices a move that stopped short. IsMoving() does the
+    // same on the way to its answer; the app also calls this from its
+    // 500 ms tick, so a move's second half never waits on a question.
+    virtual void Service() = 0;
     virtual void SetMaxTravel(int steps) = 0;
     virtual int  MaxTravel() const = 0;
     virtual MoveRefusal LastRefusalKind() const = 0;

@@ -14,6 +14,29 @@ The owner asked for this on 2026-11-13: a phase that runs the automated tests un
   - it analyzes the night, writes a findings report and opens a **draft** pull request;
   - nothing merges without the owner, as today.
 
+## Groups, run for what is in view (the owner, 2026-11-13)
+A sky test should not take over a night, and only real-sky results count. So the tests come in **groups**, each tagged with the targets and devices it needs, and a group runs inside a normal session, for what is being observed anyway:
+
+| Group | Needs | Checklist items |
+|---|---|---|
+| Any planet | a planet in view, the focuser | 1 (sharpness), 47 and 58 (autofocus, the fine pass), 55 (exposure ladder), 13 (throughput) |
+| Jupiter | Jupiter, with the planet group | 57 (Autorun round an event) |
+| Moon | the Moon | 58's Moon half (the surface fine pass), 18 (the mosaic) |
+| A star field or a solve | stars in frame, ASTAP | 3 and 15 (plate scale, row order), 53 (pointing) |
+| Tracking | any bright target, the mount | 48 to 50 (lock, hand jog, box change) |
+
+- **On demand.**
+  - A `TESTS` control offers only the groups the current target and connected devices allow, each with a rough duration.
+  - The owner picks one, or "all that apply". It runs on the session's own frames and hands control back when done.
+  - A group that does not apply is listed as not available tonight, with the reason (target, altitude, device). Nothing is faked to stand in for it.
+- **One group is a complete result.** It writes the same `results.json`. The checklist (156.3b) is updated for that group's items only, saying which group ran and when, and the handoff (156.4) works the same.
+- **The unattended run (156.2)** is the same groups in sequence, ordered by target altitude, on the owner's terms: horizon skips, failures passed over, stops on clouds, a lost target or a stalled device, and a park at the end.
+- **In the emulator: run all, on synthetic time** (the owner's addition, 2026-11-13). For deep testing on the bench:
+  - **Synthetic sky time.** The emulator's sky clock is set to a chosen night (`--sky-time <UTC>`, or `best`: for each group, a time when its target is well placed: Jupiter high, a moon event due, the Moon up, a star field). Every group then applies, whatever the real date.
+  - **Run all**, from `TESTS` or headless (`--tests all --sky-time best`), with the same supervisor, bundle and handoff as a real night.
+  - **Emulator results stay apart.** They are tagged `emulator` in `results.json` and never mark a clear-night item passed. They feed regressions and CI; only the sky settles an UNVERIFIED value.
+  - **Speed.** Real time at first. It gets faster as phase 153 brings the core's clock to each subsystem, until a whole night's groups run in minutes. This is 156.5's dress rehearsal.
+
 ## What it builds on
 - **The scenario runner (phase 125).**
   - `--scenario`, `tests/run-scenarios.ps1`, `tests/scenarios/*.scn`.

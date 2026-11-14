@@ -331,7 +331,9 @@ src\
 ├── sky\        Catalogue, ephemeris, solving, WCS, mosaics
 ├── net\        WebSocket, telemetry, preview stream, Leoben
 ├── profiles\   Target profiles
-└── main.cpp    Startup and all callback wiring
+├── app\        AppCore (phase 153): the core apart from the window, its
+│               clock and UI-sink seams, and the controllers as they move out
+└── main.cpp    Startup and the callback wiring not yet moved
 ```
 
 There are no empty directories in the repository (git does not track them);
@@ -339,8 +341,11 @@ There are no empty directories in the repository (git does not track them);
 copy (corrected 2026-11-13, phase 155).
 
 `main.cpp` is the largest risk in the tree: most `owes:` clauses in the status
-file come down to wiring there, which no test reaches. Phase 153 plans to take
-the wiring into an `AppCore` and tested controllers.
+file come down to wiring there, which no test reaches. Phase 153 takes the
+wiring into an `AppCore` and tested controllers. 153.0 (2026-11-13) moved the
+devices and the frame pipeline into `src/app/AppCore.h`, and the autofocus
+feeds into `src/app/AutofocusFeed.h`. `tests/app_headless.cpp` builds the same
+core on the emulators and runs it without a window, in groups.
 
 Data outside `src`: `data/object_knowledge.db`, `data/pointing_model.csv`,
 `profiles/*.ini`, `rig.ini` beside the executable, `captures/`, `logs/`, and

@@ -52,6 +52,8 @@ $Tests = @(
     @{ Name = "ser_drop_audit";    Sources = @() }
     @{ Name = "pixel_format";      Sources = @() }
     @{ Name = "net_policy";        Sources = @() }
+    @{ Name = "app_feed";          Sources = @() }
+    @{ Name = "app_headless";      Sources = @("src\core\CaptureManager.cpp", "src\core\WriteBuffer.cpp", "src\core\SERWriter.cpp", "src\core\FITSWriter.cpp") }
     @{ Name = "imaging_train";     Sources = @() }
     @{ Name = "leoben_weather";    Sources = @() }
     @{ Name = "mutual_events";     Sources = @() }
@@ -155,6 +157,9 @@ if (-not (Test-Path $vcvars)) {
 # EAF_focuser.h.
 $inc = "/I `"$root\src`" /I `"$root\external\ASI_SDK\include`" /I `"$root\external\EAF_SDK\include`""
 $failed = 0
+# Phase 153.0: each failure's last lines, repeated in the summary, so the
+# end of a long CI log says what failed and why.
+$failedTails = @()
 
 # ── sqlite3.dll beside the test binaries ────────────────────
 #
@@ -222,14 +227,17 @@ foreach ($t in $Tests) {
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[FAIL] $name did not compile:"
         $buildLog | Select-Object -Last 15 | ForEach-Object { Write-Host "    $_" }
+        $failedTails += ,@("$name (did not compile)", @($buildLog | Select-Object -Last 15))
         $failed++
         continue
     }
 
     Write-Host "--- running $name ---"
-    & $exe
+    $runOut = @()
+    & $exe 2>&1 | ForEach-Object { Write-Host $_; $runOut += "$_" }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[FAIL] $name"
+        $failedTails += ,@($name, @($runOut | Select-Object -Last 40))
         $failed++
     } else {
         Write-Host "[OK]   $name"
@@ -245,5 +253,10 @@ if ($failed -eq 0) {
 } else {
     Write-Host " $failed of $($Tests.Count) TEST(S) FAILED"
     Write-Host "============================================================"
+    foreach ($ft in $failedTails) {
+        Write-Host ""
+        Write-Host "--- $($ft[0]): its last lines ---"
+        $ft[1] | ForEach-Object { Write-Host "    $_" }
+    }
     exit 1
 }
